@@ -4,7 +4,7 @@
 // with reconstruction stages) also gets: themes, help, a rotate drag keeping the selection, a custom column used for
 // colour and a filter, the replay and the tour. Any console error, or a bundle taking over BUNDLE_TIMEOUT, fails.
 // Screenshots: <dir>/<bundle>_*.png (one small one for scenes over BIG objects). Progress: one timestamped line per step.
-// Usage: node e2e/smoke.mjs <viewer URL> <screenshot dir> [--deep <bundle>] [bundle ...]
+// Usage: node e2e/smoke.mjs <dev server URL> <screenshot dir> [--deep <bundle>] [bundle ...]  (dev builds expose the engine)
 import { chromium } from "playwright";
 
 const args = process.argv.slice(2), deepAt = args.indexOf("--deep");
@@ -165,10 +165,11 @@ async function deepChecks(page, fail, shot) {
   await shot("9_next_event");
 }
 
-/** The bundle's JSON header and file size, from two range requests. */
+/** The bundle's JSON header and file size: two range requests, or the whole file from a server without ranges. */
 async function header(file) {
   const get = (from, to) => fetch(`${base}${file}`, { headers: { Range: `bytes=${from}-${to}` } });
-  const head = await get(0, 11), n = Buffer.from(await head.arrayBuffer()).readUInt32LE(8);
+  const head = await get(0, 11), buf = Buffer.from(await head.arrayBuffer()), n = buf.readUInt32LE(8);
+  if (head.status === 200) return { ...JSON.parse(buf.subarray(12, 12 + n).toString()), size: buf.length };
   const size = Number(head.headers.get("Content-Range")?.split("/")[1]);
   return { ...JSON.parse(Buffer.from(await (await get(12, 11 + n)).arrayBuffer()).toString()), size };
 }

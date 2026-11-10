@@ -1,52 +1,69 @@
-# evd CAF service
+# evd site service
 
-Makes processed test-stand data browsable on a CERN website, with no server processes:
+Publishes test-stand data as a static website on EOS, with no server process: a cron job converts new NanoAOD files
+and rewrites the site index; CERN Web Services serves the folder with SSO.
 
 ```
-EOS: NanoAOD files of a campaign (hgcal-comm processing)
-  └─► cron on lxplus (every 15 min): run_sync.sh → evdtools sync
-        └─► site on EOS: data/<campaign>/<file>.evdb + index.json (newest data first)
-              └─► CERN Web Services (EOS folder, SSO): the built viewer, served as static files
-                    └─► browsers: pick a file, or "Live" to follow new data (index.json checked every minute)
+NanoAOD files on EOS (campaigns in campaigns.json)
+  └─► acron on lxplus, every 15 min: run_sync.sh → python3 -m evdtools sync
+        └─► <site>/data/<campaign>/<name>.evdb and <site>/index.json (newest data first)
+              └─► browsers: the built viewer (<site>/index.html, assets/) lists the bundles; Live follows new ones
 ```
 
-| Path | What |
+| path | contents |
 |---|---|
-| `/eos/user/m/mmarriot/evd/` | **the website**: `index.html`, `assets/` (viewer), `index.json`, `data/` |
-| `/eos/user/m/mmarriot/evd-service/code/` | what cron runs: `evdtools/`, `service/` (copied by `deploy.sh`) |
+| `/eos/user/m/mmarriot/evd/` | the site: `index.html` and `assets/` (viewer), `index.json`, `data/<campaign>/` (bundles and `campaign.json` with titles) |
+| `/eos/user/m/mmarriot/evd-service/code/` | what cron runs: `evdtools/`, `service/`, `pylib/` (extra packages), copied by `deploy.sh` |
 | `/eos/user/m/mmarriot/evd-service/state/` | `lock/` while a sync runs, `failures.json` |
-| `/eos/user/m/mmarriot/evd-service/logs/` | `sync.log` (cron), `backfill.log` |
+| `/eos/user/m/mmarriot/evd-service/logs/` | `sync.log`, written by the cron line |
 
-## What a sync does
+## Configuration (`campaigns.json`)
 
-`python3 -m evdtools sync --config campaigns.json --max-files 1` (see `evdtools/service.py`):
-1. For each campaign, lists the input files (`inputs` glob) and skips those that already have a bundle, were
-   modified less than `settle` seconds ago (may still be copying), or failed `max_failures` times.
-2. Converts at most `--max-files` of them, reading through XRootD (`xrootd` prefix) with the campaign's profile
-   (its cuts and event selection) and keeping at most `max_events` events per file.
-3. Rewrites `index.json` from the bundles present (atomic rename).
+Top level: `site`, `state`, `settle` (s, default 600), `max_failures` (default 3), `campaigns`. Per campaign:
+`name` (folder under `data/`), `title`, `inputs` (glob), `profile`, `max_events` per file, optional `xrootd`
+(prefix for reading the inputs, e.g. `root://eoscms.cern.ch/`), `stem: "wildcards"` (name bundles after the
+wildcard parts of the path, for inputs that share a file name, e.g. one `Events_1.root` per run directory) and
+`runInfo` (as `--run-info`, e.g. `registry:RunRegistryP5.RunTable`). The format is also described in
+`evdtools/service.py`.
 
-A lock directory makes overlapping cron runs harmless; a lock older than 3 h is treated as left by a dead run.
-Converting a file is bounded by `max_events`; one file per run keeps a pass well inside the cron interval.
+## What a sync pass does
+
+`run_sync.sh` sources an LCG view from CVMFS if `python3` lacks uproot, numpy, scipy or the XRootD bindings, adds
+`pylib/` to `PYTHONPATH`, and runs `python3 -m evdtools sync --config campaigns.json --max-files 1`
+(`EVD_CONFIG` and `EVD_MAX_FILES` override both). The pass:
+
+1. takes the lock (`state/lock/`, created atomically); if another run holds it, exits. A lock older than 3 h is
+   treated as left by a dead run: it is removed with that run's partial bundles;
+2. lists each campaign's inputs and skips those that already have a bundle, were modified less than `settle` s ago
+   (may still be copying), or failed `max_failures` times;
+3. converts at most `--max-files` of them, in natural file-name order, with the campaign's profile, keeping at most `max_events`
+   events per file;
+4. rewrites `index.json` from the bundles present.
+
+Bundles and the index are written to temporary files and renamed, so readers never see partial files. SIGTERM exits
+through the same cleanup.
 
 ## Operations
 
-- **Update the viewer or converter:** `service/deploy.sh` (from a machine with node and EOS access).
-- **Add a campaign:** add an entry to `campaigns.json`, redeploy; the next cron run picks up its files.
-- **Add a finished sample** (e.g. simulation), shown under its own heading in the data set list:
-  `python3 -m evdtools publish ttbar.evdb --site /eos/user/m/mmarriot/evd --campaign simulation --title Simulation --file-title "ttbar 14 TeV · TICL v6 GPU"`
-- **Simulate live data** (to demo Live mode without new data): `python3 -m evdtools simulate
-  /eos/user/m/mmarriot/evd-service/mct_22000077.evdb --site /eos/user/m/mmarriot/evd --campaign mct_live_demo
-  --title "MCT 22000077 cosmics (simulated live)" --events 10 --interval 60` (remove `data/mct_live_demo` first to replay).
-- **Re-convert a file** (e.g. after a profile change): delete its `.evdb`; the next run redoes it.
+- **Update the viewer or converter:** `service/deploy.sh [site] [service dir]` from a machine with node and EOS
+  access. It builds the viewer, copies new assets, then `index.html`, then removes old assets, and copies
+  `evdtools/` and `service/` to `code/` (installing `mysql-connector-python` into `code/pylib/` once).
+- **Add a campaign:** add it to `campaigns.json` and redeploy; the next pass picks up its files.
+- **Re-convert a file** (e.g. after a profile change): delete its `.evdb`.
 - **Retry a failed file:** remove its entry from `state/failures.json`.
-- **Check:** `tail /eos/user/m/mmarriot/evd-service/logs/sync.log`; the viewer's Live button shows when the index was
-  last updated.
-- **Cron** (lxplus, `acrontab -e`): see `LXPLUS_SETUP.md`.
+- **Add a finished sample** (e.g. simulation) under its own heading:
+  `python3 -m evdtools publish ttbar.evdb --site /eos/user/m/mmarriot/evd --campaign simulation --title Simulation --file-title "ttbar 14 TeV · TICL v6 GPU"`
+- **Demonstrate Live without new data:** `python3 -m evdtools simulate /eos/user/m/mmarriot/evd-service/mct_22000077.evdb
+  --site /eos/user/m/mmarriot/evd --campaign mct_live_demo --title "MCT cosmics (simulated live)" --events 10
+  --interval 60` publishes a few events every minute (remove `data/mct_live_demo/` first to start over).
+- **Check:** `tail /eos/user/m/mmarriot/evd-service/logs/sync.log`, and `updated` in `index.json`.
+- **Cron:** see [LXPLUS_SETUP.md](LXPLUS_SETUP.md).
 
 ## Costs
 
-- Per input file: one XRootD read of the branches the event selection needs for the entries scanned, plus the full
-  events selected; then a gzip-compressed bundle (MCT: about 5 KB per event). Measured for the MCT: see the logs.
-- Per open page: one `index.json` request a minute (a few KB), and one ranged request per event viewed.
-- Idle cron run: a directory listing on EOS and an index rewrite, a few seconds.
+- Per input file: XRootD reads of the branches the event selection needs (if it depends on stored columns only), then
+  of the selected events in full; one gzip bundle written (MCT: about 5 KB per event).
+- Idle pass: a glob over each campaign's inputs and the site's bundles on EOS, opening each bundle's header and
+  index, and an index rewrite.
+- Per open page: `index.json` every 30 s while the page is visible (every 10 s while Live waits for data), one
+  ranged read per event viewed.

@@ -168,3 +168,13 @@ details.card { margin-top: 0; }
   .inspector { width: calc(100% - 24px); max-height: 50%; }
   .hintbar, .resizer { display: none; }
 }
+
+/* Per-event summary charts (Event tab): one row per group, label | bar | value. */
+.bars { display: grid; gap: 2px; font-size: 12px; font-variant-numeric: tabular-nums; }
+.bar { display: grid; grid-template-columns: 2.5em 1fr 4.5em; align-items: center; gap: 6px; }
+.bar > span:first-child { color: var(--muted); text-align: right; }
+.bar > span:last-child { text-align: right; }
+.bar .track { height: 10px; background: var(--surface-2); border-radius: 2px; overflow: hidden; }
+.bar .track > span { display: block; height: 100%; background: var(--accent); border-radius: 2px; }
+.segmented.presets { display: flex; margin-bottom: 10px; }
+.segmented.presets button { flex: 1; }

@@ -59,7 +59,7 @@ class BundleWriter:
         self._file = open(self._tmp, "wb")
         head = _json(header, 12)
         self._file.write(MAGIC + struct.pack("<II", VERSION, len(head)) + head)
-        self._events, self._runs = [], []
+        self._events, self._runs, self._run_info = [], [], {}
 
     def add_run(self, run_id, tables, relations):
         """The per-run tables of a run, written once; readers add them to every event of that run."""
@@ -67,6 +67,14 @@ class BundleWriter:
         self._runs.append({"run": int(run_id[0]), "offset": self._file.tell(), "length": len(blob),
                            "counts": {t: int(n) for t, (n, _) in tables.items()}})
         self._file.write(blob)
+
+    def runs(self):
+        """Runs of the events written so far."""
+        return {e["run"] for e in self._events}
+
+    def set_run_info(self, info):
+        """{run: {field: value}}: information about the runs (type, setup, beam, ...), stored in the index."""
+        self._run_info = {int(r): dict(v) for r, v in info.items() if v}
 
     def add(self, event_id, tables, relations):
         blob = gzip.compress(encode_record(event_id, tables, relations), compresslevel=self._level)
@@ -76,8 +84,11 @@ class BundleWriter:
         self._file.write(blob)
 
     def close(self):
-        index = json.dumps({"events": self._events, **({"runs": self._runs} if self._runs else {})},
-                           separators=(",", ":")).encode()
+        runs = {r["run"]: r for r in self._runs}
+        for run, info in self._run_info.items():
+            runs.setdefault(run, {"run": run})["info"] = info
+        runs = [runs[r] for r in sorted(runs)]
+        index = json.dumps({"events": self._events, **({"runs": runs} if runs else {})}, separators=(",", ":")).encode()
         offset = self._file.tell()
         self._file.write(index + struct.pack("<QI", offset, len(index)) + MAGIC)
         self._file.close()
@@ -116,8 +127,12 @@ class Bundle:
 
     def run(self, run):
         """The per-run tables of `run` ({name: (n, {col: array})}), or {} if the bundle has none for it."""
-        entry = next((r for r in self.runs if r["run"] == run), None)
+        entry = next((r for r in self.runs if r["run"] == run and "offset" in r), None)
         return self._record(entry)["tables"] if entry else {}
+
+    def run_info(self, run):
+        """Information about `run` (type, setup, beam, ...), or {}."""
+        return next((r.get("info", {}) for r in self.runs if r["run"] == run), {})
 
     def event(self, i):
         """{"event": [run, lumi, event], "tables": {name: (n, {col: array})}, "relations": {name: {...}}}"""

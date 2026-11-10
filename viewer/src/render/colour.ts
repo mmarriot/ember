@@ -76,7 +76,8 @@ export function colours(d: DisplayLayer, t: Table, ev: EventData, header: Header
       set(i, rgb(category(used.get(v)!)));
     }
     const items = [...used].sort((a, b) => a[1] - b[1]).map(([v, k]) => ({ label: names[v] ?? v, colour: category(k) }));
-    return { rgb: out, legend: { kind: "category", text: `by ${column}`, items } };
+    // Up to 16 values get a legend entry each; more (e.g. one colour per module) only tell neighbours apart.
+    return { rgb: out, legend: { kind: "category", text: items.length > 16 ? `by ${column} (${items.length} values)` : `by ${column}`, ...(items.length > 16 ? {} : { items }) } };
   }
   const relName = typeof d.colourBy === "object" && "relation" in d.colourBy ? d.colourBy.relation : undefined;
   const rel = relName ? ev.relations[relName] : undefined;

@@ -43,6 +43,12 @@ def main(argv=None):
     p.add_argument("-o", "--output", required=True)
     p.add_argument("--profile", default="hgcal", help="profile name or JSON path")
     p.add_argument("--max-events", type=int)
+    p.add_argument("--events", help="only these event numbers, e.g. 416622,416630-416640 (the profile's selection "
+                                    "still applies)")
+    p.add_argument("--run-tables", help="NanoAOD file with the per-run tables (Runs tree, e.g. the channel table) of the "
+                                        "same runs, for inputs made without them")
+    p.add_argument("--run-info", help="information about the runs: a JSON file, or registry:<database>.<table> "
+                                      "(e.g. registry:RunRegistryP5.RunTable)")
     p = sub.add_parser("inspect", help="summarise a bundle")
     p.add_argument("bundle")
     p = sub.add_parser("validate", help="check the structure of every event")
@@ -70,7 +76,9 @@ def main(argv=None):
 
     if args.command == "from-nano":
         from .nano import convert  # needs uproot; inspect/validate need only numpy
-        n = convert(args.inputs, args.output, args.profile, args.max_events)
+        from .nano import parse_events
+        n = convert(args.inputs, args.output, args.profile, args.max_events, run_info=args.run_info,
+                    events=parse_events(args.events) if args.events else None, run_tables=args.run_tables)
         print(f"wrote {n} events to {args.output}")
     elif args.command == "inspect":
         b = Bundle(args.bundle)
@@ -81,6 +89,9 @@ def main(argv=None):
         print(f"  relations: {', '.join(relations)}")
         sizes = [e["length"] for e in b.events]
         print(f"  record size: mean {np.mean(sizes) / 1024:.0f} KB, max {max(sizes) / 1024:.0f} KB (gzip)")
+        for r in b.runs:
+            if r.get("info"):
+                print(f"  run {r['run']}: " + ", ".join(f"{k} {v}" for k, v in r["info"].items()))
         for e in b.events[:5]:
             top = sorted(e["counts"].items(), key=lambda kv: -kv[1])[:4]
             print(f"  run {e['run']} event {e['event']}: " + ", ".join(f"{t} {n}" for t, n in top))

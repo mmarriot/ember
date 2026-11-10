@@ -1,7 +1,8 @@
 // Reconstruction replay: an event builds up the way it happened, then the way it was reconstructed.
 //  1. Physics, in slow motion: each hit appears at its arrival time. Hits with a measured time (display hint `time`)
 //     use it; the others use their straight-line time of flight from the collision point. A caption shows the clock.
-//     For a front moving along a direction (header `replay.direction`, e.g. cosmics) the order is geometric instead.
+//     For a front moving along a direction (header `replay.direction`, e.g. cosmics) the order is geometric instead,
+//     and with `replay.order: "random"` (no meaningful arrival times, e.g. noise) it is a fixed random order.
 //  2. Clustering: grouped objects (e.g. layer clusters) appear, sweeping in the same order.
 //  3. Linking: grouped objects take their group's colour and the groups (showers) grow in.
 //     With reconstruction stages (display hint `stage`: tracksters, linked tracksters, ..., candidates), each stage
@@ -27,7 +28,7 @@ export interface Plan {
 
 /** Sets every layer's timeline and returns the plan (phase times and captions). */
 export function planReplay(items: ReplayItem[], how: Header["replay"]): Plan {
-  const direction = how?.direction, [ox, oy, oz] = how?.from ?? [0, 0, 0];
+  const direction = how?.direction, random = how?.order === "random", [ox, oy, oz] = how?.from ?? [0, 0, 0];
   const tof = (l: Layer, i: number) => Math.hypot(l.x[i] - ox, l.y[i] - oy, l.z[i] - oz) / C;
   const isShower = (d: DisplayLayer) => d.stage !== undefined || d.repr === "ellipsoids" || d.colourBy === "row";
   const isGrouped = (d: DisplayLayer) => typeof d.colourBy === "object" && "relation" in d.colourBy;
@@ -37,6 +38,10 @@ export function planReplay(items: ReplayItem[], how: Header["replay"]): Plan {
   // Arrival "time" per object: ns (measured or time of flight), or the coordinate along `direction`.
   const arrivals = items.map(({ layer: l, d, t }) => {
     const n = l.x.length, out = new Float64Array(n);
+    if (random) { // a fixed pseudo-random order (the same every replay): hash of the row number
+      for (let i = 0; i < n; i++) out[i] = (Math.imul(i + 1, 2654435761) >>> 0) / 4294967296;
+      return out;
+    }
     if (direction) {
       for (let i = 0; i < n; i++) out[i] = l.x[i] * direction[0] + l.y[i] * direction[1] + l.z[i] * direction[2];
       return out;
@@ -95,8 +100,10 @@ export function planReplay(items: ReplayItem[], how: Header["replay"]): Plan {
     stages: stages.map(({ start, tables }) => ({ start, tables })),
     caption(s) {
       if (s < TRAVEL * LATE)
-        return direction
-          ? { title: "Particles crossing the detector", detail: "hits appear in order along the direction of travel" }
+        return random
+          ? { title: "Hits appearing", detail: "in random order: these hits have no arrival times" }
+          : direction
+          ? { title: "Particles crossing the detector", detail: "hits appear in order of position along the direction of travel, not at measured times" }
           : { title: `t = ${(t0 + (Math.min(s, TRAVEL * LATE) / TRAVEL) * (t1 - t0)).toFixed(2)} ns after the collision`,
               detail: measured ? `${Math.round((100 * measured) / total)}% of hits at their measured time, the rest at their time of flight` : "times of flight from the collision point" };
       if (grouped && s < LINK[0]) return { title: `Clustering hits into ${name(grouped)}` };

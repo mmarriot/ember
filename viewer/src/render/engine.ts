@@ -25,6 +25,8 @@ export class Engine {
   private replayClock: { t0: number; seconds: number } | null = null;
   private highlightFade: { t0: number; ms: number } | null = null;
   private orbit = 0; // auto-rotation, turns per minute (3D)
+  /** Smallest radius (cm) framed around the drawn objects: a shower and its surroundings by default. */
+  minRadius = 70;
   /** Called on every replay frame with the replay time (s), and with null when it ends. */
   onReplayTick: (t: number | null) => void = () => {};
   /** Called when the user starts rotating, panning or zooming. */
@@ -178,7 +180,7 @@ export class Engine {
       const zoom = 0.85 * Math.min((this.camRZ.right - this.camRZ.left) / Math.max(size.x + 30, 80), (this.camRZ.top - this.camRZ.bottom) / Math.max(size.y + 30, 80));
       this.go(new THREE.Vector3(ctr.x, ctr.y, 1000), new THREE.Vector3(ctr.x, ctr.y, 0), zoom, animate, ms, 0);
     } else {
-      const radius = Math.max(0.5 * size.length() + 15, 70); // cm: a shower and its surroundings
+      const radius = Math.max(0.5 * size.length() + 0.2 * this.minRadius, this.minRadius); // cm
       const dir = this.cam3d.position.clone().sub(this.ctl3d.target);
       if (dir.lengthSq() < 1e-6) dir.set(...DIRECTIONS[this.view as Exclude<ViewName, "rz">]); // no direction yet
       dir.normalize();
@@ -211,7 +213,9 @@ export class Engine {
 
   private box(selection?: Map<string, Iterable<number>>): [THREE.Vector3, THREE.Vector3] | null {
     const pts: number[][] = [[], [], []];
-    const layers = this.layers.filter((l) => !selection || selection.has(l.table));
+    // Background (context) layers are framed only when nothing else is drawn or they are selected.
+    const fg = this.layers.filter((l) => !l.context && l.x.length);
+    const layers = this.layers.filter((l) => (selection ? selection.has(l.table) : !l.context || !fg.length));
     const total = layers.reduce((s, l) => s + l.x.length, 0);
     const step = Math.max(1, Math.floor(total / 20000));
     let k = 0;

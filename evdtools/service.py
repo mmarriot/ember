@@ -11,6 +11,8 @@ Config (JSON):
    "campaigns": [{"name": "mct_22000077", "title": "MCT run 22000077", "profile": "mct", "max_events": 1000,
                   "inputs": "/eos/cms/store/.../Run22000077/*/NANO_22000077_*.root",
                   "xrootd": "root://eoscms.cern.ch/"}]}
+  Optional per campaign: "stem": "wildcards" names bundles after the wildcard parts of the input path;
+  "runInfo": where to find information about the runs (see evdtools/runinfo.py), e.g. "registry:RunRegistryP5.RunTable".
 """
 import datetime
 import glob
@@ -45,11 +47,21 @@ def _write_json(path, data):
     os.replace(tmp, path)
 
 
+def _stem(campaign, path):
+    """Name of an input's bundle: the file name without extension, or with "stem": "wildcards" the parts of the path
+    matched by the `inputs` pattern's wildcards, joined by "_" (for inputs that share a file name, e.g. one
+    Events_1.root per run directory)."""
+    if campaign.get("stem") != "wildcards":
+        return os.path.splitext(os.path.basename(path))[0]
+    pattern = "".join("([^/]*)" if part == "*" else re.escape(part) for part in re.split(r"(\*)", campaign["inputs"]))
+    return "_".join(re.fullmatch(pattern, path).groups())
+
+
 def pending(campaign, site, settle, failures, max_failures):
     """Inputs of a campaign without a bundle yet, oldest first, skipping files still being written or given up on."""
     out = []
     for path in sorted(glob.glob(campaign["inputs"]), key=_natural):
-        stem = os.path.splitext(os.path.basename(path))[0]
+        stem = _stem(campaign, path)
         target = os.path.join(site, "data", campaign["name"], f"{stem}.evdb")
         key = f"{campaign['name']}/{stem}"
         if os.path.exists(target) or failures.get(key, 0) >= max_failures or time.time() - os.path.getmtime(path) < settle:
@@ -137,7 +149,8 @@ def sync(config, max_files=None, dry_run=False, convert=None):
             started = time.time()
             try:
                 n = convert([source], target, campaign["profile"], campaign.get("max_events"),
-                            data_time=datetime.datetime.fromtimestamp(os.path.getmtime(path), datetime.timezone.utc))
+                            data_time=datetime.datetime.fromtimestamp(os.path.getmtime(path), datetime.timezone.utc),
+                            **({"run_info": campaign["runInfo"]} if campaign.get("runInfo") else {}))
                 log(f"{key}: {n} events in {time.time() - started:.0f} s")
                 done += 1
             except Exception as e:  # keep going with the other files; give up on this one after max_failures

@@ -14,5 +14,9 @@ rsync -a "$REPO/viewer/dist/assets/" "$SITE/assets/"
 cp "$REPO/viewer/dist/index.html" "$SITE/index.html.tmp" && mv "$SITE/index.html.tmp" "$SITE/index.html"
 rsync -a --delete "$REPO/viewer/dist/assets/" "$SITE/assets/"  # then drop files of older builds
 rsync -a --delete --exclude __pycache__ "$REPO/evdtools" "$REPO/service" "$SERVICE/code/"
+# Run information from the run registry needs mysql-connector-python (pure Python): installed once next to the code.
+if [ ! -d "$SERVICE/code/pylib/mysql" ]; then
+  python3 -m pip install -q --target "$SERVICE/code/pylib" mysql-connector-python || echo "warning: no mysql-connector-python; runs get no registry information"
+fi
 echo "site: $SITE  (viewer + index.json + data/)"
 echo "code: $SERVICE/code  (cron runs $SERVICE/code/service/run_sync.sh)"

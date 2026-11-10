@@ -18,6 +18,16 @@ function hits(z: number[], time: number[]) {
 }
 
 describe("replay timeline", () => {
+  it("uses a fixed random order, not distance or time, with order: random", () => {
+    const z = [300, 310, 320, 330, 340, 350, 360, 370];
+    const h = hits(z, z.map((v) => v / C));
+    const plan = planReplay([h.item], { order: "random" });
+    const first = [...h.appear()];
+    expect(first.some((v, i) => i > 0 && v < first[i - 1])).toBe(true); // not in distance order
+    planReplay([h.item], { order: "random" });
+    expect([...h.appear()]).toEqual(first); // the same every replay
+    expect(plan.caption(0.5)?.detail).toContain("no arrival times");
+  });
   it("orders hits by measured arrival time, not by distance", () => {
     // all at 330-345 cm (11-11.5 ns of flight); the nearest hit arrives last (a slow particle)
     const h = hits([330, 335, 340, 345, 331, 332], [11.0, 11.2, 11.4, 11.6, 18.0, 11.1]);

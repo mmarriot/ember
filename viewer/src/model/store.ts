@@ -6,6 +6,7 @@ import type { Caption } from "../render/replay";
 import type { Hit, ViewName } from "../render/engine";
 import { customColumns, loadCustom, withCustomColumns } from "./custom";
 import { related, type Ref } from "./relations";
+import { activePreset } from "./presets";
 
 /** One entry of the site's index.json (written by `evdtools sync`; hand-written ones need only file and title). */
 export interface Listed { file: string; title: string; campaign?: string; campaign_title?: string; events?: number; data_time?: string }
@@ -92,6 +93,8 @@ export async function openBundle(name: string, open = () => httpSource(name)) {
     }
     bundle.value = b;
     bundleName.value = name;
+    if (b.header.view?.start) view.value = b.header.view.start;
+    activePreset.value = 0;
     loadCustom(b.header.profile);
     visible.value = Object.fromEntries(b.header.display.map((d) => [layerKey(d), d.visible]));
     cuts.value = Object.fromEntries([...cutGroups.value].map(([g, info]) => [g, info.default]));

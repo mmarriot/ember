@@ -113,3 +113,8 @@ def test_replay_hint_is_passed_to_the_header():
     conv, _ = convert({**PROFILE, "replay": {"direction": [0, -1, 0]}}, EVENT)
     assert conv.header([], "t")["replay"] == {"direction": [0, -1, 0]}
     assert "replay" not in convert(PROFILE, EVENT)[0].header([], "t")
+
+
+def test_event_lists():
+    from evdtools.nano import parse_events
+    assert parse_events("5, 7-9,12") == {5, 7, 8, 9, 12}

@@ -111,3 +111,10 @@ def test_publish_adds_a_titled_bundle_to_the_site(tmp_path):
     [entry] = json.load(open(os.path.join(site, "index.json")))["bundles"]
     assert entry["file"] == "data/simulation/ttbar.evdb" and entry["title"] == "ttbar 14 TeV · 2 events"
     assert entry["campaign_title"] == "Simulation"
+
+
+def test_wildcard_stems_name_bundles_after_the_matched_path_parts(tmp_path):
+    from evdtools.service import _stem
+    campaign = {"inputs": str(tmp_path / "*" / "v3" / "Events_1.root"), "stem": "wildcards"}
+    assert _stem(campaign, str(tmp_path / "117135" / "v3" / "Events_1.root")) == "117135"
+    assert _stem({"inputs": campaign["inputs"]}, str(tmp_path / "117135" / "v3" / "Events_1.root")) == "Events_1"

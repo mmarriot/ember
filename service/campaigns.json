@@ -5,12 +5,13 @@
   "max_failures": 3,
   "campaigns": [
     {
-      "name": "mct_22000077",
-      "title": "MCT run 22000077 · cosmics",
-      "inputs": "/eos/cms/store/group/dpg_hgcal/tb_hgcal/2026/P5/Run22000077/*/NANO_22000077_*.root",
+      "name": "testbeam_2026",
+      "title": "Test beam 2026 \u00b7 11 layers (TestBeam_ReReco v3)",
+      "inputs": "/eos/cms/store/group/dpg_hgcal/tb_hgcal/2026/TestBeam_ReReco/*/v3/Events_1.root",
       "xrootd": "root://eoscms.cern.ch/",
-      "profile": "mct",
-      "max_events": 1000
+      "profile": "testbeam",
+      "max_events": 300,
+      "stem": "wildcards"
     }
   ]
 }

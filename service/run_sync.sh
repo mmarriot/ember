@@ -11,5 +11,7 @@ CONFIG=${EVD_CONFIG:-$HERE/campaigns.json}
 if ! python3 -c "import uproot, numpy, scipy, XRootD" 2>/dev/null; then
   source /cvmfs/sft.cern.ch/lcg/views/LCG_107/x86_64-el9-gcc13-opt/setup.sh
 fi
+# Optional extra packages (e.g. mysql-connector-python, for run information from the run registry), see deploy.sh
+[ -d "$CODE/pylib" ] && export PYTHONPATH="$CODE/pylib${PYTHONPATH:+:$PYTHONPATH}"
 cd "$CODE"
 exec python3 -m evdtools sync --config "$CONFIG" --max-files "${EVD_MAX_FILES:-1}"

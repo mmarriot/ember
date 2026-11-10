@@ -12,7 +12,8 @@ u64 index offset | u32 index length | "EVDB"       16-byte trailer
 ```
 
 A reader fetches the first 12 bytes plus the header, then the trailer, then the index. Each event is then one
-ranged read (`offset`, `length` from the index).
+ranged read (`offset`, `length` from the index), plus, once per run, the run's record if the bundle has per-run
+tables.
 
 ### Header JSON (run level, the same for every event)
 
@@ -29,15 +30,33 @@ ranged read (`offset`, `length` from the index).
 
 Column types: `f32 f64 i8 u8 i16 u16 i32 u32 i64 u64`. Booleans are stored as `u8`.
 
+A table with `"scope": "run"` (e.g. a channel table from the NanoAOD Runs tree) is stored once per run in a run
+record and belongs to every event of that run: readers add the run record's tables to each event's.
+
+Optional, passed from the profile to the viewer: `replay` (below), `view` (`{"start": "3d"|"front"|"side"|"rz",
+"minRadius": cm}`: the starting camera preset and the smallest radius framed around the drawn objects) and
+`summaries` (`[{"title", "table", "groupBy", "value", "op": "sum"|"count"|"mean", "unit", "where"}]`: per-event
+charts of the `table` rows that pass the cuts (and the expression `where`), grouped by the integer column `groupBy`,
+counted, summed or averaged over `value`), `presets` (`[{"name", "colour": {table: column}, "filters": {table:
+expression}}]`: named colour and filter settings), `runTitle` and `runFields` (how runs are described from their
+`info`).
+
 Optional `replay` (from the profile): how particles cross the detector, for the viewer's reconstruction replay.
 `{"from": [x, y, z]}` (cm): they travel away from this point (default: the origin, i.e. collisions);
-`{"direction": [dx, dy, dz]}`: a plane front moving along this direction, e.g. `[0, -1, 0]` for cosmics.
+`{"direction": [dx, dy, dz]}`: a plane front moving along this direction, e.g. `[0, -1, 0]` for cosmics (an order by
+position, not measured times); `{"order": "random"}`: a fixed random order, for hits without meaningful arrival times
+(e.g. noise). The viewer's captions say which applies.
 
 ### Index JSON
 
 ```json
-{ "events": [ {"run": 1, "lumi": 1, "event": 17, "offset": 4096, "length": 81234, "counts": {"TICLSoATracksters": 50}} ] }
+{ "events": [ {"run": 1, "lumi": 1, "event": 17, "offset": 4096, "length": 81234, "counts": {"TICLSoATracksters": 50}} ],
+  "runs":   [ {"run": 1, "offset": 2048, "length": 9000, "counts": {"HGCChannel": 25733}} ] }
 ```
+
+`runs` (optional) locates the run records: same encoding as event records, with `"event": [run, 0, 0]`. An entry may
+also, or only, carry `info`: what is known about the run (`{"Type": "beam", "Beam": "e-", "Energy": 150, ...}`,
+free-form), shown by the viewer and used by the profile's `runTitle`.
 
 ## Record (after gunzip)
 
@@ -76,6 +95,7 @@ Optional `replay` (from the profile): how particles cross the detector, for the 
 | `axis`, `extent` | `ellipsoids`: principal-axis columns and eigenvalue columns |
 | `group`, `label`, `visible` | UI grouping, name, default visibility |
 | `kind`, `source` | optional: the object type (e.g. `trackster`; `group` is then its display name) and the reconstruction path that produced it (e.g. `SoA`, `legacy`). Layers of one kind are shown together, tagged with their source |
+| `context`, `dim` | a background layer (e.g. every readout channel): not framed, not replayed, drawn thin and without depth so it never hides the event, picked only when nothing else is near; `dim` (0..1) mixes its colours towards the background |
 | `cut` | `{"group", "column", "unit", "default"}`: a minimum on `column`, with one slider per `group` shared by every layer in the group (e.g. SoA and legacy rechits get the same energy cut) |
 
 Tables without a display entry still appear in the inspector and table views.

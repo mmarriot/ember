@@ -259,7 +259,7 @@ class Converter:
         for layer in self.display:
             self._check_display(layer)
         self.replay = profile.get("replay")  # passed to the viewer verbatim
-        self.profile_extra = profile  # `view` and `summaries` are passed to the viewer verbatim too
+        self.profile_extra = profile  # `view`, `summaries`, `runTitle` and `presets` go to the viewer verbatim too
 
     def _available(self, rel):
         """A relation is kept if all its tables (for "compose": the relations it chains) are in the file; then every
@@ -313,7 +313,7 @@ class Converter:
                           for n, r in self.relations.items() if r["from"] in written and r["to"] in written},
             "display": self.display,
             **({"replay": self.replay} if self.replay else {}),
-            **{k: self.profile_extra[k] for k in ("view", "summaries") if k in self.profile_extra},
+            **{k: self.profile_extra[k] for k in ("view", "summaries", "runTitle", "runFields", "presets") if k in self.profile_extra},
         }
 
     def branches(self, scope="event"):
@@ -336,7 +336,7 @@ class Converter:
         cols = {(t, c) for t, cond in conds for c in _operands(cond[0])}
         if cols & self.derived:
             return None
-        return sorted(f"n{t}" for t in tables) + sorted(f"{t}_{c}" for t, c in cols)
+        return sorted(f"n{t}" for t in tables) + sorted(f"{t}_{c}" for t, c in cols) + (["run"] if self.run_scope else [])
 
     def _read(self, arrays, i):
         """Tables of entry i, with whichever of their columns `arrays` holds."""
@@ -463,13 +463,19 @@ class Converter:
             src, indices = src[keep], dst[keep]
             weights = {w: a[keep] for w, a in weights.items()}
             offsets = np.concatenate([[0], np.cumsum(np.bincount(src, minlength=n_from))])
-        elif kind == "index":  # a column of `from` holding one row of `to` (< 0: none), optionally through a lookup
+        elif kind == "index":  # a column holding one row of the other table (< 0: none), optionally through a lookup
             idx = col(rel["index"])
             if "via" in rel:  # `via` maps the index column to rows of `to`, e.g. a dense index -> digi row table
                 via = col(rel["via"])
                 ok = (idx >= 0) & (idx < len(via))
                 idx = np.where(ok, via[np.where(ok, idx, 0)], -1)
-            offsets, indices = np.concatenate([[0], np.cumsum(idx >= 0)]), idx[idx >= 0]
+            if _column(rel["index"])[0] == rel["to"]:  # the column is on `to` (e.g. each hit names its cluster):
+                rows = np.flatnonzero(idx >= 0)        # each `from` row gets the `to` rows that name it
+                rows = rows[np.argsort(idx[rows], kind="stable")]
+                offsets = np.concatenate([[0], np.cumsum(np.bincount(idx[rows], minlength=n_from))])
+                indices = rows
+            else:
+                offsets, indices = np.concatenate([[0], np.cumsum(idx >= 0)]), idx[idx >= 0]
         else:
             raise ValueError(f"relation {rel['name']}: unknown kind {kind}")
         if len(offsets) != n_from + 1 or offsets[-1] != len(indices) or (len(indices) and indices.max() >= n_to):
@@ -493,15 +499,38 @@ def _run_tables(conv, f):
     return {int(arrays["run"][i]): conv.run_tables(arrays, i) for i in range(len(arrays["run"]))}
 
 
-def _records(conv, files, log):
+def parse_events(spec):
+    """Event numbers from "416622,416630-416640" (ranges inclusive)."""
+    out = set()
+    for part in filter(None, (p.strip() for p in spec.split(","))):
+        lo, _, hi = part.partition("-")
+        out.update(range(int(lo), int(hi or lo) + 1))
+    return out
+
+
+def _records(conv, files, log, events=None, runs=None):
     """(record, run tables) of the converted events of `files`, in order. With an event selection on plain columns,
-    a first pass reads only the branches that decide it, and the full event is read only for the selected entries."""
+    a first pass reads only the branches that decide it, and the full event is read only for the selected entries.
+    `events`: only these event numbers (found from the event branch alone, then read one by one, in event order);
+    `runs`: per-run tables to use instead of each file's own."""
     pre, full = conv.selection_branches(), conv.branches()
     scanned = selected = 0
+    given = runs
     for path in files:
         with _open(path) as f:
-            runs = _run_tables(conv, f)
+            if given is None:
+                runs = _run_tables(conv, f)
             tree = f["Events"]
+            if events is not None:
+                numbers = tree["event"].array(library="np")
+                chosen = np.flatnonzero(np.isin(numbers, list(events)))
+                for e in chosen[np.argsort(numbers[chosen], kind="stable")]:  # in event order: before, during, after
+                    arrays = tree.arrays(full, entry_start=e, entry_stop=e + 1, library="np")
+                    record = conv.event(arrays, 0, runs.get(int(arrays["run"][0])) if runs else None)
+                    if record is not None:
+                        yield record, runs.get(int(arrays["run"][0])) if runs else None
+                print(f"{os.path.basename(path)}: {np.isin(numbers, list(events)).sum()} of the requested events", file=log)
+                continue
             for arrays, report in tree.iterate(pre or full, step_size="200 MB", library="np", report=True):
                 n = report.tree_entry_stop - report.tree_entry_start
                 for i in range(n):
@@ -521,11 +550,22 @@ def _records(conv, files, log):
                     print(f"{os.path.basename(path)}: scanned {scanned}, selected {selected}", file=log)
 
 
-def convert(files, output, profile_name="hgcal", max_events=None, log=sys.stderr, data_time=None):
-    """Write the (selected) events of `files` to the bundle `output`; `data_time`: when the input was produced."""
+def convert(files, output, profile_name="hgcal", max_events=None, log=sys.stderr, data_time=None, run_info=None,
+            events=None, run_tables=None):
+    """Write the (selected) events of `files` to the bundle `output`; `data_time`: when the input was produced;
+    `run_info`: where to find information about the runs (see runinfo.load); `events`: only these event numbers;
+    `run_tables`: a NanoAOD file whose Runs tree has the per-run tables (e.g. the channel table) of the same runs,
+    for inputs made without them."""
     profile = load_profile(profile_name)
+    with _open(run_tables or files[0]) as f:
+        per_run = discover(f["Runs"]) if "Runs" in f else None
     with _open(files[0]) as f:
-        conv = Converter(discover(f["Events"]), profile, discover(f["Runs"]) if "Runs" in f else None)
+        conv = Converter(discover(f["Events"]), profile, per_run)
+    runs = None
+    if run_tables:
+        with _open(run_tables) as f:
+            runs = _run_tables(conv, f)
+        print(f"per-run tables of run(s) {sorted(runs)} from {os.path.basename(run_tables)}", file=log)
     print(f"{len(conv.written())} tables, {len(conv.relations)} relations, {len(conv.display)} display layers", file=log)
     written = 0
     header = conv.header(files, profile.get("name", profile_name))
@@ -533,11 +573,16 @@ def convert(files, output, profile_name="hgcal", max_events=None, log=sys.stderr
         header["source"]["data_time"] = data_time.isoformat(timespec="seconds")
     with BundleWriter(output, header) as out:
         runs_written = set()
-        for record, run_tables in itertools.islice(_records(conv, files, log), max_events):
+        for record, run_tables in itertools.islice(_records(conv, files, log, events, runs), max_events):
             run = int(record[0][0])
             if run_tables and run not in runs_written:
                 out.add_run(*conv.run_record(run, run_tables))
                 runs_written.add(run)
             out.add(*record)
             written += 1
+        if run_info:
+            from .runinfo import load
+            info = load(run_info, out.runs(), log=log)
+            print(f"run info for {len(info)} run(s) from {run_info}", file=log)
+            out.set_run_info(info)
     return written

@@ -5,6 +5,8 @@ import { colourBy, customColumns, evaluate, filters } from "../model/custom";
 import { FUNCTION_NAMES } from "../model/expr";
 import { PALETTES, type Legend } from "../render/colour";
 import { bundle, cutGroups, cuts, event, eventIndex, labelOf, layerKey, legends, loadMs, shown, theme, visible } from "../model/store";
+import { activePreset, applyPreset } from "../model/presets";
+import { Summaries } from "./Summaries";
 import { Icon, Tabs } from "./widgets";
 
 export const Sidebar = () => (
@@ -40,8 +42,14 @@ function Layers() {
   if (!b) return <p class="hint">No data loaded.</p>;
   const groups = new Map<string, typeof b.header.display>();
   for (const d of b.header.display) groups.set(d.group, [...(groups.get(d.group) ?? []), d]);
+  const presets = b.header.presets ?? [];
   return (
     <div>
+      {presets.length > 1 && (
+        <div class="segmented presets" role="group" aria-label="Preset">
+          {presets.map((p, i) => <button class={activePreset.value === i ? "on" : ""} onClick={() => applyPreset(i)}>{p.name}</button>)}
+        </div>
+      )}
       {[...groups].map(([group, layers]) => (
         <div class="card">
           <h3>{group}</h3>
@@ -76,7 +84,7 @@ function LegendRow({ d, legend }: { d: DisplayLayer; legend: Legend }) {
     <div class="legend">
       <select class="colourby" title="Colour by" value={chosen} onChange={(e) => choose((e.target as HTMLSelectElement).value)}>
         <option value="">{d.colourBy ? "by object" : d.colour ?? "default"}</option>
-        {columns.filter((c) => c !== d.colour).map((c) => <option value={c}>{c}</option>)}
+        {columns.filter((c) => d.colourBy || c !== d.colour).map((c) => <option value={c}>{c}</option>)}
       </select>
       {legend.kind === "category" && legend.items ? (
         <span class="items">{legend.items.map((it) => <span><i style={{ background: it.colour }} />{it.label}</span>)}</span>
@@ -214,6 +222,22 @@ function summary(v: Float32Array, boolean: boolean) {
 }
 
 /** Event identity, object counts per displayed layer (grouped as in the Layers tab), every table, and provenance. */
+/** What is known about the run of the shown event (from the bundle index), if anything. */
+function RunInfoCard() {
+  const b = bundle.value, e = b?.events[eventIndex.value];
+  const info = b && e ? b.runInfo(e.run) : {};
+  if (!b || !e || !Object.keys(info).length) return null;
+  const title = b.runTitle(e.run);
+  return (
+    <div class="card">
+      <h3>Run {e.run} {title && <span class="count">{title}</span>}</h3>
+      <table class="kv stats"><tbody>
+        {(b.header.runFields ?? Object.keys(info)).filter((k) => k in info).map((k) => <tr title={`${k}: ${info[k]}`}><td>{k}</td><td>{String(info[k])}</td></tr>)}
+      </tbody></table>
+    </div>
+  );
+}
+
 function EventInfo() {
   const b = bundle.value, ev = event.value, e = b?.events[eventIndex.value];
   if (!b || !ev || !e) return <p class="hint">No event loaded.</p>;
@@ -231,6 +255,8 @@ function EventInfo() {
           <tr><td>Loaded in</td><td>{loadMs.value.toFixed(0)} ms</td></tr>
         </tbody></table>
       </div>
+      <RunInfoCard />
+      <Summaries />
       <div class="card">
         <h3>Displayed collections</h3>
         <table class="kv stats"><tbody>

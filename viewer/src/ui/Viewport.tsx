@@ -26,7 +26,8 @@ export function replayEvent(): Plan | null {
   replaying.value = true; // rebuilds the layers at once (an effect), including the hidden stages
   if (!entries.length) return null;
   hover.value = null;
-  plan = planReplay(entries.map((e) => ({ layer: e.layer!, d: e.d, t: e.t, emphasis: e.emphasis })), bundle.peek()?.header.replay);
+  // Background layers stay as they are through the replay.
+  plan = planReplay(entries.filter((e) => !e.d.context).map((e) => ({ layer: e.layer!, d: e.d, t: e.t, emphasis: e.emphasis })), bundle.peek()?.header.replay);
   stageColours(plan);
   engine.replay(plan.seconds);
   return plan;
@@ -71,7 +72,8 @@ export function Viewport() {
       shown.value = counts;
       if (recolour && b && ev) {
         const drawn: Record<string, Legend> = {};
-        colourEntries(entries, ev, b.header, c, PALETTES[theme.peek()]).forEach(({ rgb, legend }, i) => { entries[i].layer!.setColours(rgb); drawn[entries[i].key] = legend; });
+        const pal = PALETTES[theme.peek()];
+        colourEntries(entries, ev, b.header, c, pal).forEach(({ rgb, legend }, i) => { entries[i].layer!.setColours(dimmed(rgb, entries[i].d.dim, pal)); drawn[entries[i].key] = legend; });
         legends.value = drawn;
       }
       engine?.requestRender();
@@ -82,6 +84,7 @@ export function Viewport() {
       const all = replaying.value;
       if (!b || !ev) return;
       engine!.setBackground(pal.background);
+      engine!.minRadius = b.header.view?.minRadius ?? 70;
       entries = b.header.display
         .filter((d) => (vis[layerKey(d)] || (all && d.stage !== undefined)) && ev.tables[d.table]?.n)
         .map((d0) => {
@@ -90,6 +93,7 @@ export function Viewport() {
         });
       const drawn: Record<string, Legend> = {};
       colourEntries(entries, ev, b.header, cuts.peek(), pal).forEach(({ rgb, legend, emphasis }, i) => {
+        dimmed(rgb, entries[i].d.dim, pal);
         const e = entries[i];
         drawn[e.key] = legend;
         e.emphasis = emphasis;
@@ -179,7 +183,15 @@ interface Entry { d: DisplayLayer; t: Table; key: string; cutValues?: Float32Arr
 // (in the shader and in passes()). Layers with a filter but no cut use a threshold just above it.
 const HIDDEN = -3e38, NO_CUT = -1e30;
 
-function cutValues(d: DisplayLayer, t: Table, filter?: string): Float32Array | undefined {
+/** Colours mixed towards the background by `dim` (0..1), in place: for background layers. */
+function dimmed(rgb: Float32Array, dim: number | undefined, pal: Pal) {
+  if (!dim) return rgb;
+  const bg = [(pal.background >> 16) & 255, (pal.background >> 8) & 255, pal.background & 255].map((v) => v / 255);
+  for (let i = 0; i < rgb.length; i++) rgb[i] += (bg[i % 3] - rgb[i]) * dim;
+  return rgb;
+}
+
+export function cutValues(d: DisplayLayer, t: Table, filter?: string): Float32Array | undefined {
   const base = d.cut && t.columns[d.cut.column] ? toF32(t.columns[d.cut.column], t.n) : undefined;
   const keep = filter ? evaluate(t, filter) : null;
   if (!keep || "error" in keep) return base;
@@ -188,7 +200,7 @@ function cutValues(d: DisplayLayer, t: Table, filter?: string): Float32Array | u
   return out;
 }
 
-const cutMin = (e: Entry, c: Record<string, number>) => (e.d.cut ? c[e.d.cut.group] ?? 0 : e.cutValues ? NO_CUT : -Infinity);
+export const cutMin = (e: Pick<Entry, "d" | "cutValues">, c: Record<string, number>) => (e.d.cut ? c[e.d.cut.group] ?? 0 : e.cutValues ? NO_CUT : -Infinity);
 
 /** Colours for all drawn layers. Layers that share a cut group and colour column (e.g. SoA and legacy rechit
  *  energies) share one colour scale, computed from the objects that pass the cuts and filters, so equal values get

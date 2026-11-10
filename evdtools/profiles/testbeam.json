@@ -1,26 +1,120 @@
 {
   "name": "testbeam",
-  "note": "HGCal test beam 2026 (TestBeam_ReReco NANO): 11 silicon layers along the beam at z -322 to -337 cm, no zero suppression. Hits are cut at 3 sigma of noise; events need at least 20 hits above 5 sigma (beam showers, not empty triggers). The beam travels towards -z.",
-  "exclude": ["HGCTriggerDigi"],
+  "note": "HGCal test beams: a stack of silicon layers along the beam (2025: 10 or 12 layers, 2026: 11 layers at z -322 to -337 cm, plus a SiPM tile board), beam towards -z. Hits above 3 sigma of noise; events need at least 20 hits above 5 sigma (beam showers, not empty triggers). Layer clusters and the per-run channel table (HGCChannel: exact cell sizes, electronics addresses, the readout drawn as a background) are used when the NanoAOD has them (hgcal-comm NanoTools); otherwise the cell size is estimated from the hit spacing. Run information (beam, energy) comes from the run registry, e.g. --run-info registry:RunRegistry.SepTB2025.",
+  "exclude": ["HGCTriggerDigi", "HGCTypeCodes", "EventTrain", "HGCReadout", "HGCECON", "HGCMCP", "HGCMetaData"],
   "internal": ["HGCDenseIndex"],
   "derive": [
-    {"table": "HGCHit", "column": "cellSize", "neighbourDistance": ["x", "y"], "groupBy": "layer", "k": 3, "scale": 0.57735}
+    {
+      "table": "HGCHit",
+      "column": "cellSize",
+      "neighbourDistance": ["x", "y"],
+      "groupBy": "layer",
+      "k": 3,
+      "scale": 0.5
+    },
+    {
+      "table": "HGCHit",
+      "lookup": "HGCChannel",
+      "index": "denseIndex",
+      "columns": {
+        "cellSize": "cellSize",
+        "fed": "fedId",
+        "econd": "fedReadoutSeq",
+        "channel": "channel",
+        "module": "module",
+        "moduleU": "modI1",
+        "moduleV": "modI2",
+        "cellU": "chI1",
+        "cellV": "chI2",
+        "isCalib": "iscalib",
+        "isSiPM": "isSiPM"
+      }
+    }
   ],
   "relations": [
-    {"name": "hitDigi", "kind": "index", "from": "HGCHit", "to": "HGCDigi", "index": "HGCHit.denseIndex",
-     "via": "HGCDenseIndex.digiIdx"}
+    {
+      "name": "hitDigi",
+      "kind": "index",
+      "from": "HGCHit",
+      "to": "HGCDigi",
+      "index": "HGCHit.denseIndex",
+      "via": "HGCDenseIndex.digiIdx"
+    },
+    {
+      "name": "clusterHits",
+      "kind": "index",
+      "from": "HGCLayerClusters",
+      "to": "HGCHit",
+      "index": "HGCHit.clusterIndex"
+    }
   ],
   "cuts": {
-    "HGCHit": [["energy/sigmaNoise", ">", 3]],
-    "HGCDigi": [{"reachedBy": "hitDigi"}]
+    "HGCHit": [["energy/sigmaNoise", ">", 3], ["layer", ">", 0]],
+    "HGCDigi": [{"reachedBy": "hitDigi"}],
+    "HGCLayerClusters": [["layer", ">", 0]],
+    "HGCChannel": [["detid", "!=", 0]]
   },
-  "select": [
-    {"table": "HGCHit", "where": [["energy/sigmaNoise", ">", 5]], "min": 20}
-  ],
+  "select": [{"table": "HGCHit", "where": [["energy/sigmaNoise", ">", 5]], "min": 20}],
   "replay": {"direction": [0, 0, -1]},
+  "view": {"start": "3d", "minRadius": 12},
+  "summaries": [
+    {
+      "title": "Energy per layer (longitudinal profile)",
+      "table": "HGCHit",
+      "groupBy": "layer",
+      "value": "nmips",
+      "op": "sum",
+      "unit": "MIP"
+    },
+    {"title": "Hits per layer", "table": "HGCHit", "groupBy": "layer", "op": "count"},
+    {"title": "Layer clusters per layer", "table": "HGCLayerClusters", "groupBy": "layer", "op": "count"},
+    {
+      "title": "Mean hit time per layer (hits with a time)",
+      "table": "HGCHit",
+      "groupBy": "layer",
+      "value": "time",
+      "op": "mean",
+      "where": "time > 0"
+    }
+  ],
   "display": [
-    {"table": "HGCHit", "repr": "cells", "group": "HGCal test beam", "label": "Rechits", "position": ["x", "y", "z"],
-     "colour": "nmips", "palette": "heat", "size": "cellSize", "visible": true,
-     "cut": {"group": "Rechit energy", "column": "energy", "unit": "GeV", "default": 0.0}}
-  ]
+    {
+      "table": "HGCHit",
+      "repr": "cells",
+      "group": "HGCal test beam",
+      "label": "Rechits",
+      "position": ["x", "y", "z"],
+      "colour": "nmips",
+      "palette": "heat",
+      "size": "cellSize",
+      "visible": true,
+      "cut": {"group": "Rechit energy", "column": "energy", "unit": "GeV", "default": 0.0}
+    },
+    {
+      "table": "HGCLayerClusters",
+      "repr": "markers",
+      "group": "HGCal test beam",
+      "label": "Layer clusters",
+      "position": ["x", "y", "z"],
+      "colour": "energy",
+      "palette": "cool",
+      "size": null,
+      "visible": true
+    },
+    {
+      "table": "HGCChannel",
+      "repr": "cells",
+      "group": "Detector",
+      "label": "Readout channels",
+      "position": ["x", "y", "z"],
+      "size": "cellSize",
+      "colourBy": {"category": "layer"},
+      "context": true,
+      "dim": 0.8,
+      "visible": true
+    }
+  ],
+  "presets": [{"name": "Energy"}, {"name": "Timing", "colour": {"HGCHit": "time"}, "filters": {"HGCHit": "time > 0"}}],
+  "runTitle": "{Beam} {Energy} GeV · {Type}",
+  "runFields": ["Type", "Beam", "Energy", "B", "Era", "RecoEra", "Setup", "Start", "End", "Tag", "Comments"]
 }

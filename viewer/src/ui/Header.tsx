@@ -35,7 +35,7 @@ export function Header() {
         <button class="icon-button" title="Previous event (←)" onClick={() => showEvent(eventIndex.value - 1)}><Icon name="prev" /></button>
         <div class="eventid">
           <strong>{e ? `Run ${e.run} · Event ${e.event}` : "No event"}</strong>
-          <small>{b ? `${eventIndex.value + 1} of ${b.events.length}` : ""}</small>
+          <small>{b && e && b.runTitle(e.run) ? `${b.runTitle(e.run)} · ` : ""}{b ? `${eventIndex.value + 1} of ${b.events.length}` : ""}</small>
         </div>
         <button class="icon-button" title="Next event (→)" onClick={() => showEvent(eventIndex.value + 1)}><Icon name="next" /></button>
         <button class={touring.value ? "icon-button on" : "icon-button"} title={touring.value ? "Stop the tour (P)" : "Tour: orbit each event and visit its main showers (P)"}

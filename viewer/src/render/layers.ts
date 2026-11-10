@@ -11,6 +11,7 @@ export interface Layer {
   readonly table: string;
   readonly label: string;
   readonly pickRadius: number; // px
+  readonly context?: boolean; // a background layer: left out of framing
   readonly object: THREE.Object3D;
   readonly x: Float32Array; readonly y: Float32Array; readonly z: Float32Array;
   passes(i: number): boolean; // survives the current cut
@@ -124,10 +125,12 @@ export function cells(input: LayerInput): Layer {
   g.setAttribute("position", base.getAttribute("position"));
   g.setAttribute("normal", base.getAttribute("normal"));
   const material = new THREE.ShaderMaterial({
-    uniforms: baseUniforms(input.pal),
+    // A background layer is thinner, so cells drawn at the same place by another layer enclose it and show.
+    uniforms: { ...baseUniforms(input.pal), uThick: { value: d.context ? 0.1 : 0.3 } },
     vertexShader: /* glsl */ `
       attribute float ix, iy, iz, isize, isel, ipsel, icut, iT;
       attribute vec3 icol;
+      uniform float uThick;
       varying vec3 vCol;
       ${GLSL}
       void main() {
@@ -136,7 +139,11 @@ export function cells(input: LayerInput): Layer {
         float s = selected(ipsel, isel);
         if (uProj > 0.5) c = projectRZ(c, s * 2.0);
         float p = pop(iT), r = isize * (1.0 + 0.9 * p);
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(c + position * vec3(r, r, 0.3), 1.0);
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(c + position * vec3(r, r, uThick), 1.0);
+        // Cells that overlap in one plane (e.g. partial cells at module edges) would z-fight: a tiny, fixed depth
+        // offset per cell decides which is in front. 3 steps of 2e-7 in NDC stay below the depth gap between layers
+        // 1 cm apart up to ~1000 cm away.
+        gl_Position.z -= gl_Position.w * 2e-7 * float(gl_InstanceID % 4);
         float light = uProj > 0.5 ? 1.0 : 0.75 + 0.25 * abs(dot(normalize(normal), normalize(vec3(0.4, 0.7, 0.6))));
         vCol = mix(fade(mix(icol * light, vec3(1.0), uFlash * p), s), uBg, faded());
       }`,
@@ -151,8 +158,12 @@ export function cells(input: LayerInput): Layer {
   const replay = timeline(t.n, g, material, true);
   const mesh = new THREE.Mesh(g, material);
   mesh.frustumCulled = false;
+  if (d.context) { // drawn first and without depth, so it never hides the event in front of or behind it
+    material.depthWrite = false;
+    mesh.renderOrder = -1;
+  }
   return {
-    key, table: d.table, label: d.label, pickRadius: 8, object: mesh, x, y, z,
+    key, table: d.table, label: d.label, pickRadius: d.context ? 3 : 8, context: d.context, object: mesh, x, y, z,
     passes: cut.passes, setCut: cut.setCut, setColours: (c) => replaceColours(g.getAttribute("icol") as THREE.BufferAttribute, c),
     ...sel,
     setProjection(rz) { material.uniforms.uProj.value = rz ? 1 : 0; },

@@ -32,6 +32,19 @@ export interface DisplayLayer {
    *  is near. */
   context?: boolean;
   dim?: number; // 0..1: how far its colours are mixed towards the background
+  /** How to name an object in lists (related objects, tree): these columns, with value names, e.g. pdgId 211 -> "π+". */
+  describe?: { columns: string[]; names?: Record<string, Record<string, string>> };
+  /** Expression applied as the layer's filter until the user changes it (e.g. "isSignal"). */
+  filter?: string;
+  /** Set by the converter: a less preferred reconstruction path of a kind that is shown (e.g. legacy next to SoA). */
+  alternative?: boolean;
+  /** `ellipsoids`: the surface drawn on the ellipsoid: "solid" (default, translucent), "shell" (outline), "cage"
+   *  (rings around the principal axes) or "core" (compact and opaque). */
+  shape?: "solid" | "shell" | "cage" | "core";
+  /** Simulation truth rather than reconstruction: labelled as such, drawn dashed (segments). */
+  truth?: boolean;
+  /** Draw only the objects related to the current selection (none without one), until the user chooses all. */
+  onSelection?: boolean;
   visible: boolean;
 }
 /** A per-event chart: `table` rows grouped by the integer column `groupBy`, counted or summed over `value`. */
@@ -46,14 +59,17 @@ export interface Header {
   profile: string;
   /** `scope: "run"`: written once per run (see RunEntry) and added to every event of that run. */
   tables: Record<string, { doc: string; scope?: "run"; columns: Record<string, { type: TypeCode; doc: string }> }>;
-  relations: Record<string, { from: string; to: string; weights: string[] }>;
+  /** `association`: links two kinds of object (e.g. reco <-> truth); selections cross it once, without following the
+   *  other side's own relations. `best`: the weight that picks one partner where only one can be shown (colours). */
+  relations: Record<string, { from: string; to: string; weights: string[]; association?: boolean; best?: { weight: string; order: "min" | "max" } }>;
   display: DisplayLayer[];
   /** How particles move through the detector, for the reconstruction replay: away from a point (default: the
    *  origin, i.e. collisions), along a direction (e.g. [0, -1, 0] for cosmics), or in a fixed random order (hits
    *  without meaningful arrival times, e.g. noise). */
   replay?: { from?: [number, number, number]; direction?: [number, number, number]; order?: "random" };
-  /** Starting camera preset, and the smallest radius (cm) the camera frames, e.g. small for a test-beam setup. */
-  view?: { start?: "3d" | "front" | "side" | "rz"; minRadius?: number };
+  /** Camera hints: starting preset; smallest radius (cm) framed around objects, e.g. small for a test-beam stack;
+   *  tour style, "beam" (collider: starts on the whole detector, never enters it) or "orbit" (default). */
+  view?: { start?: "3d" | "front" | "side" | "rz"; minRadius?: number; tour?: "beam" | "orbit" };
   summaries?: Summary[];
   /** Title of a run from its information (RunEntry.info), e.g. "{Beam} {Energy} GeV"; parts (between " · ") that
    *  name a field the run lacks are left out. */

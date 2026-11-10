@@ -1,10 +1,11 @@
 // Left panel with tabs: layers (with legends and colour choice), cuts and filters, custom columns, event summary.
 import { useState } from "preact/hooks";
 import type { DisplayLayer } from "../io/bundle";
-import { colourBy, customColumns, evaluate, filters } from "../model/custom";
+import { colourBy, customColumns, evaluate, filters, RELATION } from "../model/custom";
 import { FUNCTION_NAMES } from "../model/expr";
 import { PALETTES, type Legend } from "../render/colour";
-import { bundle, cutGroups, cuts, event, eventIndex, labelOf, layerKey, legends, loadMs, shown, theme, visible } from "../model/store";
+import { bundle, cutGroups, cuts, event, eventIndex, focusLayers, labelOf, layerKey, legends, loadMs, showAll, shown, theme, visible } from "../model/store";
+import { Tree, treeRelations } from "./Tree";
 import { activePreset, applyPreset } from "../model/presets";
 import { Summaries } from "./Summaries";
 import { Icon, Tabs } from "./widgets";
@@ -12,7 +13,7 @@ import { Icon, Tabs } from "./widgets";
 export const Sidebar = () => (
   <>
     <aside class="sidebar">
-      <Tabs tabs={[["Layers", Layers], ["Cuts", Cuts], ["Columns", Columns], ["Event", EventInfo]]} />
+      <Tabs tabs={[["Layers", Layers], ["Cuts", Cuts], ["Columns", Columns], ...(treeRelations().length ? [[bundle.value?.header.display.some((d) => d.truth) ? "Truth" : "Tree", Tree] as [string, () => preact.JSX.Element]] : []), ["Event", EventInfo]]} />
     </aside>
     <div class="resizer" title="Drag to resize, double-click to reset" onPointerDown={startResize} onDblClick={() => setWidth(DEFAULT_WIDTH)} />
   </>
@@ -38,10 +39,13 @@ function startResize(e: PointerEvent) {
 }
 
 function Layers() {
-  const b = bundle.value, ev = event.value;
+  const b = bundle.value;
   if (!b) return <p class="hint">No data loaded.</p>;
-  const groups = new Map<string, typeof b.header.display>();
-  for (const d of b.header.display) groups.set(d.group, [...(groups.get(d.group) ?? []), d]);
+  // One card per kind of object; other reconstruction paths of a kind already shown (e.g. legacy next to SoA) are
+  // folded into one section at the end, so the list reads as the reconstruction chain.
+  const groups = new Map<string, DisplayLayer[]>();
+  for (const d of b.header.display.filter((l) => !l.alternative)) groups.set(d.group, [...(groups.get(d.group) ?? []), d]);
+  const alternatives = b.header.display.filter((l) => l.alternative);
   const presets = b.header.presets ?? [];
   return (
     <div>
@@ -50,26 +54,83 @@ function Layers() {
           {presets.map((p, i) => <button class={activePreset.value === i ? "on" : ""} onClick={() => applyPreset(i)}>{p.name}</button>)}
         </div>
       )}
-      {[...groups].map(([group, layers]) => (
-        <div class="card">
-          <h3>{group}</h3>
-          {layers.map((d) => {
-            const key = layerKey(d), n = ev?.tables[d.table]?.n ?? 0, legend = legends.value[key];
-            const on = !!visible.value[key], s = shown.value[key];
-            return (
-              <div class={on ? "layer" : "layer off"}>
-                <label title={b.header.tables[d.table]?.doc ?? d.table}>
-                  <input type="checkbox" checked={on} disabled={!n} onChange={() => (visible.value = { ...visible.value, [key]: !on })} />
-                  <span class="name">{d.label}</span>
-                  {d.source && <span class="tag">{d.source}</span>}
-                  <span class="count">{on && s !== undefined && s !== n ? `${s.toLocaleString()} / ` : ""}{n.toLocaleString()}</span>
-                </label>
-                {on && legend && <LegendRow d={d} legend={legend} />}
-              </div>
-            );
-          })}
-        </div>
-      ))}
+      {[...groups].map(([group, layers]) => {
+        const truth = layers.every((d) => d.truth);
+        return (
+          <div class={truth ? "card truth" : "card"}>
+            <h3>{group}{truth && <span class="badge truth" title="Simulation truth, not reconstruction">simulation</span>}</h3>
+            {layers.map((d) => <LayerRow d={d} label={d.label} />)}
+            {truth && <TruthActions />}
+          </div>
+        );
+      })}
+      {alternatives.length > 0 && (
+        <details class="card">
+          <summary>Other reconstruction paths ({alternatives.length})</summary>
+          <p class="hint">The same objects from another path (e.g. legacy next to SoA); hidden by default.</p>
+          {alternatives.map((d) => <LayerRow d={d} label={`${d.group} · ${d.label}${d.source ? ` (${d.source})` : ""}`} />)}
+        </details>
+      )}
+    </div>
+  );
+}
+
+/** A symbol for how a layer is drawn, shown before its name. */
+const glyph = (d: DisplayLayer) =>
+  d.repr === "cells" ? "⬢" : d.repr === "markers" ? "•" : d.repr === "segments" ? (d.truth ? "┄" : "─")
+    : d.shape === "shell" ? "◯" : d.shape === "cage" ? "⊕" : d.shape === "core" ? "●" : "⬮";
+
+function LayerRow({ d, label }: { d: DisplayLayer; label: string }) {
+  const b = bundle.value!, ev = event.value;
+  const key = layerKey(d), n = ev?.tables[d.table]?.n ?? 0, legend = legends.value[key];
+  const on = !!visible.value[key], s = shown.value[key];
+  return (
+    <div class={on ? "layer" : "layer off"}>
+      <label title={b.header.tables[d.table]?.doc ?? d.table}>
+        <input type="checkbox" checked={on} disabled={!n} onChange={() => (visible.value = { ...visible.value, [key]: !on })} />
+        <span class="glyph" aria-hidden="true">{glyph(d)}</span>
+        <span class="name">{label}</span>
+        <span class="count">{on && s !== undefined && s !== n ? `${s.toLocaleString()} / ` : ""}{n.toLocaleString()}</span>
+      </label>
+      {!on && focusLayers.value.split("|").includes(key) && <div class="sub muted">shown for the focus</div>}
+      {on && legend && <LegendRow d={d} legend={legend} />}
+      {on && d.onSelection && (
+        <label class="sub" title="Ticked: only the objects related to what you click; unticked: all of them">
+          <input type="checkbox" checked={!showAll.value[key]} onChange={() => (showAll.value = { ...showAll.value, [key]: !showAll.value[key] })} />
+          only for the selected object{!showAll.value[key] && (s ? "" : " (click something)")}
+        </label>
+      )}
+    </div>
+  );
+}
+
+/** One-click truth views: hits coloured by the particle that deposited them; every truth particle drawn. */
+function TruthActions() {
+  const b = bundle.value!;
+  const truthTables = new Set(b.header.display.filter((d) => d.truth).map((d) => d.table));
+  const hitRels = b.header.display.filter((d) => d.repr === "cells" && !d.alternative).flatMap((d) => {
+    const rel = Object.entries(b.header.relations).find(([, r]) => truthTables.has(r.from) && r.to === d.table);
+    return rel ? [[layerKey(d), `${RELATION}${rel[0]}`] as const] : [];
+  });
+  const hitsByTruth = hitRels.length > 0 && hitRels.every(([k, v]) => colourBy.value[k] === v);
+  const truthLayers = b.header.display.filter((d) => d.truth && d.onSelection && visible.value[layerKey(d)]);
+  const allDrawn = truthLayers.length > 0 && truthLayers.every((d) => showAll.value[layerKey(d)]);
+  const toggleHits = () => {
+    const next = { ...colourBy.value };
+    for (const [k, v] of hitRels) if (hitsByTruth) delete next[k]; else next[k] = v;
+    colourBy.value = next;
+  };
+  const toggleAll = () => {
+    const next = { ...showAll.value };
+    for (const d of truthLayers) next[layerKey(d)] = !allDrawn;
+    showAll.value = next;
+  };
+  return (
+    <div class="actions-row">
+      {hitRels.length > 0 && <button class={hitsByTruth ? "pill active" : "pill"} onClick={toggleHits}
+        title="Colour each hit by the simulated particle that left most energy in it (grey: none)">Hits by particle</button>}
+      {truthLayers.length > 0 && <button class={allDrawn ? "pill active" : "pill"} onClick={toggleAll}
+        title="Draw every particle (signal by default), not only those related to the selection">All particles</button>}
     </div>
   );
 }
@@ -78,12 +139,26 @@ function Layers() {
 function LegendRow({ d, legend }: { d: DisplayLayer; legend: Legend }) {
   const pal = PALETTES[theme.value], key = layerKey(d), chosen = colourBy.value[key] ?? "";
   const columns = Object.keys(event.value?.tables[d.table]?.columns ?? {});
+  // Relations to another drawn table can colour the layer too: e.g. tracksters by their truth particle.
+  const header = bundle.value?.header, shown = new Set(header?.display.map((l) => l.table));
+  // One choice per related table: of two relations between the same tables (e.g. reco -> truth best match, and
+  // truth -> reco sharing), the one that points from this layer wins.
+  const byTable = new Map<string, string>();
+  for (const [name, r] of Object.entries(header?.relations ?? {})) {
+    const other = r.from === d.table ? r.to : r.from;
+    if ((r.from === d.table) === (r.to === d.table) || !shown.has(other)) continue;
+    if (!byTable.has(other) || r.from === d.table) byTable.set(other, name);
+  }
+  const current = typeof d.colourBy === "object" && "relation" in d.colourBy ? d.colourBy.relation : "";
+  const related = [...byTable].filter(([, name]) => name !== current)
+    .map(([other, name]) => [`${RELATION}${name}`, `colour of its ${labelOf(other).toLowerCase()}`]);
   const choose = (c: string) => { const { [key]: _, ...rest } = colourBy.value; colourBy.value = c ? { ...rest, [key]: c } : rest; };
   const fmt = (v: number) => { const a = Math.abs(v); return a >= 100 ? v.toFixed(0) : a >= 1 ? v.toFixed(1) : v === 0 ? "0" : v.toPrecision(2); };
   return (
     <div class="legend">
       <select class="colourby" title="Colour by" value={chosen} onChange={(e) => choose((e.target as HTMLSelectElement).value)}>
         <option value="">{d.colourBy ? "by object" : d.colour ?? "default"}</option>
+        {related.length > 0 && <optgroup label="Related objects">{related.map(([v, text]) => <option value={v}>{text}</option>)}</optgroup>}
         {columns.filter((c) => d.colourBy || c !== d.colour).map((c) => <option value={c}>{c}</option>)}
       </select>
       {legend.kind === "category" && legend.items ? (
@@ -134,12 +209,16 @@ function Filters() {
   const b = bundle.value;
   if (!b) return null;
   const tables = [...new Set(b.header.display.map((d) => d.table))];
-  const remove = (t: string) => { const { [t]: _, ...rest } = filters.value; filters.value = rest; };
+  // A filter the data set sets by default is kept as "" when removed, so it does not come back next time.
+  const remove = (t: string) => {
+    const { [t]: _, ...rest } = filters.value;
+    filters.value = b.header.display.some((d) => d.table === t && d.filter) ? { ...rest, [t]: "" } : rest;
+  };
   return (
     <div class="card">
       <h3>Filters</h3>
       <p class="hint">Show only the objects for which an expression holds, e.g. <code>energy / sigmaNoise &gt; 5</code>.</p>
-      {Object.entries(filters.value).filter(([t]) => tables.includes(t)).map(([t, expr]) => (
+      {Object.entries(filters.value).filter(([t, expr]) => expr && tables.includes(t)).map(([t, expr]) => (
         <div class="defn"><span class="muted">{labelOf(t)}</span><code>{expr}</code><button class="icon-button small" title="Remove filter" onClick={() => remove(t)}><Icon name="close" /></button></div>
       ))}
       <ExprForm tables={tables} submit={(t, expr) => (filters.value = { ...filters.value, [t]: expr })} action="Apply filter" placeholder="e.g. layer == 26" />

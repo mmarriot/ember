@@ -5,7 +5,7 @@ import type { Legend, ThemeName } from "../render/colour";
 import type { Caption } from "../render/replay";
 import type { Hit, ViewName } from "../render/engine";
 import { customColumns, loadCustom, withCustomColumns } from "./custom";
-import { related, type Ref } from "./relations";
+import { levelsOf, relatedParts, type Ref } from "./relations";
 import { activePreset } from "./presets";
 
 /** One entry of the site's index.json (written by `evdtools sync`; hand-written ones need only file and title). */
@@ -24,8 +24,9 @@ export const visible = signal<Record<string, boolean>>({}); // display layer key
 export const legends = signal<Record<string, Legend>>({}); // display layer key -> legend of the drawn layer
 export const shown = signal<Record<string, number>>({}); // display layer key -> objects passing the cuts
 export const cuts = signal<Record<string, number>>({}); // cut group -> minimum
+export const showAll = signal<Record<string, boolean>>({}); // layer key -> draw every object of an onSelection layer
 export const selection = signal<Ref | null>(null);
-export const hover = signal<(Hit & { x: number; y: number }) | null>(null);
+export const hover = signal<(Hit & { x: number; y: number; stacked: number }) | null>(null); // stacked: objects under the cursor
 export const view = signal<ViewName>("3d");
 export const dialog = signal<"help" | "about" | null>(null);
 export const toasts = signal<{ id: number; text: string; kind: "info" | "error" }[]>([]);
@@ -49,6 +50,19 @@ export const labelOf = (table: string) => {
   return d.kind ? `${d.group} · ${d.label}${d.source ? ` (${d.source})` : ""}` : d.label;
 };
 
+/** A short name for one object, from its layer's `describe` hint (e.g. "π+ · 88.9 GeV"), or "" without one. */
+export function describe(table: string, row: number): string {
+  const b = bundle.value, t = event.value?.tables[table];
+  const hint = b?.header.display.find((l) => l.table === table)?.describe;
+  if (!b || !t || !hint || row >= t.n) return "";
+  return hint.columns.filter((c) => c in t.columns).map((c) => {
+    const v = Number(t.columns[c][row]), name = hint.names?.[c]?.[String(v)];
+    if (name) return name;
+    const unit = b.header.tables[table]?.columns[c]?.doc.match(/\[([^\]]+)\]/)?.[1];
+    return `${Number.isInteger(v) ? v : Math.abs(v) >= 100 ? v.toFixed(0) : v.toPrecision(3)}${unit ? ` ${unit}` : ""}`;
+  }).join(" · ");
+}
+
 /** Cut groups of the profile: one slider each, shared by all layers that name the group. */
 export const cutGroups = computed(() => {
   const groups = new Map<string, { unit: string; default: number; layers: DisplayLayer[] }>();
@@ -61,9 +75,51 @@ export const cutGroups = computed(() => {
   return groups;
 });
 
-export const highlight = computed(() => {
+/** The selection's relatives: what it is made of, what it is part of, and what is linked to it (e.g. MC truth). */
+export const relatives = computed(() => {
   const b = bundle.value, ev = event.value, sel = selection.value;
-  return b && ev && sel ? related(ev, b.header, sel) : null;
+  return b && ev && sel && ev.tables[sel.table] && sel.row < ev.tables[sel.table].n ? relatedParts(ev, b.header, sel) : null;
+});
+/** Focus: the object clicked from outside any focus (e.g. a candidate). While it lasts, everything it is made of is
+ *  drawn (all levels, even hidden layers), only those objects can be clicked, and clicking one selects it for the
+ *  inspector without leaving the focus. Clicking outside it, or Esc, ends it. */
+export const focus = signal<Ref | null>(null);
+/** The focuses before the current one, oldest first, for "back" (e.g. candidate -> its truth particle -> ...). */
+export const focusHistory = signal<Ref[]>([]);
+/** Objects linked to the focus through an association (e.g. its MC truth, or a truth particle's reco objects): a
+ *  click on one jumps there. */
+export const focusLinked = computed(() => {
+  const b = bundle.value, ev = event.value, f = focus.value;
+  return b && ev && f && ev.tables[f.table] && f.row < ev.tables[f.table].n ? relatedParts(ev, b.header, f).linked : null;
+});
+/** What is drawn highlighted: the focused object, what it is made of, and what is linked to it (e.g. its MC truth).
+ *  What contains it is listed in the inspector, not highlighted: big containers would cover it. */
+export const highlight = computed(() => {
+  const b = bundle.value, ev = event.value, f = focus.value;
+  if (!b || !ev || !f || !ev.tables[f.table] || f.row >= ev.tables[f.table].n) return null;
+  return levelsOf(ev, b.header, f);
+});
+/** Whether an object can be clicked: anything without a focus; inside one, its parts (not the focused object itself,
+ *  which is already selected, so a click reaches what it is made of). */
+export const inFocus = (table: string, row: number) => {
+  const hl = highlight.peek(), f = focus.peek();
+  return !hl || (!!hl.get(table)?.has(row) && !(f && f.table === table && f.row === row));
+};
+effect(() => { // a selection outside the focus starts a new one (the old one is kept for "back"); none ends it
+  const sel = selection.value;
+  if (!sel) { if (focus.peek()) focus.value = null; if (focusHistory.peek().length) focusHistory.value = []; return; }
+  const f = focus.peek();
+  if (!f || !highlight.peek()?.get(sel.table)?.has(sel.row)) {
+    if (f) focusHistory.value = [...focusHistory.peek(), f];
+    focus.value = { ...sel };
+  }
+});
+/** Layers drawn because the focus has objects in them, though the user has them hidden (e.g. a candidate's
+ *  tracksters): their keys, sorted, so the layers are only rebuilt when this set changes. */
+export const focusLayers = computed(() => {
+  const b = bundle.value, hl = highlight.value, vis = visible.value;
+  if (!b || !hl) return "";
+  return b.header.display.filter((d) => !d.alternative && !vis[layerKey(d)] && hl.get(d.table)?.size).map(layerKey).sort().join("|");
 });
 
 let toastId = 0;
@@ -81,7 +137,8 @@ export async function refreshCatalogue() {
   } catch { /* offline or no index: keep what we have */ }
 }
 
-export async function openBundle(name: string, open = () => httpSource(name)) {
+/** Open a bundle and show its event `start` (a shared link's event: read only that one, not event 0 first). */
+export async function openBundle(name: string, open = () => httpSource(name), start = 0) {
   try {
     const b = await Bundle.open(await open());
     // A layer whose position columns are missing would be drawn at the origin: leave it out and say so.
@@ -95,10 +152,10 @@ export async function openBundle(name: string, open = () => httpSource(name)) {
     bundleName.value = name;
     if (b.header.view?.start) view.value = b.header.view.start;
     activePreset.value = 0;
-    loadCustom(b.header.profile);
+    loadCustom(b.header.profile, Object.fromEntries(b.header.display.filter((d) => d.filter).map((d) => [d.table, d.filter!])));
     visible.value = Object.fromEntries(b.header.display.map((d) => [layerKey(d), d.visible]));
     cuts.value = Object.fromEntries([...cutGroups.value].map(([g, info]) => [g, info.default]));
-    await showEvent(0);
+    await showEvent(start);
   } catch (e) {
     toast(`Could not open ${name}: ${e}`, "error");
   }

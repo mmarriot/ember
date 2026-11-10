@@ -3,7 +3,7 @@ import type { ViewName } from "../render/engine";
 import { bundle, bundleName, catalogue, dialog, eventIndex, following, loading, openBundle, showEvent, theme, toast, toggleTheme, touring, view, type Listed } from "../model/store";
 import { toggleLive } from "./live";
 import { toggleTour } from "./tour";
-import { engine, replayEvent } from "./Viewport";
+import { engine } from "./Viewport";
 import { Icon } from "./widgets";
 
 const VIEWS: [ViewName, string, string][] = [["3d", "3D", "1"], ["front", "Front", "2"], ["side", "Side", "3"], ["rz", "ρ–z", "4"]];
@@ -40,7 +40,6 @@ export function Header() {
         <button class="icon-button" title="Next event (→)" onClick={() => showEvent(eventIndex.value + 1)}><Icon name="next" /></button>
         <button class={touring.value ? "icon-button on" : "icon-button"} title={touring.value ? "Stop the tour (P)" : "Tour: orbit each event and visit its main showers (P)"}
           aria-pressed={touring.value} onClick={toggleTour}><Icon name={touring.value ? "pause" : "play"} /></button>
-        <button class="icon-button" title="Replay how this event builds up: hits, clusters, then showers (R)" onClick={() => void replayEvent()}><Icon name="replay" /></button>
         <input class="jump" placeholder="Go to event…" title="Event number, or run:event" onKeyDown={(ev) => {
           if (ev.key === "Enter") { jump((ev.target as HTMLInputElement).value.trim()); (ev.target as HTMLInputElement).blur(); }
         }} />

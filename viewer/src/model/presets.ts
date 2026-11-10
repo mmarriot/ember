@@ -13,7 +13,10 @@ export function applyPreset(i: number) {
   const touched = new Set(presets.flatMap((p) => [...Object.keys(p.colour ?? {}), ...Object.keys(p.filters ?? {})]));
   const by = { ...colourBy.peek() }, rows = { ...filters.peek() };
   for (const d of b.header.display) if (touched.has(d.table)) delete by[layerKey(d)];
-  for (const t of touched) delete rows[t];
+  for (const t of touched) { // back to the data set's default filter (display hint `filter`), if any
+    const d = b.header.display.find((l) => l.table === t && l.filter);
+    if (d) rows[t] = d.filter!; else delete rows[t];
+  }
   for (const [table, column] of Object.entries(presets[i].colour ?? {}))
     for (const d of b.header.display) if (d.table === table && !d.context) by[layerKey(d)] = column;
   Object.assign(rows, presets[i].filters ?? {});

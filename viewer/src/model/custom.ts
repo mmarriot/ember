@@ -34,10 +34,13 @@ export function withCustomColumns(ev: EventData, defs: CustomColumn[]): EventDat
   return { ...ev, tables };
 }
 
-/** The display hint with the user's colour column, if one is chosen (replacing any categorical colouring). */
+/** The display hint with the user's colour choice, if any: a column (a value scale, replacing any categorical
+ *  colouring), or "rel:<relation>" (the colour of the related object, e.g. a trackster's truth particle). */
 export function withColour(d: DisplayLayer, column: string | undefined): DisplayLayer {
+  if (column?.startsWith(RELATION)) return { ...d, colourBy: { relation: column.slice(RELATION.length) } };
   return column ? { ...d, colour: column, colourBy: undefined, palette: d.palette ?? "heat" } : d;
 }
+export const RELATION = "rel:";
 
 export const customDoc = (table: string, column: string) => {
   const c = customColumns.value.find((x) => x.table === table && x.name === column);
@@ -46,12 +49,14 @@ export const customDoc = (table: string, column: string) => {
 
 // Persistence. localStorage can be missing or throw (private windows, blocked storage): then nothing is remembered.
 let storageKey = "";
-export function loadCustom(profile: string) {
+/** The user's choices for a profile. `defaultFilters` (table -> expression, from the display hints) apply to tables
+ *  the user has not set a filter for; removing one is remembered as an empty filter. */
+export function loadCustom(profile: string, defaultFilters: Record<string, string> = {}) {
   storageKey = "";
   let saved: Partial<{ columns: CustomColumn[]; filters: Record<string, string>; colourBy: Record<string, string> }> = {};
   try { saved = JSON.parse(localStorage.getItem(`evd.custom.${profile}`) ?? "{}"); } catch { /* defaults */ }
   customColumns.value = Array.isArray(saved.columns) ? saved.columns : [];
-  filters.value = saved.filters ?? {};
+  filters.value = { ...defaultFilters, ...(saved.filters ?? {}) };
   colourBy.value = saved.colourBy ?? {};
   storageKey = `evd.custom.${profile}`;
 }

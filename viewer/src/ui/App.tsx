@@ -3,7 +3,7 @@ import { effect } from "@preact/signals";
 import { useEffect } from "preact/hooks";
 import { blobSource } from "../io/bundle";
 import type { ViewName } from "../render/engine";
-import { bundleName, catalogue, dialog, eventIndex, highlight, openBundle, refreshCatalogue, selection, showEvent, view } from "../model/store";
+import { bundleName, catalogue, dialog, event, eventIndex, highlight, openBundle, refreshCatalogue, selection, showEvent, view } from "../model/store";
 import { Header } from "./Header";
 import { Inspector } from "./Inspector";
 import { Sidebar } from "./Sidebar";
@@ -20,12 +20,12 @@ export function App() {
     refreshCatalogue().then(async () => {
       const name = url.get("b") ?? catalogue.value.bundles[0]?.file;
       if (!name) return;
-      await openBundle(name);
-      await showEvent(Number(url.get("e") ?? 0));
+      await openBundle(name, undefined, Number(url.get("e") ?? 0));
       const v = url.get("v") as ViewName | null;
       if (v && Object.values(VIEW_KEYS).includes(v)) view.value = v;
       const [table, row] = (url.get("s") ?? "").split(":");
-      if (table && row) selection.value = { table, row: Number(row) };
+      // A link made before the data set was re-converted may name a row that no longer exists.
+      if (table && row && Number(row) < (event.peek()?.tables[table]?.n ?? 0)) selection.value = { table, row: Number(row) };
     });
     const poll = setInterval(() => document.visibilityState === "visible" && void refreshCatalogue(), POLL);
 
@@ -39,7 +39,10 @@ export function App() {
       if (["SELECT", "INPUT"].includes((e.target as HTMLElement).tagName) || e.ctrlKey || e.metaKey || e.altKey) return;
       if (e.key === "p" || e.key === "P") return toggleTour();
       stopTour(); // any other key takes over from the tour
-      if (e.key === "Escape") { if (dialog.value) dialog.value = null; else selection.value = null; }
+      if (e.key === "Escape") { // close a dialog; else back to the normal view: no selection, the whole event
+        if (dialog.value) dialog.value = null;
+        else { selection.value = null; engine?.home(); }
+      }
       else if (e.key === "?") dialog.value = dialog.value ? null : "help";
       else if (e.key === "ArrowRight") showEvent(eventIndex.value + 1);
       else if (e.key === "ArrowLeft") showEvent(eventIndex.value - 1);
@@ -74,10 +77,11 @@ export function App() {
 function HelpDialog() {
   const rows: [string, string][] = [
     ["Rotate", "drag"], ["Pan", "right-drag (or shift + drag)"], ["Zoom", "scroll, towards the cursor"],
-    ["Inspect an object", "click it; its related objects stay highlighted"], ["Zoom to an object", "double-click it, or F"],
+    ["Inspect an object", "click it: it and all its parts are shown, and further clicks pick among its parts"],
+    ["Objects on top of each other", "click again on the same spot for the next one"], ["Zoom to an object", "double-click it, or F"],
     ["Show everything", "Home, or Reset"], ["Previous / next event", "← / →, or the arrows at the top"],
-    ["Views: 3D, front, side, ρ–z", "1, 2, 3, 4"], ["Clear selection, close dialogs", "Esc"], ["Open a local .evdb file", "drop it on the page"], ["Live: play new data as it arrives", "the Live button"], ["Resize the side panel", "drag its edge; double-click to reset"],
-    ["Replay: hits, then clusters, then showers, building up outwards", "R, or the lightning button"],
+    ["Views: 3D, front, side, ρ–z", "1, 2, 3, 4"], ["Back to the normal view (or close a dialog)", "Esc, or click on empty space"], ["Open a local .evdb file", "drop it on the page"], ["Live: play new data as it arrives", "the Live button"], ["Resize the side panel", "drag its edge; double-click to reset"],
+    ["Replay: hits, then clusters, then showers, building up outwards", "R"],
     ["Tour: replay and orbit, visit the main showers, next event", "P, or the play button; any key or touch stops it"],
     ["Your own columns and filters", "Columns tab and Cuts tab; colour by any column from the Layers tab"],
   ];

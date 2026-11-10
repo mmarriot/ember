@@ -47,6 +47,8 @@ Optional `replay` (from the profile): how particles cross the detector, for the 
 position, not measured times); `{"order": "random"}`: a fixed random order, for hits without meaningful arrival times
 (e.g. noise). The viewer's captions say which applies.
 
+Optional `view` (from the profile): camera hints. `tour`: `"beam"` (collider data: the tour starts on the whole detector, glides to showers and back, and never enters the detector) or `"orbit"` (default: the tour frames the objects at their own scale and orbits them).
+
 ### Index JSON
 
 ```json
@@ -77,6 +79,7 @@ free-form), shown by the viewer and used by the profile's `runTitle`.
   `indices[offsets[i] : offsets[i+1]]`. The converter normalises every source form (NanoAOD count lists,
   offset tables, link tables, index columns) to this.
 - A table missing from an event has no entry; a table present with zero rows has `n: 0`.
+- Header relations may carry viewer hints: `association` (true: the relation links two kinds of object, e.g. reco and MC truth; navigation crosses it once) and `best` (`{"weight", "order": "min"|"max"}`: which weight picks one partner, e.g. for colouring).
 
 ## Display hints
 
@@ -90,13 +93,19 @@ free-form), shown by the viewer and used by the profile's `runTitle`.
 | `colourBy` | categorical colouring instead of `colour`: `"row"` (one colour per object); `{"relation": name}` (the colour of the `from` object that contains this row, grey if none: the `from` object's own colour if it is coloured categorically, else one colour per `from` object; falls back to `colour` if the relation is absent); or `{"category": column, "abs": bool, "names": {value: name}}` (one colour per value, in the order of `names`, so a value keeps its colour; the legend lists the names) |
 | `end` | `segments`: three column names for the end of each line (it starts at `position`) |
 | `stage` | reconstruction step of the layer (0, 1, ...): the replay grows each stage in turn, the previous one giving way, and ends on the last |
-| `size` | column with a size in cm (`cells`: half-width), or null for a default |
+| `size` | column with a size in cm, or null for a default. `cells`: the half-width, centre to side; a cell is drawn as a hexagon with its corners at that distance, so it fits inside the real cell whatever its shape and orientation, and neighbours never overlap |
 | `time` | column with the arrival time in ns (values <= -50 mean "no time"), used by the replay; a column corrected for the time of flight (prompt particles at about 0) is recognised and converted, any other convention is ignored |
 | `axis`, `extent` | `ellipsoids`: principal-axis columns and eigenvalue columns |
 | `group`, `label`, `visible` | UI grouping, name, default visibility |
 | `kind`, `source` | optional: the object type (e.g. `trackster`; `group` is then its display name) and the reconstruction path that produced it (e.g. `SoA`, `legacy`). Layers of one kind are shown together, tagged with their source |
 | `context`, `dim` | a background layer (e.g. every readout channel): not framed, not replayed, drawn thin and without depth so it never hides the event, picked only when nothing else is near; `dim` (0..1) mixes its colours towards the background |
 | `cut` | `{"group", "column", "unit", "default"}`: a minimum on `column`, with one slider per `group` shared by every layer in the group (e.g. SoA and legacy rechits get the same energy cut) |
+| `filter` | expression applied as the layer's filter until the user changes it, e.g. `isSignal` (MC truth: the signal interaction only) |
+| `shape` | `ellipsoids`: the surface of the ellipsoid, so kinds of shower object look different: `solid` (default, translucent), `shell` (outline), `cage` (rings around the principal axes), `core` (compact, opaque) |
+| `alternative` | set by the converter: the layer is a less preferred reconstruction path (profile `prefer`) of a kind that is shown, e.g. legacy objects next to SoA ones |
+| `truth` | the layer is simulation truth, not reconstruction: labelled as such, `segments` drawn dashed |
+| `onSelection` | draw only the objects related to the selected one (none without a selection), until the user asks for all |
+| `describe` | `{"columns": [...], "names": {column: {value: name}}}`: how to name an object in lists (related objects, tree, inspector), e.g. `["pdgId", "energy"]` with PDG names |
 
 Tables without a display entry still appear in the inspector and table views.
 

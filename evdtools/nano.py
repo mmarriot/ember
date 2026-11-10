@@ -74,7 +74,7 @@ def _gather(d, tables, relations, profile_relations):
     """Columns copied from the first row each row of `table` points to through a relation; the sources are tried in
     order. A source that places a row sets the columns it does not name to 0; rows no source reaches stay NaN."""
     n, cols = tables[d["table"]]
-    out = {c: np.full(n, np.nan, np.float32) for c in _derived_columns(d)}
+    out = {c: np.full(n, d.get("fill", np.nan), np.float32) for c in _derived_columns(d)}
     placed = np.zeros(n, bool)
     for src in d["gather"]:
         rel = relations.get(src["relation"])
@@ -181,6 +181,7 @@ def _display(profile, tables, relations):
     for layer in layers:
         if layer.get("kind") and rank(layer) > best[layer["kind"]]:
             layer["visible"] = False
+            layer["alternative"] = True  # another reconstruction path of a kind already shown: the viewer folds it away
     preferred = [layer for layer in layers if layer.get("kind") and rank(layer) == best[layer["kind"]]]
     stages = [k for k in profile.get("stages", []) if any(layer["kind"] == k for layer in preferred)]
     for layer in preferred:
@@ -238,6 +239,11 @@ class Converter:
                 self.derived.add((d["table"], c))
         self.relations = {}
         for r in profile.get("relations", []):
+            if r["kind"] == "compose":  # its ends are those of the chain (after redirection by sameRows)
+                if all(v in self.relations for v in r["via"]):
+                    self.relations[r["name"]] = {**r, "from": self.relations[r["via"][0]]["from"],
+                                                 "to": self.relations[r["via"][-1]]["to"]}
+                continue
             r = {**r, "from": rename.get(r["from"], r["from"]), "to": rename.get(r["to"], r["to"])}
             if self._available(r):
                 self.relations[r["name"]] = r
@@ -262,11 +268,9 @@ class Converter:
         self.profile_extra = profile  # `view`, `summaries`, `runTitle` and `presets` go to the viewer verbatim too
 
     def _available(self, rel):
-        """A relation is kept if all its tables (for "compose": the relations it chains) are in the file; then every
+        """A relation is kept if all its tables are in the file; then every
         column it names must exist."""
-        if rel["kind"] == "compose":
-            return all(name in self.relations for name in rel["via"])
-        specs = [rel.get(k) for k in ("offsets", "counts", "indices", "index", "via", "fromIndex", "toIndex")]
+        specs = [rel.get(k) for k in ("offsets", "counts", "indices", "index", "via", "fromIndex", "toIndex", "fromKey", "toKey")]
         specs = [s for s in specs + rel.get("weights", []) if s]
         tables = {rel["from"], rel["to"], rel.get("table")} | {_column(s)[0] for s in specs}
         if not all(t is None or t in self.tables for t in tables):
@@ -309,7 +313,8 @@ class Converter:
             "tables": {t: {"doc": m["doc"], **({"scope": "run"} if t in self.run_scope else {}),
                            "columns": {c: {"type": type_code(dt), "doc": doc} for c, (dt, doc) in m["columns"].items()}}
                        for t, m in written.items()},
-            "relations": {n: {"from": r["from"], "to": r["to"], "weights": [_column(w)[1] for w in r.get("weights", [])]}
+            "relations": {n: {"from": r["from"], "to": r["to"], "weights": [_column(w)[1] for w in r.get("weights", [])],
+                              **{k: r[k] for k in ("association", "best") if k in r}}  # viewer hints, passed verbatim
                           for n, r in self.relations.items() if r["from"] in written and r["to"] in written},
             "display": self.display,
             **({"replay": self.replay} if self.replay else {}),
@@ -428,6 +433,7 @@ class Converter:
         masks = self._masks(tables, relations, skip=self.run_scope)
         if not self._selected(tables, masks):
             return None
+        self._renumber_index_columns(tables, masks)
         ends = {name: (self.relations[name]["from"], self.relations[name]["to"]) for name in relations}
         relations = {name: cut_relation(rel, masks.get(ends[name][0]), masks.get(ends[name][1]))
                      if ends[name][0] in masks or ends[name][1] in masks else rel
@@ -435,6 +441,25 @@ class Converter:
         tables = {t: (int(masks[t].sum()), {c: a[masks[t]] for c, a in cols.items()}) if t in masks else (n, cols)
                   for t, (n, cols) in tables.items() if t not in self.internal and t not in self.run_scope}
         return event_id, tables, relations
+
+    def _renumber_index_columns(self, tables, masks):
+        """An index column that an `index` relation reads (e.g. a candidate's track row, or a hit's cluster) must
+        still name the same object after the table it points into is cut: rows are renumbered, removed ones become -1."""
+        for rel in self.relations.values():
+            if rel["kind"] != "index" or "via" in rel:
+                continue
+            table, column = _column(rel["index"])
+            target = rel["to"] if table == rel["from"] else rel["from"]  # the column may sit on either end
+            if target not in masks:
+                continue
+            cols, keep = tables[table][1], masks[target]
+            if cols[column].dtype.kind == "u":
+                raise ValueError(f"relation {rel['name']}: index column {rel['index']} is unsigned, so it cannot "
+                                 f"mark rows of the cut table {target} as removed")
+            idx = np.asarray(cols[column], np.int64)
+            ok = (idx >= 0) & (idx < len(keep))
+            ok[ok] = keep[idx[ok]]
+            cols[column] = np.where(ok, np.cumsum(keep)[np.where(ok, idx, 0)] - 1, -1).astype(cols[column].dtype)
 
     @staticmethod
     def _check_same(s, tables, event_id):
@@ -456,10 +481,12 @@ class Converter:
         if kind == "offsets":  # explicit n+1 offsets (e.g. an exported AssociationMap)
             offsets, indices = col(rel["offsets"]), col(rel["indices"])
         elif kind == "counts":  # NanoAOD per-object counts + flat list
-            offsets, indices = np.concatenate([[0], np.cumsum(col(rel["counts"]))]), col(rel["indices"])
-        elif kind == "links":  # one row per (from, to) pair, ordered by `from`; to < 0 means no target
+            offsets, indices = np.concatenate([[0], np.cumsum(col(rel["counts"]), dtype=np.int64)]), col(rel["indices"])
+        elif kind == "links":  # one row per (from, to) pair; to < 0 means no target
             src, dst = col(rel["fromIndex"]), col(rel["toIndex"])
             keep = dst >= 0
+            if np.any(np.diff(src) < 0):  # CSR needs the pairs grouped by `from`
+                keep = np.flatnonzero(keep)[np.argsort(src[keep], kind="stable")]
             src, indices = src[keep], dst[keep]
             weights = {w: a[keep] for w, a in weights.items()}
             offsets = np.concatenate([[0], np.cumsum(np.bincount(src, minlength=n_from))])
@@ -476,6 +503,13 @@ class Converter:
                 indices = rows
             else:
                 offsets, indices = np.concatenate([[0], np.cumsum(idx >= 0)]), idx[idx >= 0]
+        elif kind == "key":  # rows of `from` and `to` with equal key columns (e.g. the same DetId in two hit tables)
+            key_from, key_to = col(rel["fromKey"]), col(rel["toKey"])
+            order = np.argsort(key_to, kind="stable")
+            pos = np.searchsorted(key_to[order], key_from)
+            found = (pos < len(order)) & (key_to[order][np.minimum(pos, len(order) - 1)] == key_from) if len(order) else \
+                np.zeros(len(key_from), bool)
+            offsets, indices = np.concatenate([[0], np.cumsum(found, dtype=np.int64)]), order[pos[found]]
         else:
             raise ValueError(f"relation {rel['name']}: unknown kind {kind}")
         if len(offsets) != n_from + 1 or offsets[-1] != len(indices) or (len(indices) and indices.max() >= n_to):

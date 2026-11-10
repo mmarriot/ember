@@ -24,12 +24,29 @@ export type Legend =
   | { kind: "ramp"; palette: Palette; range: Range; column: string; unit: string }
   | { kind: "category"; text: string; items?: { label: string; colour: string }[] };
 
-const rgb = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
+// Parsed once per colour: colouring runs per object (about 500k hits at PU200) and must not allocate per object.
+const parsed = new Map<string, readonly number[]>();
+const rgb = (hex: string) => {
+  let c = parsed.get(hex);
+  if (!c) parsed.set(hex, (c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)));
+  return c;
+};
 export function ramp(stops: readonly string[], t: number): number[] {
   const x = Math.min(1, Math.max(0, t)) * (stops.length - 1);
   const i = Math.min(Math.floor(x), stops.length - 2), f = x - i;
   const a = rgb(stops[i]), b = rgb(stops[i + 1]);
   return a.map((v, k) => v + (b[k] - v) * f);
+}
+/** The ramp sampled at 256 levels (RGB triplets), so a colour per object is a table lookup. */
+const LEVELS = 256, tables = new WeakMap<readonly string[], Float32Array>();
+function rampTable(stops: readonly string[]) {
+  let lut = tables.get(stops);
+  if (!lut) {
+    lut = new Float32Array(3 * LEVELS);
+    for (let k = 0; k < LEVELS; k++) lut.set(ramp(stops, k / (LEVELS - 1)), 3 * k);
+    tables.set(stops, lut);
+  }
+  return lut;
 }
 
 export const toF32 = (c: Column | undefined, n: number, fill = 0) =>
@@ -60,7 +77,7 @@ const unitOf = (doc = "") => doc.match(/\[([^\]]+)\]/)?.[1] ?? "";
 export function colours(d: DisplayLayer, t: Table, ev: EventData, header: Header, pal: Pal, range?: Range): { rgb: Float32Array; legend: Legend; emphasis?: Uint8Array } {
   const out = new Float32Array(3 * t.n);
   const category = (i: number) => pal.categories[i % pal.categories.length];
-  const set = (i: number, c: number[]) => out.set(c, 3 * i);
+  const set = (i: number, c: readonly number[]) => out.set(c, 3 * i);
 
   if (d.colourBy === "row") {
     for (let i = 0; i < t.n; i++) set(i, rgb(category(i)));
@@ -80,14 +97,23 @@ export function colours(d: DisplayLayer, t: Table, ev: EventData, header: Header
     return { rgb: out, legend: { kind: "category", text: items.length > 16 ? `by ${column} (${items.length} values)` : `by ${column}`, ...(items.length > 16 ? {} : { items }) } };
   }
   const relName = typeof d.colourBy === "object" && "relation" in d.colourBy ? d.colourBy.relation : undefined;
-  const rel = relName ? ev.relations[relName] : undefined;
-  if (rel && header.relations[relName!].to === d.table) {
-    const owner = new Int32Array(t.n).fill(-1);
+  const rel = relName ? ev.relations[relName] : undefined, info = relName ? header.relations[relName] : undefined;
+  if (rel && info && (info.to === d.table || info.from === d.table)) {
+    // The partner of each object: its owner (objects of `from` that contain it) or, for a layer on the `from` side,
+    // the object it points to (e.g. a trackster's truth particle). With several, the relation's `best` weight
+    // decides, else the first.
+    const forward = info.from === d.table && info.to !== d.table, otherTable = forward ? info.to : info.from;
+    const owner = new Int32Array(t.n).fill(-1), w = info.best ? rel.weights[info.best.weight] : undefined;
+    const better = (a: number, b: number) => (info.best!.order === "min" ? a < b : a > b);
+    const bestW = w ? new Float32Array(t.n).fill(NaN) : null;
     for (let f = 0; f + 1 < rel.offsets.length; f++)
-      for (let k = rel.offsets[f]; k < rel.offsets[f + 1]; k++) if (owner[rel.indices[k]] < 0) owner[rel.indices[k]] = f;
-    // An object takes its owner's colour when the owner has categorical colours of its own (e.g. a candidate's
-    // particle type), otherwise one colour per owner.
-    const fromTable = header.relations[relName!].from, od = header.display.find((l) => l.table === fromTable), ot = ev.tables[fromTable];
+      for (let k = rel.offsets[f]; k < rel.offsets[f + 1]; k++) {
+        const [obj, partner] = forward ? [f, rel.indices[k]] : [rel.indices[k], f];
+        if (owner[obj] < 0 || (bestW && better(w![k], bestW[obj]))) { owner[obj] = partner; if (bestW) bestW[obj] = w![k]; }
+      }
+    // An object takes its partner's colour when the partner has colours of its own (one per object, or a category
+    // such as a candidate's particle type), otherwise one colour per partner.
+    const fromTable = otherTable, od = header.display.find((l) => l.table === fromTable), ot = ev.tables[fromTable];
     const ownerRgb = od && ot && (od.colourBy === "row" || (typeof od.colourBy === "object" && "category" in od.colourBy))
       ? colours(od, ot, ev, header, pal).rgb : null;
     for (let i = 0; i < t.n; i++)
@@ -101,7 +127,10 @@ export function colours(d: DisplayLayer, t: Table, ev: EventData, header: Header
 
   const palette = d.palette ?? "heat", column = d.colour ?? "";
   const values = toF32(column ? t.columns[column] : undefined, t.n, 1);
-  const r = range ?? valueRange(values), stops = pal.ramps[palette];
-  for (let i = 0; i < t.n; i++) set(i, ramp(stops, position(r, values[i])));
+  const r = range ?? valueRange(values), lut = rampTable(pal.ramps[palette]);
+  for (let i = 0; i < t.n; i++) {
+    const p = position(r, values[i]), k = 3 * Math.round((p > 0 ? (p < 1 ? p : 1) : 0) * (LEVELS - 1)); // NaN -> 0
+    out[3 * i] = lut[k]; out[3 * i + 1] = lut[k + 1]; out[3 * i + 2] = lut[k + 2];
+  }
   return { rgb: out, legend: { kind: "ramp", palette, range: r, column, unit: unitOf(header.tables[d.table]?.columns[column]?.doc) } };
 }

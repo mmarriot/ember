@@ -114,6 +114,11 @@ def test_compose_gather_and_same_rows():
     with pytest.raises(ValueError, match="sameRows LC / OldLC: event .* differs \\(e/e\\)"):
         conv.event(one_event(ev), 0)
 
+    # Without the kept table (e.g. no SoA in the file) the chain ends at the other one, and so does the composition.
+    conv = converter({t: m for t, m in meta.items() if t != "LC"}, profile)
+    assert (conv.relations["candLCs"]["from"], conv.relations["candLCs"]["to"]) == ("C", "OldLC")
+    assert "candLCs" in conv.header([], "test")["relations"]
+
 
 def test_stages_show_the_last_and_colour_by_it():
     profile = {
@@ -172,3 +177,49 @@ def test_compose_and_gather():
     assert x[:3].tolist() == [20.0, 7.0, 10.0]  # the first shower; else the track
     assert ext[:3].tolist() == [9.0, 0.0, 4.0]  # placed by the track: the columns it does not give are 0
     assert np.isnan(x[3]) and np.isnan(ext[3])  # reached by nothing
+
+
+def test_index_column_follows_the_cut_of_its_target():
+    """A kept row's index column names the same object after its target table is cut (removed: -1)."""
+    profile = {"relations": [{"name": "candTrack", "kind": "index", "from": "C", "to": "T", "index": "C.track"}],
+               "cuts": {"T": [{"reachedBy": "candTrack"}]}}
+    conv = converter({"C": {"track": (I4, "")}, "T": {"pt": (F4, "")}}, profile)
+    ev = {"C": {"track": np.array([3, -1, 1], np.int32)}, "T": {"pt": np.array([0, 1, 2, 3, 4], np.float32)}}
+    _, tables, rels = conv.event(one_event(ev), 0)
+    np.testing.assert_array_equal(tables["T"][1]["pt"], [1, 3])  # tracks 1 and 3 are used
+    np.testing.assert_array_equal(tables["C"][1]["track"], [1, -1, 0])  # renumbered like the relation
+    np.testing.assert_array_equal(rels["candTrack"]["indices"], [1, 0])
+
+
+def test_reached_by_a_counts_relation_and_unsorted_links():
+    """counts offsets are integers even from u16 counts; links need not come grouped by `from`."""
+    profile = {"relations": [
+        {"name": "tLCs", "kind": "counts", "from": "T", "to": "LC", "counts": "T.n", "indices": "V.lc"},
+        {"name": "lcHits", "kind": "links", "from": "LC", "to": "H", "table": "L", "fromIndex": "L.lc", "toIndex": "L.hit",
+         "weights": ["L.f"]}],
+        "internal": ["V", "L"], "cuts": {"LC": [{"reachedBy": "tLCs"}]}}
+    U2 = np.dtype("u2")
+    conv = converter({"T": {"n": (U2, "")}, "V": {"lc": (I4, "")}, "LC": {"e": (F4, "")}, "H": {"e": (F4, "")},
+                      "L": {"lc": (I4, ""), "hit": (I4, ""), "f": (F4, "")}}, profile)
+    ev = {"T": {"n": np.array([1], U2)}, "V": {"lc": np.array([1], np.int32)}, "LC": {"e": np.array([1, 2], np.float32)},
+          "H": {"e": np.array([5, 6, 7], np.float32)},
+          "L": {"lc": np.array([1, 0, 1], np.int32), "hit": np.array([2, 0, -1], np.int32), "f": np.array([.5, 1, .2], np.float32)}}
+    _, tables, rels = conv.event(one_event(ev), 0)
+    assert "V" not in tables and "L" not in tables
+    np.testing.assert_array_equal(tables["LC"][1]["e"], [2])  # only LC 1 is in a trackster
+    np.testing.assert_array_equal(rels["lcHits"]["offsets"], [0, 1])  # LC 1 -> hit 2 (its -1 link dropped)
+    np.testing.assert_array_equal(rels["lcHits"]["indices"], [2])
+    np.testing.assert_array_equal(rels["lcHits"]["weights"]["f"], [.5])
+
+
+def test_key_relation_and_gather_fill():
+    """A key relation joins rows with equal keys (any order); gather copies through it, `fill` for rows without one."""
+    profile = {"relations": [{"name": "soaLegacy", "kind": "key", "from": "S", "to": "L", "fromKey": "S.id", "toKey": "L.id"}],
+               "derive": [{"table": "S", "gather": [{"relation": "soaLegacy", "columns": {"w": "w"}}], "fill": 0.6}]}
+    U4 = np.dtype("u4")
+    conv = converter({"S": {"id": (U4, "")}, "L": {"id": (U4, ""), "w": (F4, "")}}, profile)
+    ev = {"S": {"id": np.array([30, 10, 99], U4)}, "L": {"id": np.array([10, 20, 30], U4), "w": np.array([0.4, 0.5, 0.6], np.float32)}}
+    _, tables, rels = conv.event(one_event(ev), 0)
+    np.testing.assert_array_equal(rels["soaLegacy"]["offsets"], [0, 1, 2, 2])
+    np.testing.assert_array_equal(rels["soaLegacy"]["indices"], [2, 0])
+    np.testing.assert_allclose(tables["S"][1]["w"], [0.6, 0.4, 0.6])

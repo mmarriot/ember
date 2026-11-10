@@ -178,3 +178,41 @@ details.card { margin-top: 0; }
 .bar .track > span { display: block; height: 100%; background: var(--accent); border-radius: 2px; }
 .segmented.presets { display: flex; margin-bottom: 10px; }
 .segmented.presets button { flex: 1; }
+
+/* Object names next to row numbers; association matches with their weights; the tree tab. */
+.inspector h2 .describe { font-weight: 500; font-size: 0.8em; color: var(--muted); }
+ul.matches { list-style: none; margin: 0; padding: 0; }
+ul.matches li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 6px; font-size: 12px; font-variant-numeric: tabular-nums; }
+.tree ul { list-style: none; margin: 0; padding-left: 14px; }
+.tree > ul { padding-left: 0; }
+.tree li { margin: 1px 0; }
+.tree .node { display: flex; gap: 4px; align-items: center; }
+.tree .toggle { width: 16px; border: 0; background: none; color: var(--muted); cursor: pointer; padding: 0; }
+.tree .label { border: 0; background: none; color: inherit; cursor: pointer; text-align: left; padding: 1px 4px; border-radius: 4px; font: inherit; }
+.tree .label:hover { background: var(--hover, rgba(127, 127, 127, 0.15)); }
+.tree .label.selected { background: var(--accent); color: white; }
+.tree .swatch { width: 8px; height: 8px; border-radius: 2px; flex: none; }
+.tree .found { margin: 4px 0 8px; }
+.tree .chip.selected { background: var(--accent); color: white; }
+.tree input.expr { width: 100%; margin: 4px 0; }
+
+/* MC truth is simulation, not reconstruction: marked wherever it appears. */
+.badge.truth { display: inline-block; font-size: 10px; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; padding: 0 5px; margin: 0 6px 0 0; border-radius: 3px; border: 1px dashed currentColor; color: #d7a6ff; }
+[data-theme="light"] .badge.truth { color: #7a3fb0; }
+.card.truth { border-style: dashed; }
+.card.truth h3 .badge { margin-left: 6px; }
+.layer .sub { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); margin: 2px 0 4px 24px; }
+.relsection h4 { margin: 10px 0 2px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+.truthline { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px; margin: 0 0 6px; font-size: 12px; }
+.inspector .kind.truth { color: #d7a6ff; }
+[data-theme="light"] .inspector .kind.truth { color: #7a3fb0; }
+.layer .glyph { width: 14px; text-align: center; color: var(--muted); flex: none; }
+.actions-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 2px; }
+.pill { font-size: 12px; padding: 2px 10px; border-radius: 12px; border: 1px solid var(--border, rgba(127,127,127,0.4)); background: none; color: inherit; cursor: pointer; }
+.pill.active { background: var(--accent); border-color: var(--accent); color: white; }
+details.card > summary { cursor: pointer; font-weight: 600; font-size: 13px; }
+table.outcome td { padding: 2px 4px 2px 0; font-size: 12px; vertical-align: middle; }
+table.outcome tr.missed td:first-child .chip { border-color: #e5534b; }
+.sidebar .tablist { background: var(--surface-2); z-index: 2; }
+.focusbar { position: absolute; top: 10px; left: 12px; max-width: 46%; background: var(--surface); border: 1px solid var(--accent); border-radius: 16px; padding: 3px 12px; font-size: 12px; display: flex; gap: 8px; align-items: baseline; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; box-shadow: 0 2px 10px rgba(0,0,0,0.25); z-index: 3; }
+.focusbar .link { white-space: nowrap; }

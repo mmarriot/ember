@@ -14,6 +14,12 @@ export interface Layer {
   readonly context?: boolean; // a background layer: left out of framing
   readonly object: THREE.Object3D;
   readonly x: Float32Array; readonly y: Float32Array; readonly z: Float32Array;
+  /** Objects picked along a segment rather than at a point (lines; showers along their principal axis): its ends. */
+  readonly segment?: { readonly a: readonly [Float32Array, Float32Array, Float32Array]; readonly b: readonly [Float32Array, Float32Array, Float32Array] };
+  /** Lines (tracks, truth particles): framing a selection keeps them whole, start to end. */
+  readonly line?: boolean;
+  /** Multiplies the pick distance (default 1): below 1, the layer wins over others nearby (e.g. showers over hits). */
+  readonly pickBias?: number;
   passes(i: number): boolean; // survives the current cut
   setCut(min: number): number; // returns the number of objects shown
   setColours(rgb: Float32Array): void;
@@ -25,6 +31,7 @@ export interface Layer {
   setRetire(t: number): void; // replay: when the layer gives way to the next reconstruction stage (s); REPLAY_OFF: never
   setFade?(from: number, to: number, amount: number): void; // replay: fade towards the background between these times
   setColourStages?(stages: ColourStage[]): void; // replay: colours (and emphasis) from time t on, e.g. per stage
+  setOutline?(on: boolean): void; // shower objects: draw as outlines (e.g. the reco objects matched to a truth particle)
   dispose(): void;
 }
 export interface ColourStage { t: number; rgb: Float32Array; emphasis?: Uint8Array }
@@ -259,14 +266,65 @@ export function markers(input: LayerInput): Layer {
  *  principal-axis line. While something is selected, unrelated showers are hidden so they cannot cover it.
  *  In a replay each grows in over GROW seconds, and on a selection change unrelated ones shrink away (a CPU update
  *  per frame while either happens: a few hundred objects, buffers rewritten in place). */
+const SHOWER_STYLES = { solid: 0, shell: 1, cage: 2, core: 3 } as const;
+// Instanced unit spheres scaled and rotated per shower; normals use the inverse transpose, so the shading and the
+// rim follow the ellipsoid's real surface.
+const SHOWER_VERTEX = /* glsl */ `
+  varying vec3 vN, vV, vP, vCol;
+  void main() {
+    mat4 mv = modelViewMatrix * instanceMatrix;
+    vec4 p = mv * vec4(position, 1.0);
+    vN = normalize(transpose(inverse(mat3(mv))) * normal);
+    vV = normalize(-p.xyz);
+    vP = position;
+    #ifdef USE_INSTANCING_COLOR
+    vCol = instanceColor;
+    #else
+    vCol = vec3(0.6);
+    #endif
+    gl_Position = projectionMatrix * p;
+  }`;
+// Surfaces: solid (tracksters): translucent, softly shaded, a light rim; shell (linked tracksters): clear inside,
+// bright outline; cage (interpretations): three rings around the principal axes; core (candidates): opaque, glossy.
+const SHOWER_FRAGMENT = /* glsl */ `
+  uniform float uStyle;
+  varying vec3 vN, vV, vP, vCol;
+  void main() {
+    vec3 n = normalize(vN), v = normalize(vV);
+    if (!gl_FrontFacing) n = -n;
+    float facing = abs(dot(n, v)), rim = 1.0 - facing;
+    vec3 l = normalize(vec3(0.35, 0.65, 0.7));
+    float diffuse = 0.55 + 0.45 * max(dot(n, l), 0.0);
+    vec3 col; float a;
+    if (uStyle < 0.5) { col = vCol * diffuse + 0.18 * pow(rim, 2.0); a = 0.22 + 0.5 * pow(rim, 2.5); }
+    else if (uStyle < 1.5) { col = mix(vCol, vec3(1.0), 0.15); a = 0.03 + 0.85 * pow(rim, 4.0); }
+    else if (uStyle < 2.5) {
+      vec3 w = 1.5 * fwidth(vP); // rings about 1.5 pixels wide on screen, whatever the ellipsoid's size
+      vec3 r = 1.0 - smoothstep(0.5 * w, w, abs(vP));
+      float ring = max(max(r.x, r.y), r.z);
+      col = mix(vCol, vec3(1.0), 0.1 * ring); a = 0.04 + 0.8 * ring + 0.15 * pow(rim, 3.0);
+    } else {
+      float spec = pow(max(dot(reflect(-l, n), v), 0.0), 28.0);
+      col = vCol * (0.35 + 0.75 * diffuse) + 0.45 * spec + 0.12 * pow(rim, 3.0); a = 1.0;
+    }
+    gl_FragColor = vec4(col, a);
+  }`;
+
 export function ellipsoids(input: LayerInput): Layer {
   const { key, d, t } = input;
   let rgb = input.rgb;
   const [x, y, z] = positions(input);
   const axis = (d.axis ?? []).map((c) => toF32(t.columns[c], t.n));
   const extent = (d.extent ?? []).map((c) => toF32(t.columns[c], t.n));
-  const geometry = new THREE.SphereGeometry(1, 24, 16);
-  const material = new THREE.MeshLambertMaterial({ transparent: true, opacity: 0.5, depthWrite: false });
+  // Every shower object is an ellipsoid (2 sigma along its principal axes); each kind has its own surface, so the
+  // reconstruction stages are told apart at a glance: see SHOWER_GLSL.
+  const shape = d.shape ?? "solid", style = SHOWER_STYLES[shape];
+  const geometry = new THREE.SphereGeometry(1, 40, 24);
+  const material = new THREE.ShaderMaterial({
+    vertexShader: SHOWER_VERTEX, fragmentShader: SHOWER_FRAGMENT, uniforms: { uStyle: { value: style } },
+    transparent: shape !== "core", depthWrite: shape === "core", side: shape === "shell" || shape === "cage" ? THREE.DoubleSide : THREE.FrontSide,
+  });
+  const core = shape === "core" ? 0.55 : 1; // a candidate is a compact core inside the shower it stands for
   const mesh = new THREE.InstancedMesh(geometry, material, Math.max(t.n, 1));
   mesh.count = t.n;
   mesh.frustumCulled = false;
@@ -277,6 +335,9 @@ export function ellipsoids(input: LayerInput): Layer {
   const lines = new THREE.LineSegments(lineGeometry, new THREE.LineBasicMaterial({ vertexColors: true }));
   lines.frustumCulled = false;
   const group = new THREE.Group().add(mesh, lines);
+  const drawAxis = shape === "solid" || shape === "core"; // shells and cages stay uncluttered
+  const pickA = [new Float32Array(t.n), new Float32Array(t.n), new Float32Array(t.n)] as const;
+  const pickB = [new Float32Array(t.n), new Float32Array(t.n), new Float32Array(t.n)] as const;
   let rz = false, highlighted: Set<number> | null = null, previous: Set<number> | null = null, hlMix = 1;
   const shown = (set: Set<number> | null, i: number) => (set === null || set.has(i) ? 1 : 0);
   let appear: Float32Array | null = null, clock = REPLAY_OFF, settled = Infinity; // replay: all grown once clock >= settled
@@ -301,9 +362,10 @@ export function ellipsoids(input: LayerInput): Layer {
       c.setRGB(rgb[3 * i], rgb[3 * i + 1], rgb[3 * i + 2]);
       const centre = new THREE.Vector3(x[i], y[i], z[i]);
       const ends = [centre.clone().addScaledVector(a, 2 * g * sigma(0)), centre.clone().addScaledVector(a, -2 * g * sigma(0))];
-      if (hasAxis && !hidden) ends.forEach((e, k) => { project(e); seg.set([e.x, e.y, e.z], 6 * i + 3 * k); segCol.set([c.r, c.g, c.b], 6 * i + 3 * k); });
+      for (const [k, e] of ends.entries()) { const end = k ? pickB : pickA; end[0][i] = e.x; end[1][i] = e.y; end[2][i] = e.z; }
+      if (hasAxis && !hidden && drawAxis) ends.forEach((e, k) => { project(e); seg.set([e.x, e.y, e.z], 6 * i + 3 * k); segCol.set([c.r, c.g, c.b], 6 * i + 3 * k); });
       q.setFromUnitVectors(zAxis, hasAxis && !rz ? a : zAxis);
-      s.set(...((hidden ? [0, 0, 0] : hasAxis && !rz ? [sigma(1), sigma(2), sigma(0)] : [1, 1, 1]) as [number, number, number])).multiplyScalar(2 * g);
+      s.set(...((hidden ? [0, 0, 0] : hasAxis && !rz ? [sigma(1), sigma(2), sigma(0)] : [1, 1, 1]) as [number, number, number])).multiplyScalar(2 * g * core);
       mesh.setMatrixAt(i, m.compose(project(p.copy(centre)), q, s));
       mesh.setColorAt(i, c);
     }
@@ -315,8 +377,11 @@ export function ellipsoids(input: LayerInput): Layer {
   const cut = cutter(t.n, input.cut, () => update());
   update();
   return {
-    key, table: d.table, label: d.label, pickRadius: 22, object: group, x, y, z,
-    passes: cut.passes, setCut: cut.setCut, setColours(c) { rgb = c; update(); },
+    // Picked anywhere along the principal axis (the drawn length), and preferred over hits and clusters nearby.
+    key, table: d.table, label: d.label, pickRadius: 14, object: group, x, y, z, segment: { a: pickA, b: pickB }, pickBias: shape === "core" ? 0.3 : 0.45,
+    passes: (i) => cut.passes(i) && shown(highlighted, i) === 1, // showers hidden by a selection cannot be picked
+    setCut: cut.setCut, setColours(c) { rgb = c; update(); },
+    setOutline(on) { material.uniforms.uStyle.value = on ? SHOWER_STYLES.shell : style; material.side = on ? THREE.DoubleSide : material.side; },
     setHighlight(rows) { previous = highlighted; highlighted = rows; hlMix = 0; update(); },
     setHighlightMix(k) { if (k !== hlMix) { hlMix = k; update(); } },
     setProjection(v) { rz = v; update(); },
@@ -341,18 +406,26 @@ export function segments(input: LayerInput): Layer {
       attribute float ix, iy, iz, jx, jy, jz, isel, ipsel, icut, iT;
       attribute vec3 icol;
       varying vec3 vCol;
+      varying float vS; // distance along the line [cm], for dashes
       ${GLSL}
       void main() {
         ${CULL}
         float grow = uClock > 1e29 ? 1.0 : clamp((uClock - iT) / 0.5, 0.0, 1.0);
         vec3 c = mix(vec3(ix, iy, iz), vec3(jx, jy, jz), position.x * grow);
+        vS = position.x * grow * length(vec3(jx, jy, jz) - vec3(ix, iy, iz));
         float s = selected(ipsel, isel);
         if (uProj > 0.5) c = projectRZ(c, s * 2.0);
         gl_Position = projectionMatrix * modelViewMatrix * vec4(c, 1.0);
         vCol = fade(mix(icol, vec3(1.0), uFlash * pop(iT)), s) * remaining() + uBg * (1.0 - remaining());
       }`,
-    fragmentShader: `varying vec3 vCol; void main() { gl_FragColor = vec4(vCol, 1.0); }`,
+    // Simulation truth is dashed (4 cm on, 3 cm off), so it never looks like a reconstructed track.
+    fragmentShader: `uniform float uDash; uniform vec3 uBg; varying vec3 vCol; varying float vS;
+      void main() {
+        if (uDash > 0.5 && mod(vS, 7.0) > 4.0) discard;
+        gl_FragColor = vec4(uDash > 0.5 ? mix(vCol, uBg, 0.35) : vCol, 1.0); // truth dimmer than reconstructed tracks
+      }`,
   });
+  material.uniforms.uDash = { value: d.truth ? 1 : 0 };
   const cut = cutter(t.n, input.cut, (m) => (material.uniforms.uCut.value = Math.max(m, -1e30)));
   const sel = selectionMask(t.n, g, material, true);
   for (const [name, a] of [["ix", start[0]], ["iy", start[1]], ["iz", start[2]], ["jx", x], ["jy", y], ["jz", z], ["icut", cut.values]] as const)
@@ -364,7 +437,7 @@ export function segments(input: LayerInput): Layer {
   lines.frustumCulled = false;
   lines.renderOrder = 1;
   return {
-    key, table: d.table, label: d.label, pickRadius: 8, object: lines, x, y, z,
+    key, table: d.table, label: d.label, pickRadius: 8, object: lines, x, y, z, segment: { a: start, b: [x, y, z] }, pickBias: 0.8, line: true,
     passes: cut.passes, setCut: cut.setCut, setColours: (c) => replaceColours(g.getAttribute("icol") as THREE.BufferAttribute, c),
     ...sel,
     setProjection(rz) { material.uniforms.uProj.value = rz ? 1 : 0; },

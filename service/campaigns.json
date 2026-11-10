@@ -1,0 +1,16 @@
+{
+  "site": "/eos/user/m/mmarriot/evd",
+  "state": "/eos/user/m/mmarriot/evd-service/state",
+  "settle": 600,
+  "max_failures": 3,
+  "campaigns": [
+    {
+      "name": "mct_22000077",
+      "title": "MCT run 22000077 · cosmics",
+      "inputs": "/eos/cms/store/group/dpg_hgcal/tb_hgcal/2026/P5/Run22000077/*/NANO_22000077_*.root",
+      "xrootd": "root://eoscms.cern.ch/",
+      "profile": "mct",
+      "max_events": 1000
+    }
+  ]
+}

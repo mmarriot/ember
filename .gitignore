@@ -1,0 +1,7 @@
+node_modules/
+dist/
+__pycache__/
+*.evdb.tmp*
+data/*.evdb
+viewer/e2e/shots/
+data/index.json

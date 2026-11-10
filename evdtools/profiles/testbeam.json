@@ -1,0 +1,26 @@
+{
+  "name": "testbeam",
+  "note": "HGCal test beam 2026 (TestBeam_ReReco NANO): 11 silicon layers along the beam at z -322 to -337 cm, no zero suppression. Hits are cut at 3 sigma of noise; events need at least 20 hits above 5 sigma (beam showers, not empty triggers). The beam travels towards -z.",
+  "exclude": ["HGCTriggerDigi"],
+  "internal": ["HGCDenseIndex"],
+  "derive": [
+    {"table": "HGCHit", "column": "cellSize", "neighbourDistance": ["x", "y"], "groupBy": "layer", "k": 3, "scale": 0.57735}
+  ],
+  "relations": [
+    {"name": "hitDigi", "kind": "index", "from": "HGCHit", "to": "HGCDigi", "index": "HGCHit.denseIndex",
+     "via": "HGCDenseIndex.digiIdx"}
+  ],
+  "cuts": {
+    "HGCHit": [["energy/sigmaNoise", ">", 3]],
+    "HGCDigi": [{"reachedBy": "hitDigi"}]
+  },
+  "select": [
+    {"table": "HGCHit", "where": [["energy/sigmaNoise", ">", 5]], "min": 20}
+  ],
+  "replay": {"direction": [0, 0, -1]},
+  "display": [
+    {"table": "HGCHit", "repr": "cells", "group": "HGCal test beam", "label": "Rechits", "position": ["x", "y", "z"],
+     "colour": "nmips", "palette": "heat", "size": "cellSize", "visible": true,
+     "cut": {"group": "Rechit energy", "column": "energy", "unit": "GeV", "default": 0.0}}
+  ]
+}

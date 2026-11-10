@@ -1,0 +1,27 @@
+{
+  "name": "mct",
+  "note": "HGCal multi-cassette test (P5) without zero suppression. Hits are cut at 3 sigma of noise; events need a hit above 6 sigma in each of layers 25 and 26 (cosmic-muon candidates). HGCHit_nmips/energy are uncalibrated (= ADC) in these files.",
+  "exclude": ["HGCTriggerDigi"],
+  "internal": ["HGCDenseIndex"],
+  "derive": [
+    {"table": "HGCHit", "column": "cellSize", "neighbourDistance": ["x", "y"], "groupBy": "layer", "k": 3, "scale": 0.57735}
+  ],
+  "relations": [
+    {"name": "hitDigi", "kind": "index", "from": "HGCHit", "to": "HGCDigi", "index": "HGCHit.denseIndex",
+     "via": "HGCDenseIndex.digiIdx"}
+  ],
+  "cuts": {
+    "HGCHit": [["energy/sigmaNoise", ">", 3]],
+    "HGCDigi": [{"reachedBy": "hitDigi"}]
+  },
+  "select": [
+    {"table": "HGCHit", "where": [["layer", "==", 25], ["energy/sigmaNoise", ">", 6]], "min": 1},
+    {"table": "HGCHit", "where": [["layer", "==", 26], ["energy/sigmaNoise", ">", 6]], "min": 1}
+  ],
+  "replay": {"direction": [0, -1, 0]},
+  "display": [
+    {"table": "HGCHit", "repr": "cells", "group": "HGCal MCT", "label": "Rechits", "position": ["x", "y", "z"],
+     "colour": "nmips", "palette": "heat", "size": "cellSize", "visible": true,
+     "cut": {"group": "Rechit energy", "column": "energy", "unit": "GeV", "default": 0.0}}
+  ]
+}

@@ -169,7 +169,8 @@ def simulate(source, site, campaign="live_demo", title="Simulated live data", ev
              sleep=time.sleep):
     """Stand-in for new data arriving: every `interval` seconds, publish the next `events` events of the bundle
     `source` as a new file data/<campaign>/part_NNNN.evdb (as sync would), then rewrite the index. Returns the number
-    of files written. Records are copied as they are, so the viewer cannot tell them from converted data."""
+    of files written. Records (events, and the per-run tables of their runs) are copied as they are, so the viewer
+    cannot tell them from converted data."""
     from .bundle import BundleWriter
 
     src = Bundle(source)
@@ -184,6 +185,10 @@ def simulate(source, site, campaign="live_demo", title="Simulated live data", ev
             for i in range(first, min(first + events, len(src))):
                 ev = src.event(i)
                 out.add(ev["event"], ev["tables"], ev["relations"])
+            for run in sorted(out.runs()):  # each part carries the per-run tables and run info of its runs
+                if tables := src.run(run):
+                    out.add_run((run, 0, 0), tables, {})
+            out.set_run_info({run: src.run_info(run) for run in out.runs()})
         _write_json(os.path.join(site, "index.json"), build_index(site))
         written += 1
         log(f"published {os.path.relpath(part, site)} (events {first}-{min(first + events, len(src)) - 1})")

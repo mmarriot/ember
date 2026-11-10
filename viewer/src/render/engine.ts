@@ -1,5 +1,5 @@
-// Renderer, cameras, navigation (presets, framing, smooth fly-to), and picking. Draws only when something
-// changed. Knows nothing about bundles or tables beyond the Layer interface.
+// Renderer, cameras, navigation (presets, framing, smooth fly-to, tour camera), and picking. Draws only when
+// something changed. Knows nothing about bundles or tables beyond the Layer interface.
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import type { Layer } from "./layers";
@@ -7,9 +7,20 @@ import { REPLAY_OFF } from "./replay";
 
 export type ViewName = "3d" | "front" | "side" | "rz";
 export interface Hit { table: string; row: number; layer: string }
+type Rows = Map<string, Iterable<number>>;
+type Pose = [position: THREE.Vector3, target: THREE.Vector3, zoom: number];
+
+/** Default smallest radius (cm) framed around objects; profiles set their own (view.minRadius). */
+export const MIN_RADIUS = 70;
+
 const DIRECTIONS: Record<Exclude<ViewName, "rz">, [number, number, number]> = {
   "3d": [0.62, 0.32, 0.72], front: [0, 0, 1], side: [1, 0, 0], // camera direction from the target
 };
+
+// Tour camera (beam tours).
+const TOUR_SWAY = 0.35, TOUR_PERIOD = 30; // rad, s: close-ups sway around their view
+const TOUR_SPIN = (2 * Math.PI) / 60; // rad/s: the whole event turns once a minute
+const SPRUNG = ["az", "el", "ld"] as const; // tour state that follows its goal on a spring (besides the target)
 
 export class Engine {
   private readonly renderer: THREE.WebGLRenderer;
@@ -18,28 +29,30 @@ export class Engine {
   private readonly camRZ = new THREE.OrthographicCamera(-1, 1, 1, -1, -5000, 5000);
   private readonly ctl3d: OrbitControls;
   private readonly ctlRZ: OrbitControls;
+  private readonly gizmo = makeGizmo();
+  private width = 1;
+  private height = 1;
   private layers: Layer[] = [];
   private view: ViewName = "3d";
   private dirty = true;
-  private flight: { t0: number; ms: number; swing: number; from: [THREE.Vector3, THREE.Vector3, number]; to: [THREE.Vector3, THREE.Vector3, number] } | null = null;
+  private flight: { t0: number; ms: number; swing: number; from: Pose; to: Pose } | null = null;
   private replayClock: { t0: number; seconds: number } | null = null;
   private highlightFade: { t0: number; ms: number } | null = null;
   private orbit = 0; // auto-rotation, turns per minute (3D)
-  /** Smallest radius (cm) framed around objects (profile view.minRadius, set by the viewport). */
-  minRadius = 70;
-  /** Pixels on the right of the view covered by a panel (the inspector): framing centres objects in the rest. */
-  insetRight = 0;
-  /** Tour camera (collider data): looks at a target from a distance that fits it, at a 3/4 angle, turning slowly
-   *  (whole event) or swaying (close-ups). Angle, elevation, distance (log) and target follow their goals as critically
-   *  damped springs: each glide starts gently, is quickest in the middle and settles softly, and a new goal arriving
-   *  mid-glide keeps the motion going (velocity is continuous), so the camera never stops dead. It never enters the
-   *  detector: where the ideal position is inside the detector envelope it stops at the envelope along the line of
-   *  sight and zooms optically by the difference, so the framing is the same. */
+  /** Tour camera: looks at a target from a 3/4 angle, turning slowly (whole event) or swaying (close-ups). Angle,
+   *  elevation, ln(distance) and target follow their goals as critically damped springs, so glides start and settle
+   *  softly and a new goal mid-glide keeps the motion continuous. The camera stays out of the detector envelope:
+   *  where the ideal position is inside, it stops at the envelope and zooms optically by the difference. */
   private tour: {
-    t: number; az: number; el: number; ld: number; target: THREE.Vector3; spin: number; spinW: number; // ld: ln(distance)
+    t: number; az: number; el: number; ld: number; target: THREE.Vector3; spin: number; spinW: number;
     v: { az: number; el: number; ld: number; target: THREE.Vector3 }; // velocities
     goal: { az: number; el: number; ld: number; target: THREE.Vector3; spinW: number; omega: number };
   } | null = null;
+  private envelope: Envelope | null = null; // of the drawn layers, computed when the tour first needs it
+  /** Smallest radius (cm) framed around objects (profile view.minRadius, set by the viewport). */
+  minRadius = MIN_RADIUS;
+  /** Pixels on the right of the view covered by a panel (the inspector): framing centres objects in the rest. */
+  insetRight = 0;
   /** Called on every replay frame with the replay time (s), and with null when it ends. */
   onReplayTick: (t: number | null) => void = () => {};
   /** Called when the user starts rotating, panning or zooming. */
@@ -64,24 +77,22 @@ export class Engine {
     }
     Object.assign(this.ctl3d, { minDistance: 5, maxDistance: 6000 }); // cm: never inside a cell, never lost
     Object.assign(this.ctlRZ, { minZoom: 0.05, maxZoom: 300 });
-    this.gizmo = makeGizmo();
     new ResizeObserver(() => this.resize()).observe(canvas.parentElement!);
     let last = performance.now();
     const loop = (now: number) => {
-      const real = (now - last) / 1000, dt = Math.min(0.1, real); // s; capped so a backgrounded tab does not jump on return
+      const real = (now - last) / 1000; // s
       last = now;
       if (this.replayClock) this.tick(now);
       if (this.highlightFade) this.fadeStep(now);
-      if (this.tour) this.tourStep(Math.min(0.25, real)); // a looser cap: on slow frames the tour still keeps pace
+      // Capped, so a backgrounded tab does not jump on return; looser for the tour, so it keeps pace on slow frames.
+      if (this.tour) this.tourStep(Math.min(0.25, real));
       else if (this.flight) this.fly(now);
-      else this.controls.update(dt); // damping and auto-rotation; emits "change" (-> redraw) only while moving
+      else this.controls.update(Math.min(0.1, real)); // damping and auto-rotation; emits "change" only while moving
       if (this.dirty) { this.draw(); this.dirty = false; }
       requestAnimationFrame(loop);
     };
     requestAnimationFrame(loop);
   }
-
-  private readonly gizmo: ReturnType<typeof makeGizmo>;
 
   /** The event, then a small axis gizmo in the bottom-right corner showing the camera orientation (3D views). */
   private draw() {
@@ -100,9 +111,6 @@ export class Engine {
     r.setViewport(0, 0, this.width, this.height);
     r.autoClear = true;
   }
-
-  private width = 1;
-  private height = 1;
 
   private get rz() { return this.view === "rz"; }
   private get camera(): THREE.PerspectiveCamera | THREE.OrthographicCamera { return this.rz ? this.camRZ : this.cam3d; }
@@ -162,34 +170,33 @@ export class Engine {
     }
   }
 
-  /** Tour: glide to the given rows (or everything: both endcaps, from the side) in about `ms`. `room`: how much space
-   *  around them is kept in view (1 is tight; larger is further out). */
-  tourTo(selection: Map<string, Iterable<number>> | undefined, ms: number, room = 1.9) {
+  /** Tour: glide to the given rows (or everything, from the side) in about `ms`. `room`: how much space around
+   *  them is kept in view (1 is tight; larger is further out). */
+  tourTo(selection: Rows | undefined, ms: number, room = 1.9) {
     const box = this.box(selection);
     if (!this.tour || !box) return;
     const s = this.tour, [lo, hi] = box, ctr = lo.clone().add(hi).multiplyScalar(0.5);
-    const radius = Math.max(0.5 * hi.clone().sub(lo).length() + 15, 70); // cm (beam tours only: collider scale)
-    const dist = ((selection ? room : 1.05) * radius) / Math.sin(THREE.MathUtils.degToRad(this.cam3d.fov / 2));
+    const radius = Math.max(0.5 * lo.distanceTo(hi) + 15, MIN_RADIUS);
+    const dist = this.distanceFor((selection ? room : 1.05) * radius);
     s.az += s.spin; // the turn so far becomes the starting angle of the glide
     s.spin = 0;
-    // A 3/4 view: from the side for the whole event, from outside its endcap for a shower; the nearer of the two
-    // mirror angles, so the camera does not swing across.
+    // A 3/4 view: from the side for the whole event, from outside its end for a forward shower; the nearer of the
+    // two mirror angles, so the camera does not swing across.
     const base = !selection || Math.abs(ctr.z) < 100 ? 1.2 : ctr.z > 0 ? 0.55 : Math.PI - 0.55;
     const az = [base, -base].reduce((a, c) => (Math.abs(angle(c - s.az)) < Math.abs(angle(a - s.az)) ? c : a));
-    // Critically damped: about 99% of the way after 6.6 / omega seconds.
     s.goal = { az: s.az + angle(az - s.az), el: selection ? 0.3 : 0.38, ld: Math.log(dist), target: ctr, spinW: selection ? 0 : 1,
-      omega: 6.6 / Math.max(0.4, ms / 1000) };
+      omega: 6.6 / Math.max(0.4, ms / 1000) }; // critically damped: ~99% of the way after 6.6 / omega seconds
   }
 
   private tourStep(dt: number) {
-    const s = this.tour!, g = s.goal, w = g.omega;
-    for (let left = dt; left > 1e-6; left -= 0.02) { // small steps keep the spring stable on slow frames
+    const s = this.tour!, g = s.goal, w = g.omega, acc = new THREE.Vector3();
+    for (let left = dt; left > 1e-6; left -= 0.02) { // small steps keep the springs stable on slow frames
       const h = Math.min(0.02, left);
-      const spring = (x: number, v: number, goal: number) => { const nv = v + (w * w * (goal - x) - 2 * w * v) * h; return [x + nv * h, nv]; };
-      [s.az, s.v.az] = spring(s.az, s.v.az, g.az);
-      [s.el, s.v.el] = spring(s.el, s.v.el, g.el);
-      [s.ld, s.v.ld] = spring(s.ld, s.v.ld, g.ld);
-      const acc = g.target.clone().sub(s.target).multiplyScalar(w * w).addScaledVector(s.v.target, -2 * w);
+      for (const k of SPRUNG) {
+        s.v[k] += (w * w * (g[k] - s[k]) - 2 * w * s.v[k]) * h;
+        s[k] += s.v[k] * h;
+      }
+      acc.subVectors(g.target, s.target).multiplyScalar(w * w).addScaledVector(s.v.target, -2 * w);
       s.v.target.addScaledVector(acc, h);
       s.target.addScaledVector(s.v.target, h);
     }
@@ -198,7 +205,8 @@ export class Engine {
     s.spin += dt * TOUR_SPIN * s.spinW;
     const az = s.az + s.spin + (1 - s.spinW) * TOUR_SWAY * Math.sin((2 * Math.PI * s.t) / TOUR_PERIOD);
     const dir = new THREE.Vector3(Math.cos(s.el) * Math.sin(az), Math.sin(s.el), Math.cos(s.el) * Math.cos(az));
-    const dist = Math.exp(s.ld), along = Math.max(dist, exitDistance(s.target, dir) + 20); // stop at the detector envelope
+    this.envelope ??= envelopeOf(this.layers);
+    const dist = Math.exp(s.ld), along = Math.max(dist, exitDistance(this.envelope, s.target, dir) + 20);
     this.cam3d.position.copy(s.target).addScaledVector(dir, along);
     this.cam3d.up.set(0, 1, 0);
     this.cam3d.lookAt(s.target);
@@ -208,16 +216,10 @@ export class Engine {
     this.requestRender();
   }
 
-  /** Back to the normal view, animated: the whole event, centred, from the current preset's direction (3D: the
-   *  standard 3/4 view). */
+  /** Back to the normal view, animated: the whole event from the current preset's direction (3D: the standard 3/4
+   *  view). */
   home(ms = 700) {
-    if (this.rz) return this.frame(undefined, true, ms);
-    const box = this.box();
-    if (!box) return;
-    const [lo, hi] = box, ctr = lo.clone().add(hi).multiplyScalar(0.5);
-    const radius = Math.max(0.68 * hi.clone().sub(lo).length() + 0.22 * this.minRadius, this.minRadius);
-    const dir = new THREE.Vector3(...DIRECTIONS[this.view as Exclude<ViewName, "rz">]).normalize();
-    this.go(ctr.clone().addScaledVector(dir, radius / Math.sin(THREE.MathUtils.degToRad(this.cam3d.fov / 2))), ctr, 1, true, ms, 0);
+    this.fit(undefined, true, ms, 0, this.rz ? undefined : presetDirection(this.view));
   }
 
   /** Orbit the 3D view around its target; `speed` in turns per minute, 0 stops. Flights keep orbiting. */
@@ -245,7 +247,28 @@ export class Engine {
     if (this.replayClock) { this.replayClock = null; this.onReplayTick(null); } // new layers start in their final state
     for (const l of this.layers) { this.scene.remove(l.object); l.dispose(); }
     this.layers = layers;
+    this.envelope = null;
     for (const l of layers) { l.setProjection(this.rz); this.scene.add(l.object); }
+    this.requestRender();
+  }
+
+  /** Draw one more layer (e.g. a hidden layer the focus has objects in). */
+  addLayer(layer: Layer) {
+    layer.setProjection(this.rz);
+    this.scene.add(layer.object);
+    this.layers.push(layer);
+    this.envelope = null;
+    this.requestRender();
+  }
+
+  /** Stop drawing a layer, and free it. */
+  removeLayer(layer: Layer) {
+    const i = this.layers.indexOf(layer);
+    if (i < 0) return;
+    this.scene.remove(layer.object);
+    layer.dispose();
+    this.layers.splice(i, 1);
+    this.envelope = null;
     this.requestRender();
   }
 
@@ -258,18 +281,19 @@ export class Engine {
     next.setProjection(this.rz);
     this.scene.add(next.object);
     this.layers[i] = next;
+    this.envelope = null;
     this.requestRender();
   }
 
   /** Switch camera preset or projection, keeping `selection` (if given) in frame. */
-  setView(view: ViewName, selection?: Map<string, Iterable<number>>) {
+  setView(view: ViewName, selection?: Rows) {
     this.view = view;
     this.ctl3d.enabled = !this.rz;
     this.ctlRZ.enabled = this.rz;
     for (const l of this.layers) l.setProjection(this.rz);
     if (!this.rz) {
       const dist = Math.max(this.cam3d.position.distanceTo(this.ctl3d.target), 100);
-      this.cam3d.position.copy(this.ctl3d.target).addScaledVector(new THREE.Vector3(...DIRECTIONS[view as Exclude<ViewName, "rz">]).normalize(), dist);
+      this.cam3d.position.copy(this.ctl3d.target).addScaledVector(presetDirection(view), dist);
       this.cam3d.up.set(0, 1, 0);
       this.ctl3d.update();
     }
@@ -278,123 +302,134 @@ export class Engine {
 
   /** Fit the view to the drawn objects, or to the given rows per table; animated over `ms` if `animate`, swinging
    *  `swing` radians around the vertical on the way (3D). */
-  frame(selection?: Map<string, Iterable<number>>, animate = false, ms = 450, swing = 0) {
+  frame(selection?: Rows, animate = false, ms = 450, swing = 0) {
+    this.fit(selection, animate, ms, swing);
+  }
+
+  /** frame(), looking along `dir` (3D; default: the current direction). */
+  private fit(selection: Rows | undefined, animate: boolean, ms: number, swing: number, dir?: THREE.Vector3) {
     const box = this.box(selection);
     if (!box) return;
     const [lo, hi] = box;
     const ctr = lo.clone().add(hi).multiplyScalar(0.5), size = hi.clone().sub(lo);
     if (this.rz) {
-      const zoom = 0.85 * Math.min((this.camRZ.right - this.camRZ.left) / Math.max(size.x + 30, 80), (this.camRZ.top - this.camRZ.bottom) / Math.max(size.y + 30, 80));
-      this.go(new THREE.Vector3(ctr.x, ctr.y, 1000), new THREE.Vector3(ctr.x, ctr.y, 0), zoom, animate, ms, 0);
-    } else {
-      const radius = Math.max(0.68 * size.length() + 0.22 * this.minRadius, this.minRadius); // cm: conservative
-      const dir = this.cam3d.position.clone().sub(this.ctl3d.target);
-      if (dir.lengthSq() < 1e-6) dir.set(...DIRECTIONS[this.view as Exclude<ViewName, "rz">]); // no direction yet
-      dir.normalize();
-      // With a panel over the right of the view, fit the objects in the uncovered width and centre them there.
-      const free = Math.max(0.4, 1 - this.insetRight / this.width), half = THREE.MathUtils.degToRad(this.cam3d.fov / 2);
-      const fit = Math.min(1, free * this.cam3d.aspect); // horizontal room relative to the vertical
-      const dist = radius / (Math.sin(half) * fit);
-      const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), dir).normalize();
-      const shift = right.multiplyScalar((1 - free) * dist * Math.tan(half) * this.cam3d.aspect); // half the covered width
-      const target = ctr.clone().add(shift);
-      this.go(target.clone().addScaledVector(dir, dist), target, 1, animate, ms, swing);
+      const c = this.camRZ, zoom = 0.85 * Math.min((c.right - c.left) / Math.max(size.x + 30, 80), (c.top - c.bottom) / Math.max(size.y + 30, 80));
+      return this.go([new THREE.Vector3(ctr.x, ctr.y, 1000), new THREE.Vector3(ctr.x, ctr.y, 0), zoom], animate, ms, 0);
     }
+    const radius = Math.max(0.68 * size.length() + 0.22 * this.minRadius, this.minRadius); // cm: conservative
+    if (!dir) {
+      dir = this.cam3d.position.clone().sub(this.ctl3d.target);
+      if (dir.lengthSq() < 1e-6) dir = presetDirection(this.view); // no direction yet
+      dir.normalize();
+    }
+    // With a panel over the right of the view, fit the objects in the uncovered width and centre them there.
+    const free = Math.max(0.4, 1 - this.insetRight / this.width), aspect = this.cam3d.aspect;
+    const dist = this.distanceFor(radius / Math.min(1, free * aspect)); // the narrower side decides
+    const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), dir).normalize();
+    const shift = (1 - free) * dist * Math.tan(THREE.MathUtils.degToRad(this.cam3d.fov / 2)) * aspect; // half the covered width
+    const target = ctr.addScaledVector(right, shift);
+    this.go([target.clone().addScaledVector(dir, dist), target, 1], animate, ms, swing);
   }
 
-  /** The object closest to a screen point, measured in units of its layer's pick radius (so a big shower and a
-   *  small cell compete fairly; a layer's pickBias below 1 makes it win over others); nothing beyond one radius is
-   *  picked. Cut-away objects, and those `accept` rejects, are ignored. */
+  /** Camera distance at which a sphere of this radius fills the height of the 3D view. */
+  private distanceFor(radius: number) {
+    return radius / Math.sin(THREE.MathUtils.degToRad(this.cam3d.fov / 2));
+  }
+
+  /** The object closest to a screen point (see pickAll), or null. */
   pick(clientX: number, clientY: number, accept?: (table: string, row: number) => boolean): Hit | null {
     return this.pickAll(clientX, clientY, accept)[0] ?? null;
   }
 
   /** Every layer's closest object under a screen point (one per layer), best first: what is stacked there, e.g. a
-   *  candidate, its interpretation, the tracksters, a layer cluster, a hit, a truth line. Clicking again on the
-   *  same spot walks through them. */
+   *  candidate, its tracksters, a hit, a truth line. Distances are in units of the layer's pick radius (times its
+   *  pickBias), so a big shower and a small cell compete fairly; nothing beyond one radius is picked. Cut-away
+   *  objects, and those `accept` rejects, are ignored. Background (context) layers count only when nothing else is
+   *  under the cursor. */
   pickAll(clientX: number, clientY: number, accept?: (table: string, row: number) => boolean): Hit[] {
-    const r = this.canvas.getBoundingClientRect();
-    const px = clientX - r.left, py = clientY - r.top;
+    const r = this.canvas.getBoundingClientRect(), rz = this.rz;
+    const px = clientX - r.left, py = clientY - r.top, hw = 0.5 * r.width, hh = 0.5 * r.height;
     const m = new THREE.Matrix4().multiplyMatrices(this.camera.projectionMatrix, this.camera.matrixWorldInverse).elements;
-    // One pass over every drawn object per pointer move (about 500k at PU200): no allocation per object, squared
-    // distances, and the cut test (a call) only for objects close enough to win.
-    // Screen position of a point (x, y, z) relative to the cursor, or null behind the camera.
-    const screen = (X: Float32Array, Y: Float32Array, Z: Float32Array, i: number): [number, number] | null => {
+    // One pass over every drawn object per pointer move (~640k at PU200): nothing allocated per object (the
+    // projection writes to a typed array: a double stored in a captured variable would be boxed on the heap),
+    // squared distances, and the cut test (a call) only for objects close enough to win.
+    const out = new Float64Array(2); // screen offset from the cursor of the last point projected
+    const project = (X: Float32Array, Y: Float32Array, Z: Float32Array, i: number) => {
       let x = X[i], y = Y[i], z = Z[i];
-      if (this.rz) { y = Math.sqrt(x * x + y * y) * (y >= 0 ? 1 : -1); x = Z[i]; z = 0; }
+      if (rz) { y = Math.sqrt(x * x + y * y) * (y >= 0 ? 1 : -1); x = Z[i]; z = 0; }
       const w = m[3] * x + m[7] * y + m[11] * z + m[15];
-      if (w <= 0) return null;
-      return [((m[0] * x + m[4] * y + m[8] * z + m[12]) / w + 1) * 0.5 * r.width - px, (1 - (m[1] * x + m[5] * y + m[9] * z + m[13]) / w) * 0.5 * r.height - py];
+      if (w <= 0) return false; // behind the camera
+      out[0] = ((m[0] * x + m[4] * y + m[8] * z + m[12]) / w + 1) * hw - px;
+      out[1] = (1 - (m[1] * x + m[5] * y + m[9] * z + m[13]) / w) * hh - py;
+      return true;
     };
     const found: { hit: Hit; score: number; context?: boolean }[] = [];
     for (const layer of this.layers) {
-      const X = layer.x, Y = layer.y, Z = layer.z, rad2 = layer.pickRadius * layer.pickRadius, seg = layer.segment, bias = layer.pickBias ?? 1;
+      const X = layer.x, Y = layer.y, Z = layer.z, seg = layer.segment, bias = layer.pickBias ?? 1;
+      const scale = (bias * bias) / (layer.pickRadius * layer.pickRadius);
       let best = -1, bestScore = 1;
       for (let i = 0; i < X.length; i++) {
-        const b = seg ? screen(seg.b[0], seg.b[1], seg.b[2], i) : screen(X, Y, Z, i);
-        if (!b) continue;
-        let dx = b[0], dy = b[1];
-        if (seg) { // a line or a shower's axis: distance from the cursor to the segment on screen
-          const a = screen(seg.a[0], seg.a[1], seg.a[2], i);
-          if (a) {
-            const ex = b[0] - a[0], ey = b[1] - a[1], len2 = ex * ex + ey * ey;
-            const f = len2 > 0 ? Math.min(1, Math.max(0, -(a[0] * ex + a[1] * ey) / len2)) : 0;
-            dx = a[0] + f * ex; dy = a[1] + f * ey;
-          }
+        if (!(seg ? project(seg.b[0], seg.b[1], seg.b[2], i) : project(X, Y, Z, i))) continue;
+        let dx = out[0], dy = out[1];
+        if (seg && project(seg.a[0], seg.a[1], seg.a[2], i)) { // a line or a shower's axis: closest point of the segment
+          const ax = out[0], ay = out[1], ex = dx - ax, ey = dy - ay, len2 = ex * ex + ey * ey;
+          const f = len2 > 0 ? Math.min(1, Math.max(0, -(ax * ex + ay * ey) / len2)) : 0;
+          dx = ax + f * ex; dy = ay + f * ey;
         }
-        const score2 = (bias * bias * (dx * dx + dy * dy)) / rad2;
-        if (score2 < bestScore && layer.passes(i) && (!accept || accept(layer.table, i))) { bestScore = score2; best = i; }
+        const score = scale * (dx * dx + dy * dy);
+        if (score < bestScore && layer.passes(i) && (!accept || accept(layer.table, i))) { bestScore = score; best = i; }
       }
       if (best >= 0) found.push({ hit: { table: layer.table, row: best, layer: layer.label }, score: bestScore, context: layer.context });
     }
-    // Background (context) layers are picked only when nothing else is under the cursor.
     const fg = found.filter((f) => !f.context);
     return (fg.length ? fg : found).sort((a, c) => a.score - c.score).map((f) => f.hit);
   }
 
-  private box(selection?: Map<string, Iterable<number>>): [THREE.Vector3, THREE.Vector3] | null {
-    const pts: number[][] = [[], [], []];
-    // Background (context) layers are framed only when nothing else is drawn or they are selected.
-    const fg = this.layers.filter((l) => !l.context && l.x.length);
-    const layers = this.layers.filter((l) => (selection ? selection.has(l.table) : !l.context || !fg.length));
-    const total = layers.reduce((s, l) => s + l.x.length, 0);
-    const step = Math.max(1, Math.floor(total / 20000));
+  /** Bounding box (view coordinates) of the bulk of the drawn objects, or of the given rows: 2nd to 98th
+   *  percentile per axis, from at most ~20k objects. Context layers count only when nothing else is drawn. */
+  private box(selection?: Rows): [THREE.Vector3, THREE.Vector3] | null {
+    const fg = this.layers.some((l) => !l.context && l.x.length);
+    const layers = this.layers.filter((l) => (selection ? selection.has(l.table) : !l.context || !fg));
+    const step = Math.max(1, Math.floor(layers.reduce((s, l) => s + l.x.length, 0) / 20000));
+    const pts: number[][] = [[], [], []], p = new THREE.Vector3();
     let k = 0;
-    for (const l of layers)
-      for (const i of selection?.get(l.table) ?? range(l.x.length))
-        if (l.passes(i) && k++ % step === 0) this.toView(l, i).forEach((v, d) => pts[d].push(v));
+    const add = (l: Layer, i: number) => {
+      if (!l.passes(i) || k++ % step) return;
+      this.toView(l.x, l.y, l.z, i, p);
+      pts[0].push(p.x); pts[1].push(p.y); pts[2].push(p.z);
+    };
+    for (const l of layers) {
+      const rows = selection?.get(l.table);
+      if (rows) for (const i of rows) add(l, i);
+      else for (let i = 0; i < l.x.length; i++) add(l, i);
+    }
     if (!pts[0].length) return null;
-    const q = (a: number[], f: number) => a[Math.floor(f * (a.length - 1))];
-    pts.forEach((a) => a.sort((u, v) => u - v));
-    const f = pts[0].length > 50 ? [0.02, 0.98] : [0, 1];
-    const lo = new THREE.Vector3(...pts.map((a) => q(a, f[0]))), hi = new THREE.Vector3(...pts.map((a) => q(a, f[1])));
-    // The lines of a selection (e.g. a candidate's track, from the vertex) stay in view whole: their start points are
-    // few, so the outlier trimming above would drop them.
+    const sorted = pts.map((a) => Float64Array.from(a).sort());
+    const q = (f: number) => new THREE.Vector3(...sorted.map((a) => a[Math.floor(f * (a.length - 1))]));
+    const trim = pts[0].length > 50 ? 0.02 : 0;
+    const lo = q(trim), hi = q(1 - trim);
+    // A selection's lines (e.g. a candidate's track, from the vertex) stay in view whole: their start points are
+    // few, so the trimming above would drop them.
     for (const l of layers) {
       if (!selection || !l.line || !l.segment) continue;
       const [X, Y, Z] = l.segment.a;
-      for (const i of selection.get(l.table) ?? []) {
-        if (!l.passes(i)) continue;
-        const p = this.rz ? new THREE.Vector3(Z[i], Math.hypot(X[i], Y[i]) * (Y[i] >= 0 ? 1 : -1), 0) : new THREE.Vector3(X[i], Y[i], Z[i]);
-        lo.min(p); hi.max(p);
-      }
+      for (const i of selection.get(l.table) ?? []) if (l.passes(i)) { this.toView(X, Y, Z, i, p); lo.min(p); hi.max(p); }
     }
     return [lo, hi];
   }
 
-  private go(position: THREE.Vector3, target: THREE.Vector3, zoom: number, animate: boolean, ms: number, swing: number) {
-    const to: [THREE.Vector3, THREE.Vector3, number] = [position, target, zoom];
-    if (animate) {
-      this.flight = { t0: performance.now(), ms, swing, from: [this.camera.position.clone(), this.controls.target.clone(), this.camera.zoom], to };
-    } else {
-      this.flight = null;
-      this.place(...to);
-    }
+  private toView(X: Float32Array, Y: Float32Array, Z: Float32Array, i: number, out: THREE.Vector3) {
+    return this.rz ? out.set(Z[i], Math.hypot(X[i], Y[i]) * (Y[i] >= 0 ? 1 : -1), 0) : out.set(X[i], Y[i], Z[i]);
+  }
+
+  private go(to: Pose, animate: boolean, ms: number, swing: number) {
+    this.flight = animate ? { t0: performance.now(), ms, swing, from: [this.camera.position.clone(), this.controls.target.clone(), this.camera.zoom], to } : null;
+    if (!animate) this.place(...to);
   }
 
   /** One step of a flight: the target moves in a straight line while the camera moves around it in spherical
-   *  coordinates (shortest way round, plus the swing), with the distance changing geometrically, so zooming in
-   *  and out feels even and the camera arcs rather than cutting through the scene. */
+   *  coordinates (shortest way round, plus the swing) with the distance changing geometrically, so zooming feels
+   *  even and the camera arcs rather than cutting through the scene. */
   private fly(now: number) {
     const f = this.flight!;
     const t = Math.min(1, (now - f.t0) / f.ms), e = t * t * (3 - 2 * t); // smoothstep
@@ -404,7 +439,7 @@ export class Engine {
     const turn = THREE.MathUtils.euclideanModulo(b.theta - a.theta + Math.PI, 2 * Math.PI) - Math.PI + f.swing;
     // An orbit in progress carries on through the flight at its own speed, so the motion never stops and restarts.
     const spin = this.rz ? 0 : -((2 * Math.PI * this.orbit) / 60) * ((now - f.t0) / 1000);
-    const r = Math.max(a.radius, 1e-3) * (Math.max(b.radius, 1e-3) / Math.max(a.radius, 1e-3)) ** e;
+    const r0 = Math.max(a.radius, 1e-3), r = r0 * (Math.max(b.radius, 1e-3) / r0) ** e;
     const offset = new THREE.Vector3().setFromSpherical(new THREE.Spherical(r, a.phi + (b.phi - a.phi) * e, a.theta + turn * e + spin));
     this.place(target.clone().add(offset), target, f.from[2] + (f.to[2] - f.from[2]) * e);
     if (t >= 1) this.flight = null;
@@ -422,10 +457,6 @@ export class Engine {
     this.requestRender();
   }
 
-  private toView(l: Layer, i: number): [number, number, number] {
-    return this.rz ? [l.z[i], Math.hypot(l.x[i], l.y[i]) * (l.y[i] >= 0 ? 1 : -1), 0] : [l.x[i], l.y[i], l.z[i]];
-  }
-
   private resize() {
     const p = this.canvas.parentElement!;
     const w = p.clientWidth, h = p.clientHeight;
@@ -441,23 +472,34 @@ export class Engine {
   }
 }
 
-function* range(n: number) { for (let i = 0; i < n; i++) yield i; }
-
-// Tour camera: a cylinder the camera never enters (the HGCal endcaps reach about 280 cm in radius and 520 cm in z),
-// and a slow sway of its viewing angle.
-const ENVELOPE_R = 300, ENVELOPE_Z = 560; // cm
-const TOUR_SWAY = 0.35, TOUR_PERIOD = 30; // rad, s: close-ups sway around their view
-const TOUR_SPIN = (2 * Math.PI) / 60; // rad/s: the whole event turns once a minute
+const presetDirection = (view: ViewName) => new THREE.Vector3(...DIRECTIONS[view as Exclude<ViewName, "rz">]).normalize();
 
 /** An angle in (-pi, pi]. */
 const angle = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
 
-/** How far from `p` along `dir` the detector envelope is left (0 if `p` is outside it). */
-function exitDistance(p: THREE.Vector3, dir: THREE.Vector3) {
-  if (Math.hypot(p.x, p.y) >= ENVELOPE_R || Math.abs(p.z) >= ENVELOPE_Z) return 0;
+/** The cylinder around the beam axis (z) that the tour camera stays out of. */
+interface Envelope { r: number; z: number } // cm
+
+/** The drawn objects' extent with 10% + 15 cm to spare. Lines (tracks, particles) are left out: they reach past
+ *  the detector. */
+function envelopeOf(layers: Layer[]): Envelope {
+  let r2 = 0, z = 0;
+  for (const l of layers) {
+    if (l.line) continue;
+    for (let i = 0; i < l.x.length; i++) {
+      r2 = Math.max(r2, l.x[i] * l.x[i] + l.y[i] * l.y[i]);
+      z = Math.max(z, Math.abs(l.z[i]));
+    }
+  }
+  return { r: 1.1 * Math.sqrt(r2) + 15, z: 1.1 * z + 15 };
+}
+
+/** How far from `p` along `dir` the envelope is left (0 if `p` is outside it). */
+function exitDistance(env: Envelope, p: THREE.Vector3, dir: THREE.Vector3) {
+  if (Math.hypot(p.x, p.y) >= env.r || Math.abs(p.z) >= env.z) return 0;
   let t = Infinity;
-  if (Math.abs(dir.z) > 1e-9) t = ((dir.z > 0 ? ENVELOPE_Z : -ENVELOPE_Z) - p.z) / dir.z;
-  const a = dir.x * dir.x + dir.y * dir.y, b = 2 * (p.x * dir.x + p.y * dir.y), c = p.x * p.x + p.y * p.y - ENVELOPE_R * ENVELOPE_R;
+  if (Math.abs(dir.z) > 1e-9) t = ((dir.z > 0 ? env.z : -env.z) - p.z) / dir.z;
+  const a = dir.x * dir.x + dir.y * dir.y, b = 2 * (p.x * dir.x + p.y * dir.y), c = p.x * p.x + p.y * p.y - env.r * env.r;
   if (a > 1e-12) t = Math.min(t, (-b + Math.sqrt(b * b - 4 * a * c)) / (2 * a));
   return t;
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { EventData, Header } from "../io/bundle";
-import { levelsOf, related, relatedParts } from "./relations";
+import { bestPartners, levelsOf, related, relatedParts, relationInto } from "./relations";
 
 // candidate 0 -> trackster 1 -> clusters 0, 2 -> hits; candidate 0 -> track 1; trackster 0 -> cluster 1 (no candidate)
 const csr = (rows: number[][]) => ({
@@ -54,5 +54,24 @@ describe("related", () => {
   });
   it("finds what a track belongs to", () => {
     expect(rows(related(ev, header, { table: "Track", row: 1 }))).toEqual({ Track: [1], Cand: [0] });
+  });
+});
+
+describe("best partners", () => {
+  // particle 0 -> hits 0 (0.2), 1 (0.9); particle 1 -> hit 1 (0.5); hit 2 has none
+  const rel = { ...csr([[0, 1], [1]]), weights: { e: Float32Array.from([0.2, 0.9, 0.5]) } };
+  const info = (order?: "min" | "max") => ({ from: "P", to: "Hit", weights: ["e"], ...(order ? { best: { weight: "e", order } } : {}) });
+  it("picks each object's partner by the best weight, else the first", () => {
+    expect([...bestPartners(rel, info("max"), false, 3).partner]).toEqual([0, 0, -1]);
+    expect([...bestPartners(rel, info("min"), false, 3).partner]).toEqual([0, 1, -1]);
+    expect([...bestPartners(rel, info(), false, 3).partner]).toEqual([0, 0, -1]);
+    const fwd = bestPartners(rel, info("max"), true, 2);
+    expect([...fwd.partner]).toEqual([1, 1]);
+    expect([...fwd.entry]).toEqual([1, 2]);
+  });
+  it("finds a relation into a table from any of several", () => {
+    expect(relationInto(header, ["T", "Cand"], "LC")).toBe("tLCs");
+    expect(relationInto(header, ["Hit"], "Other")).toBe("missing");
+    expect(relationInto(header, ["Hit"], "Other", ev)).toBeUndefined(); // not in this event
   });
 });

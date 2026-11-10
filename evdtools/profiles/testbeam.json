@@ -4,49 +4,15 @@
   "exclude": ["HGCTriggerDigi", "HGCTypeCodes", "EventTrain", "HGCReadout", "HGCECON", "HGCMCP", "HGCMetaData"],
   "internal": ["HGCDenseIndex"],
   "derive": [
-    {
-      "table": "HGCHit",
-      "column": "cellSize",
-      "neighbourDistance": ["x", "y"],
-      "groupBy": "layer",
-      "k": 3,
-      "scale": 0.5
-    },
-    {
-      "table": "HGCHit",
-      "lookup": "HGCChannel",
-      "index": "denseIndex",
-      "columns": {
-        "cellSize": "cellSize",
-        "fed": "fedId",
-        "econd": "fedReadoutSeq",
-        "channel": "channel",
-        "module": "module",
-        "moduleU": "modI1",
-        "moduleV": "modI2",
-        "cellU": "chI1",
-        "cellV": "chI2",
-        "isCalib": "iscalib",
-        "isSiPM": "isSiPM"
-      }
-    }
+    {"table": "HGCHit", "column": "cellSize", "neighbourDistance": ["x", "y"], "groupBy": "layer", "k": 3, "scale": 0.5},
+    {"table": "HGCHit", "lookup": "HGCChannel", "index": "denseIndex",
+     "columns": {"cellSize": "cellSize", "fed": "fedId", "econd": "fedReadoutSeq", "channel": "channel", "module": "module",
+                 "moduleU": "modI1", "moduleV": "modI2", "cellU": "chI1", "cellV": "chI2", "isCalib": "iscalib",
+                 "isSiPM": "isSiPM"}}
   ],
   "relations": [
-    {
-      "name": "hitDigi",
-      "kind": "index",
-      "from": "HGCHit",
-      "to": "HGCDigi",
-      "index": "HGCHit.denseIndex",
-      "via": "HGCDenseIndex.digiIdx"
-    },
-    {
-      "name": "clusterHits",
-      "kind": "index",
-      "from": "HGCLayerClusters",
-      "to": "HGCHit",
-      "index": "HGCHit.clusterIndex"
-    }
+    {"name": "hitDigi", "kind": "index", "from": "HGCHit", "to": "HGCDigi", "index": "HGCHit.denseIndex", "via": "HGCDenseIndex.digiIdx"},
+    {"name": "clusterHits", "kind": "index", "from": "HGCLayerClusters", "to": "HGCHit", "index": "HGCHit.clusterIndex"}
   ],
   "cuts": {
     "HGCHit": [["energy/sigmaNoise", ">", 3], ["layer", ">", 0]],
@@ -55,64 +21,24 @@
     "HGCChannel": [["detid", "!=", 0]]
   },
   "select": [{"table": "HGCHit", "where": [["energy/sigmaNoise", ">", 5]], "min": 20}],
-  "replay": {"direction": [0, 0, -1]},
+  "display": [
+    {"table": "HGCHit", "repr": "cells", "group": "HGCal test beam", "label": "Rechits", "position": ["x", "y", "z"],
+     "colour": "nmips", "palette": "heat", "size": "cellSize", "visible": true,
+     "cut": {"group": "Rechit energy", "column": "energy", "unit": "GeV", "default": 0.0}},
+    {"table": "HGCLayerClusters", "repr": "markers", "group": "HGCal test beam", "label": "Layer clusters",
+     "position": ["x", "y", "z"], "colour": "energy", "palette": "cool", "size": null, "visible": true},
+    {"table": "HGCChannel", "repr": "cells", "group": "Detector", "label": "Readout channels", "position": ["x", "y", "z"],
+     "size": "cellSize", "colourBy": {"category": "layer"}, "context": true, "dim": 0.8, "visible": true}
+  ],
   "view": {"start": "3d", "minRadius": 12},
+  "replay": {"direction": [0, 0, -1]},
   "summaries": [
-    {
-      "title": "Energy per layer (longitudinal profile)",
-      "table": "HGCHit",
-      "groupBy": "layer",
-      "value": "nmips",
-      "op": "sum",
-      "unit": "MIP"
-    },
+    {"title": "Energy per layer (longitudinal profile)", "table": "HGCHit", "groupBy": "layer", "value": "nmips", "op": "sum",
+     "unit": "MIP"},
     {"title": "Hits per layer", "table": "HGCHit", "groupBy": "layer", "op": "count"},
     {"title": "Layer clusters per layer", "table": "HGCLayerClusters", "groupBy": "layer", "op": "count"},
-    {
-      "title": "Mean hit time per layer (hits with a time)",
-      "table": "HGCHit",
-      "groupBy": "layer",
-      "value": "time",
-      "op": "mean",
-      "where": "time > 0"
-    }
-  ],
-  "display": [
-    {
-      "table": "HGCHit",
-      "repr": "cells",
-      "group": "HGCal test beam",
-      "label": "Rechits",
-      "position": ["x", "y", "z"],
-      "colour": "nmips",
-      "palette": "heat",
-      "size": "cellSize",
-      "visible": true,
-      "cut": {"group": "Rechit energy", "column": "energy", "unit": "GeV", "default": 0.0}
-    },
-    {
-      "table": "HGCLayerClusters",
-      "repr": "markers",
-      "group": "HGCal test beam",
-      "label": "Layer clusters",
-      "position": ["x", "y", "z"],
-      "colour": "energy",
-      "palette": "cool",
-      "size": null,
-      "visible": true
-    },
-    {
-      "table": "HGCChannel",
-      "repr": "cells",
-      "group": "Detector",
-      "label": "Readout channels",
-      "position": ["x", "y", "z"],
-      "size": "cellSize",
-      "colourBy": {"category": "layer"},
-      "context": true,
-      "dim": 0.8,
-      "visible": true
-    }
+    {"title": "Mean hit time per layer (hits with a time)", "table": "HGCHit", "groupBy": "layer", "value": "time", "op": "mean",
+     "where": "time > 0"}
   ],
   "presets": [{"name": "Energy"}, {"name": "Timing", "colour": {"HGCHit": "time"}, "filters": {"HGCHit": "time > 0"}}],
   "runTitle": "{Beam} {Energy} GeV · {Type}",

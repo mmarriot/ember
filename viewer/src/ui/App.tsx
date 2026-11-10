@@ -78,22 +78,27 @@ function HelpDialog() {
   const rows: [string, string][] = [
     ["Rotate", "drag"], ["Pan", "right-drag (or shift + drag)"], ["Zoom", "scroll, towards the cursor"],
     ["Inspect an object", "click it: it and all its parts are shown, and further clicks pick among its parts"],
-    ["Objects on top of each other", "click again on the same spot for the next one"], ["Zoom to an object", "double-click it, or F"],
-    ["Show everything", "Home, or Reset"], ["Previous / next event", "← / →, or the arrows at the top"],
-    ["Views: 3D, front, side, ρ–z", "1, 2, 3, 4"], ["Back to the normal view (or close a dialog)", "Esc, or click on empty space"], ["Open a local .evdb file", "drop it on the page"], ["Live: play new data as it arrives", "the Live button"], ["Resize the side panel", "drag its edge; double-click to reset"],
-    ["Replay: hits, then clusters, then showers, building up outwards", "R"],
-    ["Tour: replay and orbit, visit the main showers, next event", "P, or the play button; any key or touch stops it"],
+    ["Objects on top of each other", "click again on the same spot for the next one"],
+    ["Go to a related object", "click it in the inspector or the tree, or click an object linked to the one shown (e.g. its MC truth)"],
+    ["Back to the previous object", "← in the bar at the top left of the view"],
+    ["Zoom to the selection", "double-click it, or F"], ["Show the whole event", "Home, or the reset button"],
+    ["Leave the object", "click on empty space; Esc also shows the whole event (and closes this dialog)"],
+    ["Previous / next event", "← / →, or the arrows at the top"], ["Views: 3D, front, side, ρ–z", "1, 2, 3, 4"],
+    ["Replay: how the event builds up, step by step", "R"],
+    ["Tour: replay, then visit the main showers, event after event", "P, or the play button; any key or touch stops it"],
+    ["Live: play new data as it arrives", "the Live button"],
     ["Your own columns and filters", "Columns tab and Cuts tab; colour by any column from the Layers tab"],
+    ["Open a local .evdb file", "drop it on the page"], ["Resize the side panel", "drag its edge; double-click to reset"],
   ];
   return (
     <Modal title="How to use the event display">
       <table class="kv"><tbody>{rows.map(([what, how]) => <tr><td>{what}</td><td>{how}</td></tr>)}</tbody></table>
       <h3>Colours</h3>
-      <p class="hint">Rechits: energy, light (low) to dark red (high). Tracksters: one colour each. Layer clusters: the colour of their
-        trackster; small grey dots belong to none. With something selected, everything unrelated fades.</p>
+      <p class="hint">Each layer's colouring and its scale are shown under it in the Layers tab, where another column, or the colour of
+        a related object, can be chosen. With something selected, everything unrelated fades.</p>
       <h3>Cuts</h3>
-      <p class="hint">The Cuts tab sets minimum energies. Each cut applies to every layer of its kind, so SoA and legacy objects are
-        always compared with the same selection.</p>
+      <p class="hint">The Cuts tab sets minimum values, e.g. energies. Each cut applies to every layer of its group, so the same objects
+        from different reconstruction paths are always compared with the same selection.</p>
       <h3>Sharing</h3>
       <p class="hint">The address bar keeps the data set, event, view and selection; the share button copies it.</p>
     </Modal>

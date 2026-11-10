@@ -61,12 +61,17 @@ class BundleWriter:
         self._file.write(MAGIC + struct.pack("<II", VERSION, len(head)) + head)
         self._events, self._runs, self._run_info = [], [], {}
 
+    def _write(self, record_id, tables, relations):
+        """Append a compressed record; returns its index entry: where it is and the rows of each table."""
+        blob = gzip.compress(encode_record(record_id, tables, relations), compresslevel=self._level)
+        entry = {"offset": self._file.tell(), "length": len(blob),
+                 "counts": {t: int(n) for t, (n, _) in tables.items()}}
+        self._file.write(blob)
+        return entry
+
     def add_run(self, run_id, tables, relations):
         """The per-run tables of a run, written once; readers add them to every event of that run."""
-        blob = gzip.compress(encode_record(run_id, tables, relations), compresslevel=self._level)
-        self._runs.append({"run": int(run_id[0]), "offset": self._file.tell(), "length": len(blob),
-                           "counts": {t: int(n) for t, (n, _) in tables.items()}})
-        self._file.write(blob)
+        self._runs.append({"run": int(run_id[0]), **self._write(run_id, tables, relations)})
 
     def runs(self):
         """Runs of the events written so far."""
@@ -77,11 +82,8 @@ class BundleWriter:
         self._run_info = {int(r): dict(v) for r, v in info.items() if v}
 
     def add(self, event_id, tables, relations):
-        blob = gzip.compress(encode_record(event_id, tables, relations), compresslevel=self._level)
         run, lumi, event = (int(x) for x in event_id)
-        self._events.append({"run": run, "lumi": lumi, "event": event, "offset": self._file.tell(),
-                             "length": len(blob), "counts": {t: int(n) for t, (n, _) in tables.items()}})
-        self._file.write(blob)
+        self._events.append({"run": run, "lumi": lumi, "event": event, **self._write(event_id, tables, relations)})
 
     def close(self):
         runs = {r["run"]: r for r in self._runs}

@@ -26,11 +26,13 @@ export interface Plan {
   caption(s: number): Caption | null;
 }
 
+/** Whether a layer shows showers (or other objects that group hits): a reconstruction stage, ellipsoids, or one
+ *  colour per object. */
+export const isShower = (d: DisplayLayer) => d.stage !== undefined || d.repr === "ellipsoids" || d.colourBy === "row";
+
 /** Sets every layer's timeline and returns the plan (phase times and captions). */
 export function planReplay(items: ReplayItem[], how: Header["replay"]): Plan {
   const direction = how?.direction, random = how?.order === "random", [ox, oy, oz] = how?.from ?? [0, 0, 0];
-  const tof = (l: Layer, i: number) => Math.hypot(l.x[i] - ox, l.y[i] - oy, l.z[i] - oz) / C;
-  const isShower = (d: DisplayLayer) => d.stage !== undefined || d.repr === "ellipsoids" || d.colourBy === "row";
   const isGrouped = (d: DisplayLayer) => typeof d.colourBy === "object" && "relation" in d.colourBy;
   const isHit = (d: DisplayLayer) => !isShower(d) && !isGrouped(d);
   let measured = 0, total = 0; // drawn hits only (passing the cuts): they are what the physics phase shows
@@ -46,8 +48,8 @@ export function planReplay(items: ReplayItem[], how: Header["replay"]): Plan {
       for (let i = 0; i < n; i++) out[i] = l.x[i] * direction[0] + l.y[i] * direction[1] + l.z[i] * direction[2];
       return out;
     }
-    for (let i = 0; i < n; i++) out[i] = tof(l, i);
-    const col = d.time ? t.columns[d.time] : undefined, shift = col ? convention(col, l, tof) : null;
+    for (let i = 0; i < n; i++) { const dx = l.x[i] - ox, dy = l.y[i] - oy, dz = l.z[i] - oz; out[i] = Math.sqrt(dx * dx + dy * dy + dz * dz) / C; }
+    const col = d.time ? t.columns[d.time] : undefined, shift = col ? convention(col, out) : null;
     if (col && shift !== null)
       for (let i = 0; i < n; i++) {
         const v = Number(col[i]);
@@ -76,11 +78,11 @@ export function planReplay(items: ReplayItem[], how: Header["replay"]): Plan {
   const startOf = (d: DisplayLayer) => (d.stage === undefined ? LINK[0] : stages[order.indexOf(d.stage)].start);
   items.forEach(({ layer, d, emphasis }, k) => {
     const n = layer.x.length, appear = new Float32Array(n), link = new Float32Array(n), a = arrivals[k];
-    const grow = d.stage === undefined ? LINK[1] : STAGE[1];
+    const grow = d.stage === undefined ? LINK[1] : STAGE[1], showerLike = isShower(d), inGroup = isGrouped(d), start = startOf(d);
     for (let i = 0; i < n; i++) {
       const p = progress(a[i]), q = Math.min(1, p);
-      if (isShower(d)) appear[i] = startOf(d) + grow * q;
-      else if (isGrouped(d)) {
+      if (showerLike) appear[i] = start + grow * q;
+      else if (inGroup) {
         appear[i] = CLUSTER[0] + CLUSTER[1] * q;
         // grey until grouped; with stages, every object waits for the first stage, whose colours then apply
         if (emphasis?.[i] || stages.length) link[i] = LINK[0] + LINK[1] * q;
@@ -119,15 +121,16 @@ export function planReplay(items: ReplayItem[], how: Header["replay"]): Plan {
   };
 }
 
-/** How a layer's time column relates to the time of flight: 0 if it is an arrival time, 1 if it is corrected for
+/** How a time column relates to the time of flight `tof`: 0 if it is an arrival time, 1 if it is corrected for
  *  the flight (about 0 for prompt particles: add it back), null if neither (then it is not used). */
-function convention(col: ArrayLike<number | bigint>, l: Layer, tof: (l: Layer, i: number) => number): 0 | 1 | null {
-  const raw: number[] = [], minus: number[] = [];
-  for (let i = 0; i < l.x.length; i++) {
+function convention(col: ArrayLike<number | bigint>, tof: Float64Array): 0 | 1 | null {
+  const raw = new Float64Array(tof.length), minus = new Float64Array(tof.length);
+  let k = 0;
+  for (let i = 0; i < tof.length; i++) {
     const v = Number(col[i]);
-    if (Number.isFinite(v) && v > MISSING) { raw.push(v); minus.push(v - tof(l, i)); }
+    if (Number.isFinite(v) && v > MISSING) { raw[k] = v; minus[k++] = v - tof[i]; }
   }
-  if (raw.length < 5) return null;
-  const median = (a: number[]) => a.sort((x, y) => x - y)[a.length >> 1];
+  if (k < 5) return null;
+  const median = (a: Float64Array) => a.subarray(0, k).sort()[k >> 1];
   return Math.abs(median(minus)) < 3 ? 0 : Math.abs(median(raw)) < 3 ? 1 : null;
 }

@@ -1,8 +1,9 @@
 // Navigation over the CSR relations of an event: what is related to a selected object.
-import type { EventData, Header } from "../io/bundle";
+import type { EventData, Header, Relation } from "../io/bundle";
 
 export interface Ref { table: string; row: number }
 export type Related = Map<string, Set<number>>; // table -> rows
+export const sameRef = (a: Ref | null, b: Ref | null) => !!a && !!b && a.table === b.table && a.row === b.row;
 
 /** What a selected object is related to, in three kinds:
  *  - `madeOf`: what it is made of, following relations forwards to the end of the chain (a candidate -> its
@@ -45,9 +46,10 @@ export function relatedParts(ev: EventData, header: Header, sel: Ref): { madeOf:
 
 /** The levels of an object: what it is made of, plus every object of another table that is made only of those parts
  *  (e.g. for a candidate, the tracksters and linked tracksters whose layer clusters all belong to it, though no
- *  relation names them), plus the linked objects (e.g. MC truth). A containment test, no physics metric. */
-export function levelsOf(ev: EventData, header: Header, sel: Ref): Related {
-  const { madeOf, linked } = relatedParts(ev, header, sel);
+ *  relation names them), plus the linked objects (e.g. MC truth). A containment test, no physics metric. `parts`:
+ *  relatedParts of `sel`, if already known. */
+export function levelsOf(ev: EventData, header: Header, sel: Ref, parts = relatedParts(ev, header, sel)): Related {
+  const { madeOf, linked } = parts;
   // Only objects below the selection: not made of objects of its own table, and of an earlier reconstruction stage
   // when both have one (a trackster's candidate is made only of it, but contains it).
   const stage = (table: string) => header.display?.find((l) => l.table === table && l.stage !== undefined)?.stage;
@@ -74,7 +76,7 @@ export function related(ev: EventData, header: Header, sel: Ref): Related {
   return union(madeOf, partOf, linked);
 }
 
-export function union(...parts: Related[]): Related {
+function union(...parts: Related[]): Related {
   const out: Related = new Map();
   for (const part of parts)
     for (const [t, rows] of part) {
@@ -101,4 +103,29 @@ function closure(start: Ref, step: (frontier: Related, reached: (table: string, 
     frontier = next;
   }
   return seen;
+}
+
+type RelationInfo = Header["relations"][string];
+
+/** Compares two weights of a relation by its `best` hint: negative when the first is better. */
+export const bestFirst = (best: NonNullable<RelationInfo["best"]>) => (a: number, b: number) => (best.order === "min" ? a - b : b - a);
+
+/** Each object's best partner across a relation, by the relation's `best` weight (else the first): `forward`, for
+ *  each `from` object among the objects it points to; else for each `to` object among those pointing to it. Per
+ *  object (n of them): the partner row and the entry (index into indices and weights), -1 for none. */
+export function bestPartners(rel: Relation, info: RelationInfo, forward: boolean, n: number) {
+  const partner = new Int32Array(n).fill(-1), entry = new Int32Array(n).fill(-1);
+  const w = info.best ? rel.weights[info.best.weight] : undefined, cmp = info.best && bestFirst(info.best);
+  for (let f = 0; f + 1 < rel.offsets.length; f++)
+    for (let k = rel.offsets[f]; k < rel.offsets[f + 1]; k++) {
+      const obj = forward ? f : rel.indices[k], j = entry[obj];
+      if (j < 0 || (w && cmp!(w[k], w[j]) < 0)) { entry[obj] = k; partner[obj] = forward ? rel.indices[k] : f; }
+    }
+  return { partner, entry };
+}
+
+/** The first relation from one of the tables `from` into the table `to` (present in `ev`, if given): its name. */
+export function relationInto(header: Header, from: Iterable<string>, to: string, ev?: EventData) {
+  const tables = new Set(from);
+  return Object.entries(header.relations).find(([name, r]) => tables.has(r.from) && r.to === to && (!ev || ev.relations[name]))?.[0];
 }

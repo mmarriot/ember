@@ -1,11 +1,11 @@
-"""NanoAOD -> .evdb conversion, driven by a display profile (evdtools/profiles/*.json).
+"""NanoAOD -> .evdb conversion, driven by a display profile (evdtools/profiles/*.json, keys in docs/profiles.md).
 
-The profile names tables to drop, derived columns, relations, row cuts, an event selection and display layers.
-Anything that refers to a table the file does not contain is dropped, so one profile serves legacy-only, SoA-only
-and mixed files. The profile keys are described in README.md ("Profiles").
+A Converter resolves the profile against the tables of a file: entries for tables the file lacks are dropped, so one
+profile serves legacy-only, SoA-only and mixed files. Tables of the Runs tree are per-run tables: read once per run,
+available to lookups, written once per run.
 
-Per event: read tables -> derive columns -> build relations (CSR) -> row cuts -> event selection -> cut relations
-(indices remapped, links to removed rows dropped) -> drop internal tables.
+Per event: read tables -> derive columns -> relations (CSR) -> gather -> row cuts -> event selection -> renumber
+index columns and cut relations (links to removed rows dropped) -> drop internal and per-run tables.
 """
 import datetime
 import fnmatch
@@ -23,6 +23,7 @@ from .bundle import BundleWriter, type_code
 
 PROFILES = os.path.join(os.path.dirname(__file__), "profiles")
 OPS = {"<": np.less, "<=": np.less_equal, ">": np.greater, ">=": np.greater_equal, "==": np.equal, "!=": np.not_equal}
+VIEWER_KEYS = ("replay", "view", "summaries", "runTitle", "runFields", "presets")  # passed to the viewer verbatim
 
 
 def load_profile(name_or_path):
@@ -32,7 +33,7 @@ def load_profile(name_or_path):
 
 
 def discover(tree):
-    """Collection tables of a NanoAOD Events tree: {table: {"doc": str, "columns": {column: (dtype, doc)}}}."""
+    """Collection tables of a NanoAOD tree: {table: {"doc": str, "columns": {column: (dtype, doc)}}}."""
     branches = tree.keys()  # file order = the producers' column order
     keys = set(branches)
     columns = defaultdict(dict)
@@ -44,81 +45,83 @@ def discover(tree):
 
 
 def _column(spec):
+    """"Table.column" -> (table, column)."""
     table, _, column = spec.partition(".")
     return table, column
 
 
+# Row conditions: [expr, op, number] with expr a column or a ratio "a/b"; {"defined": column}; {"reachedBy": relation}
 def _operands(expr):
-    """Columns of a condition's left-hand side: "col" or "col/col"."""
     return expr.split("/", 1)
 
 
 def _condition(cond, cols):
-    """Row mask of one [expr, op, value] condition; expr is a column or a ratio "a/b" of two columns."""
+    """Row mask of an [expr, op, number] condition."""
     expr, op, value = cond
-    num, _, den = expr.partition("/")
     with np.errstate(divide="ignore", invalid="ignore"):  # x/0 -> inf or nan, and nan fails every comparison
-        lhs = cols[num] / cols[den] if den else cols[num]
-        return OPS[op](lhs, value)
+        operands = [cols[c] for c in _operands(expr)]
+        return OPS[op](operands[0] / operands[1] if len(operands) == 2 else operands[0], value)
 
 
-def _derived_columns(d):
+def _describe(cond):
+    if not isinstance(cond, dict):
+        return " ".join(map(str, cond))
+    return f"reached by {cond['reachedBy']}" if "reachedBy" in cond else f"{cond['defined']} defined"
+
+
+# Derived columns
+def _gathered(d):
+    return list(dict.fromkeys(c for src in d["gather"] for c in src["columns"]))
+
+
+def _lookup_dtype(dtype):
+    """Lookup columns are signed, so that -1 can mark rows without a lookup row: the narrowest signed type that
+    holds every value of `dtype` (bool -> i8, u8 -> i16, u16 -> i32, u32 and u64 -> i64)."""
+    dt = np.dtype(dtype)
+    if dt.kind == "b":
+        return np.dtype(np.int8)
+    return np.dtype(f"i{min(2 * dt.itemsize, 8)}") if dt.kind == "u" else dt
+
+
+def _derived_columns(d, tables):
+    """{column: (dtype, doc)} of the columns a derive adds to its table (`tables`: the file's table metadata)."""
     if "lookup" in d:
-        return list(d["columns"])
+        source, own = tables[d["lookup"]]["columns"], tables[d["table"]]["columns"]
+        out = {}
+        for new, col in d["columns"].items():
+            if col not in source or d["index"] not in own:
+                raise ValueError(f"lookup {d['table']} -> {d['lookup']}: no column {col} or {d['index']}")
+            dtype, doc = source[col]
+            out[new] = (_lookup_dtype(dtype), f"{doc} (from {d['lookup']}.{col} by {d['index']})")
+        return out
     if "gather" in d:
-        return list(dict.fromkeys(c for src in d["gather"] for c in src["columns"]))
-    return ["x", "y"] if "xyFromEtaPhiZ" in d else [d["column"]]
+        names, doc = _gathered(d), f"copied through {', '.join(s['relation'] for s in d['gather'])} (first linked row)"
+    elif "xyFromEtaPhiZ" in d:
+        names, doc = ["x", "y"], f"derived from {', '.join(d['xyFromEtaPhiZ'])}"
+    else:
+        names = [d["column"]]
+        doc = (f"derived: {d.get('scale', 1.0):g} x distance to neighbour {d.get('k', 1)} in "
+               f"({', '.join(d['neighbourDistance'])})" + (f" per {d['groupBy']}" if "groupBy" in d else ""))
+    return {c: (np.dtype("f4"), doc) for c in names}
 
 
-def _gather(d, tables, relations, profile_relations):
-    """Columns copied from the first row each row of `table` points to through a relation; the sources are tried in
-    order. A source that places a row sets the columns it does not name to 0; rows no source reaches stay NaN."""
+def _derive(d, tables):
+    """Add the columns of a lookup, xyFromEtaPhiZ or neighbourDistance derive to its table."""
     n, cols = tables[d["table"]]
-    out = {c: np.full(n, d.get("fill", np.nan), np.float32) for c in _derived_columns(d)}
-    placed = np.zeros(n, bool)
-    for src in d["gather"]:
-        rel = relations.get(src["relation"])
-        if rel is None:
-            continue
-        offsets = np.asarray(rel["offsets"], np.int64)
-        todo = (np.diff(offsets) > 0) & ~placed
-        rows = np.asarray(rel["indices"])[offsets[:-1][todo]]
-        target = tables[profile_relations[src["relation"]]["to"]][1]
-        for c in out:
-            out[c][todo] = target[src["columns"][c]][rows] if c in src["columns"] else 0
-        placed |= todo
-    cols.update(out)
-
-
-def _lookup(d, tables):
-    """Columns copied from the row of a lookup table (e.g. a per-run channel table) whose position is given by an
-    index column: `columns` maps new column -> lookup column. Rows with an index outside the table get NaN (floats)
-    or -1 (integers)."""
-    n, cols = tables[d["table"]]
-    _, source = tables[d["lookup"]]
-    idx = np.asarray(cols[d["index"]], np.int64)
-    some = next(iter(source.values()), np.zeros(0))
-    ok = (idx >= 0) & (idx < len(some))
-    for new, col in d["columns"].items():
-        src = np.asarray(source[col])
-        fill = np.nan if src.dtype.kind == "f" else -1
-        out = np.full(n, fill, src.dtype if src.dtype.kind != "u" else np.int64)
-        out[ok] = src[idx[ok]]
-        cols[new] = out
-
-
-def _compose(a, b):
-    """CSR relation A->C from A->B and B->C: each row of A reaches the union of what its B rows reach."""
-    a_off, b_off = np.asarray(a["offsets"], np.int64), np.asarray(b["offsets"], np.int64)  # "counts" offsets may be float
-    offsets, indices = [0], []
-    for f in range(len(a_off) - 1):
-        mids = a["indices"][a_off[f]:a_off[f + 1]]
-        reached = np.unique(np.concatenate([b["indices"][b_off[m]:b_off[m + 1]] for m in mids])) \
-            if len(mids) else np.zeros(0, np.int64)
-        indices.append(reached)
-        offsets.append(offsets[-1] + len(reached))
-    return {"offsets": np.array(offsets), "indices": np.concatenate(indices) if indices else np.zeros(0, np.int64),
-            "weights": {}}
+    if "lookup" in d:  # the lookup table's row named by the index column; none: NaN, or -1 for integers
+        n_source, source = tables[d["lookup"]]
+        idx = np.asarray(cols[d["index"]], np.int64)
+        ok = (idx >= 0) & (idx < n_source)
+        for new, col in d["columns"].items():
+            src = source[col]
+            cols[new] = np.full(n, np.nan if src.dtype.kind == "f" else -1, _lookup_dtype(src.dtype))
+            cols[new][ok] = src[idx[ok]]
+    elif "xyFromEtaPhiZ" in d:
+        eta, phi, z = (cols[c].astype(np.float64) for c in d["xyFromEtaPhiZ"])
+        r = z / np.sinh(eta)  # transverse radius: tan(theta) = 1 / sinh(eta)
+        cols["x"], cols["y"] = (r * np.cos(phi)).astype(np.float32), (r * np.sin(phi)).astype(np.float32)
+    else:
+        cols[d["column"]] = _neighbour_distance(d, cols)
 
 
 def _neighbour_distance(d, cols):
@@ -134,9 +137,92 @@ def _neighbour_distance(d, cols):
     return out * np.float32(d.get("scale", 1.0))
 
 
+def _gather(d, tables, relations, profile_relations):
+    """Columns copied from the first row each row of `table` points to through a relation; the sources are tried in
+    order. A source that places a row sets the columns it does not name to 0; rows no source reaches get `fill`
+    (default NaN)."""
+    n, cols = tables[d["table"]]
+    out = {c: np.full(n, d.get("fill", np.nan), np.float32) for c in _gathered(d)}
+    placed = np.zeros(n, bool)
+    for src in d["gather"]:
+        rel = relations.get(src["relation"])
+        if rel is None:
+            continue
+        offsets = np.asarray(rel["offsets"], np.int64)
+        todo = (np.diff(offsets) > 0) & ~placed
+        rows = np.asarray(rel["indices"])[offsets[:-1][todo]]
+        target = tables[profile_relations[src["relation"]]["to"]][1]
+        for c in out:
+            out[c][todo] = target[src["columns"][c]][rows] if c in src["columns"] else 0
+        placed |= todo
+    cols.update(out)
+
+
+# Relations, as CSR: {"offsets": n_from + 1, "indices": rows of `to`, "weights": {name: one per index}}
+def _relation(rel, tables):
+    """A profile relation of any kind but compose, normalised to CSR."""
+    col = lambda spec: tables[_column(spec)[0]][1][_column(spec)[1]]
+    n_from, n_to = tables[rel["from"]][0], tables[rel["to"]][0]
+    weights = {_column(w)[1]: col(w) for w in rel.get("weights", [])}
+    kind = rel["kind"]
+    if kind == "offsets":  # explicit n+1 offsets (e.g. an exported AssociationMap)
+        offsets, indices = col(rel["offsets"]), col(rel["indices"])
+    elif kind == "counts":  # NanoAOD per-object counts + flat list
+        offsets, indices = np.concatenate([[0], np.cumsum(col(rel["counts"]), dtype=np.int64)]), col(rel["indices"])
+    elif kind == "links":  # one row per (from, to) pair; to < 0 means no target
+        src, dst = col(rel["fromIndex"]), col(rel["toIndex"])
+        keep = dst >= 0
+        if np.any(np.diff(src) < 0):  # CSR needs the pairs grouped by `from`
+            keep = np.flatnonzero(keep)[np.argsort(src[keep], kind="stable")]
+        src, indices = src[keep], dst[keep]
+        weights = {w: a[keep] for w, a in weights.items()}
+        offsets = np.concatenate([[0], np.cumsum(np.bincount(src, minlength=n_from))])
+    elif kind == "index":  # a column holding one row of the other table (< 0: none)
+        idx = col(rel["index"])
+        if "via" in rel:  # the index column names a row of a lookup column holding the `to` row
+            via = col(rel["via"])
+            ok = (idx >= 0) & (idx < len(via))
+            idx = np.where(ok, via[np.where(ok, idx, 0)], -1)
+        if _column(rel["index"])[0] == rel["to"]:  # on `to` (each hit names its cluster): a `from` row gets the
+            rows = np.flatnonzero(idx >= 0)        # `to` rows that name it
+            indices = rows[np.argsort(idx[rows], kind="stable")]
+            offsets = np.concatenate([[0], np.cumsum(np.bincount(idx[indices], minlength=n_from))])
+        else:
+            offsets, indices = np.concatenate([[0], np.cumsum(idx >= 0)]), idx[idx >= 0]
+    elif kind == "key":  # rows of `from` and `to` with equal key columns (e.g. the same DetId in two hit tables)
+        key_from, key_to = col(rel["fromKey"]), col(rel["toKey"])
+        order = np.argsort(key_to, kind="stable")
+        pos = np.searchsorted(key_to[order], key_from)
+        found = (pos < len(order)) & (key_to[order][np.minimum(pos, len(order) - 1)] == key_from) if len(order) else \
+            np.zeros(len(key_from), bool)
+        offsets, indices = np.concatenate([[0], np.cumsum(found, dtype=np.int64)]), order[pos[found]]
+    else:
+        raise ValueError(f"relation {rel['name']}: unknown kind {kind}")
+    if len(offsets) != n_from + 1 or offsets[-1] != len(indices) or (len(indices) and indices.max() >= n_to):
+        raise ValueError(f"relation {rel['name']}: inconsistent with tables {rel['from']} ({n_from}) and "
+                         f"{rel['to']} ({n_to})")
+    return {"offsets": offsets, "indices": indices, "weights": weights}
+
+
+def _compose(a, b):
+    """A->C from A->B and B->C: each row of A reaches the union of what its B rows reach."""
+    a_off, b_off = np.asarray(a["offsets"], np.int64), np.asarray(b["offsets"], np.int64)
+    offsets, indices = [0], []
+    for f in range(len(a_off) - 1):
+        mids = a["indices"][a_off[f]:a_off[f + 1]]
+        reached = np.unique(np.concatenate([b["indices"][b_off[m]:b_off[m + 1]] for m in mids])) \
+            if len(mids) else np.zeros(0, np.int64)
+        indices.append(reached)
+        offsets.append(offsets[-1] + len(reached))
+    return {"offsets": np.array(offsets), "indices": np.concatenate(indices) if indices else np.zeros(0, np.int64),
+            "weights": {}}
+
+
 def cut_relation(rel, keep_from, keep_to):
-    """A CSR relation restricted to kept rows (masks, or None for an uncut table): rows of removed `from` objects
-    and links to removed `to` rows are dropped, and the remaining indices are renumbered."""
+    """A relation restricted to kept rows (masks, or None for an uncut table): rows of removed `from` objects and
+    links to removed `to` rows are dropped, and the remaining indices are renumbered."""
+    if keep_from is None and keep_to is None:
+        return rel
     offsets, indices = np.asarray(rel["offsets"], np.int64), np.asarray(rel["indices"])
     owner = np.repeat(np.arange(len(offsets) - 1), np.diff(offsets))
     keep = np.ones(len(indices), bool)
@@ -152,11 +238,22 @@ def cut_relation(rel, keep_from, keep_to):
             "weights": {w: a[keep] for w, a in rel["weights"].items()}}
 
 
+def _check_same(s, tables, event_id):
+    """sameRows: the dropped table must have the kept table's rows, in the same order."""
+    (n_keep, keep), (n_drop, drop) = tables[s["keep"]], tables[s["drop"]]
+    bad = [f"{a}/{b}" for a, b in s["columns"]
+           if n_keep == n_drop and not np.allclose(keep[a], drop[b], rtol=1e-5, atol=1e-6)]
+    if n_keep != n_drop or bad:
+        raise ValueError(f"sameRows {s['keep']} / {s['drop']}: event {tuple(int(x) for x in event_id)} differs "
+                         f"({f'{n_keep} vs {n_drop} rows' if n_keep != n_drop else ', '.join(bad)}); "
+                         "remove this sameRows entry from the profile to keep both tables")
+
+
 def _display(profile, tables, relations):
     """Display layers for the tables present. A layer with a `kind` takes that kind's style from the profile's
     `kinds` (its own keys win; `cut` is merged key by key) and is grouped under the kind's label, kinds in profile
     order. Within a kind, layers whose `source` ranks below the best source present (profile `prefer`, first is
-    best) start hidden, so a file with both SoA and legacy objects shows one of them by default.
+    best) start hidden and are marked `alternative`, so a file with both SoA and legacy objects shows one of them.
 
     Profile `stages` lists kinds in reconstruction order (e.g. trackster, linked trackster, candidate). The
     preferred layers of the stage kinds present get `stage` 0, 1, ...; all but the last start hidden, so the default
@@ -181,7 +278,7 @@ def _display(profile, tables, relations):
     for layer in layers:
         if layer.get("kind") and rank(layer) > best[layer["kind"]]:
             layer["visible"] = False
-            layer["alternative"] = True  # another reconstruction path of a kind already shown: the viewer folds it away
+            layer["alternative"] = True
     preferred = [layer for layer in layers if layer.get("kind") and rank(layer) == best[layer["kind"]]]
     stages = [k for k in profile.get("stages", []) if any(layer["kind"] == k for layer in preferred)]
     for layer in preferred:
@@ -191,6 +288,7 @@ def _display(profile, tables, relations):
             if layer["stage"] < len(stages) - 1:
                 layer["visible"] = False
     for layer in layers:
+        layer.pop("stageOf", None)  # a profile key, not a display hint
         if layer.get("colourBy") != "stage":
             continue
         del layer["colourBy"]
@@ -206,40 +304,29 @@ def _display(profile, tables, relations):
 
 class Converter:
     def __init__(self, tables, profile, run_tables=None):
-        """`tables`: the per-event tables of the file; `run_tables`: the per-run tables (NanoAOD Runs tree), which
-        are written once per run and can be looked up from event tables (derive `lookup`)."""
+        """`tables`: the per-event tables of the file (see discover); `run_tables`: the per-run ones (Runs tree).
+        Derived columns are added to their table's metadata."""
         keep = lambda t: not any(fnmatch.fnmatch(t, p) for p in profile.get("exclude", []))
         run_tables = {t: m for t, m in (run_tables or {}).items() if keep(t) and t not in tables}
         self.run_scope = set(run_tables)
         self.tables = {t: m for t, m in {**tables, **run_tables}.items() if keep(t)}
-        self.internal = set(profile.get("internal", [])) & set(self.tables)
-        # Tables with the same rows as another (e.g. legacy objects converted 1:1 from SoA): checked on every event,
-        # not written, and relations to or from them are redirected to the table that is kept.
+        # sameRows: tables with the same rows as another (e.g. legacy objects converted 1:1 from SoA) are checked on
+        # every event and not written; relations to or from them are redirected to the kept table.
         self.same = [s for s in profile.get("sameRows", []) if s["keep"] in self.tables and s["drop"] in self.tables]
-        rename = {s["drop"]: s["keep"] for s in self.same}
-        self.internal |= set(rename)
-        self.derive = [d for d in profile.get("derive", []) if d["table"] in self.tables and d.get("lookup", d["table"]) in self.tables]
+        self.internal = (set(profile.get("internal", [])) & set(self.tables)) | {s["drop"] for s in self.same}
+
+        self.derive = [d for d in profile.get("derive", [])
+                       if d["table"] in self.tables and d.get("lookup", d["table"]) in self.tables]
         self.derived = set()
         for d in self.derive:
-            for c in _derived_columns(d):
-                if "lookup" in d:
-                    src = d["columns"][c]
-                    if src not in self.tables[d["lookup"]]["columns"] or d["index"] not in self.tables[d["table"]]["columns"]:
-                        raise ValueError(f"lookup {d['table']} -> {d['lookup']}: no column {src} or {d['index']}")
-                    dtype, doc = self.tables[d["lookup"]]["columns"][src]
-                    dtype = np.dtype(np.int64) if np.dtype(dtype).kind == "u" else np.dtype(dtype)
-                    self.tables[d["table"]]["columns"][c] = (dtype, f"{doc} (from {d['lookup']}.{src} by {d['index']})")
-                    self.derived.add((d["table"], c))
-                    continue
-                doc = ("copied through " + ", ".join(s["relation"] for s in d["gather"]) + " (first linked row)" if "gather" in d else
-                       f"derived from {', '.join(d['xyFromEtaPhiZ'])}" if "xyFromEtaPhiZ" in d else
-                       f"derived: {d.get('scale', 1.0):g} x distance to neighbour {d.get('k', 1)} in "
-                       f"({', '.join(d['neighbourDistance'])})" + (f" per {d['groupBy']}" if "groupBy" in d else ""))
-                self.tables[d["table"]]["columns"][c] = (np.dtype("f4"), doc)
+            for c, meta in _derived_columns(d, self.tables).items():
+                self.tables[d["table"]]["columns"][c] = meta
                 self.derived.add((d["table"], c))
+
+        rename = {s["drop"]: s["keep"] for s in self.same}
         self.relations = {}
         for r in profile.get("relations", []):
-            if r["kind"] == "compose":  # its ends are those of the chain (after redirection by sameRows)
+            if r["kind"] == "compose":  # its ends are those of the chain
                 if all(v in self.relations for v in r["via"]):
                     self.relations[r["name"]] = {**r, "from": self.relations[r["via"][0]]["from"],
                                                  "to": self.relations[r["via"][-1]]["to"]}
@@ -247,31 +334,28 @@ class Converter:
             r = {**r, "from": rename.get(r["from"], r["from"]), "to": rename.get(r["to"], r["to"])}
             if self._available(r):
                 self.relations[r["name"]] = r
-        self.cuts = {t: [c for c in conds if not isinstance(c, dict) or c.get("reachedBy", "") in self.relations
-                         or "defined" in c]
-                     for t, conds in profile.get("cuts", {}).items() if t in self.tables}
+
+        usable = lambda c: not (isinstance(c, dict) and "reachedBy" in c and c["reachedBy"] not in self.relations)
+        cuts = {t: [c for c in conds if usable(c)] for t, conds in profile.get("cuts", {}).items() if t in self.tables}
+        self.cuts = {t: conds for t, conds in cuts.items() if conds}
         self.select = [s for s in profile.get("select", []) if s["table"] in self.tables]
-        for t, cond in [(t, c) for t, conds in self.cuts.items() for c in conds if not isinstance(c, dict)] + \
-                       [(s["table"], c) for s in self.select for c in s.get("where", [])]:
-            self._check(t, cond)
         for t, conds in self.cuts.items():
             for c in conds:
-                if isinstance(c, dict) and "defined" in c and c["defined"] not in self.tables[t]["columns"]:
-                    raise ValueError(f"cut on {t}: no column {c['defined']}")
-            text = " and ".join(f"reached by {c['reachedBy']}" if isinstance(c, dict) and "reachedBy" in c else
-                                f"{c['defined']} defined" if isinstance(c, dict) else " ".join(map(str, c)) for c in conds)
-            self.tables[t]["doc"] += f" (cut: {text})"
+                self._check(t, c)
+            self.tables[t]["doc"] += f" (cut: {' and '.join(map(_describe, conds))})"
+        for s in self.select:
+            for c in s.get("where", []):
+                self._check(s["table"], c)
+
         self.display = _display(profile, self.written(), self.relations)
         for layer in self.display:
             self._check_display(layer)
-        self.replay = profile.get("replay")  # passed to the viewer verbatim
-        self.profile_extra = profile  # `view`, `summaries`, `runTitle` and `presets` go to the viewer verbatim too
+        self.viewer_hints = {k: profile[k] for k in VIEWER_KEYS if k in profile}
 
     def _available(self, rel):
-        """A relation is kept if all its tables are in the file; then every
-        column it names must exist."""
-        specs = [rel.get(k) for k in ("offsets", "counts", "indices", "index", "via", "fromIndex", "toIndex", "fromKey", "toKey")]
-        specs = [s for s in specs + rel.get("weights", []) if s]
+        """A relation is kept if all its tables are in the file; then every column it names must exist."""
+        keys = ("offsets", "counts", "indices", "index", "via", "fromIndex", "toIndex", "fromKey", "toKey")
+        specs = [s for s in [rel.get(k) for k in keys] + rel.get("weights", []) if s]
         tables = {rel["from"], rel["to"], rel.get("table")} | {_column(s)[0] for s in specs}
         if not all(t is None or t in self.tables for t in tables):
             return False
@@ -280,6 +364,19 @@ class Converter:
                 raise ValueError(f"relation {rel['name']}: table {table} has no column {column}; "
                                  f"it has: {', '.join(self.tables[table]['columns'])}")
         return True
+
+    def _check(self, table, cond):
+        """A cut or selection condition must be well formed and name existing columns."""
+        if isinstance(cond, dict):
+            if "defined" in cond and cond["defined"] not in self.tables[table]["columns"]:
+                raise ValueError(f"cut on {table}: no column {cond['defined']}")
+            return
+        expr, op, value = cond
+        if op not in OPS or not isinstance(value, (int, float)):
+            raise ValueError(f"cut on {table}: bad condition {cond}; use [column, one of {list(OPS)}, number]")
+        missing = [c for c in _operands(expr) if c not in self.tables[table]["columns"]]
+        if missing:
+            raise ValueError(f"cut on {table}: no column {', '.join(missing)}")
 
     def _check_display(self, layer):
         table = layer["table"]
@@ -290,14 +387,6 @@ class Converter:
         if missing:
             raise ValueError(f"display {table}: no column {', '.join(missing)}; "
                              f"it has: {', '.join(self.tables[table]['columns'])}")
-
-    def _check(self, table, cond):
-        expr, op, value = cond
-        if op not in OPS or not isinstance(value, (int, float)):
-            raise ValueError(f"cut on {table}: bad condition {cond}; use [column, one of {list(OPS)}, number]")
-        missing = [c for c in _operands(expr) if c not in self.tables[table]["columns"]]
-        if missing:
-            raise ValueError(f"cut on {table}: no column {', '.join(missing)}")
 
     def written(self):
         """Tables written to the bundle: all but the internal ones (read only to build relations or cuts)."""
@@ -313,16 +402,16 @@ class Converter:
             "tables": {t: {"doc": m["doc"], **({"scope": "run"} if t in self.run_scope else {}),
                            "columns": {c: {"type": type_code(dt), "doc": doc} for c, (dt, doc) in m["columns"].items()}}
                        for t, m in written.items()},
-            "relations": {n: {"from": r["from"], "to": r["to"], "weights": [_column(w)[1] for w in r.get("weights", [])],
-                              **{k: r[k] for k in ("association", "best") if k in r}}  # viewer hints, passed verbatim
+            "relations": {n: {"from": r["from"], "to": r["to"],
+                              "weights": [_column(w)[1] for w in r.get("weights", [])],
+                              **{k: r[k] for k in ("association", "best") if k in r}}  # viewer hints
                           for n, r in self.relations.items() if r["from"] in written and r["to"] in written},
             "display": self.display,
-            **({"replay": self.replay} if self.replay else {}),
-            **{k: self.profile_extra[k] for k in ("view", "summaries", "runTitle", "runFields", "presets") if k in self.profile_extra},
+            **self.viewer_hints,
         }
 
     def branches(self, scope="event"):
-        """Branches to read: of the per-event tables (Events tree), or with scope="run" of the per-run ones."""
+        """Branches to read: of the per-event tables (Events tree), or with scope="run" of the per-run ones (Runs)."""
         tables = {t: m for t, m in self.tables.items() if (t in self.run_scope) == (scope == "run")}
         out = [f"n{t}" for t in tables]
         out += [f"{t}_{c}" for t, m in tables.items() for c in m["columns"] if (t, c) not in self.derived]
@@ -341,12 +430,19 @@ class Converter:
         cols = {(t, c) for t, cond in conds for c in _operands(cond[0])}
         if cols & self.derived:
             return None
-        return sorted(f"n{t}" for t in tables) + sorted(f"{t}_{c}" for t, c in cols) + (["run"] if self.run_scope else [])
+        return sorted(f"n{t}" for t in tables) + sorted(f"{t}_{c}" for t, c in cols)
 
     def _read(self, arrays, i):
         """Tables of entry i, with whichever of their columns `arrays` holds."""
         return {t: (int(arrays[f"n{t}"][i]), {c: arrays[f"{t}_{c}"][i] for c in m["columns"] if f"{t}_{c}" in arrays})
                 for t, m in self.tables.items() if f"n{t}" in arrays}
+
+    def _derive(self, tables, skip=()):
+        """Column derives (all but gather, which needs the relations) of the tables present, in profile order."""
+        for d in self.derive:
+            if "gather" not in d and d["table"] in tables and d["table"] not in skip \
+                    and d.get("lookup", d["table"]) in tables:
+                _derive(d, tables)
 
     def _masks(self, tables, relations, skip=()):
         """Row masks of the cut tables, in profile order: a reachedBy cut sees the cuts of the tables before it."""
@@ -357,17 +453,17 @@ class Converter:
             n, cols = tables[t]
             keep = np.ones(n, bool)
             for cond in conds:
-                if isinstance(cond, dict) and "defined" in cond:  # a value that is not NaN (e.g. a gathered column)
+                if not isinstance(cond, dict):
+                    keep &= _condition(cond, cols)
+                elif "defined" in cond:  # not NaN (e.g. a gathered column)
                     keep &= ~np.isnan(np.asarray(cols[cond["defined"]], np.float64))
-                elif isinstance(cond, dict):  # rows of `to` that a kept `from` row points to
+                else:  # rows of `to` that a kept `from` row points to
                     name = cond["reachedBy"]
                     rel, src = relations[name], masks.get(self.relations[name]["from"])
                     owner = np.repeat(np.arange(len(rel["offsets"]) - 1), np.diff(rel["offsets"]))
                     reached = np.zeros(n, bool)
                     reached[rel["indices"] if src is None else rel["indices"][src[owner]]] = True
                     keep &= reached
-                else:
-                    keep &= _condition(cond, cols)
             masks[t] = keep
         return masks
 
@@ -383,68 +479,14 @@ class Converter:
                 return False
         return True
 
-    def passes(self, arrays, i):
-        """The event selection on the branches of selection_branches() only."""
-        tables = self._read(arrays, i)
-        return self._selected(tables, self._masks(tables, {}))
-
-    def run_tables(self, arrays, i):
-        """The per-run tables of entry i of the Runs tree, as read (uncut: lookups index them by row)."""
-        tables = self._read(arrays, i)
-        for d in self.derive:
-            if d["table"] in tables and "neighbourDistance" in d:
-                tables[d["table"]][1][d["column"]] = _neighbour_distance(d, tables[d["table"]][1])
-        return tables
-
-    def run_record(self, run, tables):
-        """What is written of a run's tables: cut (plain conditions only), internal ones dropped."""
-        masks = {t: m for t, m in self._masks({t: v for t, v in tables.items()}, {}).items() if t in tables}
-        return (run, 0, 0), {t: (int(masks[t].sum()), {c: a[masks[t]] for c, a in cols.items()}) if t in masks else (n, cols)
-                             for t, (n, cols) in tables.items() if t not in self.internal}, {}
-
-    def event(self, arrays, i, run_tables=None):
-        """One entry of an uproot chunk -> (event id, tables, relations), or None if the event is not selected.
-        `run_tables`: this event's run's tables (see run_tables()), for lookups."""
-        tables = self._read(arrays, i)
-        event_id = (arrays["run"][i], arrays["luminosityBlock"][i], arrays["event"][i])
-        tables.update(run_tables or {})
-        for s in self.same:
-            self._check_same(s, tables, event_id)
-        for d in self.derive:
-            if d["table"] not in tables or d["table"] in self.run_scope:
-                continue
-            _, cols = tables[d["table"]]
-            if "lookup" in d:
-                if d["lookup"] in tables:
-                    _lookup(d, tables)
-            elif "xyFromEtaPhiZ" in d:
-                eta, phi, z = (cols[c].astype(np.float64) for c in d["xyFromEtaPhiZ"])
-                r = z / np.sinh(eta)  # transverse radius: tan(theta) = 1 / sinh(eta)
-                cols["x"], cols["y"] = (r * np.cos(phi)).astype(np.float32), (r * np.sin(phi)).astype(np.float32)
-            elif "neighbourDistance" in d:
-                cols[d["column"]] = _neighbour_distance(d, cols)
-        relations = {}
-        for name, rel in self.relations.items():  # in profile order, so a composed relation follows its parts
-            relations[name] = _compose(*(relations[v] for v in rel["via"])) if rel["kind"] == "compose" \
-                else self._relation(rel, tables)
-        for d in self.derive:
-            if "gather" in d:
-                _gather(d, tables, relations, self.relations)
-        masks = self._masks(tables, relations, skip=self.run_scope)
-        if not self._selected(tables, masks):
-            return None
-        self._renumber_index_columns(tables, masks)
-        ends = {name: (self.relations[name]["from"], self.relations[name]["to"]) for name in relations}
-        relations = {name: cut_relation(rel, masks.get(ends[name][0]), masks.get(ends[name][1]))
-                     if ends[name][0] in masks or ends[name][1] in masks else rel
-                     for name, rel in relations.items() if not set(ends[name]) & self.internal}
-        tables = {t: (int(masks[t].sum()), {c: a[masks[t]] for c, a in cols.items()}) if t in masks else (n, cols)
-                  for t, (n, cols) in tables.items() if t not in self.internal and t not in self.run_scope}
-        return event_id, tables, relations
+    def _cut_tables(self, tables, masks, skip=()):
+        """The tables to write: rows cut by `masks`, internal tables (and `skip`) left out."""
+        return {t: (int(masks[t].sum()), {c: a[masks[t]] for c, a in cols.items()}) if t in masks else (n, cols)
+                for t, (n, cols) in tables.items() if t not in self.internal and t not in skip}
 
     def _renumber_index_columns(self, tables, masks):
         """An index column that an `index` relation reads (e.g. a candidate's track row, or a hit's cluster) must
-        still name the same object after the table it points into is cut: rows are renumbered, removed ones become -1."""
+        still name the same object after the table it points into is cut: rows are renumbered, removed ones -1."""
         for rel in self.relations.values():
             if rel["kind"] != "index" or "via" in rel:
                 continue
@@ -461,61 +503,45 @@ class Converter:
             ok[ok] = keep[idx[ok]]
             cols[column] = np.where(ok, np.cumsum(keep)[np.where(ok, idx, 0)] - 1, -1).astype(cols[column].dtype)
 
-    @staticmethod
-    def _check_same(s, tables, event_id):
-        """sameRows: the dropped table must have the kept table's rows, in the same order."""
-        (n_keep, keep), (n_drop, drop) = tables[s["keep"]], tables[s["drop"]]
-        bad = [f"{a}/{b}" for a, b in s["columns"] if n_keep == n_drop and not np.allclose(keep[a], drop[b], rtol=1e-5, atol=1e-6)]
-        if n_keep != n_drop or bad:
-            raise ValueError(f"sameRows {s['keep']} / {s['drop']}: event {tuple(int(x) for x in event_id)} differs "
-                             f"({f'{n_keep} vs {n_drop} rows' if n_keep != n_drop else ', '.join(bad)}); "
-                             "remove this sameRows entry from the profile to keep both tables")
+    def passes(self, arrays, i):
+        """The event selection, on the branches of selection_branches() only."""
+        tables = self._read(arrays, i)
+        return self._selected(tables, self._masks(tables, {}))
 
-    @staticmethod
-    def _relation(rel, tables):
-        """Normalise any source form to CSR: offsets (n_from + 1), indices, weights."""
-        col = lambda spec: tables[_column(spec)[0]][1][_column(spec)[1]]
-        n_from, n_to = tables[rel["from"]][0], tables[rel["to"]][0]
-        weights = {_column(w)[1]: col(w) for w in rel.get("weights", [])}
-        kind = rel["kind"]
-        if kind == "offsets":  # explicit n+1 offsets (e.g. an exported AssociationMap)
-            offsets, indices = col(rel["offsets"]), col(rel["indices"])
-        elif kind == "counts":  # NanoAOD per-object counts + flat list
-            offsets, indices = np.concatenate([[0], np.cumsum(col(rel["counts"]), dtype=np.int64)]), col(rel["indices"])
-        elif kind == "links":  # one row per (from, to) pair; to < 0 means no target
-            src, dst = col(rel["fromIndex"]), col(rel["toIndex"])
-            keep = dst >= 0
-            if np.any(np.diff(src) < 0):  # CSR needs the pairs grouped by `from`
-                keep = np.flatnonzero(keep)[np.argsort(src[keep], kind="stable")]
-            src, indices = src[keep], dst[keep]
-            weights = {w: a[keep] for w, a in weights.items()}
-            offsets = np.concatenate([[0], np.cumsum(np.bincount(src, minlength=n_from))])
-        elif kind == "index":  # a column holding one row of the other table (< 0: none), optionally through a lookup
-            idx = col(rel["index"])
-            if "via" in rel:  # `via` maps the index column to rows of `to`, e.g. a dense index -> digi row table
-                via = col(rel["via"])
-                ok = (idx >= 0) & (idx < len(via))
-                idx = np.where(ok, via[np.where(ok, idx, 0)], -1)
-            if _column(rel["index"])[0] == rel["to"]:  # the column is on `to` (e.g. each hit names its cluster):
-                rows = np.flatnonzero(idx >= 0)        # each `from` row gets the `to` rows that name it
-                rows = rows[np.argsort(idx[rows], kind="stable")]
-                offsets = np.concatenate([[0], np.cumsum(np.bincount(idx[rows], minlength=n_from))])
-                indices = rows
-            else:
-                offsets, indices = np.concatenate([[0], np.cumsum(idx >= 0)]), idx[idx >= 0]
-        elif kind == "key":  # rows of `from` and `to` with equal key columns (e.g. the same DetId in two hit tables)
-            key_from, key_to = col(rel["fromKey"]), col(rel["toKey"])
-            order = np.argsort(key_to, kind="stable")
-            pos = np.searchsorted(key_to[order], key_from)
-            found = (pos < len(order)) & (key_to[order][np.minimum(pos, len(order) - 1)] == key_from) if len(order) else \
-                np.zeros(len(key_from), bool)
-            offsets, indices = np.concatenate([[0], np.cumsum(found, dtype=np.int64)]), order[pos[found]]
-        else:
-            raise ValueError(f"relation {rel['name']}: unknown kind {kind}")
-        if len(offsets) != n_from + 1 or offsets[-1] != len(indices) or (len(indices) and indices.max() >= n_to):
-            raise ValueError(f"relation {rel['name']}: inconsistent with tables {rel['from']} ({n_from}) and "
-                             f"{rel['to']} ({n_to})")
-        return {"offsets": offsets, "indices": indices, "weights": weights}
+    def run_tables(self, arrays, i):
+        """The per-run tables of entry i of the Runs tree, uncut (lookups index them by row)."""
+        tables = self._read(arrays, i)
+        self._derive(tables)
+        return tables
+
+    def run_record(self, run, tables):
+        """(run id, tables, relations) written once for a run: its tables cut (plain conditions only)."""
+        return (run, 0, 0), self._cut_tables(tables, self._masks(tables, {})), {}
+
+    def event(self, arrays, i, run_tables=None):
+        """Entry i of an uproot chunk -> (event id, tables, relations), or None if the event is not selected.
+        `run_tables`: the tables of the event's run (see run_tables()), for lookups."""
+        tables = self._read(arrays, i)
+        event_id = (arrays["run"][i], arrays["luminosityBlock"][i], arrays["event"][i])
+        tables.update(run_tables or {})
+        for s in self.same:
+            _check_same(s, tables, event_id)
+        self._derive(tables, skip=self.run_scope)
+        relations = {}
+        for name, rel in self.relations.items():  # in profile order, so a composition follows its parts
+            relations[name] = _compose(*(relations[v] for v in rel["via"])) if rel["kind"] == "compose" \
+                else _relation(rel, tables)
+        for d in self.derive:
+            if "gather" in d:
+                _gather(d, tables, relations, self.relations)
+        masks = self._masks(tables, relations, skip=self.run_scope)
+        if not self._selected(tables, masks):
+            return None
+        self._renumber_index_columns(tables, masks)
+        ends = {name: (rel["from"], rel["to"]) for name, rel in self.relations.items()}
+        relations = {name: cut_relation(rel, masks.get(ends[name][0]), masks.get(ends[name][1]))
+                     for name, rel in relations.items() if not set(ends[name]) & self.internal}
+        return event_id, self._cut_tables(tables, masks, skip=self.run_scope), relations
 
 
 def _open(path):
@@ -542,46 +568,49 @@ def parse_events(spec):
     return out
 
 
+def _entries(tree, conv, events, progress):
+    """(arrays, i) of the entries of an Events tree to convert. `events`: only these event numbers, found from the
+    event branch alone and read one at a time, in event order. Otherwise, with an event selection on plain columns,
+    a first pass reads only the branches that decide it, and an entry is read in full only if it passes;
+    progress(entries scanned) is called after each chunk."""
+    full = conv.branches()
+    entry = lambda e: tree.arrays(full, entry_start=e, entry_stop=e + 1, library="np")
+    if events is not None:
+        numbers = tree["event"].array(library="np")
+        chosen = np.flatnonzero(np.isin(numbers, list(events)))
+        progress(len(chosen))
+        for e in chosen[np.argsort(numbers[chosen], kind="stable")]:  # before, during, after
+            yield entry(e), 0
+        return
+    pre = conv.selection_branches()
+    for arrays, report in tree.iterate(pre or full, step_size="200 MB", library="np", report=True):
+        for i in range(report.tree_entry_stop - report.tree_entry_start):
+            if pre is None:
+                yield arrays, i
+            elif conv.passes(arrays, i):
+                yield entry(report.tree_entry_start + i), 0
+        progress(report.tree_entry_stop)
+
+
 def _records(conv, files, log, events=None, runs=None):
-    """(record, run tables) of the converted events of `files`, in order. With an event selection on plain columns,
-    a first pass reads only the branches that decide it, and the full event is read only for the selected entries.
-    `events`: only these event numbers (found from the event branch alone, then read one by one, in event order);
+    """(record, run tables) of the converted events of `files`, in order. `events`: only these event numbers;
     `runs`: per-run tables to use instead of each file's own."""
-    pre, full = conv.selection_branches(), conv.branches()
-    scanned = selected = 0
-    given = runs
+    def progress(n):
+        if events is not None:
+            print(f"{name}: {n} of the requested events", file=log)
+        elif conv.select:
+            print(f"{name}: scanned {n}, selected {selected}", file=log)
+
     for path in files:
+        name, selected = os.path.basename(path), 0
         with _open(path) as f:
-            if given is None:
-                runs = _run_tables(conv, f)
-            tree = f["Events"]
-            if events is not None:
-                numbers = tree["event"].array(library="np")
-                chosen = np.flatnonzero(np.isin(numbers, list(events)))
-                for e in chosen[np.argsort(numbers[chosen], kind="stable")]:  # in event order: before, during, after
-                    arrays = tree.arrays(full, entry_start=e, entry_stop=e + 1, library="np")
-                    record = conv.event(arrays, 0, runs.get(int(arrays["run"][0])) if runs else None)
-                    if record is not None:
-                        yield record, runs.get(int(arrays["run"][0])) if runs else None
-                print(f"{os.path.basename(path)}: {np.isin(numbers, list(events)).sum()} of the requested events", file=log)
-                continue
-            for arrays, report in tree.iterate(pre or full, step_size="200 MB", library="np", report=True):
-                n = report.tree_entry_stop - report.tree_entry_start
-                for i in range(n):
-                    run_tables = runs.get(int(arrays["run"][i])) if runs else None
-                    if pre is None:
-                        record = conv.event(arrays, i, run_tables)
-                    elif conv.passes(arrays, i):
-                        e = report.tree_entry_start + i
-                        record = conv.event(tree.arrays(full, entry_start=e, entry_stop=e + 1, library="np"), 0, run_tables)
-                    else:
-                        continue
-                    if record is not None:
-                        selected += 1
-                        yield record, run_tables
-                scanned += n
-                if conv.select:
-                    print(f"{os.path.basename(path)}: scanned {scanned}, selected {selected}", file=log)
+            file_runs = _run_tables(conv, f) if runs is None else runs
+            for arrays, i in _entries(f["Events"], conv, events, progress):
+                run_tables = file_runs.get(int(arrays["run"][i]))
+                record = conv.event(arrays, i, run_tables)
+                if record is not None:
+                    selected += 1
+                    yield record, run_tables
 
 
 def convert(files, output, profile_name="hgcal", max_events=None, log=sys.stderr, data_time=None, run_info=None,
@@ -591,26 +620,22 @@ def convert(files, output, profile_name="hgcal", max_events=None, log=sys.stderr
     `run_tables`: a NanoAOD file whose Runs tree has the per-run tables (e.g. the channel table) of the same runs,
     for inputs made without them."""
     profile = load_profile(profile_name)
-    with _open(run_tables or files[0]) as f:
-        per_run = discover(f["Runs"]) if "Runs" in f else None
-    with _open(files[0]) as f:
-        conv = Converter(discover(f["Events"]), profile, per_run)
-    runs = None
+    with _open(files[0]) as f, _open(run_tables or files[0]) as r:
+        conv = Converter(discover(f["Events"]), profile, discover(r["Runs"]) if "Runs" in r else None)
+        runs = _run_tables(conv, r) if run_tables else None
     if run_tables:
-        with _open(run_tables) as f:
-            runs = _run_tables(conv, f)
         print(f"per-run tables of run(s) {sorted(runs)} from {os.path.basename(run_tables)}", file=log)
-    print(f"{len(conv.written())} tables, {len(conv.relations)} relations, {len(conv.display)} display layers", file=log)
-    written = 0
+    print(f"{len(conv.written())} tables, {len(conv.relations)} relations, {len(conv.display)} display layers",
+          file=log)
     header = conv.header(files, profile.get("name", profile_name))
     if data_time:
         header["source"]["data_time"] = data_time.isoformat(timespec="seconds")
+    written, runs_written = 0, set()
     with BundleWriter(output, header) as out:
-        runs_written = set()
-        for record, run_tables in itertools.islice(_records(conv, files, log, events, runs), max_events):
+        for record, per_run in itertools.islice(_records(conv, files, log, events, runs), max_events):
             run = int(record[0][0])
-            if run_tables and run not in runs_written:
-                out.add_run(*conv.run_record(run, run_tables))
+            if per_run and run not in runs_written:
+                out.add_run(*conv.run_record(run, per_run))
                 runs_written.add(run)
             out.add(*record)
             written += 1

@@ -1,4 +1,5 @@
 // Top bar: data set, event navigation (with jump-to), view switcher, share and help.
+import logo from "../../logo.svg";
 import type { ViewName } from "../render/engine";
 import { bundle, bundleName, catalogue, dialog, eventIndex, following, loading, openBundle, showEvent, theme, toast, toggleTheme, touring, view, type Listed } from "../model/store";
 import { toggleLive } from "./live";
@@ -25,7 +26,7 @@ export function Header() {
 
   return (
     <header class="topbar">
-      <div class="brand">HGCal Event Display</div>
+      <div class="brand"><img src={logo} alt="" width={22} height={22} />Event display</div>
       <select class="dataset" value={bundleName.value} title="Data set" onChange={(ev) => openBundle((ev.target as HTMLSelectElement).value)}>
         {[...campaigns].map(([c, list]) => (c ? <optgroup label={c}>{list.map((x) => <option value={x.file}>{x.title}</option>)}</optgroup>
           : list.map((x) => <option value={x.file}>{x.title}</option>)))}
@@ -54,7 +55,7 @@ export function Header() {
         <i class="dot" />Live
       </button>
       <div class="actions">
-        <button class="icon-button" title="Show everything (Home)" onClick={() => engine?.frame(undefined, true)}><Icon name="reset" /></button>
+        <button class="icon-button" title="Show the whole event (Home)" onClick={() => engine?.frame(undefined, true)}><Icon name="reset" /></button>
         <button class="icon-button" title="Copy a link to this view" onClick={share}><Icon name="share" /></button>
         <button class="icon-button" title={theme.value === "dark" ? "Light theme" : "Dark theme"} onClick={toggleTheme}><Icon name={theme.value === "dark" ? "sun" : "moon"} /></button>
         <button class="icon-button" title="Help (?)" onClick={() => (dialog.value = "help")}><Icon name="help" /></button>

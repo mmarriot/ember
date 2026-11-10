@@ -1,18 +1,27 @@
-// The 3D view: layers follow the event and visibility, cuts and selection only update uniforms/masks.
-// Hover shows a tooltip, click selects, double-click flies to the object and everything related to it.
+// The 3D view. Layers are rebuilt when the event, visibility, theme, colour choices or filters change; a cut only
+// sets a uniform per layer, and the focus a byte per object (plus a rebuild of the small onSelection layers, and
+// building or freeing the hidden layers it has objects in).
+// Hover shows a tooltip, click selects, double-click zooms to the selection.
 import { effect, signal } from "@preact/signals";
 import { useEffect, useRef } from "preact/hooks";
-import type { DisplayLayer, EventData, Header, Table } from "../io/bundle";
-import { colourBy, filters, evaluate, withColour } from "../model/custom";
-import { colours, PALETTES, toF32, valueRange, type Legend, type Pal, type Range } from "../render/colour";
-import { Engine } from "../render/engine";
+import { type DisplayLayer, type EventData, type Header, type Table, unitOf } from "../io/bundle";
+import { colourBy, filters, withColour } from "../model/custom";
+import { cutMin, cutValues } from "../model/cuts";
+import { colours, type Legend, PALETTES, valueRange, type Pal, type Range } from "../render/colour";
+import { Engine, MIN_RADIUS } from "../render/engine";
 import { builders, type ColourStage, type Layer } from "../render/layers";
 import { planReplay, type Plan } from "../render/replay";
-import { jump, back } from "./navigate";
-import { bundle, cuts, describe, event, focus, focusHistory, focusLayers, focusLinked, following, inFocus, highlight, hover, labelOf, layerKey, legends, rawEvent, replayCaption, selection, showAll, shown, theme, touring, view, visible } from "../model/store";
+import { back, jump } from "./navigate";
+import {
+  bundle, cuts, describe, event, focus, focusHistory, focusIsTruth, focusLayers, focusLinked, following, highlight, hover, inFocus,
+  isHitLayer, kindOf, labelOf, layerKey, layerOf, legends, rawEvent, replayCaption, selection, short, showAll, shown, theme, touring, view, visible,
+} from "../model/store";
+import { relationInto, type Ref } from "../model/relations";
 import { stopTour } from "./tour";
 
 export let engine: Engine | null = null;
+
+interface Entry { d: DisplayLayer; t: Table; key: string; cut?: Float32Array; rgb: Float32Array; emphasis?: Uint8Array; layer: Layer }
 let entries: Entry[] = []; // what is drawn now
 
 let plan: Plan | null = null;
@@ -27,8 +36,7 @@ export function replayEvent(): Plan | null {
   replaying.value = true; // rebuilds the layers at once (an effect), including the hidden stages
   if (!entries.length) return null;
   hover.value = null;
-  // Background layers stay as they are through the replay.
-  plan = planReplay(entries.filter((e) => !e.d.context).map((e) => ({ layer: e.layer!, d: e.d, t: e.t, emphasis: e.emphasis })), bundle.peek()?.header.replay);
+  plan = planReplay(entries.filter((e) => !e.d.context), bundle.peek()?.header.replay); // background stays as it is
   stageColours(plan);
   engine.replay(plan.seconds);
   return plan;
@@ -40,10 +48,10 @@ function stageColours(p: Plan) {
   const b = bundle.peek(), ev = event.peek(), pal = PALETTES[theme.peek()];
   if (!b || !ev) return;
   for (const e of entries) {
-    if (!(typeof e.d.colourBy === "object" && "relation" in e.d.colourBy) || !e.layer?.setColourStages) continue;
+    if (!(typeof e.d.colourBy === "object" && "relation" in e.d.colourBy) || !e.layer.setColourStages) continue;
     const keys: ColourStage[] = [];
     for (const st of p.stages) {
-      const rel = Object.entries(b.header.relations).find(([n, r]) => st.tables.includes(r.from) && r.to === e.d.table && ev.relations[n])?.[0];
+      const rel = relationInto(b.header, st.tables, e.d.table, ev);
       if (!rel) continue;
       const c = colours({ ...e.d, colourBy: { relation: rel } }, e.t, ev, b.header, pal);
       keys.push({ t: st.start, rgb: c.rgb, emphasis: c.emphasis });
@@ -56,97 +64,129 @@ export function Viewport() {
   const canvas = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
-    engine = new Engine(canvas.current!);
-    if (import.meta.env.DEV) Object.assign(window, { evdEngine: engine }); // for the e2e tests
-    engine.onInteract = stopTour;
-    engine.onReplayTick = (t) => { // the caption changes text at most once per frame
+    const eng = (engine = new Engine(canvas.current!));
+    if (import.meta.env.DEV) Object.assign(window, { evdEngine: eng }); // for the e2e tests
+    eng.onInteract = stopTour;
+    eng.onReplayTick = (t) => { // the caption changes text at most once per frame
       const c = t === null ? null : plan?.caption(t) ?? null, cur = replayCaption.peek();
       if (c?.title !== cur?.title || c?.detail !== cur?.detail) replayCaption.value = c;
       if (t === null) replaying.value = false; // back to the visible layers only
     };
     let lastEvent: unknown = null;
 
-    // Cuts hide objects (one uniform per layer) and reset the shared colour scales to what passes them.
+    // Cuts hide objects (one uniform per layer) and reset the value scales to what passes them; categorical colours
+    // do not depend on the cuts.
     const applyCuts = (recolour: boolean) => {
       const b = bundle.peek(), ev = event.peek(), c = cuts.peek(), counts: Record<string, number> = {};
-      for (const e of entries) counts[e.layer!.key] = e.layer!.setCut(cutMin(e, c));
+      for (const e of entries) counts[e.key] = e.layer.setCut(cutMin(e.d, e.cut, c));
       shown.value = counts;
-      if (recolour && b && ev) { // only value scales depend on the cuts; categorical colours stay
-        const ramps = entries.filter((e) => !e.d.colourBy), drawn: Record<string, Legend> = {}, pal = PALETTES[theme.peek()];
-        colourEntries(ramps, ev, b.header, c, pal).forEach(({ rgb, legend }, i) => { ramps[i].layer!.setColours(dimmed(rgb, ramps[i].d.dim, pal)); drawn[ramps[i].key] = legend; });
-        legends.value = { ...legends.peek(), ...drawn };
+      if (recolour && b && ev) {
+        const ramps = entries.filter((e) => !e.d.colourBy), drawn = { ...legends.peek() };
+        colourEntries(ramps, ev, b.header, c, PALETTES[theme.peek()]).forEach(({ rgb, legend }, i) => {
+          ramps[i].layer.setColours(rgb);
+          ramps[i].rgb = rgb;
+          drawn[ramps[i].key] = legend;
+        });
+        legends.value = drawn;
       }
-      engine?.requestRender();
+      eng.requestRender();
     };
     // A slider sends many inputs per frame: the cut applies to each, the colour scales are redone once per frame.
     let recolourFrame = 0;
-    const onCutChange = () => {
+    const stopCuts = effect(() => {
+      cuts.value;
       applyCuts(false);
       recolourFrame ||= requestAnimationFrame(() => { recolourFrame = 0; applyCuts(true); });
+    });
+
+    // The layers to draw: the visible ones, the hidden ones the focus has objects in, and in a replay every
+    // reconstruction stage.
+    const wanted = (header: Header, ev: EventData) => {
+      const vis = visible.peek(), forced = focusLayers.peek(), all = replaying.peek();
+      return header.display.filter((d) => (vis[layerKey(d)] || forced.has(layerKey(d)) || (all && d.stage !== undefined)) && ev.tables[d.table]?.n);
     };
-    // Rebuilt when the event, visibility, theme, colour choices or filters change (cuts only update uniforms).
-    const stopLayers = effect(() => {
-      const b = bundle.value, ev = event.value, vis = visible.value, pal = PALETTES[theme.value], by = colourBy.value, f = filters.value;
-      const all = replaying.value, forced = new Set(focusLayers.value.split("|")); // the focus's hidden levels
-      if (!b || !ev) return;
-      engine!.setBackground(pal.background);
-      engine!.minRadius = b.header.view?.minRadius ?? 70;
-      entries = b.header.display
-        .filter((d) => (vis[layerKey(d)] || forced.has(layerKey(d)) || (all && d.stage !== undefined)) && ev.tables[d.table]?.n)
-        .map((d0) => {
-          const key = layerKey(d0), d = withColour(d0, by[key]), t = ev.tables[d.table];
-          const e: Entry = { d, t, key };
-          e.cutValues = cutValues(d, t, f[d.table], onlyFor(e, highlight.peek()));
-          return e;
-        });
-      const drawn: Record<string, Legend> = {};
-      colourEntries(entries, ev, b.header, cuts.peek(), pal).forEach(({ rgb, legend, emphasis }, i) => {
-        dimmed(rgb, entries[i].d.dim, pal);
-        const e = entries[i];
-        drawn[e.key] = legend;
-        e.emphasis = emphasis;
-        e.rgb = rgb;
-        e.layer = builders[e.d.repr]({ key: e.key, d: e.d, t: e.t, pal, rgb, emphasis, cut: e.cutValues });
+    // Builds the given layers, adding their legends to `drawn`; colour scales are shared with the layers in `pool`.
+    const build = (layers: DisplayLayer[], header: Header, ev: EventData, drawn: Record<string, Legend>, pool: Entry[] = []): Entry[] => {
+      const by = colourBy.peek(), f = filters.peek(), hl = highlight.peek(), pal = PALETTES[theme.peek()];
+      const items = layers.map((d0) => {
+        const key = layerKey(d0), d = withColour(d0, by[key]), t = ev.tables[d.table];
+        return { d, t, key, cut: cutValues(d, t, f[d.table], onlyFor(d, key, hl)) };
       });
+      const coloured = colourEntries(items, ev, header, cuts.peek(), pal, [...pool, ...items]);
+      return items.map((s, i) => {
+        const { rgb, emphasis, legend } = coloured[i];
+        drawn[s.key] = legend;
+        return { ...s, rgb, emphasis, layer: builders[s.d.repr]({ ...s, pal, rgb, emphasis }) };
+      });
+    };
+
+    let builtFor: EventData | null = null; // the event the layers were built for
+    const stopLayers = effect(() => {
+      const b = bundle.value, ev = event.value, pal = PALETTES[theme.value];
+      visible.value; colourBy.value; filters.value; replaying.value; // any change rebuilds every layer
+      if (!b || !ev) return;
+      eng.setBackground(pal.background);
+      eng.minRadius = b.header.view?.minRadius ?? MIN_RADIUS;
+      const drawn: Record<string, Legend> = {};
+      entries = build(wanted(b.header, ev), b.header, ev, drawn);
+      builtFor = ev;
       legends.value = drawn;
-      engine!.setLayers(entries.map((e) => e.layer!));
+      eng.setLayers(entries.map((e) => e.layer));
       applyCuts(false);
       const raw = rawEvent.peek(); // not `ev`: adding a custom column makes a new event object for the same event
-      if (raw !== lastEvent && !touring.peek() && !following.peek()) engine!.frame(); // tour and Live fly there themselves
+      if (raw !== lastEvent && !touring.peek() && !following.peek()) eng.frame(); // tour and Live fly there themselves
       lastEvent = raw;
-      applyHighlight(entries.map((e) => e.layer!), highlight.peek(), 0);
+      showFocus(0);
     });
-    const stopCuts = effect(() => { cuts.value; onCutChange(); });
-    // Layers that show only the selection's objects (e.g. MC truth, candidate tracks) are rebuilt when it changes:
-    // they are small, so this is cheap, and the big layers keep their buffers.
-    const stopSelectionLayers = effect(() => {
-      const hl = highlight.value, all = showAll.value, pal = PALETTES[theme.peek()], f = filters.peek();
-      for (const e of entries) {
-        if (!e.d.onSelection || !e.layer || !e.rgb) continue;
-        const cutVals = cutValues(e.d, e.t, f[e.d.table], all[e.key] ? undefined : onlyFor(e, hl));
-        const next = builders[e.d.repr]({ key: e.key, d: e.d, t: e.t, pal, rgb: e.rgb, emphasis: e.emphasis, cut: cutVals });
-        engine!.replaceLayer(e.layer, next);
-        e.layer = next;
-        const fo = focus.peek();
-        next.setOutline?.(!!fo && !!bundle.peek()?.header.display.find((l) => l.table === fo.table)?.truth);
-        e.cutValues = cutVals;
+
+    // A focus draws the hidden layers it has objects in (e.g. a candidate's tracksters): only those are built, or
+    // freed when it ends; the other layers keep their buffers.
+    const stopForced = effect(() => {
+      focusLayers.value;
+      const b = bundle.peek(), ev = event.peek();
+      if (!b || !ev || ev !== builtFor) return; // a new event: stopLayers builds everything
+      const keep = new Set(wanted(b.header, ev).map(layerKey)), have = new Set(entries.map((e) => e.key));
+      const gone = entries.filter((e) => !keep.has(e.key)), added = b.header.display.filter((d) => keep.has(layerKey(d)) && !have.has(layerKey(d)));
+      if (!gone.length && !added.length) return;
+      const drawn = { ...legends.peek() };
+      for (const e of gone) { eng.removeLayer(e.layer); delete drawn[e.key]; }
+      entries = entries.filter((e) => keep.has(e.key));
+      const fresh = build(added, b.header, ev, drawn, entries), hl = highlight.peek(), outline = focusIsTruth.peek();
+      for (const { layer } of fresh) {
+        eng.addLayer(layer);
+        layer.setHighlight(hl ? hl.get(layer.table) ?? new Set() : null);
+        layer.setOutline?.(outline);
+        layer.setHighlightMix(1);
       }
+      entries = [...entries, ...fresh];
+      legends.value = drawn;
       applyCuts(false);
     });
-    const stopHighlight = effect(() => {
-      applyHighlight(entries.map((e) => e.layer!), highlight.value, touring.peek() ? 900 : 250);
-      // Focused on a truth particle: the reco objects matched to it are drawn as outlines around its hits and lines.
-      const f = focus.value, truthFocus = !!f && !!bundle.peek()?.header.display.find((l) => l.table === f.table)?.truth;
-      for (const e of entries) e.layer?.setOutline?.(truthFocus);
+
+    // A new focus: the layers that show only its objects (e.g. MC truth, candidate tracks) are rebuilt, which is
+    // cheap as they are small (the big layers keep their buffers); then every layer fades to the new highlight.
+    const stopFocus = effect(() => {
+      const hl = highlight.value, f = filters.peek(), pal = PALETTES[theme.peek()];
+      showAll.value;
+      for (const e of entries) {
+        if (!e.d.onSelection) continue;
+        const cut = cutValues(e.d, e.t, f[e.d.table], onlyFor(e.d, e.key, hl));
+        const next = builders[e.d.repr]({ key: e.key, d: e.d, t: e.t, pal, rgb: e.rgb, emphasis: e.emphasis, cut });
+        eng.replaceLayer(e.layer, next);
+        e.layer = next;
+        e.cut = cut;
+      }
+      applyCuts(false);
+      showFocus(touring.peek() ? 900 : 250);
     });
-    const stopView = effect(() => engine!.setView(view.value, highlight.peek() ?? undefined));
+    const stopView = effect(() => eng.setView(view.value, highlight.peek() ?? undefined));
     // The inspector covers the right of the view while something is selected: framing leaves that part free.
     const stopInset = effect(() => {
       selection.value;
-      const panel = document.querySelector(".inspector") as HTMLElement | null, view = canvas.current!.getBoundingClientRect();
-      engine!.insetRight = selection.peek() ? Math.max(0, view.right - (panel?.getBoundingClientRect().left ?? view.right - 372)) : 0;
+      const panel = document.querySelector(".inspector") as HTMLElement | null, box = canvas.current!.getBoundingClientRect();
+      eng.insetRight = selection.peek() ? Math.max(0, box.right - (panel?.getBoundingClientRect().left ?? box.right - 372)) : 0;
     });
-    return () => { cancelAnimationFrame(recolourFrame); stopLayers(); stopCuts(); stopSelectionLayers(); stopHighlight(); stopView(); stopInset(); };
+    return () => { cancelAnimationFrame(recolourFrame); stopLayers(); stopForced(); stopCuts(); stopFocus(); stopView(); stopInset(); };
   }, []);
 
   // A press that moves more than a few pixels is a rotate/pan, not a click: it must not change the selection.
@@ -168,9 +208,8 @@ export function Viewport() {
       setCursor(hits.length ? "pointer" : "grab");
     });
   };
-  // Several objects can be stacked under the cursor (a candidate, its interpretation and tracksters, a hit, a truth
-  // line): clicking again on the same spot selects the next one. Inside a focus only its parts can be picked; a click
-  // on nothing ends the focus (and the selection).
+  // Several objects can be stacked under the cursor (a candidate, its tracksters, a hit, a truth line): clicking
+  // again on the same spot selects the next one. A click on nothing ends the focus (and the selection).
   let lastClick: { x: number; y: number } | null = null;
   const onClick = (e: MouseEvent) => {
     if (e.detail > 1 || dragged) return;
@@ -180,9 +219,8 @@ export function Viewport() {
     const at = again && cur ? hits.findIndex((h) => h.table === cur.table && h.row === cur.row) : -1;
     const hit = hits[(at + 1) % Math.max(hits.length, 1)];
     // An object linked to the focus (its truth particle; a truth particle's reco objects), other than single hits:
-    // jump there, keeping the way back.
-    const repr = hit && bundle.peek()?.header.display.find((l) => l.table === hit.table)?.repr;
-    if (hit && repr !== "cells" && focusLinked.peek()?.get(hit.table)?.has(hit.row)) return jump({ table: hit.table, row: hit.row });
+    // the focus moves there, keeping the way back.
+    if (hit && !isHitLayer(layerOf(hit.table)) && focusLinked.peek()?.get(hit.table)?.has(hit.row)) return jump({ table: hit.table, row: hit.row });
     selection.value = hit ? { table: hit.table, row: hit.row } : null;
   };
   const onDoubleClick = (e: MouseEvent) => {
@@ -207,19 +245,18 @@ export function Viewport() {
   );
 }
 
-/** What the view is focused on, and how to leave. */
+/** What the view is focused on, the way back, and how to leave. */
 function FocusBar() {
-  const f = focus.value;
+  const f = focus.value, prev = focusHistory.value.at(-1);
   if (!f) return null;
-  const name = describe(f.table, f.row), h = focusHistory.value, prev = h[h.length - 1];
-  const title = (r: { table: string; row: number }) => {
-    const g = bundle.value?.header.display.find((l) => l.table === r.table)?.group ?? r.table, n = describe(r.table, r.row);
-    return n ? `${g} · ${n}` : `${g} #${r.row}`;
+  const name = (r: Ref) => {
+    const n = describe(r.table, r.row);
+    return `${kindOf(r.table)}${n ? ` · ${n}` : ` #${r.row}`}`;
   };
   return (
     <div class="focusbar" role="status" title="All its parts are shown, and only they can be clicked">
-      {prev && <button class="link" onClick={back} title={`Back to ${title(prev)}`}>← {title(prev)}</button>}
-      <span class="muted">Focus</span> <b>{bundle.value?.header.display.find((l) => l.table === f.table)?.group ?? f.table}{name ? ` · ${name}` : ` #${f.row}`}</b>
+      {prev && <button class="link" onClick={back} title={`Back to ${name(prev)}`}>← {name(prev)}</button>}
+      <span class="muted">Focus</span> <b>{name(f)}</b>
       <button class="link" onClick={() => (selection.value = null)}>leave (Esc)</button>
     </div>
   );
@@ -233,81 +270,55 @@ function ReplayCaption() {
 function Tooltip() {
   const h = hover.value, ev = event.value, b = bundle.value;
   if (!h || !ev || !b || !ev.tables[h.table]) return null;
-  const d0 = b.header.display.find((l) => l.table === h.table);
-  const d = d0 && withColour(d0, colourBy.value[layerKey(d0)]);
-  const t = ev.tables[h.table];
+  const d0 = layerOf(h.table), d = d0 && withColour(d0, colourBy.value[layerKey(d0)]);
+  const t = ev.tables[h.table], name = describe(h.table, h.row);
   const value = d?.colour && t.columns[d.colour] ? Number(t.columns[d.colour][h.row]) : null;
-  const unit = d?.colour ? b.header.tables[h.table].columns[d.colour]?.doc.match(/\[([^\]]+)\]/)?.[1] ?? "" : "";
   return (
     <div class="tooltip" style={{ left: h.x + 14, top: h.y + 14 }}>
-      <b>{labelOf(h.table)}</b> #{h.row}{describe(h.table, h.row) && ` · ${describe(h.table, h.row)}`}
+      <b>{labelOf(h.table)}</b> #{h.row}{name && ` · ${name}`}
       {h.stacked > 1 && <div class="muted">{h.stacked} objects here · click again for the next</div>}
-      {value !== null && <div>{d!.colour}: {value.toPrecision(3)} {unit}</div>}
+      {value !== null && <div>{d!.colour}: {short(value)} {unitOf(b.header.tables[h.table].columns[d!.colour!]?.doc)}</div>}
     </div>
   );
 }
 
-interface Entry { d: DisplayLayer; t: Table; key: string; cutValues?: Float32Array; emphasis?: Uint8Array; rgb?: Float32Array; layer?: Layer }
+/** For a layer that shows only the focus's objects: the rows to keep (none without a focus); else undefined. */
+const onlyFor = (d: DisplayLayer, key: string, hl: Map<string, Set<number>> | null) =>
+  !d.onSelection || showAll.peek()[key] ? undefined : hl?.get(d.table) ?? new Set<number>();
 
-/** For a layer that shows only the selection's objects: the rows to keep (empty without a selection); else undefined. */
-function onlyFor(e: Entry, hl: Map<string, Set<number>> | null): Set<number> | undefined {
-  if (!e.d.onSelection || showAll.peek()[e.key]) return undefined;
-  return hl?.get(e.d.table) ?? new Set();
-}
-
-// A filtered-out row gets a cut value below any threshold, so it is hidden by the same comparison as the cut
-// (in the shader and in passes()). Layers with a filter but no cut use a threshold just above it.
-const HIDDEN = -3e38, NO_CUT = -1e30;
-
-/** Colours mixed towards the background by `dim` (0..1), in place: for background layers. */
-function dimmed(rgb: Float32Array, dim: number | undefined, pal: Pal) {
-  if (!dim) return rgb;
-  const bg = [(pal.background >> 16) & 255, (pal.background >> 8) & 255, pal.background & 255].map((v) => v / 255);
-  for (let i = 0; i < rgb.length; i++) rgb[i] += (bg[i % 3] - rgb[i]) * dim;
-  return rgb;
-}
-
-// Objects drawn because they relate to the selection pass every cut: what you clicked is linked to them.
-const SHOWN = 3e38;
-
-export function cutValues(d: DisplayLayer, t: Table, filter?: string, only?: Set<number>): Float32Array | undefined {
-  if (only) {
-    const out = new Float32Array(t.n).fill(HIDDEN);
-    for (const i of only) out[i] = SHOWN;
-    return out;
-  }
-  const base = d.cut && t.columns[d.cut.column] ? toF32(t.columns[d.cut.column], t.n) : undefined;
-  const r = filter ? evaluate(t, filter) : null, keep = r && !("error" in r) ? r.values : null;
-  if (!keep && !only) return base;
-  const out = base ? Float32Array.from(base) : new Float32Array(t.n); // a copy: `base` may be the event's own column
-  for (let i = 0; i < t.n; i++) if (keep && !keep[i]) out[i] = HIDDEN;
-  return out;
-}
-
-export const cutMin = (e: Pick<Entry, "d" | "cutValues">, c: Record<string, number>) => (e.d.cut ? c[e.d.cut.group] ?? 0 : e.cutValues ? NO_CUT : -Infinity);
-
-/** Colours for all drawn layers. Layers that share a cut group and colour column (e.g. SoA and legacy rechit
- *  energies) share one colour scale, computed from the objects that pass the cuts and filters, so equal values get
- *  equal colours in every layer. */
-function colourEntries(entries: Entry[], ev: EventData, header: Header, c: Record<string, number>, pal: Pal) {
-  const scale = (e: Entry) => `${e.d.cut?.group ?? e.key}|${e.d.colour}`;
+type Item = Pick<Entry, "d" | "t" | "key" | "cut">;
+/** Colours for the given layers, mixed towards the background by their `dim`. Layers that share a cut group and
+ *  colour column (e.g. SoA and legacy rechit energies) share one colour scale, computed from the objects of the
+ *  layers in `pool` that pass the cuts and filters, so equal values get equal colours in every layer. */
+function colourEntries(items: Item[], ev: EventData, header: Header, c: Record<string, number>, pal: Pal, pool: Item[] = items) {
+  const scale = (e: Pick<Entry, "d" | "key">) => `${e.d.cut?.group ?? e.key}|${e.d.colour}`;
   const pools = new Map<string, number[]>();
-  for (const e of entries) {
-    const { d, t, cutValues } = e, col = d.colour ? t.columns[d.colour] : undefined;
+  for (const e of pool) {
+    const { d, t, cut } = e, col = d.colour ? t.columns[d.colour] : undefined;
     if (!col || d.colourBy) continue; // categorical layers keep their own colours
-    const min = cutMin(e, c), step = Math.max(1, Math.floor(t.n / 20000));
+    const min = cutMin(d, cut, c), step = Math.max(1, Math.floor(t.n / 20000)); // a sample is enough for the range
     const pool = pools.get(scale(e)) ?? [];
-    for (let i = 0; i < t.n; i += step) if (!cutValues || cutValues[i] >= min) pool.push(Number(col[i]));
+    for (let i = 0; i < t.n; i += step) if (!cut || cut[i] >= min) pool.push(Number(col[i]));
     pools.set(scale(e), pool);
   }
   const ranges = new Map<string, Range>([...pools].map(([k, pool]) => [k, valueRange(pool)]));
-  return entries.map((e) => colours(e.d, e.t, ev, header, pal, ranges.get(scale(e))));
+  const bg = [(pal.background >> 16) & 255, (pal.background >> 8) & 255, pal.background & 255].map((v) => v / 255);
+  return items.map((e) => {
+    const out = colours(e.d, e.t, ev, header, pal, ranges.get(scale(e))), dim = e.d.dim;
+    if (dim) for (let i = 0; i < out.rgb.length; i++) out.rgb[i] += (bg[i % 3] - out.rgb[i]) * dim;
+    return out;
+  });
 }
 
-/** Show the selection and what is related to it, faded in over `ms` (0: at once, e.g. for freshly built layers). */
-function applyHighlight(layers: Layer[], hl: Map<string, Set<number>> | null, ms: number) {
-  for (const l of layers) l.setHighlight(hl ? hl.get(l.table) ?? new Set() : null);
+/** Highlight the focus and what belongs to it on every layer (outlines for reco objects when the focus is MC
+ *  truth), faded in over `ms` (0: at once, e.g. for freshly built layers). */
+function showFocus(ms: number) {
+  const hl = highlight.peek(), outline = focusIsTruth.peek();
+  for (const { layer } of entries) {
+    layer.setHighlight(hl ? hl.get(layer.table) ?? new Set() : null);
+    layer.setOutline?.(outline);
+  }
   if (ms > 0) engine?.fadeHighlight(ms);
-  else for (const l of layers) l.setHighlightMix(1);
+  else for (const { layer } of entries) layer.setHighlightMix(1);
   engine?.requestRender();
 }

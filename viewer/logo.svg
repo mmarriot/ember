@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <title>evd</title>
+  <!-- Seven hexagonal cells hit by a shower: energy colours from the viewer's heat scale, darkest at the core. -->
+  <polygon points="32,22.8 39.9,27.4 39.9,36.6 32,41.2 24.1,36.6 24.1,27.4" fill="#c7253e"/>
+  <polygon points="50,22.8 57.9,27.4 57.9,36.6 50,41.2 42.1,36.6 42.1,27.4" fill="#f4743b"/>
+  <polygon points="41,7.3 48.9,11.8 48.9,21 41,25.6 33.1,21 33.1,11.8" fill="#f4743b"/>
+  <polygon points="41,38.4 48.9,43 48.9,52.2 41,56.7 33.1,52.2 33.1,43" fill="#fdb863"/>
+  <polygon points="23,38.4 30.9,43 30.9,52.2 23,56.7 15.1,52.2 15.1,43" fill="#fdb863"/>
+  <polygon points="14,22.8 21.9,27.4 21.9,36.6 14,41.2 6.1,36.6 6.1,27.4" fill="#fdb863"/>
+  <polygon points="23,7.3 30.9,11.8 30.9,21 23,25.6 15.1,21 15.1,11.8" fill="#fdb863"/>
+</svg>

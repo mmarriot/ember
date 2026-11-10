@@ -1,7 +1,8 @@
 // Colours per theme. Sequential scales fade towards the background at low values and stand out at high values
 // (log10 for positive quantities such as energies, linear otherwise); categorical colours tell objects apart
 // (one per trackster; its layer clusters share it). Computed once per event on the CPU, so shaders and legend agree.
-import type { Column, DisplayLayer, EventData, Header, Table } from "../io/bundle";
+import { type Column, type DisplayLayer, type EventData, type Header, kindName, type Table, unitOf } from "../io/bundle";
+import { bestPartners } from "../model/relations";
 
 export const PALETTES = {
   light: {
@@ -31,19 +32,17 @@ const rgb = (hex: string) => {
   if (!c) parsed.set(hex, (c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)));
   return c;
 };
-export function ramp(stops: readonly string[], t: number): number[] {
-  const x = Math.min(1, Math.max(0, t)) * (stops.length - 1);
-  const i = Math.min(Math.floor(x), stops.length - 2), f = x - i;
-  const a = rgb(stops[i]), b = rgb(stops[i + 1]);
-  return a.map((v, k) => v + (b[k] - v) * f);
-}
 /** The ramp sampled at 256 levels (RGB triplets), so a colour per object is a table lookup. */
 const LEVELS = 256, tables = new WeakMap<readonly string[], Float32Array>();
 function rampTable(stops: readonly string[]) {
   let lut = tables.get(stops);
   if (!lut) {
     lut = new Float32Array(3 * LEVELS);
-    for (let k = 0; k < LEVELS; k++) lut.set(ramp(stops, k / (LEVELS - 1)), 3 * k);
+    for (let k = 0; k < LEVELS; k++) {
+      const x = (k / (LEVELS - 1)) * (stops.length - 1), i = Math.min(Math.floor(x), stops.length - 2), f = x - i;
+      const a = rgb(stops[i]), b = rgb(stops[i + 1]);
+      for (let c = 0; c < 3; c++) lut[3 * k + c] = a[c] + (b[c] - a[c]) * f;
+    }
     tables.set(stops, lut);
   }
   return lut;
@@ -60,7 +59,7 @@ export function valueRange(values: ArrayLike<number>): Range {
   for (let i = 0; i < values.length; i += step) if (Number.isFinite(values[i])) finite.push(values[i]);
   const positive = finite.filter((v) => v > 0);
   const log = positive.length > 0 && positive.length >= 0.95 * finite.length;
-  const xs = (log ? positive.map(Math.log10) : finite).sort((a, b) => a - b);
+  const xs = Float64Array.from(log ? positive.map(Math.log10) : finite).sort(); // numeric sort, no comparator calls
   if (!xs.length) return { scale: "linear", lo: 0, hi: 1 };
   const q = (f: number) => xs[Math.floor(f * (xs.length - 1))];
   const [lo, hi] = log ? [q(0.05), q(0.995)] : [q(0.01), q(0.99)];
@@ -69,30 +68,36 @@ export function valueRange(values: ArrayLike<number>): Range {
 
 const position = (r: Range, v: number) => ((r.scale === "log" ? Math.log10(Math.max(v, 1e-12)) : v) - r.lo) / (r.hi - r.lo);
 
-const unitOf = (doc = "") => doc.match(/\[([^\]]+)\]/)?.[1] ?? "";
+/** How colouring by a related object is named (legend, colour menu): "colour of its tracksters (SoA)". */
+export const relatedColourText = (header: Header, table: string) => {
+  const d = header.display.find((l) => l.table === table), name = d ? `${kindName(d)}${d.source ? ` (${d.source})` : ""}` : table;
+  return `colour of its ${name.replace(/^[A-Z](?=[a-z])/, (c) => c.toLowerCase())}`; // "MC truth" keeps its capitals
+};
 
 /** Per-object RGB (n * 3), the legend describing it, and (for relation colouring) which objects to emphasise:
  *  0 for objects not related to anything, which are drawn as background. `range` shares one value scale
  *  between layers; without it the layer's own values set the scale. */
 export function colours(d: DisplayLayer, t: Table, ev: EventData, header: Header, pal: Pal, range?: Range): { rgb: Float32Array; legend: Legend; emphasis?: Uint8Array } {
-  const out = new Float32Array(3 * t.n);
-  const category = (i: number) => pal.categories[i % pal.categories.length];
-  const set = (i: number, c: readonly number[]) => out.set(c, 3 * i);
+  const out = new Float32Array(3 * t.n), cats = pal.categories.map(rgb);
+  const category = (k: number) => pal.categories[k % pal.categories.length];
+  const set = (i: number, c: ArrayLike<number>, at = 0) => { out[3 * i] = c[at]; out[3 * i + 1] = c[at + 1]; out[3 * i + 2] = c[at + 2]; };
+  const setCategory = (i: number, k: number) => set(i, cats[k % cats.length]);
 
   if (d.colourBy === "row") {
-    for (let i = 0; i < t.n; i++) set(i, rgb(category(i)));
+    for (let i = 0; i < t.n; i++) setCategory(i, i);
     return { rgb: out, legend: { kind: "category", text: "one colour per object" } };
   }
   if (typeof d.colourBy === "object" && "category" in d.colourBy) {
     // Colours follow the order of `names`, so a value keeps its colour from event to event.
     const { category: column, abs = false, names = {} } = d.colourBy, col = t.columns[column];
-    const order = Object.keys(names), used = new Map<string, number>();
+    const order = Object.keys(names), used = new Map<number, number>(); // value -> colour index
     for (let i = 0; i < t.n; i++) {
-      const raw = col ? Number(col[i]) : 0, v = String(abs ? Math.abs(raw) : raw);
-      if (!used.has(v)) used.set(v, order.includes(v) ? order.indexOf(v) : order.length + used.size);
-      set(i, rgb(category(used.get(v)!)));
+      const raw = col ? Number(col[i]) : 0, v = abs ? Math.abs(raw) : raw;
+      let k = used.get(v);
+      if (k === undefined) used.set(v, (k = order.includes(String(v)) ? order.indexOf(String(v)) : order.length + used.size));
+      setCategory(i, k);
     }
-    const items = [...used].sort((a, b) => a[1] - b[1]).map(([v, k]) => ({ label: names[v] ?? v, colour: category(k) }));
+    const items = [...used].sort((a, b) => a[1] - b[1]).map(([v, k]) => ({ label: names[String(v)] ?? String(v), colour: category(k) }));
     // Up to 16 values get a legend entry each; more (e.g. one colour per module) only tell neighbours apart.
     return { rgb: out, legend: { kind: "category", text: items.length > 16 ? `by ${column} (${items.length} values)` : `by ${column}`, ...(items.length > 16 ? {} : { items }) } };
   }
@@ -103,26 +108,21 @@ export function colours(d: DisplayLayer, t: Table, ev: EventData, header: Header
     // the object it points to (e.g. a trackster's truth particle). With several, the relation's `best` weight
     // decides, else the first.
     const forward = info.from === d.table && info.to !== d.table, otherTable = forward ? info.to : info.from;
-    const owner = new Int32Array(t.n).fill(-1), w = info.best ? rel.weights[info.best.weight] : undefined;
-    const better = (a: number, b: number) => (info.best!.order === "min" ? a < b : a > b);
-    const bestW = w ? new Float32Array(t.n).fill(NaN) : null;
-    for (let f = 0; f + 1 < rel.offsets.length; f++)
-      for (let k = rel.offsets[f]; k < rel.offsets[f + 1]; k++) {
-        const [obj, partner] = forward ? [f, rel.indices[k]] : [rel.indices[k], f];
-        if (owner[obj] < 0 || (bestW && better(w![k], bestW[obj]))) { owner[obj] = partner; if (bestW) bestW[obj] = w![k]; }
-      }
+    const owner = bestPartners(rel, info, forward, t.n).partner;
     // An object takes its partner's colour when the partner has colours of its own (one per object, or a category
     // such as a candidate's particle type), otherwise one colour per partner.
     const fromTable = otherTable, od = header.display.find((l) => l.table === fromTable), ot = ev.tables[fromTable];
     const ownerRgb = od && ot && (od.colourBy === "row" || (typeof od.colourBy === "object" && "category" in od.colourBy))
       ? colours(od, ot, ev, header, pal).rgb : null;
-    for (let i = 0; i < t.n; i++)
-      if (owner[i] < 0) set(i, rgb(pal.unassigned));
-      else if (ownerRgb) out.set(ownerRgb.subarray(3 * owner[i], 3 * owner[i] + 3), 3 * i);
-      else set(i, rgb(category(owner[i])));
-    const from = od?.label ?? fromTable;
-    const emphasis = Uint8Array.from(owner, (o) => (o < 0 ? 0 : 1));
-    return { rgb: out, emphasis, legend: { kind: "category", text: `colour of its ${from.toLowerCase().replace(/s$/, "")}; small grey: none` } };
+    const grey = rgb(pal.unassigned), emphasis = new Uint8Array(t.n);
+    for (let i = 0; i < t.n; i++) {
+      const o = owner[i];
+      if (o < 0) set(i, grey);
+      else if (ownerRgb) set(i, ownerRgb, 3 * o);
+      else setCategory(i, o);
+      emphasis[i] = o < 0 ? 0 : 1;
+    }
+    return { rgb: out, emphasis, legend: { kind: "category", text: `${relatedColourText(header, fromTable)}; small grey: none` } };
   }
 
   const palette = d.palette ?? "heat", column = d.colour ?? "";

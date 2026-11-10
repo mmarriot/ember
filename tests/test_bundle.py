@@ -1,10 +1,13 @@
 """Round trip of the bundle format and of relation normalisation (no ROOT file needed)."""
+import json
+import struct
+
 import numpy as np
 import pytest
 
 from evdtools.__main__ import validate
 from evdtools.bundle import Bundle, BundleWriter, encode_record
-from evdtools.nano import Converter
+from evdtools.nano import _relation
 
 HEADER = {"schema": "evd/1", "source": {"files": []}, "profile": "test",
           "tables": {"Hits": {"doc": "", "columns": {"x": {"type": "f32", "doc": ""}, "flag": {"type": "u8", "doc": ""}}},
@@ -41,7 +44,6 @@ def test_round_trip(tmp_path):
 
 
 def test_columns_are_8_byte_aligned():
-    import json, struct
     data = encode_record((1, 1, 1), {"T": (3, {"a": np.zeros(3, np.uint8), "b": np.zeros(3, np.float64)})}, {})
     hlen = struct.unpack("<I", data[4:8])[0]
     assert (8 + hlen) % 8 == 0
@@ -50,6 +52,8 @@ def test_columns_are_8_byte_aligned():
 
 
 @pytest.mark.parametrize("rel, cols, expected", [
+    ({"kind": "offsets", "offsets": "L.o", "indices": "L.i"}, {"A": {}, "L": {"o": np.array([0, 1, 1, 3]), "i": np.array([2, 0, 4])}},
+     ([0, 1, 1, 3], [2, 0, 4])),
     ({"kind": "counts", "counts": "A.n", "indices": "L.i"}, {"A": {"n": np.array([2, 0, 1])}, "L": {"i": np.array([4, 1, 3])}},
      ([0, 2, 2, 3], [4, 1, 3])),
     ({"kind": "links", "fromIndex": "L.f", "toIndex": "L.t"}, {"A": {}, "L": {"f": np.array([0, 0, 2]), "t": np.array([1, -1, 4])}},
@@ -58,7 +62,7 @@ def test_columns_are_8_byte_aligned():
 ])
 def test_relation_normalisation(rel, cols, expected):
     tables = {"A": (3, cols["A"]), "B": (5, {}), "L": (3, cols["L"])}
-    out = Converter._relation(dict(rel, name="r", **{"from": "A", "to": "B"}), tables)
+    out = _relation(dict(rel, name="r", **{"from": "A", "to": "B"}), tables)
     np.testing.assert_array_equal(out["offsets"], expected[0])
     np.testing.assert_array_equal(out["indices"], expected[1])
 
@@ -66,4 +70,4 @@ def test_relation_normalisation(rel, cols, expected):
 def test_relation_out_of_range_is_rejected():
     tables = {"A": (1, {"k": np.array([9])}), "B": (5, {})}
     with pytest.raises(ValueError):
-        Converter._relation({"name": "r", "kind": "index", "from": "A", "to": "B", "index": "A.k"}, tables)
+        _relation({"name": "r", "kind": "index", "from": "A", "to": "B", "index": "A.k"}, tables)

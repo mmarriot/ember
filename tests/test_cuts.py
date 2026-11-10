@@ -1,27 +1,14 @@
-"""Profile row cuts, event selection, lookup relations and derived cell sizes (synthetic NanoAOD-like arrays)."""
+"""Row cuts, event selection, and what they do to relations and index columns."""
 import numpy as np
 import pytest
+from nanoaod import chunk, converter
 
-from evdtools.nano import Converter, cut_relation
+from evdtools.nano import cut_relation, parse_events
 
 F4, I4 = np.dtype("f4"), np.dtype("i4")
-META = {"Hit": {"doc": "hits", "columns": {"e": (F4, ""), "noise": (F4, ""), "layer": (I4, ""), "dense": (I4, ""),
-                                           "x": (F4, ""), "y": (F4, "")}},
-        "Digi": {"doc": "digis", "columns": {"adc": (I4, "")}},
-        "Dense": {"doc": "dense index -> digi", "columns": {"digiIdx": (I4, "")}}}
-
-
-def arrays(*events):
-    """uproot library="np" layout: n<Table> per entry, <Table>_<col> as one array per entry."""
-    out = {"run": np.ones(len(events), np.uint32), "luminosityBlock": np.ones(len(events), np.uint32),
-           "event": np.arange(len(events), dtype=np.uint64)}
-    for t in META:
-        out[f"n{t}"] = np.array([len(next(iter(ev[t].values()))) for ev in events])
-        for c in next(iter(events))[t]:
-            out[f"{t}_{c}"] = np.array([np.asarray(ev[t][c], META[t]["columns"][c][0]) for ev in events] + [None], dtype=object)[:-1]
-    return out
-
-
+TYPES = {"Hit": {"e": F4, "noise": F4, "layer": I4, "dense": I4, "x": F4, "y": F4},
+         "Digi": {"adc": I4},
+         "Dense": {"digiIdx": I4}}  # dense index -> digi row
 EVENT = {  # 5 hits, 4 digis; dense index d has digi digiIdx[d] (-1: none)
     "Hit": {"e": [10, 1, 8, 9, 0.5], "noise": [1, 1, 2, 0, 1], "layer": [25, 25, 26, 26, 26], "dense": [0, 1, 2, 3, 4],
             "x": [0, 1, 0, 1, 2], "y": [0, 0, 0, 0, 0]},
@@ -36,8 +23,9 @@ PROFILE = {
 }
 
 
-def convert(profile, *events):
-    conv, a = Converter({t: {"doc": m["doc"], "columns": dict(m["columns"])} for t, m in META.items()}, profile), arrays(*events)
+def convert(profile, *events, types=TYPES):
+    conv = converter(types, profile)
+    a = chunk(conv, *events)
     return conv, [conv.event(a, i) for i in range(len(events))]
 
 
@@ -55,6 +43,12 @@ def test_cuts_remap_relations_and_drop_internal_tables():
     assert "(cut: e/noise > 3)" in conv.header([], "t")["tables"]["Hit"]["doc"]
 
 
+def test_reached_by_a_missing_relation_is_no_cut():
+    conv, _ = convert(PROFILE, EVENT, types={t: m for t, m in TYPES.items() if t != "Dense"})
+    assert "hitDigi" not in conv.relations and "Digi" not in conv.cuts
+    assert "cut" not in conv.header([], "t")["tables"]["Digi"]["doc"]
+
+
 def test_cut_relation_with_weights_and_both_sides_cut():
     rel = {"offsets": np.array([0, 2, 3, 5]), "indices": np.array([0, 3, 1, 2, 3]), "weights": {"w": np.arange(5.0)}}
     out = cut_relation(rel, keep_from=np.array([True, False, True]), keep_to=np.array([True, True, False, True]))
@@ -62,21 +56,16 @@ def test_cut_relation_with_weights_and_both_sides_cut():
     assert out["offsets"].tolist() == [0, 2, 3]
     assert out["indices"].tolist() == [0, 2, 2]
     assert out["weights"]["w"].tolist() == [0, 1, 4]
-    uncut = cut_relation(rel, None, None)
-    assert uncut["offsets"].tolist() == rel["offsets"].tolist() and uncut["indices"].tolist() == rel["indices"].tolist()
+    assert cut_relation(rel, None, None) is rel
 
 
 def test_event_selection_counts_rows_after_cuts():
     select = [{"table": "Hit", "where": [["layer", "==", 25]], "min": 1},
               {"table": "Hit", "where": [["layer", "==", 26], ["e", ">=", 9]], "min": 1, "max": 1}]
-    conv, [record] = convert(dict(PROFILE, select=select), EVENT)
-    assert record is not None
     quiet = dict(EVENT, Hit=dict(EVENT["Hit"], e=[1, 1, 8, 9, 0.5]))  # layer 25 has nothing above 3 sigma
-    _, [record] = convert(dict(PROFILE, select=select), quiet)
-    assert record is None
     two = dict(EVENT, Hit=dict(EVENT["Hit"], e=[10, 1, 18, 9, 0.5]))  # two layer-26 hits with e >= 9: above max
-    _, [record] = convert(dict(PROFILE, select=select), two)
-    assert record is None
+    _, records = convert(dict(PROFILE, select=select), EVENT, quiet, two)
+    assert [r is not None for r in records] == [True, False, False]
 
 
 def test_preselection_reads_only_what_the_selection_needs():
@@ -84,22 +73,22 @@ def test_preselection_reads_only_what_the_selection_needs():
     conv, _ = convert(dict(PROFILE, select=select), EVENT)
     branches = conv.selection_branches()
     assert branches == ["nHit", "Hit_e", "Hit_layer", "Hit_noise"]
-    assert conv.passes({b: v for b, v in arrays(EVENT).items() if b in branches}, 0)
-    assert Converter(META, {}).selection_branches() is None  # no selection: one pass over everything
+    assert conv.passes({b: v for b, v in chunk(conv, EVENT).items() if b in branches}, 0)
+    assert converter(TYPES, {}).selection_branches() is None  # no selection: one pass over everything
+    defined = {**PROFILE, "select": select, "cuts": {"Hit": [{"defined": "e"}]}}
+    assert converter(TYPES, defined).selection_branches() is None  # not a plain condition: read everything
 
 
 def test_bad_conditions_are_rejected():
-    for cond in (["e", "=~", 1], ["e", ">", "1"], ["e/missing", ">", 1]):
+    for cut in (["e", "=~", 1], ["e", ">", "1"], ["e/missing", ">", 1], {"defined": "missing"}):
         with pytest.raises(ValueError):
-            convert({"cuts": {"Hit": [cond]}}, EVENT)
+            convert({"cuts": {"Hit": [cut]}}, EVENT)
 
 
-def test_neighbour_distance_derive():
-    derive = [{"table": "Hit", "column": "size", "neighbourDistance": ["x", "y"], "groupBy": "layer", "k": 1, "scale": 0.5}]
-    conv, [(_, tables, _)] = convert({"derive": derive}, EVENT)
-    # layer 25: x = 0, 1 -> 1; layer 26: x = 0, 1, 2 -> 1 each; half of that
-    assert tables["Hit"][1]["size"].tolist() == [0.5] * 5
-    assert ("Hit", "size") in conv.derived and "Hit_size" not in conv.branches()
+def test_defined_cut_drops_nan_rows():
+    gaps = dict(EVENT, Hit=dict(EVENT["Hit"], e=[1, np.nan, 2, 3, 4]))
+    _, [(_, tables, _)] = convert({"cuts": {"Hit": [{"defined": "e"}]}}, gaps)
+    assert tables["Hit"][1]["e"].tolist() == [1, 2, 3, 4]
 
 
 def test_cuts_on_an_empty_event():
@@ -109,12 +98,36 @@ def test_cuts_on_an_empty_event():
     assert relations["hitDigi"]["offsets"].tolist() == [0] and len(relations["hitDigi"]["indices"]) == 0
 
 
-def test_replay_hint_is_passed_to_the_header():
-    conv, _ = convert({**PROFILE, "replay": {"direction": [0, -1, 0]}}, EVENT)
-    assert conv.header([], "t")["replay"] == {"direction": [0, -1, 0]}
-    assert "replay" not in convert(PROFILE, EVENT)[0].header([], "t")
+def test_index_column_on_from_follows_the_cut_of_its_target():
+    """Each candidate names its track; tracks no candidate uses are cut: the column is renumbered (removed: -1)."""
+    profile = {"relations": [{"name": "candTrack", "kind": "index", "from": "C", "to": "T", "index": "C.track"}],
+               "cuts": {"T": [{"reachedBy": "candTrack"}]}}
+    _, [(_, tables, rels)] = convert(profile, {"C": {"track": [3, -1, 1]}, "T": {"pt": [0, 1, 2, 3, 4]}},
+                                     types={"C": {"track": I4}, "T": {"pt": F4}})
+    assert tables["T"][1]["pt"].tolist() == [1, 3]  # tracks 1 and 3 are used
+    assert tables["C"][1]["track"].tolist() == [1, -1, 0]  # renumbered like the relation
+    assert rels["candTrack"]["indices"].tolist() == [1, 0]
+
+
+def test_index_column_on_to_follows_the_cut_of_its_target():
+    """Each hit names its cluster; clusters are cut: hit.cluster is renumbered (removed cluster: -1)."""
+    profile = {"relations": [{"name": "clusterHits", "kind": "index", "from": "Cl", "to": "Hit",
+                              "index": "Hit.cluster"}],
+               "cuts": {"Cl": [["layer", ">", 0]]}}
+    event = {"Cl": {"layer": [0, 3, 4]}, "Hit": {"cluster": [2, 0, -1, 1, 2]}}
+    _, [(_, tables, rels)] = convert(profile, event, types={"Cl": {"layer": I4}, "Hit": {"cluster": I4}})
+    assert tables["Cl"][0] == 2 and tables["Hit"][0] == 5  # hits are not cut
+    assert tables["Hit"][1]["cluster"].tolist() == [1, -1, -1, 0, 1]
+    assert rels["clusterHits"]["offsets"].tolist() == [0, 1, 3] and rels["clusterHits"]["indices"].tolist() == [3, 0, 4]
+
+
+def test_unsigned_index_column_of_a_cut_table_is_rejected():
+    profile = {"relations": [{"name": "r", "kind": "index", "from": "C", "to": "T", "index": "C.track"}],
+               "cuts": {"T": [["pt", ">", 1]]}}
+    types = {"C": {"track": np.dtype("u2")}, "T": {"pt": F4}}
+    with pytest.raises(ValueError, match="index column C.track is unsigned"):
+        convert(profile, {"C": {"track": [0]}, "T": {"pt": [2]}}, types=types)
 
 
 def test_event_lists():
-    from evdtools.nano import parse_events
     assert parse_events("5, 7-9,12") == {5, 7, 8, 9, 12}

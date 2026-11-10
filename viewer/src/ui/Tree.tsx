@@ -1,15 +1,19 @@
 // Tree tab: objects linked to objects of the same table (e.g. MC-truth particles -> their children), as a
-// collapsible tree. Clicking a node selects the object; selecting one elsewhere opens the path down to it.
-import { useEffect, useState } from "preact/hooks";
-import type { Relation } from "../io/bundle";
+// collapsible tree, after a table of what became of each of them. Clicking an object focuses on it; selecting one
+// elsewhere opens the tree down to it.
+import { useEffect, useMemo, useState } from "preact/hooks";
+import type { Relation, Table } from "../io/bundle";
 import { PALETTES } from "../render/colour";
-import { evaluate, filters } from "../model/custom";
-import { bundle, describe, event, labelOf, selection, theme } from "../model/store";
+import { filterMask, filters } from "../model/custom";
+import { bundle, describe, event, isHitLayer, labelOf, layerOf, selection, short, sizeColumn, theme } from "../model/store";
+import { bestPartners } from "../model/relations";
 import { jump } from "./navigate";
 
-/** Select an object from a list and glide the camera to it (conservatively: frame() keeps the surroundings). */
-function go(table: string, row: number) {
-  jump({ table, row });
+const go = (table: string, row: number) => jump({ table, row });
+/** Larger first, by the table's size column (e.g. energy), if it has one. */
+function largestFirst(table: string, t: Table) {
+  const c = sizeColumn(table, t), key = c ? t.columns[c] : undefined;
+  return (rows: number[]) => (key ? rows.sort((a, k) => Number(key[k]) - Number(key[a])) : rows);
 }
 
 const MAX = 100; // children (or roots) listed per node; the rest are summarised
@@ -27,43 +31,36 @@ export function Tree() {
   return <div>{trees.map(([, table]) => <Outcome table={table} />)}{trees.map(([name, table]) => <OneTree name={name} table={table} />)}</div>;
 }
 
-/** What became of each object of `table` that left hits (e.g. each simulated particle in the calorimeter): the
- *  object of the last reconstruction stage it is associated with, best first by the association's `best` weight.
- *  Only reads the associations in the file; objects with none are flagged as not reconstructed. */
+/** What became of each object of `table` that left hits (associations to a layer drawn as cells; e.g. each simulated
+ *  particle): its best match (by the association's `best` weight) among the objects of the latest reconstruction
+ *  stage it has associations to. Only reads the associations in the file; objects with none are flagged. */
 function Outcome({ table }: { table: string }) {
   const b = bundle.value!, ev = event.value!, t = ev.tables[table], sel = selection.value;
   const rels = Object.entries(b.header.relations).filter(([n, r]) => r.from === table && r.association && ev.relations[n]);
-  const hitRels = rels.filter(([, r]) => b.header.display.find((l) => l.table === r.to)?.repr === "cells");
-  const last = Math.max(-1, ...b.header.display.filter((l) => l.stage !== undefined && !l.alternative).map((l) => l.stage!));
-  const finalTable = b.header.display.find((l) => l.stage === last && !l.alternative && l.repr === "ellipsoids")?.table;
-  const toFinal = rels.find(([, r]) => r.to === finalTable);
-  if (!hitRels.length || !toFinal) return null;
-  const f = filters.value[table] ? evaluate(t, filters.value[table]) : null, keep = f && "values" in f ? f.values : null;
-  const withHits = [...Array(t.n).keys()].filter((r) => (!keep || keep[r]) && hitRels.some(([n]) => { const o = ev.relations[n].offsets; return o[r + 1] > o[r]; }));
-  const energy = t.columns.energy;
-  if (energy) withHits.sort((a, c) => Number(energy[c]) - Number(energy[a]));
+  const hitRels = rels.filter(([, r]) => isHitLayer(layerOf(r.to)));
+  const final = b.header.display.filter((l) => l.stage !== undefined && !l.alternative && rels.some(([, r]) => r.to === l.table))
+    .reduce<typeof b.header.display[number] | undefined>((a, l) => (!a || l.stage! > a.stage! ? l : a), undefined);
+  const toFinal = final && rels.find(([, r]) => r.to === final.table);
+  if (!hitRels.length || !final || !toFinal) return null;
+  const keep = filterMask(t, filters.value[table]);
+  const withHits = largestFirst(table, t)([...Array(t.n).keys()].filter((r) => (!keep || keep[r]) && hitRels.some(([n]) => { const o = ev.relations[n].offsets; return o[r + 1] > o[r]; })));
   const [relName, info] = toFinal, rel = ev.relations[relName], w = info.best ? rel.weights[info.best.weight] : undefined;
-  const best = (r: number) => {
-    let k0 = -1;
-    for (let k = rel.offsets[r]; k < rel.offsets[r + 1]; k++)
-      if (k0 < 0 || (w && (info.best!.order === "min" ? w[k] < w[k0] : w[k] > w[k0]))) k0 = k;
-    return k0;
-  };
-  const missed = withHits.filter((r) => best(r) < 0).length;
+  const best = bestPartners(rel, info, true, t.n).entry;
+  const missed = withHits.filter((r) => best[r] < 0).length;
   return (
     <div class="card outcome">
-      <h3>What became of each particle</h3>
-      <p class="hint">{withHits.length} left hits in the calorimeter{keep ? ` (filter: ${filters.value[table]})` : ""}; {missed} not reconstructed as {(b.header.display.find((l) => l.table === finalTable)?.group ?? finalTable!).toLowerCase()}.
-        From the CMSSW associations ({info.best?.weight ?? "first"}).</p>
+      <h3>What became of each {layerOf(table)?.truth ? "particle" : "object"}</h3>
+      <p class="hint">{withHits.length} left hits{keep ? ` (filter: ${filters.value[table]})` : ""}; {missed} not reconstructed as {final.group.toLowerCase()}.
+        Best match by {info.best?.weight ?? "order"}, from the associations in the file.</p>
       <table class="kv outcome"><tbody>
         {withHits.slice(0, MAX).map((r) => {
-          const k = best(r);
+          const k = best[r];
           return (
             <tr class={k < 0 ? "missed" : undefined}>
               <td><button class={sel?.table === table && sel.row === r ? "chip selected" : "chip"} onClick={() => go(table, r)}>{describe(table, r) || `#${r}`}</button></td>
               <td>{k < 0 ? <span class="muted">not reconstructed</span> : (
                 <><button class="chip" onClick={() => go(info.to, rel.indices[k])}>{describe(info.to, rel.indices[k]) || `#${rel.indices[k]}`}</button>
-                  {w && <span class="muted"> {info.best!.weight} {w[k].toFixed(2)}</span>}</>
+                  {w && <span class="muted"> {info.best!.weight} {short(w[k])}</span>}</>
               )}</td>
             </tr>
           );
@@ -75,14 +72,9 @@ function Outcome({ table }: { table: string }) {
 }
 
 function OneTree({ name, table }: { name: string; table: string }) {
-  const b = bundle.value!, ev = event.value!, rel = ev.relations[name], t = ev.tables[table];
-  const d = b.header.display.find((l) => l.table === table);
-  const parents = parentsOf(rel, t.n);
-  // Larger first, by the layer's cut column (e.g. energy) when there is one.
-  const key = d?.cut?.column && t.columns[d.cut.column] ? t.columns[d.cut.column] : t.columns.energy;
-  const order = (rows: number[]) => (key ? rows.sort((a, c) => Number(key[c]) - Number(key[a])) : rows);
-  // The layer's filter (e.g. signal only) applies to the tree too.
-  const f = filters.value[table] ? evaluate(t, filters.value[table]) : null, keep = f && "values" in f ? f.values : null;
+  const ev = event.value!, rel = ev.relations[name], t = ev.tables[table], d = layerOf(table);
+  const parents = useMemo(() => parentsOf(rel, t.n), [rel, t.n]), order = largestFirst(table, t);
+  const keep = filterMask(t, filters.value[table]); // the layer's filter (e.g. signal only) applies to the tree too
   const kept = (r: number) => !keep || keep[r] !== 0;
   const children = (r: number) => order([...rel.indices.subarray(rel.offsets[r], rel.offsets[r + 1])].filter(kept));
   const roots = order([...Array(t.n).keys()].filter((r) => !parents[r].length && kept(r)));

@@ -1,9 +1,7 @@
-// Live display: play new data as it arrives. When the site's index gains a file, open it and show each of its
-// events in turn (replayed, with the camera slowly orbiting the whole event), then wait for the next file. Files
-// already present when Live starts are skipped, except the newest, which plays first; if data arrive faster than
-// they play, Live skips ahead to the newest file so the display stays current. Runs until switched off; the tour
-// and Live take turns (starting one stops the other).
-import { bundle, catalogue, following, refreshCatalogue, showEvent, toast, touring, openBundle } from "../model/store";
+// Live display: when the site's index gains a file, open it and replay each of its events in turn (the camera
+// slowly orbiting), then wait for the next. It starts with the newest file present; if data arrive faster than they
+// play, it skips ahead to the newest. Until switched off; starting the tour stops it, and the other way round.
+import { bundle, catalogue, following, openBundle, refreshCatalogue, showEvent, toast, touring } from "../model/store";
 import { stopTour } from "./tour";
 import { engine, replayEvent } from "./Viewport";
 

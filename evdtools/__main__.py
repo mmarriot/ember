@@ -1,4 +1,4 @@
-"""Command line: python3 -m evdtools {from-nano,inspect,validate,sync} ..."""
+"""Command line: python3 -m evdtools {from-nano,inspect,validate,sync,publish,simulate} ..."""
 import argparse
 import sys
 
@@ -75,8 +75,7 @@ def main(argv=None):
     args = parser.parse_args(argv)
 
     if args.command == "from-nano":
-        from .nano import convert  # needs uproot; inspect/validate need only numpy
-        from .nano import parse_events
+        from .nano import convert, parse_events  # needs uproot; inspect/validate need only numpy
         n = convert(args.inputs, args.output, args.profile, args.max_events, run_info=args.run_info,
                     events=parse_events(args.events) if args.events else None, run_tables=args.run_tables)
         print(f"wrote {n} events to {args.output}")
@@ -95,6 +94,10 @@ def main(argv=None):
         for e in b.events[:5]:
             top = sorted(e["counts"].items(), key=lambda kv: -kv[1])[:4]
             print(f"  run {e['run']} event {e['event']}: " + ", ".join(f"{t} {n}" for t, n in top))
+    elif args.command == "validate":
+        problems = validate(args.bundle)
+        print("\n".join(problems) if problems else "ok")
+        return 1 if problems else 0
     elif args.command == "sync":
         import json
         import signal
@@ -110,10 +113,6 @@ def main(argv=None):
     elif args.command == "simulate":
         from .service import simulate
         simulate(args.source, args.site, args.campaign, args.title, args.events, args.interval, args.start)
-    elif args.command == "validate":
-        problems = validate(args.bundle)
-        print("\n".join(problems) if problems else "ok")
-        return 1 if problems else 0
     return 0
 
 

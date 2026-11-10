@@ -77,6 +77,11 @@ export interface Header {
   runFields?: string[]; // which run information to show, in this order (default: all)
   presets?: Preset[];
 }
+/** The unit in a column's documentation, written as "[GeV]". */
+export const unitOf = (doc = "") => doc.match(/\[([^\]]+)\]/)?.[1] ?? "";
+/** Short name of a layer's kind of object: its group for a layer with a kind ("Tracksters"), else its label. */
+export const kindName = (d: DisplayLayer) => (d.kind ? d.group : d.label);
+
 export interface IndexEntry {
   run: number; lumi: number; event: number; offset: number; length: number; counts: Record<string, number>;
 }
@@ -168,7 +173,7 @@ export class Bundle {
   }
 }
 
-export function parseRecord(buf: ArrayBuffer, header: Header): EventData {
+function parseRecord(buf: ArrayBuffer, header: Header): EventData {
   const dv = new DataView(buf);
   if (text(buf.slice(0, 4)) !== "EVD1") throw new Error("bad event record");
   const hlen = dv.getUint32(4, true);

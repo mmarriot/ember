@@ -1,6 +1,6 @@
-// Drawable layers. Each is one draw call (instanced); colours come precomputed per object, the shaders handle
-// projection, the cut, the selection fade and the replay. A cut change or a replay frame is one uniform; a selection
-// rewrites a byte per object.
+// Drawable layers. Each is one draw call (instanced); colours come precomputed per object. Cells, markers and
+// segments do projection, cut, selection fade and replay in their shaders; showers are a few thousand objects at
+// most and are updated on the CPU.
 import * as THREE from "three";
 import type { DisplayLayer, Table } from "../io/bundle";
 import { toF32, type Pal } from "./colour";
@@ -58,23 +58,6 @@ const baseUniforms = (pal: Pal) => ({
   uBg: { value: raw(pal.background) }, uRim: { value: new THREE.Color(...pal.rim) }, uGrey: { value: raw(pal.unassigned) },
 });
 
-/** Replay bookkeeping for the shader-driven layers: per-object times as attributes, the clock as a uniform. */
-function timeline(n: number, g: THREE.BufferGeometry, material: THREE.ShaderMaterial, instanced: boolean) {
-  const Attr = instanced ? THREE.InstancedBufferAttribute : THREE.BufferAttribute;
-  g.setAttribute("iT", new Attr(new Float32Array(n), 1));
-  g.setAttribute("iL", new Attr(new Float32Array(n), 1));
-  return {
-    setTimeline(appear: Float32Array, link: Float32Array) { // rewrite in place: a new attribute would orphan its GPU buffer
-      for (const [name, v] of [["iT", appear], ["iL", link]] as const) {
-        const attr = g.getAttribute(name) as THREE.BufferAttribute;
-        (attr.array as Float32Array).set(v);
-        attr.needsUpdate = true;
-      }
-    },
-    setClock(t: number) { material.uniforms.uClock.value = t; },
-  };
-}
-
 /** Cut bookkeeping shared by all layer kinds. */
 function cutter(n: number, values: Float32Array | undefined, onChange: (min: number) => void) {
   let min = -Infinity;
@@ -92,38 +75,49 @@ function cutter(n: number, values: Float32Array | undefined, onChange: (min: num
   };
 }
 
-/** Selection as two byte masks (previous and current) and a mix uniform, so a change cross-fades on the GPU:
- *  one mask copy per selection change, one uniform per frame while it fades. */
-function selectionMask(n: number, g: THREE.BufferGeometry, material: THREE.ShaderMaterial, instanced: boolean) {
-  const Attr = instanced ? THREE.InstancedBufferAttribute : THREE.BufferAttribute, u = material.uniforms;
-  const now = new Uint8Array(n), before = new Uint8Array(n);
+/** What the shader-drawn layers (cells, markers, segments) share. Per object: the given float attributes, the cut
+ *  value, the colour, the selection as two byte masks (previous and current, cross-faded by a uniform) and the
+ *  replay times. A cut or a replay frame is one uniform; a selection change is one mask copy. */
+function shaderLayer(input: LayerInput, g: THREE.BufferGeometry, material: THREE.ShaderMaterial, instanced: boolean, attributes: Record<string, Float32Array>) {
+  const n = input.t.n, u = material.uniforms, Attr = instanced ? THREE.InstancedBufferAttribute : THREE.BufferAttribute;
+  const cut = cutter(n, input.cut, (m) => (u.uCut.value = Math.max(m, -1e30)));
+  const now = new Uint8Array(n), before = new Uint8Array(n), appear = new Float32Array(n), link = new Float32Array(n);
+  for (const [name, a] of Object.entries({ ...attributes, icut: cut.values, iT: appear, iL: link })) g.setAttribute(name, new Attr(a, 1));
+  g.setAttribute("icol", new Attr(input.rgb, 3));
   g.setAttribute("isel", new Attr(now, 1, true));
   g.setAttribute("ipsel", new Attr(before, 1, true));
+  const changed = (...names: string[]) => names.forEach((a) => (g.getAttribute(a).needsUpdate = true));
   return {
+    passes: cut.passes,
+    setCut: cut.setCut,
+    setColours(rgb: Float32Array) { (g.getAttribute("icol").array as Float32Array).set(rgb); changed("icol"); },
     setHighlight(rows: Set<number> | null) {
       before.set(now);
       now.fill(0);
       rows?.forEach((r) => (now[r] = 255));
-      g.getAttribute("isel").needsUpdate = true;
-      g.getAttribute("ipsel").needsUpdate = true;
+      changed("isel", "ipsel");
       u.uAct0.value = u.uAct1.value;
       u.uAct1.value = rows ? 1 : 0;
       u.uMix.value = 0;
     },
     setHighlightMix(k: number) { u.uMix.value = k; },
+    setProjection(rz: boolean) { u.uProj.value = rz ? 1 : 0; },
+    setTimeline(a: Float32Array, l: Float32Array) { appear.set(a); link.set(l); changed("iT", "iL"); }, // in place: a new attribute would orphan its GPU buffer
+    setClock(t: number) { u.uClock.value = t; },
+    setRetire(t: number) { u.uRetire.value = t; },
   };
 }
 
-function replaceColours(attr: THREE.BufferAttribute, rgb: Float32Array) {
-  (attr.array as Float32Array).set(rgb);
-  attr.needsUpdate = true;
-}
+/** What every layer takes from its display hint. A background layer is picked over a smaller radius, so objects
+ *  in front of it win. */
+const identity = ({ key, d }: LayerInput, pickRadius: number) =>
+  ({ key, table: d.table, label: d.label, context: d.context, pickRadius: d.context ? (3 / 8) * pickRadius : pickRadius });
 
 const positions = ({ d, t }: LayerInput) => d.position.map((c) => toF32(t.columns[c], t.n)) as [Float32Array, Float32Array, Float32Array];
 
 /** Calorimeter cells as hexagonal prisms lying in their layer planes. */
 export function cells(input: LayerInput): Layer {
-  const { key, d, t, rgb } = input;
+  const { d, t } = input;
   const [x, y, z] = positions(input);
   const size = toF32(d.size ? t.columns[d.size] : undefined, t.n, 0.6);
   const base = new THREE.CylinderGeometry(1, 1, 1, 6).rotateX(Math.PI / 2);
@@ -156,13 +150,8 @@ export function cells(input: LayerInput): Layer {
       }`,
     fragmentShader: `varying vec3 vCol; void main() { gl_FragColor = vec4(vCol, 1.0); }`,
   });
-  const cut = cutter(t.n, input.cut, (m) => (material.uniforms.uCut.value = Math.max(m, -1e30)));
-  const sel = selectionMask(t.n, g, material, true);
-  for (const [name, a] of [["ix", x], ["iy", y], ["iz", z], ["isize", size], ["icut", cut.values]] as const)
-    g.setAttribute(name, new THREE.InstancedBufferAttribute(a, 1));
-  g.setAttribute("icol", new THREE.InstancedBufferAttribute(rgb, 3));
+  const common = shaderLayer(input, g, material, true, { ix: x, iy: y, iz: z, isize: size });
   g.instanceCount = t.n;
-  const replay = timeline(t.n, g, material, true);
   const mesh = new THREE.Mesh(g, material);
   mesh.frustumCulled = false;
   if (d.context) { // drawn first and without depth, so it never hides the event in front of or behind it
@@ -170,12 +159,8 @@ export function cells(input: LayerInput): Layer {
     mesh.renderOrder = -1;
   }
   return {
-    key, table: d.table, label: d.label, pickRadius: d.context ? 3 : 8, context: d.context, object: mesh, x, y, z,
-    passes: cut.passes, setCut: cut.setCut, setColours: (c) => replaceColours(g.getAttribute("icol") as THREE.BufferAttribute, c),
-    ...sel,
-    setProjection(rz) { material.uniforms.uProj.value = rz ? 1 : 0; },
-    ...replay,
-    setRetire(t) { material.uniforms.uRetire.value = t; },
+    ...identity(input, 8), object: mesh, x, y, z,
+    ...common,
     setFade(from, to, amount) { material.uniforms.uFade.value.set(from, to, amount); },
     dispose() { g.dispose(); base.dispose(); material.dispose(); },
   };
@@ -184,7 +169,7 @@ export function cells(input: LayerInput): Layer {
 /** Objects as discs of constant pixel size with a dark rim, drawn on top of cells. Objects without emphasis
  *  (e.g. layer clusters in no trackster) are small, rimless and faded, so they stay in the background. */
 export function markers(input: LayerInput): Layer {
-  const { key, d, t, rgb } = input;
+  const { t } = input;
   const [x, y, z] = positions(input);
   const g = new THREE.BufferGeometry();
   g.setAttribute("position", new THREE.BufferAttribute(new Float32Array(3 * t.n), 3)); // unused, required by three
@@ -222,21 +207,17 @@ export function markers(input: LayerInput): Layer {
         gl_FragColor = vec4(r > 0.5 ? mix(vCol, uRim, 0.55 * vRim) : vCol, 1.0);
       }`,
   });
-  const cut = cutter(t.n, input.cut, (m) => (material.uniforms.uCut.value = Math.max(m, -1e30)));
-  const sel = selectionMask(t.n, g, material, false);
-  for (const [name, a] of [["ix", x], ["iy", y], ["iz", z], ["icut", cut.values]] as const) g.setAttribute(name, new THREE.BufferAttribute(a, 1));
-  g.setAttribute("icol", new THREE.BufferAttribute(rgb, 3));
-  g.setAttribute("iemph", new THREE.BufferAttribute(input.emphasis ?? new Uint8Array(t.n).fill(1), 1, true));
-  const replay = timeline(t.n, g, material, false);
+  const common = shaderLayer(input, g, material, false, { ix: x, iy: y, iz: z });
+  const emph = new THREE.BufferAttribute(input.emphasis ?? new Uint8Array(t.n).fill(1), 1); // 0 or 1, not normalised
+  g.setAttribute("iemph", emph);
   // Replay colour stages: the final colours are kept aside and restored when the replay ends.
-  const final = { rgb: Float32Array.from(rgb), emphasis: Uint8Array.from(g.getAttribute("iemph").array as Uint8Array) };
+  const final = { rgb: Float32Array.from(input.rgb), emphasis: Uint8Array.from(emph.array as Uint8Array) };
   let stages: ColourStage[] = [], showing = -1;
   const showStage = (k: number) => {
     if (k === showing) return;
     showing = k;
     const c = k < 0 ? final : stages[k];
-    replaceColours(g.getAttribute("icol") as THREE.BufferAttribute, c.rgb);
-    const emph = g.getAttribute("iemph") as THREE.BufferAttribute;
+    common.setColours(c.rgb);
     (emph.array as Uint8Array).set(c.emphasis ?? final.emphasis);
     emph.needsUpdate = true;
   };
@@ -244,28 +225,20 @@ export function markers(input: LayerInput): Layer {
   points.frustumCulled = false;
   points.renderOrder = 2;
   return {
-    key, table: d.table, label: d.label, pickRadius: 9, object: points, x, y, z,
-    passes: cut.passes, setCut: cut.setCut,
-    setColours(c) { final.rgb.set(c); if (showing < 0) replaceColours(g.getAttribute("icol") as THREE.BufferAttribute, c); },
-    ...sel,
-    setProjection(rz) { material.uniforms.uProj.value = rz ? 1 : 0; },
-    ...replay,
+    ...identity(input, 9), object: points, x, y, z,
+    ...common,
+    setColours(c) { final.rgb.set(c); if (showing < 0) common.setColours(c); },
     setClock(t) {
-      replay.setClock(t);
+      common.setClock(t);
       let k = -1; // the last stage that has started (none outside a replay)
       if (t < REPLAY_OFF) stages.forEach((s, j) => { if (s.t <= t) k = j; });
       showStage(k);
     },
-    setRetire(t) { material.uniforms.uRetire.value = t; },
     setColourStages(s) { stages = s; showStage(-1); },
     dispose() { g.dispose(); material.dispose(); },
   };
 }
 
-/** Showers: translucent ellipsoids (2 sigma along each PCA axis, sigma clamped to sane sizes) plus a +-2 sigma
- *  principal-axis line. While something is selected, unrelated showers are hidden so they cannot cover it.
- *  In a replay each grows in over GROW seconds, and on a selection change unrelated ones shrink away (a CPU update
- *  per frame while either happens: a few hundred objects, buffers rewritten in place). */
 const SHOWER_STYLES = { solid: 0, shell: 1, cage: 2, core: 3 } as const;
 // Instanced unit spheres scaled and rotated per shower; normals use the inverse transpose, so the shading and the
 // rim follow the ellipsoid's real surface.
@@ -310,14 +283,16 @@ const SHOWER_FRAGMENT = /* glsl */ `
     gl_FragColor = vec4(col, a);
   }`;
 
+/** Showers: translucent ellipsoids (2 sigma along each PCA axis, sigma clamped to sane sizes) plus a +-2 sigma
+ *  principal-axis line; each `shape` has its own surface (SHOWER_FRAGMENT), so reconstruction stages are told apart
+ *  at a glance. While something is selected, unrelated showers shrink away so they cannot cover it; in a replay each
+ *  grows in over GROW seconds. Both are CPU updates per frame while they run (buffers rewritten in place). */
 export function ellipsoids(input: LayerInput): Layer {
-  const { key, d, t } = input;
+  const { d, t } = input;
   let rgb = input.rgb;
   const [x, y, z] = positions(input);
   const axis = (d.axis ?? []).map((c) => toF32(t.columns[c], t.n));
   const extent = (d.extent ?? []).map((c) => toF32(t.columns[c], t.n));
-  // Every shower object is an ellipsoid (2 sigma along its principal axes); each kind has its own surface, so the
-  // reconstruction stages are told apart at a glance: see SHOWER_GLSL.
   const shape = d.shape ?? "solid", style = SHOWER_STYLES[shape];
   const geometry = new THREE.SphereGeometry(1, 40, 24);
   const material = new THREE.ShaderMaterial({
@@ -328,7 +303,7 @@ export function ellipsoids(input: LayerInput): Layer {
   const mesh = new THREE.InstancedMesh(geometry, material, Math.max(t.n, 1));
   mesh.count = t.n;
   mesh.frustumCulled = false;
-  const seg = new Float32Array(6 * t.n), segCol = new Float32Array(6 * t.n); // written in place by update()
+  const seg = new Float32Array(6 * t.n), segCol = new Float32Array(6 * t.n); // axis lines, written in place by update()
   const lineGeometry = new THREE.BufferGeometry();
   lineGeometry.setAttribute("position", new THREE.BufferAttribute(seg, 3));
   lineGeometry.setAttribute("color", new THREE.BufferAttribute(segCol, 3));
@@ -346,28 +321,35 @@ export function ellipsoids(input: LayerInput): Layer {
   const smooth = (a: number) => (a >= 1 ? 1 : a <= 0 ? 0 : a * a * (3 - 2 * a));
   const remaining = () => (clock >= REPLAY_OFF ? 1 : smooth(1 - (clock - retire) / RETIRE));
   const growth = (i: number) => smooth((clock - (appear?.[i] ?? 0)) / GROW) * remaining();
+  const sigma = (k: number, i: number) => Math.min(k === 0 ? 30 : 8, Math.max(1, Math.sqrt(Math.max(extent[k]?.[i] ?? 0, 0)))); // cm
 
+  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3();
+  const a = new THREE.Vector3(), zAxis = new THREE.Vector3(0, 0, 1), c = new THREE.Color();
+  const project = (v: THREE.Vector3) => (rz ? v.set(v.z, Math.hypot(v.x, v.y) * (v.y >= 0 ? 1 : -1), 3) : v);
   const update = () => {
-    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3();
-    const a = new THREE.Vector3(), zAxis = new THREE.Vector3(0, 0, 1), c = new THREE.Color();
-    const project = (v: THREE.Vector3) => (rz ? v.set(v.z, Math.hypot(v.x, v.y) * (v.y >= 0 ? 1 : -1), 3) : v);
     seg.fill(0);
     for (let i = 0; i < t.n; i++) {
       a.set(axis[0]?.[i] ?? 0, axis[1]?.[i] ?? 0, axis[2]?.[i] ?? 0);
       const hasAxis = a.lengthSq() > 1e-6;
       if (hasAxis) a.normalize();
-      const sigma = (k: number) => Math.min(k === 0 ? 30 : 8, Math.max(1, Math.sqrt(Math.max(extent[k]?.[i] ?? 0, 0)))); // cm
       const vis = shown(previous, i) + (shown(highlighted, i) - shown(previous, i)) * hlMix;
-      const g = growth(i) * vis, hidden = !cut.passes(i) || g === 0;
-      c.setRGB(rgb[3 * i], rgb[3 * i + 1], rgb[3 * i + 2]);
-      const centre = new THREE.Vector3(x[i], y[i], z[i]);
-      const ends = [centre.clone().addScaledVector(a, 2 * g * sigma(0)), centre.clone().addScaledVector(a, -2 * g * sigma(0))];
-      for (const [k, e] of ends.entries()) { const end = k ? pickB : pickA; end[0][i] = e.x; end[1][i] = e.y; end[2][i] = e.z; }
-      if (hasAxis && !hidden && drawAxis) ends.forEach((e, k) => { project(e); seg.set([e.x, e.y, e.z], 6 * i + 3 * k); segCol.set([c.r, c.g, c.b], 6 * i + 3 * k); });
+      const g = growth(i) * vis, hidden = !cut.passes(i) || g === 0, half = 2 * g * sigma(0, i);
+      for (let e = 0; e < 2; e++) { // the axis' ends: picked along it, and drawn
+        const end = e ? pickB : pickA;
+        p.set(x[i], y[i], z[i]).addScaledVector(a, e ? -half : half);
+        end[0][i] = p.x; end[1][i] = p.y; end[2][i] = p.z;
+        if (!hasAxis || hidden || !drawAxis) continue;
+        project(p);
+        const o = 6 * i + 3 * e;
+        seg[o] = p.x; seg[o + 1] = p.y; seg[o + 2] = p.z;
+        segCol[o] = rgb[3 * i]; segCol[o + 1] = rgb[3 * i + 1]; segCol[o + 2] = rgb[3 * i + 2];
+      }
       q.setFromUnitVectors(zAxis, hasAxis && !rz ? a : zAxis);
-      s.set(...((hidden ? [0, 0, 0] : hasAxis && !rz ? [sigma(1), sigma(2), sigma(0)] : [1, 1, 1]) as [number, number, number])).multiplyScalar(2 * g * core);
-      mesh.setMatrixAt(i, m.compose(project(p.copy(centre)), q, s));
-      mesh.setColorAt(i, c);
+      if (hidden) s.set(0, 0, 0);
+      else if (hasAxis && !rz) s.set(sigma(1, i), sigma(2, i), sigma(0, i));
+      else s.set(1, 1, 1);
+      mesh.setMatrixAt(i, m.compose(project(p.set(x[i], y[i], z[i])), q, s.multiplyScalar(2 * g * core)));
+      mesh.setColorAt(i, c.setRGB(rgb[3 * i], rgb[3 * i + 1], rgb[3 * i + 2]));
     }
     mesh.instanceMatrix.needsUpdate = true;
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
@@ -378,7 +360,7 @@ export function ellipsoids(input: LayerInput): Layer {
   update();
   return {
     // Picked anywhere along the principal axis (the drawn length), and preferred over hits and clusters nearby.
-    key, table: d.table, label: d.label, pickRadius: 14, object: group, x, y, z, segment: { a: pickA, b: pickB }, pickBias: shape === "core" ? 0.3 : 0.45,
+    ...identity(input, 14), object: group, x, y, z, segment: { a: pickA, b: pickB }, pickBias: shape === "core" ? 0.3 : 0.45,
     passes: (i) => cut.passes(i) && shown(highlighted, i) === 1, // showers hidden by a selection cannot be picked
     setCut: cut.setCut, setColours(c) { rgb = c; update(); },
     setOutline(on) { material.uniforms.uStyle.value = on ? SHOWER_STYLES.shell : style; material.side = on ? THREE.DoubleSide : material.side; },
@@ -395,13 +377,13 @@ export function ellipsoids(input: LayerInput): Layer {
 /** Lines from `position` to `end` (e.g. a track from its vertex to the calorimeter); in a replay each one shoots out
  *  from its start. WebGL draws them 1 pixel wide. Picked and framed by their end point. */
 export function segments(input: LayerInput): Layer {
-  const { key, d, t, rgb } = input;
+  const { d, t } = input;
   const start = positions(input);
   const [x, y, z] = (d.end ?? d.position).map((c) => toF32(t.columns[c], t.n)) as [Float32Array, Float32Array, Float32Array];
   const g = new THREE.InstancedBufferGeometry();
   g.setAttribute("position", new THREE.Float32BufferAttribute([0, 0, 0, 1, 0, 0], 3)); // x: 0 at the start, 1 at the end
   const material = new THREE.ShaderMaterial({
-    uniforms: baseUniforms(input.pal),
+    uniforms: { ...baseUniforms(input.pal), uDash: { value: d.truth ? 1 : 0 } },
     vertexShader: /* glsl */ `
       attribute float ix, iy, iz, jx, jy, jz, isel, ipsel, icut, iT;
       attribute vec3 icol;
@@ -425,24 +407,14 @@ export function segments(input: LayerInput): Layer {
         gl_FragColor = vec4(uDash > 0.5 ? mix(vCol, uBg, 0.35) : vCol, 1.0); // truth dimmer than reconstructed tracks
       }`,
   });
-  material.uniforms.uDash = { value: d.truth ? 1 : 0 };
-  const cut = cutter(t.n, input.cut, (m) => (material.uniforms.uCut.value = Math.max(m, -1e30)));
-  const sel = selectionMask(t.n, g, material, true);
-  for (const [name, a] of [["ix", start[0]], ["iy", start[1]], ["iz", start[2]], ["jx", x], ["jy", y], ["jz", z], ["icut", cut.values]] as const)
-    g.setAttribute(name, new THREE.InstancedBufferAttribute(a, 1));
-  g.setAttribute("icol", new THREE.InstancedBufferAttribute(rgb, 3));
+  const common = shaderLayer(input, g, material, true, { ix: start[0], iy: start[1], iz: start[2], jx: x, jy: y, jz: z });
   g.instanceCount = t.n;
-  const replay = timeline(t.n, g, material, true);
   const lines = new THREE.LineSegments(g, material);
   lines.frustumCulled = false;
   lines.renderOrder = 1;
   return {
-    key, table: d.table, label: d.label, pickRadius: 8, object: lines, x, y, z, segment: { a: start, b: [x, y, z] }, pickBias: 0.8, line: true,
-    passes: cut.passes, setCut: cut.setCut, setColours: (c) => replaceColours(g.getAttribute("icol") as THREE.BufferAttribute, c),
-    ...sel,
-    setProjection(rz) { material.uniforms.uProj.value = rz ? 1 : 0; },
-    ...replay,
-    setRetire(t) { material.uniforms.uRetire.value = t; },
+    ...identity(input, 8), object: lines, x, y, z, segment: { a: start, b: [x, y, z] }, pickBias: 0.8, line: true,
+    ...common,
     dispose() { g.dispose(); material.dispose(); },
   };
 }

@@ -124,9 +124,9 @@ export class Engine {
 
   /** Run the replay set up with planReplay() over `seconds`, from an empty view. */
   replay(seconds: number) {
-    this.replayClock = { t0: performance.now(), seconds };
     for (const l of this.layers) l.setClock(0);
-    this.requestRender();
+    this.draw(); // the first draw uploads the rebuilt layers to the GPU: the clock starts after it, not during it
+    this.replayClock = { t0: performance.now(), seconds };
   }
 
   stopReplay() {

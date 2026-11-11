@@ -216,6 +216,14 @@ async function deepChecks(page, fail, shot) {
   await page.keyboard.press("Escape"); // the replay and tour start from the whole event
   await page.keyboard.press("r");
   if (!(await page.evaluate(() => window.evdEngine.replaying))) fail("R did not start a replay");
+  // Each hit layer arrives in the physics phase (its first 3 s, render/replay.ts TRAVEL) in any colour mode, not with
+  // the clusters: half of its hits are shown by then.
+  const hitsAt = await page.evaluate(() => window.evdEngine.layers.filter((l) => l.key.endsWith(":cells") && !l.context && l.x.length).map((l) => {
+    const t = [...l.object.geometry.getAttribute("iT").array].sort((a, b) => a - b);
+    return [l.label, t[t.length >> 1]];
+  }));
+  log(`  replay: half the hits shown after ${hitsAt.map(([l, t]) => `${t.toFixed(2)} s (${l})`).join(", ") || "- (no hit layer)"}`);
+  for (const [l, t] of hitsAt) if (!(t < 3)) fail(`${l}: the hits appear after the physics phase of the replay (half by ${t.toFixed(2)} s)`);
   await page.evaluate(() => { // captions, recorded in the page (screenshots are too slow with software WebGL)
     window.captions = [];
     window.captionTimer = setInterval(() => {

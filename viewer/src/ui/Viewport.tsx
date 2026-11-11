@@ -16,7 +16,7 @@ import { planReplay, type Parts, type Plan } from "../render/replay";
 import { back, chooseDomain, jump } from "./navigate";
 import {
   activeMode, bundle, cuts, describe, domain, drawnLayers, event, focus, focusBar, focusHidden, focusHistory, focusIsTruth, focusLayers, focusLevel, focusLinked, following,
-  highlight, hover, inDomain, inFocus, isHitLayer, kindOf, labelOf, layerKey, layerOf, legends, levelTop, pairView, rawEvent, replayCaption, selection, short,
+  highlight, hover, inDomain, noTruth, inFocus, isHitLayer, kindOf, labelOf, layerKey, layerOf, legends, levelTop, pairView, rawEvent, replayCaption, selection, short,
   showAll, shown, shownLayer, shownLevel, theme, touring, view,
 } from "../model/store";
 import { PAIR } from "../model/pair";
@@ -201,7 +201,7 @@ export function Viewport() {
       for (const { layer } of fresh) {
         eng.addLayer(layer);
         layer.setHighlight(hl ? hl.get(layer.table) ?? new Set() : null);
-        layer.setOutline?.(outline || sharedOutline(layer), isEnvelope(layer));
+        layer.setOutline?.(outline || sharedOutline(layer) || faintOutline(layer), isEnvelope(layer));
         layer.setHighlightMix(1);
       }
       entries = [...entries, ...fresh];
@@ -238,7 +238,7 @@ export function Viewport() {
     const stopEnvelope = effect(() => {
       shownLevel.value; domain.value;
       const outline = truthOutline();
-      for (const { layer } of entries) layer.setOutline?.(outline || sharedOutline(layer), isEnvelope(layer));
+      for (const { layer } of entries) layer.setOutline?.(outline || sharedOutline(layer) || faintOutline(layer), isEnvelope(layer));
       eng.requestRender();
     });
     const stopView = effect(() => eng.setView(view.value, highlight.peek() ?? undefined));
@@ -496,6 +496,9 @@ const sharedOutline = (layer: Layer) => {
   const d = layerOf(layer.table), current = domain.peek(), domains = bundle.peek()?.header.domains;
   return !!d?.domain && !!current && d.domain !== current && !!domains?.find((x) => x.name === d.domain && x.shared);
 };
+/** By truth, a kind with no truth of its own drawn as cones (jets) is an outline, so it never looks like a matched
+ *  object (docs/truth.md "Where truth stops"). */
+const faintOutline = (layer: Layer) => activeMode.peek() === "truth" && (layerOf(layer.table)?.repr as string) === "cones" && noTruth(layer.table);
 
 /** While a level is shown inside the focus (e.g. a candidate's tracksters), the focus's layer draws it as a
  *  full-size outline around them: the largest object, without covering what is inside. */
@@ -507,7 +510,7 @@ function showFocus(ms: number) {
   const hl = highlight.peek(), outline = truthOutline();
   for (const { layer } of entries) {
     layer.setHighlight(hl ? hl.get(layer.table) ?? new Set() : null);
-    layer.setOutline?.(outline || sharedOutline(layer), isEnvelope(layer));
+    layer.setOutline?.(outline || sharedOutline(layer) || faintOutline(layer), isEnvelope(layer));
   }
   if (ms > 0) engine?.fadeHighlight(ms);
   else for (const { layer } of entries) layer.setHighlightMix(1);

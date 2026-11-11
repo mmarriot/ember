@@ -8,6 +8,7 @@ import { drawsLayer, sharedDomains, startDomain } from "./domains";
 import { colourBy, type ColourMode, customColumns, loadCustom, withColour, withCustomColumns } from "./custom";
 import { focusLevels, levelLayers, mergeAcrossDomains, scopeLevels, stepLevel } from "./levels";
 import { modeColouring, modeRoots } from "./modes";
+import { truthStatus, type TruthStatus } from "./match";
 import { PAIR, type Pair, pairFor, pairShows } from "./pair";
 import { levelsOf, type Related, relatedParts, sameRef, type Ref } from "./relations";
 
@@ -119,7 +120,9 @@ export function shownLayer(d: DisplayLayer, mode = activeMode.peek(), by = colou
   const { colouring, roots } = modes.peek();
   if (mode === "truth" && !d.context && !d.truth) { // by truth: the chain to the truth particles, else one neutral colour
     const c = colouring.truth?.[d.table];
-    return withColour({ ...d, colourBy: c ?? "none", fixedColour: undefined }, by[layerKey(d)]);
+    // A kind with no truth of its own (docs/truth.md "Where truth stops") is also faint, so it never looks matched.
+    const faint = noTruth(d.table) ? { dim: Math.max(d.dim ?? 0, FAINT) } : {};
+    return withColour({ ...d, colourBy: c ?? "none", fixedColour: undefined, ...faint }, by[layerKey(d)]);
   }
   const pid = mode === "pid" && !d.context && !d.truth;
   const c = pid && d.table !== roots.reco ? colouring.reco?.[d.table] : undefined;
@@ -127,11 +130,28 @@ export function shownLayer(d: DisplayLayer, mode = activeMode.peek(), by = colou
   return withColour(c ? { ...d, colourBy: c } : plain ? { ...d, colourBy: undefined } : d, by[layerKey(d)]);
 }
 
+/** How far a kind with no truth is mixed towards the background in truth mode. */
+export const FAINT = 0.6;
+/** Each drawn table's truth status (model/match.ts), once per bundle. */
+export const truthStatuses = computed(() => {
+  const b = bundle.value, out = new Map<string, TruthStatus>();
+  if (!b) return out;
+  for (const d of b.header.display) {
+    const s = truthStatus(b.header, d.table, modes.value.colouring.truth);
+    if (s) out.set(d.table, s);
+  }
+  return out;
+});
+/** Whether `table` is a kind with no truth of its own (status none). */
+export const noTruth = (table: string) => truthStatuses.peek().get(table)?.kind === "none";
+
 /** In the "pid" and "truth" modes with something selected: its truth <-> reco pair, which colours every layer
- *  (Viewport); null when the pair has nothing to show (no candidate, and no hits of its particle). */
+ *  (Viewport); null when the pair has nothing to show (no candidate, and no hits of its particle), and for a kind with
+ *  no truth of its own (a jet never opens a pair; its constituents may). */
 export const pairView = computed<Pair | null>(() => {
   const f = focus.value, b = bundle.value, ev = event.value, { roots, colouring } = modes.value;
   if (activeMode.value === "layers" || !f || !b || !ev || !roots.reco || !colouring.reco || f.row >= (ev.tables[f.table]?.n ?? 0)) return null;
+  if (truthStatuses.value.get(f.table)?.kind === "none") return null;
   const truthLayer = roots.truth ? b.header.display.find((d) => d.table === roots.truth) : undefined;
   const pair = pairFor(ev, b.header, f, { truth: roots.truth, reco: roots.reco }, { truth: colouring.truth, reco: colouring.reco }, truthLayer);
   return pairShows(pair) ? pair : null;

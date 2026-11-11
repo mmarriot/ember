@@ -343,3 +343,9 @@ ul.quality li { margin: 1px 0; }
   .sidebar.closed > .tabs > .tabpanel, .sidebar.closed > .segmented.presets, .sidebar.closed .colourkey > :not(summary) { display: none; }
   .viewport > .views ~ .hintbar { display: none; }
 }
+
+/* Truth colours: one word on a kind's heading (or row), rows of kinds without truth faint. */
+.truthword { margin-left: 6px; font-size: 10px; font-weight: 500; letter-spacing: 0; text-transform: none; padding: 0 4px; border-radius: 3px;
+  border: 1px dashed var(--line-strong, var(--line)); color: var(--muted); vertical-align: 1px; }
+.truthword.match, .truthword.fact { border-style: solid; color: var(--text); }
+.layer.faint { opacity: .5; }

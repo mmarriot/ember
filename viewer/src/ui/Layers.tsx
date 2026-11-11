@@ -10,7 +10,7 @@ import { colourBy, customColumns, filterMask, filters, RELATION, removeFilter } 
 import { columnName, passes, topRows } from "../model/objects";
 import { PALETTES, relatedColourText, type Legend } from "../render/colour";
 import {
-  activeMode, bundle, cutGroups, cuts, describe, event, focusHidden, focusLayers, focusLevel, labelOf, layerKey, layerName, legends, levels, modes, pairView,
+  activeMode, bundle, cutGroups, cuts, describe, event, noTruth, truthStatuses, focusHidden, focusLayers, focusLevel, labelOf, layerKey, layerName, legends, levels, modes, pairView,
   selection, short, showAll, shown, shownLayer, sizeColumn, theme, visible,
 } from "../model/store";
 import { ExprForm } from "./ExprForm";
@@ -34,7 +34,7 @@ export function Collections({ layers }: { layers: DisplayLayer[] }) {
       <Headline layers={main} />
       {[...groups].map(([group, ls]) => (
         <section class="kind" key={group}>
-          <h3>{group}</h3>
+          <h3>{group}{one(ls) && <TruthWord table={ls[0].table} />}</h3>
           {/* each slider just before the first row it cuts (a kind can have several, e.g. one per calorimeter) */}
           {ls.map((d) => <Fragment key={layerKey(d)}>{cutsOf([d]).map((name) => <CutRow name={name} here={ls} named={new Set(ls.flatMap((x) => (x.cut ? [x.cut.group] : []))).size > 1} />)}<LayerRow d={d} label={d.label} /></Fragment>)}
         </section>
@@ -91,6 +91,22 @@ function CutRow({ name, here, named = false }: { name: string; here: DisplayLaye
   );
 }
 
+/** In the truth colours: what the truth graph says about a kind (docs/truth.md, model/match.ts truthStatus), in one
+ *  word on its heading, the reason on hover; on each row instead where its layers differ (e.g. ECAL PF clusters are
+ *  matched, HF ones have none). Nothing in the reco colours. */
+const WORDS = { match: ["match", "matched by CMSSW's associator"], fact: ["fact", "a simulation fact: simulated energy per particle in each hit"],
+  derived: ["derived", ""], none: ["no truth", ""] } as const;
+function TruthWord({ table }: { table: string }) {
+  const s = truthStatuses.value.get(table);
+  if (activeMode.value !== "truth" || !s || s.kind === "container") return null;
+  const [word, what] = WORDS[s.kind], why = "reason" in s ? `${s.reason}${s.gap !== undefined ? ` (truth-graph.md gap ${s.gap})` : ""}` : what;
+  return <span class={`truthword ${s.kind}`} title={why}>{word}</span>;
+}
+/** The layers of a kind (its heading's group) in the current bundle. */
+const kindLayers = (d: DisplayLayer) => (bundle.value?.header.display ?? []).filter((l) => l.group === d.group && !l.alternative);
+/** Whether the layers have one truth status (so one word on their heading). */
+const one = (ls: DisplayLayer[]) => new Set(ls.map((l) => truthStatuses.value.get(l.table)?.kind)).size <= 1;
+
 /** A symbol for how a layer is drawn, shown before its name. */
 const glyph = (d: DisplayLayer) =>
   d.repr === "cells" ? "⬢" : d.repr === "markers" ? "•" : d.repr === "segments" ? (d.truth ? "┄" : "─") : d.repr === "helix" ? (d.truth ? "┄" : "∿")
@@ -104,12 +120,13 @@ function LayerRow({ d, label }: { d: DisplayLayer; label: string }) {
   // A layer of one of the focus's levels: ticking it (or the link under it) shows that level.
   const level = levels.value.find((l) => l.layers.includes(d))?.name, showLevel = () => level && (focusLevel.value = level);
   return (
-    <div class={on ? "layer" : "layer off"}>
+    <div class={`layer${on ? "" : " off"}${activeMode.value === "truth" && noTruth(d.table) ? " faint" : ""}`}>
       <div class="row">
         <label title={`${d.table}${b.header.tables[d.table]?.doc ? `: ${b.header.tables[d.table].doc}` : ""}`}>
           <input type="checkbox" checked={on} disabled={!n} onChange={() => { visible.value = { ...visible.value, [key]: !on }; if (!on) showLevel(); }} />
           <span class="glyph" aria-hidden="true">{glyph(d)}</span>
           <span class="name">{label}</span>{d.source && <span class="tag" title="Reconstruction path">{d.source}</span>}
+          {!one(kindLayers(d)) && <TruthWord table={d.table} />}
           <span class="count">{on && s !== undefined && s !== n ? `${s.toLocaleString()} / ` : ""}{n.toLocaleString()}</span>
         </label>
         <button class={open ? "more on" : "more"} aria-expanded={open} title="Colour, filter and new columns" onClick={() => setOpen(!open)}>⋯</button>

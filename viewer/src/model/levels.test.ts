@@ -59,6 +59,18 @@ describe("focusLevels with relations", () => {
     expect(stepLevel(lv, "Layer clusters", 1)).toBe("Layer clusters"); // the leaves and lines are not stepped to
     expect(stepLevel(lv, null, 1)).toBe("Interpretations");
   });
+  it("finds what a level holds through a level the highlight lacks (a pair view without layer clusters)", () => {
+    // A trackster's pair with no candidate: its interpretation and linked trackster reach the hits through layer
+    // clusters, which the pair's highlight has none of. Only the hits are a leaf.
+    const pair = rows({ T: [2], I: [0], Link: [0], Hit: [0, 1, 2] });
+    const lv = focusLevels(branches, "T", pair, () => true, relations);
+    expect(lv.map((l) => `${l.name}${l.always ? " (always)" : ""}`)).toEqual(["Interpretations", "Linked tracksters", "Hits (always)"]);
+    expect(levelLayers(lv, null, () => false).draw.map((d) => d.table)).toEqual(["Hit"]);
+  });
+  it("orders levels of one branch that reach the same objects only through tables that are not levels (a hit's pair)", () => {
+    const lv = focusLevels(branches, "Hit", rows({ Hit: [0], I: [0], Link: [0], T: [2] }), () => true, relations);
+    expect(lv.map((l) => `${l.name}${l.always ? " (always)" : ""}`)).toEqual(["Interpretations", "Linked tracksters", "Tracksters (always)"]);
+  });
   it("draws a vertex's tracks with their hits: lines do not hide them", () => {
     const vtx = [layer("TH", "Track hits", { repr: "markers" }), layer("Trk", "Tracks", { repr: "helix" }), layer("V", "Vertices", { repr: "markers" })];
     const lv = focusLevels(vtx, "V", rows({ V: [0], Trk: [1, 2], TH: [3, 4, 5] }), () => true, { vTrk: rel("V", "Trk"), trkHits: rel("Trk", "TH") });

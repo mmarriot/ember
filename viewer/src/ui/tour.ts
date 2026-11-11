@@ -64,6 +64,10 @@ async function startTour() {
       if (plan.growth) { // closer on the paths while they are built (e.g. tracks in the tracker)
         if (!(await until(plan.growth.start))) return;
         move(everything(plan.growth.tables), (plan.growth.build - plan.growth.start) * 1000 + 800, 0.3, 1.15);
+        if (plan.linkEnd > plan.growth.end) { // back out for what follows (e.g. clusters forming in the endcaps)
+          if (!(await until(plan.growth.end))) return;
+          move(beam ? undefined : around(targets), (plan.linkStart - plan.growth.end) * 1000, 0.4);
+        }
       }
       if (!(await until(plan.linkStart))) return; // circle while the clusters form
       // Glide into the leading shower while it is built and linked; at the last reconstruction step, pull back to

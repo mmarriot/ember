@@ -362,7 +362,10 @@ export class Engine {
     if (!box) return;
     const [lo, hi] = box;
     const ctr = lo.clone().add(hi).multiplyScalar(0.5), size = hi.clone().sub(lo);
-    if (this.view !== "3d") return this.aimFlat(ctr, ...flatView(this.view).extent(size), animate, ms);
+    if (this.view !== "3d") { // 2D: a margin, and at least the smallest radius framed, as in 3D (a jet's calorimeter part)
+      const [w, h] = flatView(this.view).extent(size), least = 2 * this.minRadius;
+      return this.aimFlat(ctr, Math.max(1.2 * w, least), Math.max(1.2 * h, least), animate, ms);
+    }
     const radius = Math.max(0.68 * size.length() + 0.22 * this.minRadius, this.minRadius); // cm: conservative
     this.aim(ctr, radius, animate, ms, swing, dir);
   }

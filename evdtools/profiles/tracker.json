@@ -17,7 +17,7 @@
     "beamSpot": {"label": "Beam spot", "repr": "markers", "visible": false}
   },
   "display": [
-    {"table": "Vertices", "kind": "vertex", "label": "Primary vertices", "position": ["x", "y", "z"], "size": null,
+    {"table": "Vertices", "kind": "vertex", "label": "Primary vertices", "position": ["x", "y", "z"], "size": "sumPt2",
      "describe": {"columns": ["nTracks", "sumPt2"]}},
     {"table": "Tracks", "kind": "track", "label": "General tracks", "position": ["vx", "vy", "vz"],
      "momentum": ["px", "py", "pz"], "charge": "charge", "end": ["outerX", "outerY", "outerZ"], "colour": "pt",

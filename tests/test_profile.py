@@ -258,7 +258,7 @@ def test_cms_profile_joins_hgcal_and_tracker():
              | {"charge": np.dtype("i2"), "highPurity": np.dtype("u1"), "vertexIdx": I4},
              "GeneralTrack": dict.fromkeys(("pt", "eta", "vz", "hgcal_x", "hgcal_y", "hgcal_z"), F4),
              "TrackHits": {**XYZE, "trackIdx": I4, "subdet": np.dtype("u1")},
-             "Vertices": XYZE, "VertexTracks": {"vertexIdx": I4, "trackIdx": I4, "weight": F4},
+             "Vertices": {**XYZE, "sumPt2": F4}, "VertexTracks": {"vertexIdx": I4, "trackIdx": I4, "weight": F4},
              "TICLCandidates": {"trackIdx": I4, "time": F4, "energy": F4}}
     conv = converter(types, p)
     d = {x["table"]: x for x in conv.display}
@@ -270,7 +270,7 @@ def test_cms_profile_joins_hgcal_and_tracker():
            "vertexIdx": [0, -1]}
     gen = {"pt": [1, 1], "eta": [0, 2.9], "vz": [1, 2], "hgcal_x": [-999, 5], "hgcal_y": [-999, 6], "hgcal_z": [-999, 322]}
     _, tables, rels = one_event(conv, {
-        "Tracks": trk, "GeneralTrack": gen, "Vertices": {"x": [0], "y": [0], "z": [1], "e": [0]},
+        "Tracks": trk, "GeneralTrack": gen, "Vertices": {"x": [0], "y": [0], "z": [1], "e": [0], "sumPt2": [4]},
         "VertexTracks": {"vertexIdx": [0], "trackIdx": [0], "weight": [0.9]},
         "TrackHits": {"x": [3, 6, 2], "y": [0, 0, 1], "z": [1, 1, 30], "e": [0, 0, 0], "trackIdx": [0, 0, 1], "subdet": [1, 1, 2]},
         "TICLCandidates": {"trackIdx": [1], "time": [0], "energy": [3]}})

@@ -8,13 +8,15 @@
 // s(h) = sin h / h), this has no cancellation for a nearly straight track (huge radius), so it is exact in float32 too:
 // the vertex shader of the helix layer (render/layers.ts) evaluates the same formula.
 //
-// Where a path stops: z is linear in l along the whole path (the field turns only the transverse direction), so a
-// path that moves mostly along the beam stops where it reaches the end point's z; one that moves mostly outwards stops
-// where its transverse distance from the start reaches the end point's. With a measured momentum the helix passes
-// near, not exactly through, the end point (a track's outermost state, a particle's decay or the calorimeter front);
-// either way the arc stops level with it and never runs past it, and a straight piece joins it to the end point (at
-// most 2 cm + 5% of the length, see below), so a particle ends exactly where its daughters start. A helix that cannot
-// get level with the end point (a looper that never gets as far out), or ends far from it (more than 2 cm + 5% of its
+// Where a path stops: when the start and the end point are both inside the field, the path is the helix tangent to
+// the momentum at the start that passes through the end point, if its curvature is within 50% of the momentum's
+// (a measured track to its outermost state, a particle to its decay): it ends exactly there, smoothly. Otherwise z is
+// linear in l along the whole path (the field turns only the transverse direction), so a path that moves mostly along
+// the beam stops where it reaches the end point's z; one that moves mostly outwards stops where its transverse distance
+// from the start reaches the end point's; either way level with the end point, never past it, and a straight piece
+// joins it to the end point, unless that piece would be a hook (longer than 0.5 cm and turning by more than 45
+// degrees: e.g. a looper stopped elsewhere on its turn), when the path ends where the arc does. A helix that cannot get
+// level with the end point (a looper that never gets as far out), or ends far from it (more than 2 cm + 5% of its
 // length: e.g. an electron that lost energy on the way, a particle that scattered, an end point extrapolated without
 // the field), is drawn straight from start to end instead.
 
@@ -30,7 +32,8 @@ const MISS = 2, MISS_FRACTION = 0.05; // a helix ending further than 2 cm + 5% o
 
 /** Per object (n of them): the unit direction at the start (3n, interleaved), the path parameters (3n: k rad/cm,
  *  length in the field, length of the arc; cm) and the end point of the drawn path: the end point given, joined to
- *  the arc's end by a straight piece (the arc's end when the end point is not finite). */
+ *  the arc's end by a straight piece if they differ (the arc's end when the end point is not finite, or the join would
+ *  be a hook). */
 export interface Paths {
   n: number;
   dir: Float32Array;
@@ -48,7 +51,13 @@ export function helixPaths(start: Columns3, p: Columns3, charge: ArrayLike<numbe
     const px = p[0][i], py = p[1][i], pz = p[2][i], mag = Math.hypot(px, py, pz), q = charge[i];
     let k = field && q && mag > 0 && Number.isFinite(mag) ? (-CURVATURE * q * field.bz) / mag : 0;
     let dx = 0, dy = 0, dz = 0, lField = 0, lEnd = 0;
-    if (k && !outside(field!, x0, y0, z0)) {
+    const fit = k && Number.isFinite(ex + ey + ez) && !outside(field!, x0, y0, z0) && !outside(field!, ex, ey, ez)
+      ? fitToEnd(x0, y0, z0, px, py, k * mag / Math.hypot(px, py), ex, ey, ez) : null;
+    if (fit && fieldLength(field!, x0, y0, z0, fit[0], fit[1], fit[2], fit[3]) >= fit[4]) {
+      // The helix through the end point, its curvature close to the momentum's: it ends there, smoothly.
+      [dx, dy, dz, k, lEnd] = fit;
+      lField = lEnd;
+    } else if (k && !outside(field!, x0, y0, z0)) {
       dx = px / mag; dy = py / mag; dz = pz / mag;
       lField = fieldLength(field!, x0, y0, z0, dx, dy, dz, k);
       lEnd = endLength(x0, y0, z0, dx, dy, dz, k, lField, ex, ey, ez);
@@ -66,11 +75,33 @@ export function helixPaths(start: Columns3, p: Columns3, charge: ArrayLike<numbe
     dir[3 * i] = dx; dir[3 * i + 1] = dy; dir[3 * i + 2] = dz;
     path[3 * i] = k; path[3 * i + 1] = Math.min(lField, BIG); path[3 * i + 2] = lEnd;
     point(x0, y0, z0, dx, dy, dz, k, lField, lEnd, at);
-    const joined = Number.isFinite(ex) && Number.isFinite(ey) && Number.isFinite(ez);
+    // The end point, joined by a straight piece, unless that piece would make a hook: longer than JOIN cm and turning
+    // more than 45 degrees from the arc's last direction (a looper whose arc stops elsewhere on its turn).
+    const th = k * Math.min(lEnd, lField), tx = dx * Math.cos(th) - dy * Math.sin(th), ty = dx * Math.sin(th) + dy * Math.cos(th);
+    const jx = ex - at[0], jy = ey - at[1], jz = ez - at[2], jl = Math.hypot(jx, jy, jz);
+    const hook = jl > JOIN && tx * jx + ty * jy + dz * jz < Math.SQRT1_2 * jl;
+    const joined = Number.isFinite(ex) && Number.isFinite(ey) && Number.isFinite(ez) && !hook;
     out[0][i] = joined ? ex : at[0]; out[1][i] = joined ? ey : at[1]; out[2][i] = joined ? ez : at[2];
   }
   return { n, dir, path, end: out };
 }
+
+/** The helix tangent to the momentum's transverse direction at the start that passes through the end point, if its
+ *  curvature is within FIT of the momentum's (`w`: rad per cm of transverse path) and it turns less than a full turn
+ *  to get there: [dx, dy, dz, k, length], the direction with dz set so that z reaches the end's at the same time.
+ *  The circle through both points tangent at the start turns by twice the angle between the direction and the chord. */
+function fitToEnd(x0: number, y0: number, z0: number, px: number, py: number, w: number, ex: number, ey: number, ez: number) {
+  const pt = Math.hypot(px, py), ux = px / pt, uy = py / pt, cx = ex - x0, cy = ey - y0, chord = Math.hypot(cx, cy);
+  if (!(pt > 0) || !(chord > 1e-3)) return null;
+  const phi = Math.atan2(ux * cy - uy * cx, ux * cx + uy * cy); // signed angle from the direction to the chord
+  const wFit = (2 * Math.sin(phi)) / chord; // positive: turning anticlockwise
+  if (Math.abs(wFit - w) > FIT * Math.abs(w) + FIT_ABS) return null;
+  const s = Math.abs(phi) < 1e-6 ? chord : (2 * phi) / wFit; // transverse length of the arc
+  if (!(s > 0)) return null;
+  const slope = (ez - z0) / s, dT = 1 / Math.hypot(1, slope); // dz / dT along the path
+  return [ux * dT, uy * dT, slope * dT, wFit * dT, s / dT] as const;
+}
+const FIT = 0.5, FIT_ABS = 1e-4, JOIN = 0.5; // the fitted curvature may differ from the momentum's by 50% (+ 1e-4 rad/cm); JOIN: cm
 
 const outside = (f: Field, x: number, y: number, z: number) => Math.hypot(x, y) >= f.rMax || Math.abs(z) >= f.zMax;
 

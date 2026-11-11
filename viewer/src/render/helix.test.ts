@@ -33,13 +33,13 @@ describe("helix paths", () => {
   it("curve on a circle of radius pT / (0.003 B), clockwise for positive charge in a field along +z", () => {
     const R = radius(1, 3.8); // 87.8 cm
     expect(R).toBeCloseTo(87.8, 0);
-    const h = one([0, 0, 0], [1, 0, 0], 1, [50, -15, 0], FIELD);
+    const h = one([0, 0, 0], [1, 0, 0], 1, onHelix([0, 0, 0], [1, 0, 0], 1, 100), FIELD);
     for (const l of [10, 40, 80]) {
       const [x, y] = h.at(l);
       expect(Math.hypot(x, y + R)).toBeCloseTo(R, 3); // centre at (0, -R): turning towards -y
       expect(y).toBeLessThan(0);
     }
-    const neg = one([0, 0, 0], [1, 0, 0], -1, [50, 15, 0], FIELD);
+    const neg = one([0, 0, 0], [1, 0, 0], -1, onHelix([0, 0, 0], [1, 0, 0], -1, 100), FIELD);
     expect(neg.at(40)[1]).toBeGreaterThan(0);
   });
 
@@ -57,11 +57,15 @@ describe("helix paths", () => {
     const start = [0.1, -0.2, 2], p = [0.8, 0.6, 0.9];
     let lo = 0, hi = 200; // where the pure helix reaches r = 60
     for (let i = 0; i < 60; i++) { const mid = (lo + hi) / 2, [x, y] = onHelix(start, p, 1, mid); if (Math.hypot(x, y) < 60) lo = mid; else hi = mid; }
-    const inside = one(start, p, 1, onHelix(start, p, 1, 0.5 * lo), field);
-    expect(inside.lField).toBeCloseTo(lo, 3); // leaves the field at r = 60
+    const inside = one(start, p, 1, onHelix(start, p, 1, 0.5 * lo), field); // fitted through it: the same helix
     expect(inside.lEnd).toBeCloseTo(0.5 * lo, 3);
-    const beyond = inside.at(1.7 * lo); // on the straight part after the field
-    expect(one(start, p, 1, beyond, field).lEnd).toBeCloseTo(1.7 * lo, 2);
+    const beyond = one(start, p, 1, onHelix(start, p, 1, 0.5 * lo), { ...field, rMax: 1000 }).at(1.7 * lo);
+    const m = Math.hypot(...p), k = (-CURVATURE * field.bz) / m; // on the straight part after the field: not fitted
+    const along = [...point(start[0], start[1], start[2], p[0] / m, p[1] / m, p[2] / m, k, lo, 1.7 * lo, new Float64Array(3))];
+    const out = one(start, p, 1, along, field);
+    expect(out.lField).toBeCloseTo(lo, 3); // leaves the field at r = 60
+    expect(out.lEnd).toBeCloseTo(1.7 * lo, 2);
+    expect(Math.hypot(beyond[0], beyond[1])).toBeGreaterThan(60);
   });
 
   it("go straight along the last direction outside the field", () => {
@@ -80,7 +84,7 @@ describe("helix paths", () => {
   });
 
   it("stay accurate in float32 for a nearly straight (1 TeV) track", () => {
-    const h = one([0, 0, 0], [1000, 0, 0], 1, [120, 0, 0], FIELD);
+    const h = one([0, 0, 0], [1000, 0, 0], 1, [120, 0, 0], { ...FIELD, rMax: 100 }); // ends outside: not fitted
     expect(Number.isFinite(h.arc[1])).toBe(true);
     const sagitta = (120 * 120) / (8 * radius(1000, 3.8)); // ~0.016 cm, below the deflection over 120 cm
     expect(Math.abs(h.arc[1])).toBeGreaterThan(0.5 * 4 * sagitta);
@@ -98,11 +102,25 @@ describe("helix paths", () => {
     expect(one([0, 0, 0], [1, 0, 0], 1, [x + 3, y, 0], FIELD).k).not.toBe(0); // 3 cm off the helix: within 2 cm + 5%
   });
 
+  it("pass exactly through an end point near the helix, with a curvature fitted to it, close to the momentum's", () => {
+    const [x, y] = onHelix([0, 0, 0], [1, 0, 0.3], 1, 100), h = one([0, 0, 0], [1, 0, 0.3], 1, [x + 1.5, y, 20], FIELD);
+    for (let i = 0; i < 3; i++) expect(h.arc[i]).toBeCloseTo([x + 1.5, y, 20][i], 3);
+    const k = (-CURVATURE * FIELD.bz) / Math.hypot(1, 0, 0.3);
+    expect(Math.abs(h.k / k - 1)).toBeLessThan(0.5); // per cm of path: a little straighter than the momentum's
+    // Too far from it (the momentum's curvature off by more than 50%): the arc stops level with it, then a join.
+    const [x2, y2] = onHelix([0, 0, 0], [1, 0, 0], 1, 30), far = one([0, 0, 0], [1, 0, 0], 1, [x2, y2 + 3, 0], FIELD);
+    expect(Math.abs(far.k / ((-CURVATURE * FIELD.bz) / 1) - 1)).toBeLessThan(1e-6);
+  });
+
   it("end at the end point, the arc joined to it by a straight piece, or where the arc ends if it is not finite", () => {
-    const [x, y] = onHelix([0, 0, 0], [1, 0, 0], 1, 100), h = one([0, 0, 0], [1, 0, 0], 1, [x + 1.5, y, 0], FIELD);
+    const field: Field = { bz: 3.8, rMax: 60, zMax: 1000 }; // the end is outside the field: no fit
+    const [x, y] = one([0, 0, 0], [1, 0, 0], 1, [500, -400, 0], field).at(120), h = one([0, 0, 0], [1, 0, 0], 1, [x, y + 0.4, 0], field);
     expect(h.k).not.toBe(0);
-    expect(h.end[0]).toBeCloseTo(x + 1.5, 4);
-    expect(Math.hypot(h.arc[0] - h.end[0], h.arc[1] - h.end[1])).toBeGreaterThan(0.5);
+    expect(h.end[1]).toBeCloseTo(y + 0.4, 4);
+    expect(Math.hypot(h.arc[0] - h.end[0], h.arc[1] - h.end[1])).toBeGreaterThan(0.2);
+    // A join that would be a hook (over 0.5 cm, turning more than 45 degrees): the path ends where the arc does.
+    const hook = one([0, 0, 0], [1, 0, 0], 1, [x, y + 1.5, 0], field);
+    for (let i = 0; i < 3; i++) expect(hook.end[i]).toBeCloseTo(hook.arc[i], 4);
     const nan = one([0, 0, 0], [1, 0, 0], 1, [NaN, NaN, NaN], FIELD);
     expect(nan.end.every(Number.isFinite)).toBe(true);
   });

@@ -64,6 +64,13 @@ describe("related", () => {
     expect(rows(levelsOf(vev, vh, { table: "Trk", row: 1 }))).toEqual({ Trk: [1], Hit: [1], Vtx: [0] });
     expect(rows(relatedParts(vev, vh, { table: "Vtx", row: 0 }).madeOf)).toEqual({ Vtx: [0], Trk: [0, 1], Hit: [0, 1] });
   });
+  it("counts an object as inside only if all its relations point inside (a candidate holding a vertex's track and clusters)", () => {
+    const vev = { id: [1, 1, 1], tables: {}, relations: { vtxTracks: csr([[0, 1]]), trackVtx: csr([[0], [0]]), candTrack: csr([[1], [0]]),
+      candLCs: csr([[], [0]]) } } as unknown as EventData;
+    const vh = { relations: { vtxTracks: { from: "Vtx", to: "Trk", weights: [] }, trackVtx: { from: "Trk", to: "Vtx", weights: [] },
+      candTrack: { from: "Cand", to: "Trk", weights: [] }, candLCs: { from: "Cand", to: "LC", weights: [] } } } as unknown as Header;
+    expect(rows(levelsOf(vev, vh, { table: "Vtx", row: 0 }))).toEqual({ Vtx: [0], Trk: [0, 1], Cand: [0] }); // not candidate 1
+  });
   it("finds what a track belongs to", () => {
     expect(rows(related(ev, header, { table: "Track", row: 1 }))).toEqual({ Track: [1], Cand: [0] });
   });

@@ -44,6 +44,22 @@ describe("focusLevels", () => {
   });
 });
 
+describe("focusLevels with relations", () => {
+  // A candidate with tracksters down to hits, and a track down to its own hits (another branch, listed later).
+  const branches = [...display.filter((d) => d.table !== "Track"), layer("Trk", "Tracks", { repr: "helix", visible: true }), layer("TH", "Track hits", { repr: "markers", visible: true })];
+  const rel = (from: string, to: string) => ({ from, to, weights: [] });
+  const relations = { candI: rel("Cand", "I"), iLCs: rel("I", "LC"), linkLCs: rel("Link", "LC"), tLCs: rel("T", "LC"), lcHits: rel("LC", "Hit"),
+    candTrk: rel("Cand", "Trk"), trkHits: rel("Trk", "TH"), truthHits: { ...rel("P", "Hit"), association: true } };
+  const hl = rows({ Cand: [0], I: [0], Link: [0], T: [2], LC: [0, 1], Hit: [0, 1, 2], Trk: [3], TH: [7, 8], P: [4] });
+  it("puts what holds something before it, and every branch's smallest objects last, always drawn", () => {
+    const lv = focusLevels(branches, "Cand", hl, own, relations);
+    expect(lv.map((l) => `${l.name}${l.leaf ? " (leaf)" : ""}`)).toEqual(
+      ["Tracks", "Interpretations", "Linked tracksters", "Tracksters", "Layer clusters", "Track hits (leaf)", "Hits (leaf)"]);
+    expect(levelLayers(lv, null, () => false).draw.map((d) => d.table).sort()).toEqual(["Hit", "TH"]);
+    expect(stepLevel(lv, "Layer clusters", 1)).toBe("Layer clusters"); // the leaves are not stepped to
+  });
+});
+
 describe("levelLayers", () => {
   const lv = focusLevels(display, "Cand", candidate, own), ticked = (d: DisplayLayer) => d.visible;
   const tables = (ds: DisplayLayer[]) => ds.map((d) => d.table).sort();

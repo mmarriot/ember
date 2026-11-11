@@ -220,22 +220,22 @@ const topParts = computed(() => (sameRef(levelTop.value, focus.value) ? focusPar
 export const levels = computed(() => {
   const b = bundle.value, top = levelTop.value, hl = highlight.value, parts = topParts.value;
   if (!b || !top || !hl || !parts) return [];
-  return focusLevels(b.header.display, top.table, hl, (t) => parts.madeOf.has(t) || !parts.linked.has(t));
+  return focusLevels(b.header.display, top.table, hl, (t) => parts.madeOf.has(t) || !parts.linked.has(t), b.header.relations);
 });
 /** The chosen level, if the focus has it and it is not the bottom one (drawn anyway); else null. */
 export const shownLevel = computed(() => {
   const c = focusLevel.value;
-  return levels.value.slice(0, -1).some((l) => l.name === c) ? c : null;
+  return levels.value.some((l) => !l.leaf && l.name === c) ? c : null;
 });
 /** Step the shown level down (+1) or up (-1); false (and nothing changes) if the focus has no levels to step through. */
 export function stepFocusLevel(by: number) {
-  if (levels.peek().length < 2) return false;
+  if (!levels.peek().some((l) => !l.leaf)) return false;
   focusLevel.value = stepLevel(levels.peek(), focusLevel.peek(), by);
   return true;
 }
 
 // While a focus lasts, what is drawn differs from the ticks in the side panel (and the domain's view): the focus's layer, its stage (e.g. a candidate's
-// track) and what is linked to it (its truth) are drawn even from hidden layers; of its levels, only the bottom one
+// track) and what is linked to it (its truth) are drawn even from hidden layers; of its levels, only the bottom ones
 // and the chosen one are, even if others are ticked. The keys are joined into strings first, so the layers are only
 // rebuilt when these sets change, not on every focus.
 const focusKeys = computed(() => {

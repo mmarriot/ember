@@ -153,9 +153,10 @@ All optional; the converter copies them from the profile.
 - `field`: `{"bz", "rMax", "zMax"}`: a uniform solenoid field along z (T), inside the cylinder r < `rMax`, |z| < `zMax`
   (cm), none outside; used by `helix` layers.
 - `outlines`: `[{"name", "r": [inner, outer], "z": [from, to]}]`: faint outlines of the parts of the detector (cm; `z`
-  as a |z| range drawn at both ends, one piece through z = 0 when it starts at 0), drawn in every view behind the
-  event, never picked or framed: rings on the end faces, and lines along z and across the end faces at four angles
-  between the axes, so the ρ-z view shows each part's section.
+  as a |z| range drawn at both ends, one piece through z = 0 when it starts at 0), drawn behind the event, never picked
+  or framed: rings on the end faces, and lines along z and across the end faces at four angles between the axes. The
+  ρ-z and side views draw all of them (each part's section), the front view and 3D only the rings; in 3D the rings
+  fade near the camera and far from what it looks at, so they stay out of the way of the event.
 - `runTitle`: a template naming a run from its `info`, e.g. `"{Beam} {Energy} GeV · {Type}"`; parts separated by
   ` · ` that name a field the run lacks are left out. `runFields`: the `info` fields shown, in order (default: all).
 

@@ -120,6 +120,7 @@ export class Engine {
   private draw() {
     const r = this.renderer;
     r.setViewport(0, 0, this.width, this.height);
+    this.outlines?.setReach(this.ctl3d.target, this.cam3d.position.distanceTo(this.ctl3d.target) / this.cam3d.zoom); // 3D: what it looks at
     r.render(this.scene, this.camera);
     this.onDraw();
     if (this.rz) return;
@@ -276,7 +277,7 @@ export class Engine {
   setOutlines(outlines: readonly Outline[], colour: THREE.Color, background: THREE.Color) {
     if (this.outlines) { this.scene.remove(this.outlines.object); this.outlines.dispose(); }
     this.outlines = outlines.length ? outlineObject(outlines, colour, background) : null;
-    if (this.outlines) { this.outlines.setProjection(this.rz); this.scene.add(this.outlines.object); }
+    if (this.outlines) { this.outlines.setView(this.view); this.scene.add(this.outlines.object); }
     this.requestRender();
   }
 
@@ -330,7 +331,7 @@ export class Engine {
     this.ctl3d.enabled = !this.flat;
     this.ctlRZ.enabled = this.flat;
     for (const l of this.layers) { l.setProjection(this.rz); this.showIn(l); }
-    this.outlines?.setProjection(this.rz);
+    this.outlines?.setView(view);
     this.envelope = null;
     if (view !== "3d") { // look along the view's axis; frame() below moves the target
       this.camRZ.position.copy(this.ctlRZ.target).addScaledVector(flatView(view).dir, FLAT_DISTANCE);

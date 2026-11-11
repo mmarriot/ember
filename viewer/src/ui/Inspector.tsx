@@ -1,7 +1,7 @@
 // Floating card for the selected object: summary, all columns with documentation, related objects.
 import { colourBy, customColumns, customDoc } from "../model/custom";
 import { unitOf } from "../io/bundle";
-import { bundle, describe, event, full, highlight, isHitLayer, kindOf, labelOf, layerKey, layerOf, relatives, selection, sizeColumn, visible } from "../model/store";
+import { bundle, describe, event, full, highlight, isHitLayer, kindOf, labelOf, layerKey, layerOf, relatives, selection, sizeColumn, drawnLayers } from "../model/store";
 import { bestFirst, type Related } from "../model/relations";
 import { engine } from "./Viewport";
 import { jump } from "./navigate";
@@ -161,7 +161,7 @@ function truthInHits(objects: Related) {
 
 function drawn(table: string) {
   const b = bundle.value;
-  return !!b?.header.display.some((l) => l.table === table && visible.value[layerKey(l)]);
+  return !!b?.header.display.some((l) => l.table === table && drawnLayers.value[layerKey(l)]);
 }
 
 const isTruth = (table: string) => !!layerOf(table)?.truth;

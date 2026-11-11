@@ -1,8 +1,9 @@
 // Top bar: data set, event navigation (with jump-to), view switcher, share and help.
 import logo from "../../logo.svg";
 import type { ViewName } from "../render/engine";
-import { bundle, bundleName, catalogue, dialog, eventIndex, following, loading, openBundle, showEvent, theme, toast, toggleTheme, touring, view, type Listed } from "../model/store";
+import { bundle, bundleName, catalogue, dialog, domain, eventIndex, following, loading, openBundle, showEvent, theme, toast, toggleTheme, touring, view, type Listed } from "../model/store";
 import { toggleLive } from "./live";
+import { chooseDomain } from "./navigate";
 import { toggleTour } from "./tour";
 import { engine } from "./Viewport";
 import { Icon } from "./widgets";
@@ -50,6 +51,7 @@ export function Header() {
           <button class={view.value === v ? "on" : ""} title={`${name} view (${key})`} onClick={() => (view.value = v)}>{name}</button>
         ))}
       </div>
+      <Domains />
       <button class={following.value ? "live on" : "live"} aria-pressed={following.value} onClick={toggleLive}
         title={`Live: play new data as it arrives, event by event${catalogue.value.updated ? `; index updated ${new Date(catalogue.value.updated).toLocaleString()}` : ""}`}>
         <i class="dot" />Live
@@ -62,5 +64,21 @@ export function Header() {
       </div>
       {loading.value && <div class="progress" />}
     </header>
+  );
+}
+
+/** All · <domain> · <domain>: look at one part of the detector (its layers, region and view), or at everything. */
+function Domains() {
+  const list = bundle.value?.header.domains ?? [];
+  if (list.length < 2) return null;
+  const current = domain.value;
+  return (
+    <div class="segmented" role="group" aria-label="Detector part">
+      <button class={current ? "" : "on"} title="Everything (D cycles through the parts)" onClick={() => chooseDomain(null)}>All</button>
+      {list.map((d) => (
+        <button class={current === d.name ? "on" : ""} title={`${d.name}: its layers and those shared by every part, in its region and view (D)`}
+          onClick={() => chooseDomain(d.name)}>{d.name}</button>
+      ))}
+    </div>
   );
 }

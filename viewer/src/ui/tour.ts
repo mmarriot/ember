@@ -2,7 +2,7 @@
 // are visited one by one (selected, so the inspector describes them), then the next event; until any key or touch,
 // or the play button. Profile view.tour "beam" (collider data): the camera starts on the whole detector and never
 // enters it (Engine.tourCamera); "orbit" (default): it frames the objects at their own scale and orbits them.
-import { bundle, cuts, event, eventIndex, highlight, layerKey, selection, showAll, showEvent, sizeColumn, touring, view, visible } from "../model/store";
+import { bundle, cuts, event, eventIndex, highlight, layerKey, selection, showAll, showEvent, sizeColumn, touring, view, drawnLayers } from "../model/store";
 import { related, type Ref } from "../model/relations";
 import { isShower } from "../render/replay";
 import { stopLive } from "./live";
@@ -109,7 +109,7 @@ function around(targets: Ref[]) {
 function showers(k: number): Ref[] {
   const b = bundle.value, ev = event.value;
   if (!b || !ev) return [];
-  const drawn = b.header.display.filter((l) => visible.value[layerKey(l)] && ev.tables[l.table]?.n);
+  const drawn = b.header.display.filter((l) => drawnLayers.value[layerKey(l)] && ev.tables[l.table]?.n);
   const d = drawn.filter((l) => l.stage !== undefined).sort((a, c) => c.stage! - a.stage!)[0]
     ?? drawn.find(isShower);
   if (!d) return [];

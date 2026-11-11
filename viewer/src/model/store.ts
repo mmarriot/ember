@@ -22,7 +22,16 @@ export const rawEvent = signal<EventData | null>(null); // as read from the file
 export const event = computed(() => (rawEvent.value ? withCustomColumns(rawEvent.value, customColumns.value) : null));
 export const loading = signal(false);
 export const loadMs = signal(0);
-export const visible = signal<Record<string, boolean>>({}); // display layer key -> shown
+export const visible = signal<Record<string, boolean>>({}); // display layer key -> ticked by the user
+/** The domain looked at (header `domains`), null for all: a view, it leaves the user's ticks alone. */
+export const domain = signal<string | null>(null);
+/** Whether a layer belongs in the current domain's view: its own domain's layers and those without a domain. */
+export const inDomain = (d: DisplayLayer, current = domain.value) => !current || !d.domain || d.domain === current;
+/** The layers drawn: ticked and in the domain's view (display layer key -> drawn). */
+export const drawnLayers = computed(() => {
+  const vis = visible.value, d = domain.value;
+  return Object.fromEntries((bundle.value?.header.display ?? []).map((l) => [layerKey(l), !!vis[layerKey(l)] && inDomain(l, d)]));
+});
 export const legends = signal<Record<string, Legend>>({}); // display layer key -> legend of the drawn layer
 export const shown = signal<Record<string, number>>({}); // display layer key -> objects passing the cuts
 export const cuts = signal<Record<string, number>>({}); // cut group -> minimum
@@ -223,12 +232,12 @@ export function stepFocusLevel(by: number) {
   return true;
 }
 
-// While a focus lasts, what is drawn differs from the ticks in the side panel: the focus's layer, its stage (e.g. a candidate's
+// While a focus lasts, what is drawn differs from the ticks in the side panel (and the domain's view): the focus's layer, its stage (e.g. a candidate's
 // track) and what is linked to it (its truth) are drawn even from hidden layers; of its levels, only the bottom one
 // and the chosen one are, even if others are ticked. The keys are joined into strings first, so the layers are only
 // rebuilt when these sets change, not on every focus.
 const focusKeys = computed(() => {
-  const b = bundle.value, hl = highlight.value, vis = visible.value, lv = levels.value, f = focus.value;
+  const b = bundle.value, hl = highlight.value, vis = drawnLayers.value, lv = levels.value, f = focus.value;
   if (!b || !hl) return { shown: "", hidden: "" };
   // The focus's own layer is always drawn, also when its kind is a level (the pair view's levels are its candidate's).
   const ticked = (d: DisplayLayer) => !!vis[layerKey(d)], own = (d: DisplayLayer) => d.table === f?.table;
@@ -276,6 +285,7 @@ export async function openBundle(name: string, open = () => httpSource(name), st
     view.value = b.header.view?.start ?? "3d";
     loadCustom(b.header.profile, Object.fromEntries(b.header.display.filter((d) => d.filter).map((d) => [d.table, d.filter!])));
     visible.value = Object.fromEntries(b.header.display.map((d) => [layerKey(d), d.visible]));
+    domain.value = null;
     cuts.value = Object.fromEntries([...cutGroups.value].map(([g, info]) => [g, info.default]));
     await showEvent(start);
   } catch (e) {

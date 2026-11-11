@@ -312,16 +312,43 @@ export class Engine {
     if (!box) return;
     const [lo, hi] = box;
     const ctr = lo.clone().add(hi).multiplyScalar(0.5), size = hi.clone().sub(lo);
-    if (this.rz) {
-      const c = this.camRZ, zoom = 0.85 * Math.min((c.right - c.left) / Math.max(size.x + 30, 80), (c.top - c.bottom) / Math.max(size.y + 30, 80));
-      return this.go([new THREE.Vector3(ctr.x, ctr.y, 1000), new THREE.Vector3(ctr.x, ctr.y, 0), zoom], animate, ms, 0);
-    }
+    if (this.rz) return this.aimRZ(ctr, size, animate, ms);
     const radius = Math.max(0.68 * size.length() + 0.22 * this.minRadius, this.minRadius); // cm: conservative
-    if (!dir) {
-      dir = this.cam3d.position.clone().sub(this.ctl3d.target);
-      if (dir.lengthSq() < 1e-6) dir = presetDirection(this.view); // no direction yet
-      dir.normalize();
-    }
+    this.aim(ctr, radius, animate, ms, swing, dir);
+  }
+
+  /** Frame a cylinder around the beam axis whole (radius rMax, |z| up to zMax; cm), e.g. a part of the detector,
+   *  from the current direction. */
+  frameRegion(rMax: number, zMax: number, animate = true, ms = 700) {
+    if (this.rz) return this.aimRZ(new THREE.Vector3(), new THREE.Vector3(2 * zMax, 2 * rMax, 0), animate, ms);
+    // The camera distance that keeps each point of its rims in view, in perspective: a point `a` nearer the camera
+    // than the centre and `r` off the line of sight needs r / (distance - a) <= tan(fov / 2).
+    const dir = this.direction(), p = new THREE.Vector3(), tan = Math.tan(THREE.MathUtils.degToRad(this.cam3d.fov / 2));
+    let need = 0;
+    for (let i = 0; i < 32; i++)
+      for (const z of [-zMax, zMax]) {
+        p.set(rMax * Math.cos((i * Math.PI) / 16), rMax * Math.sin((i * Math.PI) / 16), z);
+        const a = p.dot(dir);
+        need = Math.max(need, a + p.addScaledVector(dir, -a).length() / tan);
+      }
+    this.aim(new THREE.Vector3(), 1.05 * need * Math.sin(THREE.MathUtils.degToRad(this.cam3d.fov / 2)), animate, ms, 0, dir);
+  }
+
+  /** The direction from the target to the 3D camera (unit). */
+  private direction() {
+    const dir = this.cam3d.position.clone().sub(this.ctl3d.target);
+    return dir.lengthSq() < 1e-6 ? presetDirection(this.view) : dir.normalize(); // no direction yet: the preset's
+  }
+
+  /** ρ-z view: centre on `ctr` and fit `size` (view coordinates). */
+  private aimRZ(ctr: THREE.Vector3, size: THREE.Vector3, animate: boolean, ms: number) {
+    const c = this.camRZ, zoom = 0.85 * Math.min((c.right - c.left) / Math.max(size.x + 30, 80), (c.top - c.bottom) / Math.max(size.y + 30, 80));
+    this.go([new THREE.Vector3(ctr.x, ctr.y, 1000), new THREE.Vector3(ctr.x, ctr.y, 0), zoom], animate, ms, 0);
+  }
+
+  /** 3D: look at a sphere around `ctr` of this radius along `dir` (default: the current direction), filling the view
+   *  left free by a panel. */
+  private aim(ctr: THREE.Vector3, radius: number, animate: boolean, ms: number, swing: number, dir = this.direction()) {
     // With a panel over the right of the view, fit the objects in the uncovered width and centre them there.
     const free = Math.max(0.4, 1 - this.insetRight / this.width), aspect = this.cam3d.aspect;
     const dist = this.distanceFor(radius / Math.min(1, free * aspect)); // the narrower side decides

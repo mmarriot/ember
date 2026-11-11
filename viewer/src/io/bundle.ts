@@ -15,7 +15,8 @@ export interface DisplayLayer {
   label: string;
   kind?: string; // object type from the profile (e.g. "trackster"); `group` is then its label
   source?: string; // which reconstruction path produced it, e.g. "SoA" or "legacy"
-  /** The part of the detector it belongs to (e.g. "HGCal"): its tab in the side panel. Truth layers have none. */
+  /** The part of the detector it belongs to (e.g. "HGCal"): its tab in the side panel, and with a header `domains`
+   *  entry of that name, the view that draws it (none: drawn in every domain's view). Truth layers have none. */
   domain?: string;
   position: [string, string, string];
   end?: [string, string, string]; // segments: where the line ends (it starts at `position`); helix: where the path stops
@@ -82,9 +83,13 @@ export interface Header {
   runTitle?: string;
   runFields?: string[]; // which run information to show, in this order (default: all)
   presets?: Preset[];
+  /** Parts of the detector, each with its region (cm; z is |z|) and the view that suits it: choosing one draws only
+   *  its layers and those without a domain, framed on the region. */
+  domains?: Domain[];
   /** Solenoid field for `helix` layers: Bz (T), uniform inside the cylinder r < rMax, |z| < zMax (cm), none outside. */
   field?: { bz: number; rMax: number; zMax: number };
 }
+export interface Domain { name: string; region: { rMin?: number; rMax: number; zMin?: number; zMax: number }; view?: "3d" | "front" | "side" | "rz" }
 /** The unit in a column's documentation, written as "[GeV]". */
 export const unitOf = (doc = "") => doc.match(/\[([^\]]+)\]/)?.[1] ?? "";
 /** Short name of a layer's kind of object: its group for a layer with a kind ("Tracksters"), else its label. */

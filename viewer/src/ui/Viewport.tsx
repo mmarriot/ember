@@ -13,9 +13,9 @@ import { builders, type Layer } from "../render/layers";
 import { planReplay, type Plan } from "../render/replay";
 import { back, jump } from "./navigate";
 import {
-  activeMode, bundle, cuts, describe, event, focus, focusHidden, focusHistory, focusIsTruth, focusLayers, focusLevel, focusLinked, following,
-  highlight, hover, inFocus, isHitLayer, kindOf, labelOf, layerKey, layerOf, legends, levels, levelTop, pairView, rawEvent, replayCaption, selection, short,
-  showAll, shown, shownLayer, shownLevel, theme, touring, view, visible,
+  activeMode, bundle, cuts, describe, drawnLayers, event, focus, focusHidden, focusHistory, focusIsTruth, focusLayers, focusLevel, focusLinked, following,
+  highlight, hover, inDomain, inFocus, isHitLayer, kindOf, labelOf, layerKey, layerOf, legends, levels, levelTop, pairView, rawEvent, replayCaption, selection, short,
+  showAll, shown, shownLayer, shownLevel, theme, touring, view,
 } from "../model/store";
 import { PAIR } from "../model/pair";
 import type { Ref } from "../model/relations";
@@ -89,8 +89,8 @@ export function Viewport() {
     // The layers to draw: the visible ones but the levels a focus hides, the hidden ones it shows, and in a replay
     // every visible layer and reconstruction stage.
     const wanted = (header: Header, ev: EventData) => {
-      const vis = visible.peek(), forced = focusLayers.peek(), hidden = focusHidden.peek(), all = replaying.peek();
-      const draw = (k: string, d: DisplayLayer) => (vis[k] && (all || !hidden.has(k))) || forced.has(k) || (all && d.stage !== undefined);
+      const vis = drawnLayers.peek(), forced = focusLayers.peek(), hidden = focusHidden.peek(), all = replaying.peek();
+      const draw = (k: string, d: DisplayLayer) => (vis[k] && (all || !hidden.has(k))) || forced.has(k) || (all && d.stage !== undefined && inDomain(d));
       return header.display.filter((d) => draw(layerKey(d), d) && ev.tables[d.table]?.n);
     };
     // Builds the given layers, adding their legends to `drawn`; colour scales are shared with the layers in `pool`.
@@ -112,7 +112,7 @@ export function Viewport() {
     let lastPair = pairView.peek(); // the pair whose colours the layers have (recoloured when it changes)
     const stopLayers = effect(() => {
       const b = bundle.value, ev = event.value, pal = PALETTES[theme.value];
-      visible.value; colourBy.value; activeMode.value; filters.value; replaying.value; // any change rebuilds every layer
+      drawnLayers.value; colourBy.value; activeMode.value; filters.value; replaying.value; // any change rebuilds every layer
       if (!b || !ev) return;
       eng.setBackground(pal.background);
       eng.minRadius = b.header.view?.minRadius ?? MIN_RADIUS;

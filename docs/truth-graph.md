@@ -110,7 +110,7 @@ information. Priority is for the event display.
 | 22 | Truth MET | G | −ΣpT of visible signal generator particles as a graph product (neutrinos are in the graph, GEN-only status 1). Never GenMET | low |
 | 23 | e/γ association | A | `GsfElectron`/`Photon` traits (supercluster clusters + GSF track); a `reco::GsfTrack` trait reusing the track adapter (GsfTrack derives from reco::Track; `electronGsfTracks` is in step3); SuperCluster/CaloCluster not covered (gap 1) | low |
 | 24 | τ association | A | `reco::PFTau` trait over signal constituents; target TauVisibleHadronic (bit 11, exists; 0.2 per 0PU event) | low |
-| 25 | HF rechit energy without simulated energy at 0PU | open (not yet a gap) | 20–50% of HF rechit energy above 0.5 GeV in 0PU events has no simulated hit in its cell, although the index holds all g4SimHits HF energy (**M**, `hfcheck.py`): digitisation or noise. Shown as "no truth"; check with an HF expert before calling it noise in the UI | — |
+| 25 | HF rechit energy without simulated energy at 0PU; ECAL barrel rechits between 0.5 and 1 GeV without simulated energy | open (not yet a gap) | 20–50% of HF rechit energy above 0.5 GeV in 0PU events has no simulated hit in its cell, although the index holds all g4SimHits HF energy (**M**, `hfcheck.py`): digitisation or noise. Shown as "no truth"; check with an HF expert before calling it noise in the UI ECAL barrel at 0PU: half of the rechits above 0.5 GeV have no simulated energy (0.5–1.1 GeV, median 0.55, times −34 to +16 ns), every one above 1 GeV has; only 52% of the ECAL PF clusters above 0.5 GeV have a truth match, 98% above 1 GeV. Likely noise, to confirm with ECAL experts; the `calo` and `pf` profiles cut EB hits and PF clusters at 1 GeV by default. | — |
 
 ### 1. Layer clusters
 

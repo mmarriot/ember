@@ -385,7 +385,7 @@ def test_calo_layers_in_cms():
     assert [x["name"] for x in conv.header([], "t")["domains"]] == ["Calo"]
     assert {r["name"]: r["fact"]["in"] for r in p["relations"] if "fact" in r} == {
         "truthHitsHGCal": "HGCal", "truthHitsSoAEE": "HGCal", "truthHitsSoAHSi": "HGCal", "truthHitsSoAHSci": "HGCal",
-        "truthHitsEcal": "ECAL", "truthHitsHBHE": "HCAL", "truthHitsHO": "HCAL", "truthHitsHF": "HF", "truthHitsMuon": "Muon"}
+        "truthHitsEcal": "ECAL", "truthHitsHBHE": "HCAL", "truthHitsHO": "HO", "truthHitsHF": "HF", "truthHitsMuon": "Muon"}
     assert p["kinds"]["layerCluster"]["truthGap"]["derived"] == "content"
 
 
@@ -413,6 +413,7 @@ def test_physics_and_pf_in_cms():
     assert not d["PFCandidates"]["visible"] and d["PFCandidates"]["filter"] == "puppiWeight > 0"
     assert d["Vertices"]["domain"] == "Physics" and d["PFClustersECAL"]["domain"] == "Calo"
     assert d["Jets"]["truthGap"]["gap"] == 21 and d["PFCandidates"]["truthGap"]["gap"] == 20
+    assert "truthGap" not in d["PFClustersECAL"] and d["PFClustersECAL"]["cut"]["default"] == 1.0  # its truth comes from CMSSW
     header = conv.header([], "t")
     assert "jetVertex" not in header["relations"] and header["relations"]["jetConstituents"]["to"] == "PFCandidates"
     assert [x["name"] for x in header["domains"]] == ["Physics", "Calo"]

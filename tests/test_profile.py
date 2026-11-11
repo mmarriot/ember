@@ -287,6 +287,17 @@ def test_new_layer_hints_name_existing_columns():
     assert converter({"H": {**XYZE, "dEta": F4}}, {"display": [tower]}).display[0]["cell"]["shape"] == "tower"
 
 
+def test_relation_not_written_still_gathers():
+    """`"written": false`: a relation used only to gather columns (jets take the position of the vertex they are
+    drawn from) is built but not written to the header or the records."""
+    rel = {"name": "jetVertex", "kind": "index", "from": "J", "to": "V", "index": "J.v", "written": False}
+    profile = {"relations": [rel], "derive": [{"table": "J", "gather": [{"relation": "jetVertex", "columns": {"x": "x"}}]}]}
+    conv = converter({"J": {"v": I4}, "V": {"x": F4}}, profile)
+    assert "jetVertex" not in conv.header([], "t")["relations"]
+    _, tables, rels = one_event(conv, {"J": {"v": [0, 0]}, "V": {"x": [3]}})
+    assert tables["J"][1]["x"].tolist() == [3, 3] and "jetVertex" not in rels
+
+
 def test_fact_hint_is_passed_to_the_header():
     """`fact` marks a truth -> hit relation as simulated energy per particle and cell (a fact, not a match)."""
     rel = {"name": "truthHits", "kind": "index", "from": "P", "to": "H", "index": "H.p", "association": True,

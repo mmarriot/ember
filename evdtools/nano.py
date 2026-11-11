@@ -447,13 +447,19 @@ class Converter:
             raise ValueError(f"display {table}: no column {', '.join(missing)}; "
                              f"it has: {', '.join(self.tables[table]['columns'])}")
 
+    def _writes(self, name):
+        """A relation is written unless one of its tables is internal or the profile says `"written": false` (a
+        relation needed only to gather columns or to cut, e.g. jets -> the primary vertex they are drawn from)."""
+        rel = self.relations[name]
+        return rel.get("written", True) and not {rel["from"], rel["to"]} & self.internal
+
     def written(self):
         """Tables written to the bundle: all but the internal ones (read only to build relations or cuts)."""
         return {t: m for t, m in self.tables.items() if t not in self.internal}
 
     def header(self, files, profile_name):
         written = self.written()
-        relations = {n: r for n, r in self.relations.items() if r["from"] in written and r["to"] in written}
+        relations = {n: r for n, r in self.relations.items() if self._writes(n) and r["from"] in written and r["to"] in written}
         return {
             "schema": "evd/1",
             "source": {"files": [os.path.basename(f) for f in files], "converter": f"evdtools {__version__}",
@@ -602,7 +608,7 @@ class Converter:
         self._renumber_index_columns(tables, masks)
         ends = {name: (rel["from"], rel["to"]) for name, rel in self.relations.items()}
         relations = {name: cut_relation(rel, masks.get(ends[name][0]), masks.get(ends[name][1]))
-                     for name, rel in relations.items() if not set(ends[name]) & self.internal}
+                     for name, rel in relations.items() if self._writes(name)}
         return event_id, self._cut_tables(tables, masks, skip=self.run_scope), relations
 
 

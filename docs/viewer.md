@@ -50,7 +50,8 @@ Preset buttons when the bundle has more than one preset; then tabs; then the col
 A bundle with reconstruction stages colours its candidates by particle type, and everything they are made of in the
 same colour: interpretations and tracks (their candidate), tracksters and linked tracksters (the candidate holding most
 of their layer clusters), layer clusters, and hits (their layer cluster's candidate). Objects in no candidate are
-small and grey. How each layer reaches a candidate or a truth particle is worked out from the bundle's relations
+small and grey; a layer that cannot reach a candidate (e.g. the vertices) is drawn by its colour column, or keeps its
+own categorical colours if it has none. How each layer reaches a candidate or a truth particle is worked out from the bundle's relations
 (`viewer/src/model/modes.ts`), so this needs no profile settings. The colour key at the bottom of the side panel names
 the particle types. A bundle without candidates shows each layer's own colouring from the profile (energies, particle
 types), with its scale under the layer's row; so does a domain with `colourMode` `"layers"` (e.g. the Tracker, its tracks

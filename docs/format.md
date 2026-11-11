@@ -89,7 +89,7 @@ tracks).
 | `alternative` | a less preferred reconstruction path of a kind that is shown (e.g. legacy next to SoA): starts hidden and folded away |
 | `stage` | reconstruction step (0, 1, ...): the replay grows each stage in turn and ends on the last |
 | `cut` | `{"group", "column", "unit", "default"}`: a minimum on `column`, one slider per `group` shared by all layers of the group (so SoA and legacy rechits get the same energy cut) |
-| `filter` | expression used as the layer's table filter until the user changes it, e.g. `isSignal`; presets reset to it |
+| `filter` | expression used as the layer's table filter until the user changes it, e.g. `isSignal`; presets reset to it. The objects of a selection (what it is made of and linked to) are drawn even if the filter leaves them out, e.g. a candidate's track from another vertex; cuts still apply |
 | `context`, `dim` | a background layer (e.g. every readout channel): never framed or replayed, drawn thin and without depth so it never hides the event, picked (over a smaller radius) only when nothing else is under the cursor; any `repr`. `dim` (0..1) mixes its colours towards the background |
 | `shape` | `ellipsoids` surface, so kinds of shower object look different: `solid` (default, translucent), `shell` (outline), `cage` (rings around the principal axes), `core` (compact, opaque) |
 | `truth` | simulation truth: labelled as such, `segments` drawn dashed; the side panel's Tree tab becomes Truth |
@@ -117,14 +117,15 @@ All optional; the converter copies them from the profile.
   `{"Tracks": "rel:trackVertex"}`: each track in its vertex's colour). Applying one first resets every table any preset touches to its
   default colour and `filter` hint. The first preset is active on opening, unless the viewer remembers another one
   chosen for the same profile.
-- `domains`: `[{"name", "region": {"rMin", "rMax", "zMin", "zMax"}, "view", "colourMode"}]`: the parts of the detector, in order (cm; z
-  is |z|, so a region covers both ends; `rMin`, `zMin` optional). With two or more, the viewer offers All · <name> ·
-  <name>: a domain's view draws its layers (display hint `domain`) and those without a domain, frames the cylinder
-  `rMax`, `zMax`, and switches to `view` (`3d`, `front`, `side`, `rz`). A layer of another domain is still drawn when
-  a selection has objects in it (e.g. a track's calorimeter candidate). `colourMode` `"layers"`: while the domain is
-  looked at, each layer shows its own colours (`colour`, `colourBy`), as in a bundle without candidates, instead of
-  its candidate's particle type and the truth ↔ reco pair (e.g. the tracker's tracks by pT); All goes back to the
-  bundle's colours.
+- `domains`: `[{"name", "region": {"rMax", "zMax"}, "view", "colourMode"}]`: the parts of the detector, in order (cm; z
+  is |z|, so a region covers both ends). With two or more, the viewer offers All · <name> · <name>: a domain's view
+  draws its layers (display hint `domain`) and those without a domain, frames the cylinder `rMax`, `zMax` (in the
+  front and side views, its section through the beam line, which then fills the view), and switches to `view` (`3d`,
+  `front`, `side`, `rz`). A layer of another domain is still drawn when a selection has objects in it (e.g. a track's
+  calorimeter candidate). `colourMode`, a colour mode id of the viewer: `"layers"`: while the domain is looked at,
+  each layer shows its own colours (`colour`, `colourBy`), as in a bundle without candidates, instead of its
+  candidate's particle type and the truth ↔ reco pair (e.g. the tracker's tracks by pT); `"pid"` (the default with
+  candidates): particle types. All goes back to the bundle's colours.
 - `field`: `{"bz", "rMax", "zMax"}`: a uniform solenoid field along z (T), inside the cylinder r < `rMax`, |z| < `zMax`
   (cm), none outside; used by `helix` layers.
 - `runTitle`: a template naming a run from its `info`, e.g. `"{Beam} {Energy} GeV · {Type}"`; parts separated by

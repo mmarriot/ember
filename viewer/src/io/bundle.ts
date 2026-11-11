@@ -92,9 +92,10 @@ export interface Header {
   field?: { bz: number; rMax: number; zMax: number };
 }
 export interface Domain {
-  name: string; region: { rMin?: number; rMax: number; zMin?: number; zMax: number }; view?: "3d" | "front" | "side" | "rz";
-  /** "layers": while this domain is looked at, each layer takes its own colours, also in a bundle with candidates. */
-  colourMode?: "layers";
+  name: string; region: { rMax: number; zMax: number }; view?: "3d" | "front" | "side" | "rz";
+  /** A colour mode id: "layers": while this domain is looked at, each layer takes its own colours, also in a bundle
+   *  with candidates; "pid" (the default with candidates): particle types. */
+  colourMode?: "pid" | "layers";
 }
 /** The unit in a column's documentation, written as "[GeV]". */
 export const unitOf = (doc = "") => doc.match(/\[([^\]]+)\]/)?.[1] ?? "";

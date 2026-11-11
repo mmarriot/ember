@@ -17,8 +17,9 @@ export function back() {
   engine?.frame(highlight.peek() ?? undefined, true, 800);
 }
 
-/** Look at one domain (header `domains`): only its layers and those without a domain are drawn, in its view, framed
- *  on its region; null: everything, in the bundle's starting view, framed on the objects. `animate`: glide there. */
+/** Look at one domain (header `domains`): only its layers and those without a domain are drawn, in its view and colour
+ *  mode (store.ts activeMode), framed on its region; null: everything, in the bundle's starting view and colour mode,
+ *  framed on the objects. `animate`: glide there. */
 export function chooseDomain(name: string | null, animate = true) {
   const h = bundle.peek()?.header, d = h?.domains?.find((x) => x.name === name);
   if (!h || (name && !d)) return;

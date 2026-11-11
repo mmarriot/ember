@@ -38,4 +38,12 @@ describe("colour modes", () => {
       Hit: { relation: "lcHits" }, T: { content: "Cand" }, P: { relation: "truthCand" }, V: { relation: "decay" }, // T: by vote
     });
   });
+  it("does not colour a container outside the reconstruction chain (a vertex) by what its parts belong to", () => {
+    const h = { ...header, relations: { ...header.relations, vtxTracks: rel("Vtx", "Track"), trackVtx: rel("Track", "Vtx"), trackHits: rel("Track", "THit") },
+      display: [...header.display, { table: "Vtx", repr: "markers" }, { table: "THit", repr: "markers" }] } as unknown as Header;
+    const reco = modeColouring(h, "Cand");
+    expect(reco.Vtx).toBeUndefined();
+    expect(reco.THit).toEqual({ relation: "trackHits" }); // a track's hits take its candidate's colour
+    expect(modeColouring(h, "P").Vtx).toBeUndefined();
+  });
 });

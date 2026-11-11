@@ -52,6 +52,18 @@ describe("related", () => {
     const lh = { relations: { ...header.relations, linkLCs: { from: "Link", to: "LC", weights: [] } } } as unknown as Header;
     expect(rows(levelsOf(lev, lh, { table: "T", row: 1 }))).toEqual({ T: [1], LC: [0, 2], Hit: [0, 1, 3], Link: [0] });
   });
+  it("follows a pointer back to a container once, not into the container's other parts", () => {
+    // vertex 0 -> tracks 0, 1 (with hits 0 and 1); each track -> its vertex
+    const vev = { id: [1, 1, 1], tables: {}, relations: { vtxTracks: csr([[0, 1]]), trackVtx: csr([[0], [0]]), trackHits: csr([[0], [1]]) } } as unknown as EventData;
+    const vh = { relations: { vtxTracks: { from: "Vtx", to: "Trk", weights: [] }, trackVtx: { from: "Trk", to: "Vtx", weights: [] },
+      trackHits: { from: "Trk", to: "Hit", weights: [] } } } as unknown as Header;
+    const track = relatedParts(vev, vh, { table: "Trk", row: 1 });
+    expect(rows(track.madeOf)).toEqual({ Trk: [1], Hit: [1] });
+    expect(rows(track.partOf)).toEqual({ Vtx: [0] });
+    expect(rows(track.linked)).toEqual({ Vtx: [0] }); // highlighted with it
+    expect(rows(levelsOf(vev, vh, { table: "Trk", row: 1 }))).toEqual({ Trk: [1], Hit: [1], Vtx: [0] });
+    expect(rows(relatedParts(vev, vh, { table: "Vtx", row: 0 }).madeOf)).toEqual({ Vtx: [0], Trk: [0, 1], Hit: [0, 1] });
+  });
   it("finds what a track belongs to", () => {
     expect(rows(related(ev, header, { table: "Track", row: 1 }))).toEqual({ Track: [1], Cand: [0] });
   });

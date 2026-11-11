@@ -29,7 +29,8 @@ export function Inspector() {
   );
   const parts = relatives.value;
   const without = (r: Related | undefined) => [...(r ?? [])].map(([t, set]) => [t, t === sel.table ? new Set([...set].filter((x) => x !== sel.row)) : set] as const).filter(([, set]) => set.size);
-  const linked = without(parts?.linked);
+  // Linked, but not what contains it (e.g. a track's vertex: highlighted with it, listed under "Part of").
+  const linked = without(parts?.linked).map(([t, set]) => [t, new Set([...set].filter((r) => !parts?.partOf.get(t)?.has(r)))] as const).filter(([, set]) => set.size);
   const sections: [string, string, (readonly [string, Set<number>])[]][] = [
     ["Made of", "what it is built from; highlighted in the view", without(parts?.madeOf)],
     ["Part of", "the objects that contain it (not highlighted, so they do not cover it)", without(parts?.partOf)],

@@ -170,6 +170,8 @@ export const highlight = computed(() => {
       for (let i = 0; i < cls.length; i++) if (cls[i] !== PAIR.other && cls[i] !== skip) rows.add(i);
       if (rows.size) hl.set(t, rows);
     }
+    // ... and the reco objects linked to the focus (e.g. a track's vertex), which the pair may not classify.
+    for (const [t, rows] of parts?.linked ?? []) if (!layerOf(t)?.truth) hl.set(t, new Set([...(hl.get(t) ?? []), ...rows]));
     return hl;
   }
   return b && ev && f && parts ? levelsOf(ev, b.header, f, parts) : null;

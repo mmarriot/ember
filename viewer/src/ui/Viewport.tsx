@@ -4,6 +4,7 @@
 // freeing the layers its levels show or hide).
 // Hover shows a tooltip, click selects, double-click zooms to the selection.
 import { effect, signal } from "@preact/signals";
+import { Color, LinearSRGBColorSpace } from "three";
 import { useEffect, useRef } from "preact/hooks";
 import { type DisplayLayer, type EventData, type Header, type Table, unitOf } from "../io/bundle";
 import { colourBy, filterMask, filters } from "../model/custom";
@@ -157,6 +158,7 @@ export function Viewport() {
       builtWith = settings();
       if (!b || !ev) return;
       eng.setBackground(pal.background);
+      eng.setOutlines(b.header.outlines ?? [], new Color().setStyle(pal.unassigned, LinearSRGBColorSpace), new Color().setHex(pal.background, LinearSRGBColorSpace));
       const drawn: Record<string, Legend> = {};
       entries = build(wanted(b.header, ev), b.header, ev, drawn);
       builtFor = ev;
@@ -189,7 +191,7 @@ export function Viewport() {
       for (const { layer } of fresh) {
         eng.addLayer(layer);
         layer.setHighlight(hl ? hl.get(layer.table) ?? new Set() : null);
-        layer.setOutline?.(outline, isEnvelope(layer));
+        layer.setOutline?.(outline || sharedOutline(layer), isEnvelope(layer));
         layer.setHighlightMix(1);
       }
       entries = [...entries, ...fresh];
@@ -223,9 +225,9 @@ export function Viewport() {
     });
     // A level shown inside the focus turns the focus into an outline around it (see isEnvelope).
     const stopEnvelope = effect(() => {
-      shownLevel.value;
+      shownLevel.value; domain.value;
       const outline = truthOutline();
-      for (const { layer } of entries) layer.setOutline?.(outline, isEnvelope(layer));
+      for (const { layer } of entries) layer.setOutline?.(outline || sharedOutline(layer), isEnvelope(layer));
       eng.requestRender();
     });
     const stopView = effect(() => eng.setView(view.value, highlight.peek() ?? undefined));
@@ -447,6 +449,13 @@ const hexRgb = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2
  *  from either side. */
 const truthOutline = () => focusIsTruth.peek() && !pairView.peek();
 
+/** A layer of a shared domain (header `domains[i].shared`, e.g. physics objects) seen from another domain's view (a
+ *  detector's) is drawn as an outline (cones: their rim), so it does not cover that detector's objects. */
+const sharedOutline = (layer: Layer) => {
+  const d = layerOf(layer.table), current = domain.peek(), domains = bundle.peek()?.header.domains;
+  return !!d?.domain && !!current && d.domain !== current && !!domains?.find((x) => x.name === d.domain && x.shared);
+};
+
 /** While a level is shown inside the focus (e.g. a candidate's tracksters), the focus's layer draws it as a
  *  full-size outline around them: the largest object, without covering what is inside. */
 const isEnvelope = (layer: Layer) => !!shownLevel.peek() && layer.table === levelTop.peek()?.table;
@@ -457,7 +466,7 @@ function showFocus(ms: number) {
   const hl = highlight.peek(), outline = truthOutline();
   for (const { layer } of entries) {
     layer.setHighlight(hl ? hl.get(layer.table) ?? new Set() : null);
-    layer.setOutline?.(outline, isEnvelope(layer));
+    layer.setOutline?.(outline || sharedOutline(layer), isEnvelope(layer));
   }
   if (ms > 0) engine?.fadeHighlight(ms);
   else for (const { layer } of entries) layer.setHighlightMix(1);

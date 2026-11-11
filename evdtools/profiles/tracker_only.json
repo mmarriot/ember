@@ -1,0 +1,8 @@
+{
+  "name": "tracker_only",
+  "note": "The tracker part of cms.json alone: tracks, primary vertices, hits on tracks and the beam spot (tracker.json), with the truth graph's particles and vertices and the track <-> truth associations (in-time pile-up only, as in cms.json). Everything else is excluded, so it is not read. Truth is kept because the track <-> truth match is what tells a good track from a fake one in simulation; it is most of the bundle (ttbar 0PU, mean gzip record: 305 KB per event with it, 47 KB without; cms: 1541 KB). A file without the truth preset gives the bundle without truth, as entries for absent tables are dropped. GeneralTrack is read only to redirect the truth associations to Tracks (sameRows in cms.json). Opens in the front view, the tracker's.",
+  "include": ["cms"],
+  "exclude": ["HGCal*", "TICL*", "ticl*", "EcalHits", "HBHEHits", "HFHits", "HOHits", "PFCandidates", "GSFTrack",
+              "TrackMuonInfo", "TruthHGCalHits", "TruthSoAHits*"],
+  "view": {"start": "front"}
+}

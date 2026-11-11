@@ -302,3 +302,23 @@ def test_cms_profile_joins_hgcal_and_tracker():
     assert tables["Tracks"][1]["hgcal_z"].tolist() == [-999, 322] and tables["TICLCandidates"][1]["x"].tolist() == [5]
     assert rels["candidateTrack"]["indices"].tolist() == [1] and rels["trackHits"]["offsets"].tolist() == [0, 2, 3]
     assert rels["trackVertex"]["indices"].tolist() == [0] and rels["vertexTracks"]["indices"].tolist() == [0]
+
+
+def test_tracker_profile_alone_and_tracker_only():
+    """tracker.json alone has the field and the Tracker domain (cms.json has them once, through it), with trackVertex
+    declared the inverse of vertexTracks; tracker_only.json (cms without the calorimeters) reads only the tracker
+    tables (and truth, absent here), and its header keeps the Tracker domain alone."""
+    t = load_profile("tracker")
+    assert t["field"] == load_profile("cms")["field"] and t["domains"] == [load_profile("cms")["domains"][0]]
+    assert t["domains"][0]["colourMode"] == "layer"
+    types = {"Tracks": dict.fromkeys(("vx", "vy", "vz", "px", "py", "pz", "outerX", "outerY", "outerZ", "pt", "eta"), F4)
+             | {"charge": np.dtype("i2"), "highPurity": np.dtype("u1"), "vertexIdx": I4},
+             "TrackHits": {**XYZE, "trackIdx": I4, "subdet": np.dtype("u1")},
+             "Vertices": {**XYZE, "sumPt2": F4}, "VertexTracks": {"vertexIdx": I4, "trackIdx": I4, "weight": F4},
+             "TICLCandidates": {"trackIdx": I4, "time": F4, "energy": F4}, "HGCalHits": XYZE}
+    conv = converter(types, load_profile("tracker_only"))
+    assert set(conv.written()) == {"Tracks", "TrackHits", "Vertices"}
+    header = conv.header([], "t")
+    assert [d["name"] for d in header["domains"]] == ["Tracker"] and header["field"]["bz"] == 3.8
+    assert header["relations"]["trackVertex"]["inverseOf"] == "vertexTracks"
+    assert header["view"]["start"] == "front" and {d["table"]: d["repr"] for d in header["display"]}["Tracks"] == "helix"

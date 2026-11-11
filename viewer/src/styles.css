@@ -93,6 +93,7 @@ code { font: 11.5px ui-monospace, SFMono-Regular, Menlo, monospace; }
 .layer.off .row .name { color: var(--muted); }
 .tag { font-size: 10px; color: var(--muted); border: 1px solid var(--line-strong); border-radius: 4px; padding: 0 4px; margin-left: 6px; }
 .legend { margin: 3px 0 0 24px; font-size: 11px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; }
+.legend:empty { display: none; }
 .colourby { font-size: 11px; padding: 1px 4px; max-width: 130px; }
 .ramp { width: 56px; height: 8px; border-radius: 2px; flex: none; border: 1px solid rgba(0,0,0,.06); }
 .dots { display: flex; gap: 2px; } .dots i { width: 8px; height: 8px; border-radius: 50%; display: block; }

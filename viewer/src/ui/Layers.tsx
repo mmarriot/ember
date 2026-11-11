@@ -243,6 +243,7 @@ function Scale({ d, legend, full = false }: { d: DisplayLayer; legend: Legend; f
   const pal = PALETTES[theme.value], shownD = shownLayer(d, activeMode.value, colourBy.value);
   // Identity colours (directly, or taken along a chain in the colour mode) show the identity palette.
   const identity = shownD.colourBy === "identity" || (typeof shownD.colourBy === "object" && shownD.colourBy !== d.colourBy);
+  if (shownD.fixedColour && (shownD.colourBy === undefined || shownD.colourBy === "none")) return null; // its kind's colour: nothing to explain
   if (shownD.colourBy === "none") return <><span class="dots"><i style={{ background: pal.other }} /></span>{legend.kind === "category" ? legend.text : ""}</>;
   if (legend.kind === "category" && legend.items && !legend.items.some((it) => it.ref))
     return <span class="items">{legend.items.map((it) => <span><i style={{ background: it.colour }} />{it.label}</span>)}</span>;

@@ -376,7 +376,7 @@ function colourEntries(items: Item[], ev: EventData, header: Header, c: Record<s
 function pairColours(cls: Uint8Array, classRgb: number[][]) {
   const rgb = new Float32Array(3 * cls.length), emphasis = new Uint8Array(cls.length);
   for (let i = 0; i < cls.length; i++) { rgb.set(classRgb[cls[i]], 3 * i); emphasis[i] = cls[i] === PAIR.other ? 0 : 1; }
-  return { rgb, emphasis, legend: { kind: "category" as const, text: "truth ↔ reco pair: see the key at the top" } };
+  return { rgb, emphasis, legend: { kind: "category" as const, text: "truth ↔ reco pair (colour key)" } };
 }
 const hexRgb = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
 

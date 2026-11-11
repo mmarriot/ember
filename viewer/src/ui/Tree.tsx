@@ -1,12 +1,13 @@
-// Tree tab: objects linked to objects of the same table (e.g. truth-graph particles -> their children), as a
-// collapsible tree, after a table of what became of each of them. Clicking an object focuses on it; selecting one
-// elsewhere opens the tree down to it.
+// Truth tab: the truth collections, what became of each object that left hits (e.g. each truth-graph particle), and
+// objects linked to objects of the same table (e.g. particles -> their children) as a collapsible tree. Clicking an
+// object focuses on it; selecting one elsewhere opens the tree down to it. Named "Tree" for a tree without truth.
 import { useEffect, useMemo, useState } from "preact/hooks";
 import type { Relation, Table } from "../io/bundle";
 import { PALETTES } from "../render/colour";
 import { filterMask, filters } from "../model/custom";
 import { bundle, describe, event, isHitLayer, labelOf, layerOf, selection, short, sizeColumn, theme } from "../model/store";
 import { bestPartners } from "../model/relations";
+import { Collections } from "./Layers";
 import { jump } from "./navigate";
 
 const go = (table: string, row: number) => jump({ table, row });
@@ -25,10 +26,16 @@ export function treeRelations(): [string, string][] {
   return Object.entries(b.header.relations).filter(([n, r]) => r.from === r.to && ev.relations[n]).map(([n, r]) => [n, r.from]);
 }
 
-export function Tree() {
-  const trees = treeRelations();
-  if (!trees.length) return <p class="hint">No tree in this data set.</p>;
-  return <div>{trees.map(([, table]) => <Outcome table={table} />)}{trees.map(([name, table]) => <OneTree name={name} table={table} />)}</div>;
+/** Called as a function by the tabs: no hooks here. */
+export function Truth() {
+  const trees = treeRelations(), truth = bundle.value?.header.display.filter((d) => d.truth) ?? [];
+  return (
+    <div>
+      {truth.length > 0 && <Collections layers={truth} />}
+      {trees.map(([, table]) => <Outcome table={table} />)}
+      {trees.map(([name, table]) => <OneTree name={name} table={table} />)}
+    </div>
+  );
 }
 
 /** What became of each object of `table` that left hits (associations to a layer drawn as cells; e.g. each simulated
@@ -46,28 +53,29 @@ function Outcome({ table }: { table: string }) {
   const withHits = largestFirst(table, t)([...Array(t.n).keys()].filter((r) => (!keep || keep[r]) && hitRels.some(([n]) => { const o = ev.relations[n].offsets; return o[r + 1] > o[r]; })));
   const [relName, info] = toFinal, rel = ev.relations[relName], w = info.best ? rel.weights[info.best.weight] : undefined;
   const best = bestPartners(rel, info, true, t.n).entry;
-  const missed = withHits.filter((r) => best[r] < 0).length;
+  const matched = withHits.filter((r) => best[r] >= 0), missed = withHits.filter((r) => best[r] < 0);
+  const chip = (tab: string, r: number) => (
+    <button class={sel?.table === tab && sel.row === r ? "chip selected" : "chip"} onClick={() => go(tab, r)}>{describe(tab, r) || `#${r}`}</button>
+  );
   return (
-    <div class="card outcome">
+    <section class="outcome">
       <h3>What became of each {layerOf(table)?.truth ? "particle" : "object"}</h3>
-      <p class="hint">{withHits.length} left hits{keep ? ` (filter: ${filters.value[table]})` : ""}; {missed} not reconstructed as {final.group.toLowerCase()}.
-        Best match by {info.best?.weight ?? "order"}, from the associations in the file.</p>
+      <p class="hint">{withHits.length} left hits{keep ? ` (filter: ${filters.value[table]})` : ""}: {matched.length} reconstructed as {final.group.toLowerCase()},
+        best match by {info.best?.weight ?? "order"}{w ? " (right)" : ""}, from the associations in the file.</p>
       <table class="kv outcome"><tbody>
-        {withHits.slice(0, MAX).map((r) => {
+        {matched.slice(0, MAX).map((r) => {
           const k = best[r];
-          return (
-            <tr class={k < 0 ? "missed" : undefined}>
-              <td><button class={sel?.table === table && sel.row === r ? "chip selected" : "chip"} onClick={() => go(table, r)}>{describe(table, r) || `#${r}`}</button></td>
-              <td>{k < 0 ? <span class="muted">not reconstructed</span> : (
-                <><button class="chip" onClick={() => go(info.to, rel.indices[k])}>{describe(info.to, rel.indices[k]) || `#${rel.indices[k]}`}</button>
-                  {w && <span class="muted"> {info.best!.weight} {short(w[k])}</span>}</>
-              )}</td>
-            </tr>
-          );
+          return <tr><td>{chip(table, r)}</td><td>→ {chip(info.to, rel.indices[k])}</td><td title={info.best?.weight}>{w && short(w[k])}</td></tr>;
         })}
       </tbody></table>
-      {withHits.length > MAX && <p class="hint">… {withHits.length - MAX} more</p>}
-    </div>
+      {matched.length > MAX && <p class="hint">… {matched.length - MAX} more</p>}
+      {missed.length > 0 && (
+        <>
+          <p class="hint">Not reconstructed: {missed.length}</p>
+          <div class="missed">{missed.slice(0, MAX).map((r) => chip(table, r))}{missed.length > MAX && <span class="muted"> … {missed.length - MAX} more</span>}</div>
+        </>
+      )}
+    </section>
   );
 }
 
@@ -115,9 +123,8 @@ function OneTree({ name, table }: { name: string; table: string }) {
     );
   };
   return (
-    <div class="card tree">
-      <h3>{labelOf(table)}</h3>
-      <p class="hint">{roots.length} at the top{keep ? ` (filter: ${filters.value[table]})` : ""}; click one to select it, ▸ to see what it produced.</p>
+    <section class="tree">
+      <h3 title="Click one to select it, ▸ to see what it produced">{labelOf(table)} <span class="count">{roots.length} at the top{keep ? `, filter ${filters.value[table]}` : ""}</span></h3>
       <input class="expr" placeholder="Find, e.g. t, W⁺, b, e⁻ (start of the name)" value={query} spellcheck={false}
         onInput={(e) => setQuery((e.target as HTMLInputElement).value)} />
       {query.trim() && (
@@ -129,7 +136,7 @@ function OneTree({ name, table }: { name: string; table: string }) {
         </div>
       )}
       <List rows={roots} node={node} />
-    </div>
+    </section>
   );
 }
 

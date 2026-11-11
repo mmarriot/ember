@@ -28,7 +28,7 @@ export function focusLevels(display: DisplayLayer[], focus: string, hl: Related,
 }
 
 /** Which layers of the levels are drawn: those of the bottom level and of the `chosen` one (a level above the
- *  bottom, or null), each by its layers ticked in the Layers tab, or all of them if none is; the others are not. */
+ *  bottom, or null), each by its layers ticked in the side panel, or all of them if none is; the others are not. */
 export function levelLayers(levels: Level[], chosen: string | null, ticked: (d: DisplayLayer) => boolean) {
   const draw: DisplayLayer[] = [], hide: DisplayLayer[] = [];
   levels.forEach((l, i) => {

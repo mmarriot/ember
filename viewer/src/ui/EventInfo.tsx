@@ -1,52 +1,37 @@
-// Event tab: event identity, run information and summary charts (where the bundle has them), object counts per
-// displayed layer (grouped as in the Layers tab), every table, and provenance.
+// Event tab: event identity, run information and summary charts (where the bundle has them), and provenance with
+// every table of the event. (Each displayed collection's count is on its row in its own tab.)
 import type { Summary } from "../io/bundle";
 import { evaluate, filters } from "../model/custom";
 import { cutMin, cutValues } from "../model/cuts";
-import { bundle, cuts, event, eventIndex, layerName, layerOf, loadMs, short } from "../model/store";
+import { bundle, cuts, event, eventIndex, layerOf, loadMs, short } from "../model/store";
 
 export function EventInfo() {
   const b = bundle.value, ev = event.value, e = b?.events[eventIndex.value];
   if (!b || !ev || !e) return <p class="hint">No event loaded.</p>;
   const h = b.header, n = (table: string) => ev.tables[table]?.n ?? 0;
-  const groups = new Map<string, typeof h.display>();
-  for (const d of h.display) if (!groups.get(d.group)?.some((x) => x.table === d.table)) groups.set(d.group, [...(groups.get(d.group) ?? []), d]);
   const tables = Object.keys(ev.tables).filter(n).sort((a, c) => n(c) - n(a));
   return (
     <div>
-      <div class="card">
-        <h3>Event</h3>
-        <table class="kv stats"><tbody>
-          <tr><td>Run</td><td>{e.run}</td></tr><tr><td>Lumi section</td><td>{e.lumi}</td></tr><tr><td>Event</td><td>{e.event}</td></tr>
-          <tr><td>Position in file</td><td>{eventIndex.value + 1} of {b.events.length}</td></tr>
-          <tr><td>Loaded in</td><td>{loadMs.value.toFixed(0)} ms</td></tr>
-        </tbody></table>
-      </div>
+      <section>
+        <h3>Run {e.run} · Lumi section {e.lumi} · Event {e.event}</h3>
+        <p class="hint">{eventIndex.value + 1} of {b.events.length} in the file · loaded in {loadMs.value.toFixed(0)} ms</p>
+      </section>
       <RunInfo />
       {(h.summaries ?? []).map((s) => <Chart s={s} />)}
-      <div class="card">
-        <h3>Displayed collections</h3>
-        <table class="kv stats"><tbody>
-          {[...groups].map(([group, layers]) => [
-            <tr class="group"><td colSpan={2}>{group}</td></tr>,
-            ...layers.map((d) => <tr title={`${d.table}: ${h.tables[d.table]?.doc ?? ""}`}><td>{layerName(d)}</td><td>{n(d.table).toLocaleString()}</td></tr>),
-          ])}
-        </tbody></table>
-        <details>
-          <summary>All tables ({tables.length})</summary>
-          <table class="kv stats mono"><tbody>
-            {tables.map((name) => <tr title={h.tables[name]?.doc}><td>{name}</td><td>{n(name).toLocaleString()}</td></tr>)}
-          </tbody></table>
-        </details>
-      </div>
-      <div class="card">
+      <section>
         <h3>Source</h3>
         <table class="kv stats"><tbody>
           <tr><td>Profile</td><td>{h.profile}</td></tr>
           {h.source.created && <tr><td>Created</td><td>{h.source.created}</td></tr>}
         </tbody></table>
         {h.source.files.map((f) => <div class="path" title={f}>{f}</div>)}
-      </div>
+        <details>
+          <summary>Tables in this event ({tables.length})</summary>
+          <table class="kv stats mono"><tbody>
+            {tables.map((name) => <tr title={h.tables[name]?.doc}><td>{name}</td><td>{n(name).toLocaleString()}</td></tr>)}
+          </tbody></table>
+        </details>
+      </section>
     </div>
   );
 }
@@ -57,12 +42,12 @@ function RunInfo() {
   if (!Object.keys(info).length) return null;
   const title = b.runTitle(e.run);
   return (
-    <div class="card">
+    <section>
       <h3>Run {e.run} {title && <span class="count">{title}</span>}</h3>
       <table class="kv stats"><tbody>
         {(b.header.runFields ?? Object.keys(info)).filter((k) => k in info).map((k) => <tr title={`${k}: ${info[k]}`}><td>{k}</td><td>{String(info[k])}</td></tr>)}
       </tbody></table>
-    </div>
+    </section>
   );
 }
 
@@ -92,7 +77,7 @@ function Chart({ s }: { s: Summary }) {
   const all = hi - lo < 100 ? Array.from({ length: hi - lo + 1 }, (_, i) => lo + i) : keys;
   const top = Math.max(...totals.values(), 0) || 1, unit = s.unit ? ` ${s.unit}` : "";
   return (
-    <div class="card">
+    <section>
       <h3>{s.title} <span class="count">{short(sum)}{unit}</span></h3>
       <div class="bars" role="table" aria-label={s.title}>
         {all.map((k) => {
@@ -106,6 +91,6 @@ function Chart({ s }: { s: Summary }) {
           );
         })}
       </div>
-    </div>
+    </section>
   );
 }

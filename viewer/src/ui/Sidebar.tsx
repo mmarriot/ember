@@ -1,19 +1,32 @@
-// Left panel: one tab each for layers, cuts and filters, custom columns, the object tree (if the data has one) and
-// the event. Its width can be dragged.
+// Left panel: the profile's presets; a tab per part of the detector (layer `domain`) with its collections, the truth
+// (its collections, what became of each particle, the tree) and the event; the colour key under them. Its width can
+// be dragged.
+import type { ComponentChildren } from "preact";
+import { activePreset } from "../model/custom";
+import { applyPreset } from "../model/presets";
 import { bundle } from "../model/store";
-import { Columns } from "./Columns";
-import { Cuts } from "./Cuts";
 import { EventInfo } from "./EventInfo";
-import { Layers } from "./Layers";
-import { Tree, treeRelations } from "./Tree";
+import { ColourKey } from "./Key";
+import { Collections, tabOf } from "./Layers";
+import { Truth, treeRelations } from "./Tree";
 import { Tabs } from "./widgets";
 
 export function Sidebar() {
-  const tree: [string, typeof Tree][] = treeRelations().length ? [[bundle.value?.header.display.some((d) => d.truth) ? "Truth" : "Tree", Tree]] : [];
+  const b = bundle.value, display = b?.header.display ?? [], presets = b?.header.presets ?? [];
+  const reco = display.filter((d) => !d.truth), truth = display.some((d) => d.truth);
+  const tabs: [string, () => ComponentChildren][] = [...new Set(reco.map(tabOf))].map((name) => [name, () => <Collections layers={reco.filter((d) => tabOf(d) === name)} />]);
+  if (truth || treeRelations().length) tabs.push([truth ? "Truth" : "Tree", Truth]);
+  tabs.push(["Event", EventInfo]);
   return (
     <>
       <aside class="sidebar">
-        <Tabs tabs={[["Layers", Layers], ["Cuts", Cuts], ["Columns", Columns], ...tree, ["Event", EventInfo]]} />
+        {presets.length > 1 && (
+          <div class="segmented presets" role="group" aria-label="Preset">
+            {presets.map((p, i) => <button class={activePreset.value === i ? "on" : ""} onClick={() => applyPreset(i)}>{p.name}</button>)}
+          </div>
+        )}
+        <Tabs tabs={tabs} />
+        <ColourKey />
       </aside>
       <div class="resizer" title="Drag to resize, double-click to reset" onPointerDown={startResize} onDblClick={() => setWidth(DEFAULT_WIDTH)} />
     </>

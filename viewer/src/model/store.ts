@@ -4,7 +4,7 @@ import { Bundle, type DisplayLayer, type EventData, httpSource, kindName, type T
 import type { Legend, ThemeName } from "../render/colour";
 import type { Caption } from "../render/replay";
 import type { Hit, ViewName } from "../render/engine";
-import { colourBy, colourMode, type ColourMode, customColumns, loadCustom, withColour, withCustomColumns } from "./custom";
+import { colourBy, type ColourMode, customColumns, loadCustom, withColour, withCustomColumns } from "./custom";
 import { focusLevels, levelLayers, stepLevel } from "./levels";
 import { modeColouring, modeRoots } from "./modes";
 import { PAIR, type Pair, pairFor } from "./pair";
@@ -65,21 +65,17 @@ export const sizeColumn = (table: string, t: Table) => {
 };
 
 // Colour modes (model/modes.ts) and the truth <-> reco pair of the selection (model/pair.ts).
-/** The bundle's mode roots and how each reaches every table; "pid" (the default) needs a reconstruction root. */
+/** The bundle's mode roots and how each reaches every table. */
 export const modes = computed(() => {
   const h = bundle.value?.header, roots = h ? modeRoots(h) : {};
-  const available: ColourMode[] = roots.reco ? ["pid", "layers"] : ["layers"];
   const colouring = {
     reco: h && roots.reco ? modeColouring(h, roots.reco) : undefined,
     truth: h && roots.truth ? modeColouring(h, roots.truth) : undefined,
   };
-  return { available, roots, colouring };
+  return { roots, colouring };
 });
-/** The mode in use: the user's choice if this bundle offers it, else the bundle's default. */
-export const activeMode = computed<ColourMode>(() => {
-  const { available } = modes.value, m = colourMode.value;
-  return m && available.includes(m) ? m : available[0];
-});
+/** The colour mode: "pid" when the bundle has a reconstruction root (candidates), else "layers". */
+export const activeMode = computed<ColourMode>(() => (modes.value.roots.reco ? "pid" : "layers"));
 
 /** A layer's display hint as drawn. In the "pid" mode, the reconstruction root (candidates) keeps its own colouring
  *  (particle type) and every reco layer it reaches takes its candidate's colour; a categorical reco layer it cannot
@@ -90,15 +86,6 @@ export function shownLayer(d: DisplayLayer, mode = activeMode.peek(), by = colou
   const c = pid && d.table !== roots.reco ? colouring.reco?.[d.table] : undefined;
   const plain = pid && !c && d.table !== roots.reco && d.colourBy;
   return withColour(c ? { ...d, colourBy: c } : plain ? { ...d, colourBy: undefined } : d, by[layerKey(d)]);
-}
-
-/** Switch mode: the per-layer colour choices of the layers the "pid" mode colours are dropped; others (e.g. a
- *  preset's) stay. */
-export function setMode(m: ColourMode) {
-  const tables = new Set(Object.keys(modes.peek().colouring.reco ?? {})), by = { ...colourBy.peek() };
-  for (const d of bundle.peek()?.header.display ?? []) if (tables.has(d.table)) delete by[layerKey(d)];
-  colourBy.value = by;
-  colourMode.value = m;
 }
 
 /** In the "pid" mode with something selected: its truth <-> reco pair, which colours every layer (Viewport). */
@@ -234,7 +221,7 @@ export function stepFocusLevel(by: number) {
   return true;
 }
 
-// While a focus lasts, what is drawn differs from the Layers tab: the focus's layer, its stage (e.g. a candidate's
+// While a focus lasts, what is drawn differs from the ticks in the side panel: the focus's layer, its stage (e.g. a candidate's
 // track) and what is linked to it (its truth) are drawn even from hidden layers; of its levels, only the bottom one
 // and the chosen one are, even if others are ticked. The keys are joined into strings first, so the layers are only
 // rebuilt when these sets change, not on every focus.

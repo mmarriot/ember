@@ -28,29 +28,33 @@ The same list is in the viewer's help (`?`).
 
 ## Side panel
 
-- **Layers**: the colour mode and its key (below), preset buttons when the bundle has more than one preset, then
-  visibility, legend and colour choice per layer.
-- **Cuts**: a log-scale slider per `cut` group, ranging over the group's values in the shown event (the lowest
-  position is no cut), and per-table filters (expressions).
-- **Columns**: custom columns, e.g. `snr = energy / sigmaNoise`, computed in the browser for every event; usable for
-  colour and filters like stored columns.
-- **Tree** (named **Truth** when the bundle has truth layers): objects linked to objects of the same table, e.g.
-  truth-graph particles and their children, as a collapsible tree.
-- **Event**: run and event information, the bundle's `summaries` charts.
+Preset buttons when the bundle has more than one preset; then tabs; then the colour key.
 
-### Colour modes and the truth ↔ reco pair
+- **One tab per part of the detector** (display hint `domain`, e.g. **HGCal**; **Objects** for bundles made before
+  layers had one): its collections by kind of object. Each kind lists its `cut` slider (log scale over the group's
+  values in the shown event; the lowest position is no cut; it applies to every layer of the group, also those listed
+  elsewhere, which it names) and then one row per layer: visibility and count, the layer's filter, "only for the
+  selection" for `onSelection` layers, and its colour scale when the colour key does not already explain it. Other
+  reconstruction paths are folded at the end. **⋯** on a row: what colours the layer (any column, custom ones too,
+  or a related object), an expression to filter its table or to add as a custom column (e.g. `snr = energy /
+  sigmaNoise`, computed in the browser for every event and usable for colour and filters like stored columns), and the
+  table's custom columns.
+- **Truth** (named **Tree** for a tree without truth layers): the truth collections with their cut, what became of
+  each particle that left hits (its best candidate, or not reconstructed), and objects linked to objects of the same
+  table, e.g. truth-graph particles and their children, as a collapsible tree.
+- **Event**: run and event information, the bundle's `summaries` charts, and the source with every table of the event.
 
-"Colour by" at the top of the Layers tab colours every layer at once. How each layer reaches a candidate or a truth
-particle is worked out from the bundle's relations (`viewer/src/model/modes.ts`), so the modes need no profile
-settings; a bundle without reconstruction stages offers only "Per layer".
+### Colours and the truth ↔ reco pair
 
-- **Particle type** (default): candidates by particle type, and everything they are made of in the same colour:
-  interpretations and tracks (their candidate), tracksters and linked tracksters (the candidate holding most of their
-  layer clusters), layer clusters, and hits (their layer cluster's candidate). Objects in no candidate are small and
-  grey.
-- **Per layer**: each layer's own colouring from the profile (energies, particle types).
+A bundle with reconstruction stages colours its candidates by particle type, and everything they are made of in the
+same colour: interpretations and tracks (their candidate), tracksters and linked tracksters (the candidate holding most
+of their layer clusters), layer clusters, and hits (their layer cluster's candidate). Objects in no candidate are
+small and grey. How each layer reaches a candidate or a truth particle is worked out from the bundle's relations
+(`viewer/src/model/modes.ts`), so this needs no profile settings. The colour key at the bottom of the side panel names
+the particle types. A bundle without candidates shows each layer's own colouring from the profile (energies, particle
+types), with its scale under the layer's row.
 
-**The pair view.** In the Particle type mode, selecting anything shows its truth ↔ reco pair
+**The pair view.** With candidates, selecting anything shows its truth ↔ reco pair
 (`viewer/src/model/pair.ts`): first the selection's particle (a truth particle stands for its whole shower: its
 highest ancestor that owns hits or is matched; a reco object takes its best truth match; a hit, the particle that left
 the most simulated energy in it), then that particle's best candidate. So the particle, its candidate and anything
@@ -71,12 +75,11 @@ Everything else fades. A hit belongs to the particle that left the most simulate
 particle with the most simulated energy in its hits). Missed layer clusters stay in the background, as their hits
 show the same and a shower's many one-hit halo clusters would cover the used ones. The key gives the particle's
 simulated energy in its candidate, in other candidates and in none (efficiency), and the share of the candidate's hit
-energy from the particle (purity). Efficiency counts each hit once per shower and any share of it; the colours use
-each hit's dominant particle. Truth layers keep their own colours in the Particle type mode.
+energy from the particle (purity). The key stays in sight from every tab, e.g. while clicking particles in Truth. Efficiency counts each hit once per shower and any share of it; the colours use
+each hit's dominant particle. Truth layers keep their own colours.
 
-Colours are Okabe-Ito and Tol hues, checked for protan, deutan and tritan vision. Choosing a colour for one layer
-overrides the mode and the pair view for that layer; switching mode clears those choices. The replay keeps each
-stage's colours in the Per layer mode only.
+Colours are Okabe-Ito and Tol hues, checked for protan, deutan and tritan vision. Choosing a colour for one layer (its
+⋯) overrides the particle type and the pair view for that layer. The replay keeps each candidate's colour throughout.
 
 Expressions (filters, custom columns, summary `where`) admit column names, numbers, `pi`, `+ - * / % ^`, comparisons,
 `&& || !`, parentheses and a fixed list of Math functions. They are parsed, never evaluated as JavaScript

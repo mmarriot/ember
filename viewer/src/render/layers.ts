@@ -27,6 +27,7 @@ export interface Layer {
   readonly pickBias?: number;
   passes(i: number): boolean; // survives the current cut
   setCut(min: number): number; // returns the number of objects shown
+  setPinned(row: number): void; // an object drawn whatever the cut (the selected one); -1: none
   setColours(rgb: Float32Array): void;
   setHighlight(rows: Set<number> | null): void; // the new selection; setHighlightMix fades from the previous one
   setHighlightMix(k: number): void; // 0: as before the last setHighlight, 1: as after
@@ -43,7 +44,7 @@ export interface Layer {
 export interface LayerInput { key: string; d: DisplayLayer; t: Table; pal: Pal; rgb: Float32Array; emphasis?: Uint8Array; cut?: Float32Array; field?: Field }
 
 const GLSL = /* glsl */ `
-uniform float uProj, uAct0, uAct1, uMix, uCut, uClock, uFlash, uRetire;
+uniform float uProj, uAct0, uAct1, uMix, uCut, uClock, uFlash, uRetire, uPin0, uPin1;
 uniform vec3 uBg, uRim, uGrey, uFade;
 vec3 projectRZ(vec3 c, float depth) { return vec3(c.z, length(c.xy) * (c.y >= 0.0 ? 1.0 : -1.0), depth); }
 // A line keeps one side of the axis (the side of its end, \`side\`), so a line crossing y = 0 does not jump across it.
@@ -57,26 +58,30 @@ float pop(float t) { return exp(-max(uClock - t, 0.0) * 6.0); } // 1 when an obj
 float remaining() { return uClock > 1e29 ? 1.0 : clamp(1.0 - (uClock - uRetire) / 0.6, 0.0, 1.0); }
 // Replay: how far the layer has faded towards the background (uFade: from, to, amount; none outside a replay).
 float faded() { return uClock > 1e29 ? 0.0 : uFade.z * smoothstep(uFade.x, uFade.y, uClock); }`;
-const CULL = "if (icut < uCut || iT > uClock || remaining() <= 0.0) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }";
+// Instances (markers: vertices) uPin0 <= id < uPin1 are the pinned object's: drawn whatever the cut.
+const CULL = (id = "gl_InstanceID") => `float pinned = float(${id}) >= uPin0 && float(${id}) < uPin1 ? 1.0 : 0.0;
+  if ((icut < uCut && pinned < 0.5) || iT > uClock || remaining() <= 0.0) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }`;
 // Colours go to the shaders as raw sRGB values, like the per-object colours (no linear conversion).
 const raw = (c: number | string) => (typeof c === "number" ? new THREE.Color().setHex(c, THREE.LinearSRGBColorSpace) : new THREE.Color().setStyle(c, THREE.LinearSRGBColorSpace));
 const baseUniforms = (pal: Pal) => ({
-  uProj: { value: 0 }, uAct0: { value: 0 }, uAct1: { value: 0 }, uMix: { value: 1 }, uCut: { value: -1e30 }, uClock: { value: REPLAY_OFF }, uRetire: { value: REPLAY_OFF }, uFade: { value: new THREE.Vector3(0, 1, 0) }, uFlash: { value: pal.flash },
+  uProj: { value: 0 }, uPin0: { value: -1 }, uPin1: { value: -1 }, uAct0: { value: 0 }, uAct1: { value: 0 }, uMix: { value: 1 }, uCut: { value: -1e30 }, uClock: { value: REPLAY_OFF }, uRetire: { value: REPLAY_OFF }, uFade: { value: new THREE.Vector3(0, 1, 0) }, uFlash: { value: pal.flash },
   uBg: { value: raw(pal.background) }, uRim: { value: new THREE.Color(...pal.rim) }, uGrey: { value: raw(pal.unassigned) },
 });
 
-/** Cut bookkeeping shared by all layer kinds. */
+/** Cut bookkeeping shared by all layer kinds. A pinned object (the selected one) passes whatever the cut. */
 function cutter(n: number, values: Float32Array | undefined, onChange: (min: number) => void) {
-  let min = -Infinity;
+  let min = -Infinity, pinned = -1;
+  const passes = (i: number) => !values || i === pinned || values[i] >= min;
   return {
     values: values ?? new Float32Array(n),
-    passes: (i: number) => !values || values[i] >= min,
+    passes,
+    pin(row: number) { pinned = row; },
     setCut(m: number) {
       min = values ? m : -Infinity;
       onChange(min);
       if (!values) return n;
       let shown = 0;
-      for (let i = 0; i < n; i++) if (values[i] >= min) shown++;
+      for (let i = 0; i < n; i++) if (passes(i)) shown++;
       return shown;
     },
   };
@@ -132,6 +137,12 @@ function shaderLayer(input: LayerInput, g: THREE.BufferGeometry, material: THREE
     pick,
     passes: cut.passes,
     setCut: cut.setCut,
+    setPinned(row: number) { // its instances: from its slot, as long as they are its own
+      cut.pin(row);
+      let k = row < 0 ? -1 : slot ? slot[row] : row, end = k;
+      if (k >= 0) while (end < m && (rows ? rows[end] === row : end === row)) end++;
+      u.uPin0.value = k; u.uPin1.value = end;
+    },
     setColours(rgb: Float32Array) { (g.getAttribute("icol").array as Float32Array).set(pick(rgb, 3)); changed("icol"); },
     setHighlight(sel: Set<number> | null) {
       before.set(now);
@@ -177,7 +188,7 @@ export function cells(input: LayerInput): Layer {
       varying vec3 vCol;
       ${GLSL}
       void main() {
-        ${CULL}
+        ${CULL()}
         vec3 c = vec3(ix, iy, iz);
         float s = selected(ipsel, isel);
         if (uProj > 0.5) c = projectRZ(c, s * 2.0);
@@ -231,7 +242,7 @@ export function markers(input: LayerInput): Layer {
       varying float vRim;
       ${GLSL}
       void main() {
-        ${CULL}
+        ${CULL("gl_VertexID")}
         vec3 c = vec3(ix, iy, iz);
         if (uProj > 0.5) c = projectRZ(c, 4.0);
         gl_Position = projectionMatrix * modelViewMatrix * vec4(c, 1.0);
@@ -395,6 +406,7 @@ export function ellipsoids(input: LayerInput): Layer {
     ...identity(input, 14), object: group, x, y, z, segment: { a: pickA, b: pickB }, pickBias: shape === "core" ? 0.3 : 0.45,
     passes: (i) => cut.passes(i) && shown(highlighted, i) === 1, // showers hidden by a selection cannot be picked
     setCut: cut.setCut, setColours(c) { rgb = c; update(); },
+    setPinned(row) { cut.pin(row); update(); },
     setOutline(on, envelope = false) {
       material.uniforms.uStyle.value = on || envelope ? SHOWER_STYLES.shell : style;
       material.side = on || envelope ? THREE.DoubleSide : material.side;
@@ -435,7 +447,7 @@ export function segments(input: LayerInput): Layer {
       varying float vS; // distance along the line [cm], for dashes
       ${GLSL}
       void main() {
-        ${CULL}
+        ${CULL()}
         float grow = uClock > 1e29 ? 1.0 : clamp((uClock - iT) / 0.5, 0.0, 1.0);
         vec3 c = mix(vec3(ix, iy, iz), vec3(jx, jy, jz), position.x * grow);
         vS = position.x * grow * length(vec3(jx, jy, jz) - vec3(ix, iy, iz));
@@ -519,7 +531,7 @@ export function helices(input: LayerInput): Layer {
                              l * idir.z);
       }
       void main() {
-        ${CULL}
+        ${CULL()}
         float grow = uClock > 1e29 ? 1.0 : clamp((uClock - iT) / 0.5, 0.0, 1.0), len = grow * ipath.z;
         float l0 = len * ipiece / ipieces, l1 = len * (ipiece + 1.0) / ipieces;
         vec3 c = pathAt(position.x > 1.5 ? l1 : mix(l0, l1, position.x)), e = iend;

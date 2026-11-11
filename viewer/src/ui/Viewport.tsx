@@ -80,13 +80,35 @@ export function Viewport() {
       }
       eng.requestRender();
     };
-    // A slider sends many inputs per frame: the cut applies to each, the colour scales are redone once per frame.
+    // The layers whose rows depend on the focus: those that show only its objects (e.g. track hits), rebuilt on every
+    // focus (they are small) and, with `cutsOnly`, on a cut (they leave out the objects of what the cut hides); and
+    // the filtered layers whose rows hidden by the default filter but in the focus changed.
+    const rebuildForFocus = (cutsOnly: boolean) => {
+      const hl = highlight.peek(), f = filters.peek(), pal = PALETTES[theme.peek()], b = bundle.peek();
+      for (const e of entries) {
+        const only = onlyFor(e.d, e.key, hl), focusRows = bypassing(e.d, f, hl), again = rescued(e.keep, focusRows);
+        if (cutsOnly ? !only : !only && again === e.rescued) continue;
+        const cut = cutValues(e.d, e.t, f[e.d.table], only, focusRows);
+        const next = builders[e.d.repr]({ key: e.key, d: e.d, t: e.t, pal, rgb: e.rgb, emphasis: e.emphasis, cut, field: b?.header.field });
+        eng.replaceLayer(e.layer, next);
+        next.setHighlight(hl ? hl.get(next.table) ?? new Set() : null);
+        next.setHighlightMix(1);
+        e.layer = next;
+        e.cut = cut;
+        e.rescued = again;
+      }
+      pinSelection();
+    };
+    // A slider sends many inputs per frame: the cut applies to each, the colour scales and the focus's layers are
+    // redone once per frame.
     let recolourFrame = 0;
     const stopCuts = effect(() => {
       cuts.value;
       applyCuts(false);
-      recolourFrame ||= requestAnimationFrame(() => { recolourFrame = 0; applyCuts(true); });
+      recolourFrame ||= requestAnimationFrame(() => { recolourFrame = 0; if (highlight.peek()) rebuildForFocus(true); applyCuts(true); });
     });
+    // The selected object is drawn whatever the cut (e.g. a track below the pT cut, picked in the inspector).
+    const stopPin = effect(() => { selection.value; pinSelection(); applyCuts(false); });
 
     // The layers to draw: the visible ones but the levels a focus hides, the hidden ones it shows, and in a replay
     // every visible layer and reconstruction stage.
@@ -168,8 +190,8 @@ export function Viewport() {
     // candidate's track from another vertex); the other layers keep their buffers. Then every layer fades to the new
     // highlight.
     const stopFocus = effect(() => {
-      const hl = highlight.value, f = filters.peek(), pal = PALETTES[theme.peek()], b = bundle.peek(), ev = event.peek();
-      showAll.value; pairView.value;
+      const pal = PALETTES[theme.peek()], b = bundle.peek(), ev = event.peek();
+      highlight.value; showAll.value; pairView.value;
       // A new truth <-> reco pair (or none any more): every layer is recoloured in place (a buffer upload each, no
       // rebuild).
       const pair = pairView.peek(), changed = pair?.particle !== lastPair?.particle || pair?.candidate !== lastPair?.candidate;
@@ -183,16 +205,7 @@ export function Viewport() {
         });
         legends.value = drawn;
       }
-      for (const e of entries) {
-        const only = onlyFor(e.d, e.key, hl), focusRows = bypassing(e.d, f, hl), again = rescued(e.keep, focusRows);
-        if (!only && again === e.rescued) continue;
-        const cut = cutValues(e.d, e.t, f[e.d.table], only, focusRows);
-        const next = builders[e.d.repr]({ key: e.key, d: e.d, t: e.t, pal, rgb: e.rgb, emphasis: e.emphasis, cut, field: b?.header.field });
-        eng.replaceLayer(e.layer, next);
-        e.layer = next;
-        e.cut = cut;
-        e.rescued = again;
-      }
+      rebuildForFocus(false);
       applyCuts(false);
       showFocus(touring.peek() ? 900 : 250);
     });
@@ -210,7 +223,7 @@ export function Viewport() {
       const panel = document.querySelector(".inspector") as HTMLElement | null, box = canvas.current!.getBoundingClientRect();
       eng.insetRight = selection.peek() ? Math.max(0, box.right - (panel?.getBoundingClientRect().left ?? box.right - 372)) : 0;
     });
-    return () => { cancelAnimationFrame(recolourFrame); stopLayers(); stopForced(); stopCuts(); stopFocus(); stopEnvelope(); stopView(); stopInset(); };
+    return () => { cancelAnimationFrame(recolourFrame); stopPin(); stopLayers(); stopForced(); stopCuts(); stopFocus(); stopEnvelope(); stopView(); stopInset(); };
   }, []);
 
   // A press that moves more than a few pixels is a rotate/pan, not a click: it must not change the selection.
@@ -337,9 +350,39 @@ function Tooltip() {
 const bypassing = (d: DisplayLayer, f: Record<string, string>, hl: Map<string, Set<number>> | null) =>
   d.filter && f[d.table] === d.filter ? hl?.get(d.table) : undefined;
 
-/** For a layer that shows only the focus's objects: the rows to keep (none without a focus); else undefined. */
-const onlyFor = (d: DisplayLayer, key: string, hl: Map<string, Set<number>> | null) =>
-  !d.onSelection || showAll.peek()[key] ? undefined : hl?.get(d.table) ?? new Set<number>();
+/** For a layer that shows only the focus's objects: the rows to keep (none without a focus), less those reached only
+ *  from objects a cut hides (the hits and truth of a vertex's tracks below the pT cut); else undefined. */
+const onlyFor = (d: DisplayLayer, key: string, hl: Map<string, Set<number>> | null) => {
+  if (!d.onSelection || showAll.peek()[key]) return undefined;
+  const rows = hl?.get(d.table);
+  if (!rows) return new Set<number>();
+  const cut = belowCut(d.table, hl!);
+  return cut.size ? new Set([...rows].filter((r) => !cut.has(r))) : rows;
+};
+
+/** The focus's objects of `table` reached only from focus objects of a layer with a cut that they fail (not the
+ *  selected one): across every relation into `table` from such a layer. */
+function belowCut(table: string, hl: Map<string, Set<number>>) {
+  const h = bundle.peek()?.header, ev = event.peek(), c = cuts.peek(), sel = selection.peek(), hidden = new Set<number>(), kept = new Set<number>();
+  for (const [name, r] of Object.entries(h?.relations ?? {})) {
+    const p = layerOf(r.from), rel = ev?.relations[name], from = hl.get(r.from), col = p?.cut && ev?.tables[r.from]?.columns[p.cut.column];
+    if (r.to !== table || r.from === table || !p?.cut || !rel || !from || !col) continue;
+    const min = c[p.cut.group] ?? 0;
+    for (const f of from) {
+      const into = Number(col[f]) >= min || (sel?.table === r.from && sel.row === f) ? kept : hidden;
+      for (let k = rel.offsets[f]; k < rel.offsets[f + 1]; k++) into.add(rel.indices[k]);
+    }
+  }
+  for (const r of kept) hidden.delete(r);
+  return hidden;
+}
+
+/** Pin the selected object in its layer (drawn whatever the cut); unpin elsewhere. */
+function pinSelection() {
+  const sel = selection.peek();
+  for (const { layer } of entries) layer.setPinned(sel?.table === layer.table ? sel.row : -1);
+  engine?.requestRender();
+}
 
 type Item = Pick<Entry, "d" | "t" | "key" | "cut">;
 /** Each table's colouring as drawn: the colour mode's, then the user's (or the preset's) choice for its layer. */

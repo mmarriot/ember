@@ -94,7 +94,7 @@ draws the others.
 | `context`, `dim` | a background layer (e.g. every readout channel): never framed or replayed, drawn thin and without depth so it never hides the event, picked (over a smaller radius) only when nothing else is under the cursor; any `repr`. `dim` (0..1) mixes its colours towards the background |
 | `shape` | `ellipsoids` surface, so kinds of shower object look different: `solid` (default, translucent), `shell` (outline), `cage` (rings around the principal axes), `core` (compact, opaque) |
 | `truth` | simulation truth: labelled as such, `segments` drawn dashed; the side panel's Tree tab becomes Truth |
-| `onSelection` | draw only objects related to the selection (none without one), until the user asks for all |
+| `onSelection` | draw only objects related to the selection (none without one), until the user asks for all; not those reached only from objects a cut hides (the hits of a vertex's tracks below the pT cut). The selected object itself is drawn whatever the cut |
 | `describe` | `{"columns": [...], "names": {column: {value: name}}}`: how to name an object in lists (related objects, tree, inspector), e.g. `["pdgId", "energy"]` with PDG names |
 
 ### Viewer settings

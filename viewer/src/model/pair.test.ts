@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { DisplayLayer, EventData, Header } from "../io/bundle";
 import { modeColouring, modeRoots } from "./modes";
-import { PAIR, pairFor } from "./pair";
+import { PAIR, pairFor, pairShows } from "./pair";
 
 // Candidates: 0 holds clusters 0, 1; 1 holds cluster 2. Clusters -> hits: 0 -> 0, 1; 1 -> 2; 2 -> 3; 3 -> 4 (in no
 // candidate). Hit 5 is in no cluster. Particles: 0 left hits 0, 1, 3, 4; 1 left hits 2, 5. Matches: candidate 0 <->
@@ -88,5 +88,12 @@ describe("truth <-> reco pair", () => {
     expect([p.particle, p.candidate]).toEqual([-1, 0]);
     expect(cls(p, "Hit")).toEqual([matched, matched, matched, other, other, other]);
     expect(p.purity).toBeUndefined();
+  });
+  it("has nothing to show for a particle without hits or candidate (e.g. one that never reached the calorimeter)", () => {
+    const tev = { ...ev, tables: { ...ev.tables, P: { n: 3, columns: { energy: Float32Array.from([50, 20, 5]) } } },
+      relations: { ...ev.relations, truthHits: csr([[0, 1, 3, 4], [2, 5], []], { simEnergy: [1, 1, 1, 1, 1, 1] }),
+        truthCand: csr([[0, 1], [1], []], { sharedFraction: [0.5, 0.25, 0.9] }) } } as unknown as EventData;
+    expect(pairShows(pairFor(tev, header, { table: "P", row: 2 }, roots, colourings, header.display[3]))).toBe(false);
+    expect(pairShows(pairFor(tev, header, { table: "P", row: 1 }, roots, colourings, header.display[3]))).toBe(true);
   });
 });

@@ -7,7 +7,7 @@ import type { Hit, ViewName } from "../render/engine";
 import { colourBy, type ColourMode, customColumns, loadCustom, withColour, withCustomColumns } from "./custom";
 import { focusLevels, levelLayers, stepLevel } from "./levels";
 import { modeColouring, modeRoots } from "./modes";
-import { PAIR, type Pair, pairFor } from "./pair";
+import { PAIR, type Pair, pairFor, pairShows } from "./pair";
 import { levelsOf, type Related, relatedParts, sameRef, type Ref } from "./relations";
 
 /** One entry of the site's index.json (written by `evdtools sync`; hand-written ones need only file and title). */
@@ -88,12 +88,14 @@ export function shownLayer(d: DisplayLayer, mode = activeMode.peek(), by = colou
   return withColour(c ? { ...d, colourBy: c } : plain ? { ...d, colourBy: undefined } : d, by[layerKey(d)]);
 }
 
-/** In the "pid" mode with something selected: its truth <-> reco pair, which colours every layer (Viewport). */
+/** In the "pid" mode with something selected: its truth <-> reco pair, which colours every layer (Viewport); null when
+ *  the pair has nothing to show (no candidate, and no hits of its particle). */
 export const pairView = computed<Pair | null>(() => {
   const f = focus.value, b = bundle.value, ev = event.value, { roots, colouring } = modes.value;
   if (activeMode.value !== "pid" || !f || !b || !ev || !roots.reco || !colouring.reco || f.row >= (ev.tables[f.table]?.n ?? 0)) return null;
   const truthLayer = roots.truth ? b.header.display.find((d) => d.table === roots.truth) : undefined;
-  return pairFor(ev, b.header, f, { truth: roots.truth, reco: roots.reco }, { truth: colouring.truth, reco: colouring.reco }, truthLayer);
+  const pair = pairFor(ev, b.header, f, { truth: roots.truth, reco: roots.reco }, { truth: colouring.truth, reco: colouring.reco }, truthLayer);
+  return pairShows(pair) ? pair : null;
 });
 
 /** A number in a few significant figures, for names, legends and charts. */

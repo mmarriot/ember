@@ -201,6 +201,19 @@ def test_viewer_hints_are_passed_to_the_header():
         converter({}, {"tables": {}})
 
 
+def test_inverse_of_is_checked_and_passed_when_both_relations_are_written():
+    """`inverseOf` (a part's pointer back up to its container) reaches the header only with the relation it names,
+    which must have the opposite ends."""
+    up = {"name": "up", "kind": "index", "from": "T", "to": "V", "index": "T.v", "inverseOf": "down"}
+    down = {"name": "down", "kind": "index", "from": "V", "to": "T", "index": "T.v"}
+    types = {"T": {"v": I4}, "V": {}}
+    header = converter(types, {"relations": [up, down]}).header([], "t")
+    assert header["relations"]["up"]["inverseOf"] == "down" and "inverseOf" not in header["relations"]["down"]
+    assert "inverseOf" not in converter(types, {"relations": [up]}).header([], "t")["relations"]["up"]
+    with pytest.raises(ValueError, match="not the inverse of"):
+        converter(types | {"W": {"t": I4}}, {"relations": [up, {**down, "from": "W", "index": "W.t"}]})
+
+
 def test_include_merges_profiles(tmp_path):
     """Included profiles merge in order, then the profile's own keys: dicts key by key, lists concatenate, other
     values are replaced. Includes are found next to the including profile, else among the built-in profiles."""

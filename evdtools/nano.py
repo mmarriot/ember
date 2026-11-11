@@ -370,6 +370,11 @@ class Converter:
             r = {**r, "from": rename.get(r["from"], r["from"]), "to": rename.get(r["to"], r["to"])}
             if self._available(r):
                 self.relations[r["name"]] = r
+        for r in self.relations.values():  # inverseOf: r points from a part back up to its container
+            inverse = self.relations.get(r.get("inverseOf"))
+            if inverse and (inverse["from"], inverse["to"]) != (r["to"], r["from"]):
+                raise ValueError(f"relation {r['name']} ({r['from']} -> {r['to']}) is not the inverse of "
+                                 f"{inverse['name']} ({inverse['from']} -> {inverse['to']})")
 
         def usable(c):  # a reachedBy condition keeps the relations present (as a list); none: the condition is dropped
             if not (isinstance(c, dict) and "reachedBy" in c):
@@ -439,6 +444,7 @@ class Converter:
 
     def header(self, files, profile_name):
         written = self.written()
+        relations = {n: r for n, r in self.relations.items() if r["from"] in written and r["to"] in written}
         return {
             "schema": "evd/1",
             "source": {"files": [os.path.basename(f) for f in files], "converter": f"evdtools {__version__}",
@@ -449,8 +455,9 @@ class Converter:
                        for t, m in written.items()},
             "relations": {n: {"from": r["from"], "to": r["to"],
                               "weights": [_column(w)[1] for w in r.get("weights", [])],
-                              **{k: r[k] for k in ("association", "best") if k in r}}  # viewer hints
-                          for n, r in self.relations.items() if r["from"] in written and r["to"] in written},
+                              **{k: r[k] for k in ("association", "best") if k in r},  # viewer hints
+                              **({"inverseOf": r["inverseOf"]} if r.get("inverseOf") in relations else {})}
+                          for n, r in relations.items()},
             "display": self.display,
             **self.viewer_hints,
         }

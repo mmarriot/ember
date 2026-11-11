@@ -173,13 +173,18 @@ const isHitTable = (header: Header, table: string) => header.display?.some((l) =
  *  children relation (truth particles), where colours follow truth branches:
  *  - anchors are the particles something points at: those that own hits (an association into a hit layer; the
  *    particles that entered the calorimeter) and those a reco object is matched to (an association into the table);
- *  - a particle takes the key of its highest anchor ancestor (or itself): a π⁺ that interacted before the calorimeter
- *    and was matched as a whole shares its colour with the hits of its daughters, and a shower secondary matched to
- *    a trackster shares the colour of the shower's hits;
- *  - only anchors' keys use colours (`used`): a particle linked to nothing (e.g. a quark) takes none. */
+ *  - with a `particle` level (docs/truth.md: e.g. generator-level stable particles), a particle takes the key of its
+ *    highest ancestor in the level (or itself without one): the electrons of a converted photon, the daughters of a
+ *    π⁺ that interacted in the tracker and a shower's secondaries all share their generator particle's colour, in
+ *    every part of the detector. Without a level, the key is its highest anchor ancestor (or itself);
+ *  - only anchors' keys use colours (`used`): a particle linked to nothing (e.g. a quark) takes none;
+ *  - with the level's `first` column (e.g. isSignal), only its keys take colours: signal, never pile-up; then keys in
+ *    the level before those above it, then by size. */
 export function identities(d: DisplayLayer, t: Table, ev: EventData, header: Header, slots: number) {
-  const { key, used, bySize, parent } = cached(ev, `identities|${d.table}|${d.truth}|${d.colour}`, () => identityKeys(d, t, ev, header));
-  return { key, used, parent, top: bySize.slice(0, slots), others: Math.max(0, bySize.length - slots) };
+  const { key, used, bySize, parent } = cached(ev, `identities|${d.table}|${d.truth}|${d.colour}|${d.particle?.flags}|${d.particle?.bit}|${d.particle?.first}`, () => identityKeys(d, t, ev, header));
+  // With a `first` column, only its keys take colours (pile-up never looks like a signal particle).
+  const first = d.particle?.first ? t.columns[d.particle.first] : undefined, eligible = first ? bySize.filter((k) => Number(first[k])) : bySize;
+  return { key, used, parent, top: eligible.slice(0, slots), others: Math.max(0, eligible.length - slots) };
 }
 
 /** The part of `identities` that does not depend on the selection, once per event: keys, which keys are in use, and
@@ -200,14 +205,20 @@ function identityKeys(d: DisplayLayer, t: Table, ev: EventData, header: Header) 
           for (let k = rel.offsets[f]; k < rel.offsets[f + 1]; k++) if (parent[rel.indices[k]] < 0) parent[rel.indices[k]] = f;
       }
     }
-    for (let i = 0; i < n; i++) // walk up to the root, keeping the highest anchor seen (bounded: no loop on bad data)
-      for (let j = i, steps = 0; j >= 0 && steps < n; j = parent[j], steps++) if (anchor[j]) key[i] = j;
+    const flags = d.particle ? t.columns[d.particle.flags] : undefined, bit = d.particle?.bit ?? 0;
+    const member = flags ? (j: number) => (Number(flags[j]) >>> bit) & 1 : (j: number) => anchor[j];
+    for (let i = 0; i < n; i++) // walk up to the root, keeping the highest member seen (bounded: no loop on bad data)
+      for (let j = i, steps = 0; j >= 0 && steps < n; j = parent[j], steps++) if (member(j)) key[i] = j;
   }
   const used = new Uint8Array(n);
   for (let i = 0; i < n; i++) if (!d.truth || anchor[i]) used[key[i]] = 1;
-  const col = d.colour ? t.columns[d.colour] : undefined, bySize: number[] = [];
+  const col = d.colour ? t.columns[d.colour] : undefined, first = d.particle?.first ? t.columns[d.particle.first] : undefined, bySize: number[] = [];
   for (let i = 0; i < n; i++) if (used[i]) bySize.push(i);
-  if (col) bySize.sort((a, b) => Number(col[b]) - Number(col[a]) || a - b);
+  // Signal first, then particles of the level before keys above it (e.g. a K*0 an object is matched to as a whole:
+  // its energy counts all its daughters', and it would take the colours of the particles that own the hits).
+  const flags = d.particle ? t.columns[d.particle.flags] : undefined, bit = d.particle?.bit ?? 0;
+  const rank = (i: number) => (first && Number(first[i]) ? 2 : 0) + (flags && (Number(flags[i]) >>> bit) & 1 ? 1 : 0);
+  if (col || first || flags) bySize.sort((a, b) => rank(b) - rank(a) || (col ? Number(col[b]) - Number(col[a]) : 0) || a - b);
   return { key, used, bySize, parent }; // parent: each object's first parent (-1 none), truth tables only
 }
 
@@ -228,7 +239,8 @@ export function cached<T>(ev: EventData, what: string, make: () => T): T {
  *  path (`alternative`, e.g. legacy hits next to SoA ones) are skipped, so a part is not counted twice. Two uses:
  *  - through an association (`derived`): a stand-in for one the data lack, e.g. the truth particle of a layer cluster;
  *  - through containment: a vote, e.g. the candidate holding most of a trackster's layer clusters.
- *  `weight`: the root -> parts weight summed ("" for counts); `parts`: the parts table. Computed once per event. */
+ *  `weight`: the root -> parts weight summed ("" for counts); `parts`: the parts table; `share`: per object, the
+ *  partner's part of the total weight (0..1). Computed once per event. */
 export function contentPartners(table: string, root: string, n: number, ev: EventData, header: Header) {
   return cached(ev, `content|${table}|${root}`, () => content(table, root, n, ev, header));
 }
@@ -257,7 +269,7 @@ function content(table: string, root: string, n: number, ev: EventData, header: 
     }
   }
   // One accumulator for all objects, reset through the list of entries touched: no allocation per object.
-  const partner = new Int32Array(n).fill(-1), acc = new Float64Array(nRoot), touched: number[] = [];
+  const partner = new Int32Array(n).fill(-1), share = new Float32Array(n), acc = new Float64Array(nRoot), touched: number[] = [];
   for (let o = 0; o < n; o++) {
     for (const { parts, f, inv } of pairs)
       for (let k = parts.offsets[o]; k < (parts.offsets[o + 1] ?? k); k++) {
@@ -268,10 +280,11 @@ function content(table: string, root: string, n: number, ev: EventData, header: 
           acc[p] += frac * inv.w[j];
         }
       }
-    let best = -1, most = 0;
-    for (const p of touched) { if (acc[p] > most) { best = p; most = acc[p]; } acc[p] = 0; }
+    let best = -1, most = 0, total = 0;
+    for (const p of touched) { total += acc[p]; if (acc[p] > most) { best = p; most = acc[p]; } acc[p] = 0; }
     touched.length = 0;
     partner[o] = best;
+    share[o] = total > 0 ? most / total : 0;
   }
-  return { partner, weight, parts: partsTable, derived };
+  return { partner, share, weight, parts: partsTable, derived };
 }

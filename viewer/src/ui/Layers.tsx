@@ -125,11 +125,13 @@ function LayerRow({ d, label }: { d: DisplayLayer; label: string }) {
   );
 }
 
-/** Whether the colour key at the bottom of the panel explains the layer's colours (particle type, or the pair view),
- *  so its own legend would only repeat it. */
+/** Whether the colour key at the bottom of the panel explains the layer's colours (particle type, generator
+ *  particle, or the pair view), so its own legend would only repeat it. */
 function keyed(d: DisplayLayer) {
-  if (activeMode.value !== "pid" || d.context || colourBy.value[layerKey(d)]) return false;
+  const mode = activeMode.value;
+  if (mode === "layers" || d.context || colourBy.value[layerKey(d)]) return false;
   if (pairView.value?.classes.has(d.table)) return true;
+  if (mode === "truth") { const c = shownLayer(d).colourBy; return d.table === modes.value.roots.truth || (c !== d.colourBy && c !== "none"); }
   return !d.truth && (d.table === modes.value.roots.reco || shownLayer(d).colourBy !== d.colourBy);
 }
 
@@ -156,7 +158,7 @@ function Options({ d, legend }: { d: DisplayLayer; legend?: Legend }) {
     <div class="options">
       <div class="legend">
         <select class="colourby" title="Colour by" value={chosen} onChange={(e) => choose((e.target as HTMLSelectElement).value)}>
-          <option value="">{byMode || (activeMode.value === "pid" && d.table === modes.value.roots.reco) ? "colour key" : d.colourBy ? "by object" : d.colour ?? "default"}</option>
+          <option value="">{(byMode && shownD.colourBy !== "none") || (activeMode.value === "pid" && d.table === modes.value.roots.reco) ? "colour key" : d.colourBy ? "by object" : d.colour ?? "default"}</option>
           {related.length > 0 && <optgroup label="Related objects">{related.map(([v, text]) => <option value={v}>{text}</option>)}</optgroup>}
           {columns.filter((c) => d.colourBy || c !== d.colour).map((c) => <option value={c}>{c}</option>)}
         </select>
@@ -178,6 +180,7 @@ function Scale({ d, legend, full = false }: { d: DisplayLayer; legend: Legend; f
   const pal = PALETTES[theme.value], shownD = shownLayer(d, activeMode.value, colourBy.value);
   // Identity colours (directly, or taken along a chain in the colour mode) show the identity palette.
   const identity = shownD.colourBy === "identity" || (typeof shownD.colourBy === "object" && shownD.colourBy !== d.colourBy);
+  if (shownD.colourBy === "none") return <><span class="dots"><i style={{ background: pal.other }} /></span>{legend.kind === "category" ? legend.text : ""}</>;
   if (legend.kind === "category" && legend.items && !legend.items.some((it) => it.ref))
     return <span class="items">{legend.items.map((it) => <span><i style={{ background: it.colour }} />{it.label}</span>)}</span>;
   if (legend.kind === "category")

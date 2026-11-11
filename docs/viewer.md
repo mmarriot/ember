@@ -21,6 +21,7 @@ The same list is in the viewer's help (`?`).
 | previous / next event | ← / →, or the arrows at the top |
 | views: 3D, front, side, ρ–z | 1, 2, 3, 4 |
 | one part of the detector, or all | D (cycles), or All · Tracker · HGCal … at the top (bundles with `domains`): the part's layers and the shared ones (e.g. truth), framed on its region, in its view, and its tab opens in the side panel (choosing a tab does not change the view); the side panel keeps your ticks |
+| what the colours show | T, or Reco · Truth in the colour key: the reconstruction (candidate types), or the truth (each generator particle in its own colour, reco objects only where they are a clean match); see [Colours](#colours-and-the-truth--reco-pair) |
 | replay | R: hits appear at their arrival time (display hint `time`, else time of flight, or the bundle's `replay` order), then paths are built from their hits (display hint `grow`: tracks seeded, built outwards, fitted), then each reconstruction stage in turn; a caption says what is happening |
 | tour | P, or the play button: replay with a moving camera (closer on the paths while they are built), visit the main showers, next event; any key or touch stops it |
 | live | the Live button: play new files as they appear in the site's index |
@@ -47,41 +48,66 @@ Preset buttons when the bundle has more than one preset; then tabs; then the col
 
 ### Colours and the truth ↔ reco pair
 
-A bundle with reconstruction stages colours its candidates by particle type, and everything they are made of in the
-same colour: interpretations and tracks (their candidate), tracksters and linked tracksters (the candidate holding most
-of their layer clusters), layer clusters, and hits (their layer cluster's candidate). Objects in no candidate are
-small and grey; a layer that cannot reach a candidate (e.g. the vertices) is drawn by its colour column, or keeps its
-own categorical colours if it has none. How each layer reaches a candidate or a truth particle is worked out from the bundle's relations
-(`viewer/src/model/modes.ts`), so this needs no profile settings. The colour key at the bottom of the side panel names
-the particle types. A bundle without candidates shows each layer's own colouring from the profile (energies, particle
-types), with its scale under the layer's row; so does a domain with `colourMode` `"layers"` (e.g. the Tracker, its tracks
-by pT) while it is looked at.
+Colour means one thing at a time, and the title of the colour key (bottom of the side panel) says which. The rules
+behind the truth colours and numbers, and what each kind of object is compared with, are in [truth.md](truth.md).
 
-**The pair view.** With candidates, selecting anything shows its truth ↔ reco pair
-(`viewer/src/model/pair.ts`): first the selection's particle (a truth particle stands for its whole shower: its
-highest ancestor that owns hits or is matched; a reco object takes its best truth match; a hit, the particle that left
-the most simulated energy in it), then that particle's best candidate. So the particle, its candidate and anything
-inside them give the same pair and the same picture; a selected candidate that is not its particle's best (a
-fragment) shows as split. Without a particle (no truth in the file, or none matched) the pair is the selection's
-candidate alone, and its objects show as "in the candidate". The levels in the focus bar are then the pair
-candidate's kinds, whichever of its objects is selected, and count the pair's objects (also the particle's in other
-candidates or in none); the selected object itself is always drawn. A selection with neither a candidate nor a
-particle that left hits (e.g. a central track, a vertex) has no pair: it is shown with its own levels and links.
-In the pair view, every layer is coloured by where its objects ended up:
+- **Reco** (the default with candidates): candidates by the particle type the reconstruction gave them, and
+  everything they are made of in the same colour: interpretations and tracks (their candidate), tracksters and
+  linked tracksters (the candidate holding most of their layer clusters), layer clusters, and hits (their layer
+  cluster's candidate). Objects in no candidate are small and grey; a layer that cannot reach a candidate (e.g. the
+  vertices) is drawn by its colour column, or keeps its own categorical colours if it has none. How each layer
+  reaches a candidate or a truth particle is worked out from the bundle's relations (`viewer/src/model/modes.ts`),
+  so this needs no profile settings.
+- **Truth** (key T, or Reco · Truth in the key; bundles with truth particles): everything by the generator particle it
+  comes from (the profile's `particle` level), the same in every part of the detector: hits by the particle that left
+  the most simulated energy in them, truth lines by their generator particle (a conversion's electrons and an
+  interacting pion's daughters take their particle's colour). A reco object takes its matched particle's colour only
+  for a clean match (purity at least its kind's `match.good`: 75% of a track's hits, 50% of a trackster's energy),
+  else grey (layer clusters: at least half of their simulated energy); layers with no link to the truth (vertices) the
+  "no truth" grey. Colours go to signal generator particles only, by energy; the other signal particles are mid grey,
+  pile-up its own grey and drawn small, and hits no exported particle left energy in small and faint (noise,
+  out-of-time pile-up, or not exported). The Truth mode needs a bundle whose truth particles name their level
+  (`particle`); older bundles have only Reco.
+- A bundle without candidates or truth shows each layer's own colouring from the profile (energies, particle types),
+  with its scale under the layer's row; so does a domain with `colourMode` `"layers"` (e.g. the Tracker, its tracks
+  by pT) while it is looked at in the Reco mode.
+
+**The pair view.** With candidates, selecting anything shows its truth ↔ reco pair (`viewer/src/model/pair.ts`), in
+either mode: first the selection's particle, the whole of its generator particle (a reco object takes its best truth
+match; a hit, the particle that left the most simulated energy in it), then that particle's best candidate. So the
+particle, its candidate and anything inside them give the same pair and the same picture; a selected candidate that is
+not its particle's best (a fragment) shows as split off. A match above the generator level (e.g. a candidate matched to
+a π⁰ as a whole, whose photons are generator particles of their own) stands for all the generator particles below it,
+and the key says the candidate merges them. Without a particle (no truth in the file, or none matched) the pair is the
+selection's candidate alone, in a neutral colour ("in the candidate": nothing is confirmed). The levels in the focus
+bar are then the pair candidate's kinds, whichever of its objects is selected, and count the pair's objects (also the
+particle's in other candidates or in none); the selected object itself is always drawn. A selection with neither a
+candidate nor a particle that left hits (e.g. a central track, a vertex) has no pair: it is shown with its own levels
+and links. In the pair view, every layer is coloured by where its objects ended up:
 
 | class | meaning |
 |---|---|
-| matched | the particle's hits (and clusters, tracksters...) in its candidate (what the candidate is made of, even if it shares it with another candidate); the particle and the candidate |
+| shared | the particle's hits (and clusters, tracksters...) in its candidate (what the candidate is made of, even if it shares it with another candidate); the particle and the candidate |
 | contamination | in the candidate, but from other particles or from none |
-| split | the particle's hits in other candidates, and those candidates (and candidates matched to the particle that are not its best) |
+| split off | the particle's hits in other candidates, and those candidates (and candidates matched to the particle that are not its best) |
 | missed | the particle's hits, and reco objects matched to it, in no candidate |
 
 Everything else fades. A hit belongs to the particle that left the most simulated energy in it (a layer cluster: the
 particle with the most simulated energy in its hits). Missed layer clusters stay in the background, as their hits
-show the same and a shower's many one-hit halo clusters would cover the used ones. The key gives the particle's
-simulated energy in its candidate, in other candidates and in none (efficiency), and the share of the candidate's hit
-energy from the particle (purity). The key stays in sight from every tab, e.g. while clicking particles in Truth. Efficiency counts each hit once per shower and any share of it; the colours use
-each hit's dominant particle. Truth layers keep their own colours.
+show the same and a shower's many one-hit halo clusters would cover the used ones. The key gives completeness (the
+particle's simulated energy in HGCal, with its amount in the sensors: in its candidate, in other candidates and in
+none) and purity (the share of the candidate's hit energy from the particle). The key stays in sight from every tab,
+e.g. while clicking particles in Truth. Completeness counts each hit once per shower and any share of it; the colours
+use each hit's dominant particle. Truth layers show the pair's particle and the one the selection points at.
+
+**The inspector's truth sections.** A reco object whose association has a `match` contract shows what its kind
+reconstructs (e.g. "the particle that entered the calorimeter"), the associator's best match, its purity (with the
+counted amounts: "21 of its 21 hits"), its completeness (and of what), whether it is clean, the associator's score
+("0 best; not a fraction"), the generator particle the match belongs to, and the match's lineage. Without a match it
+says so, and gives the match of a single part (a track-only candidate's track) as that part's. A truth particle shows
+its lineage: its ancestors (the generator's quarks and gluons folded into one line), itself, its daughters, the levels
+each belongs to (generator particle, entered the calorimeter, b or c hadron) and the reco objects whose best match it
+is. Hit-based association weights (tracks) are named "shared hits".
 
 Colours are Okabe-Ito and Tol hues, checked for protan, deutan and tritan vision. Choosing a colour for one layer (its
 ⋯) overrides the particle type and the pair view for that layer. The replay keeps each candidate's colour throughout.

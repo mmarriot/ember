@@ -191,10 +191,11 @@ def test_viewer_hints_are_passed_to_the_header():
              "presets": [{"name": "E"}], "runTitle": "{Beam}", "runFields": ["Beam"],
              "field": {"bz": 3.8, "rMax": 295, "zMax": 300}}
     best = {"weight": "score", "order": "min"}
-    relation = {"name": "r", "kind": "index", "from": "A", "to": "B", "index": "A.k", "association": True, "best": best}
+    match = {"measure": "hits", "target": "trackerHits", "shared": "sharedEnergy", "over": "nHits", "good": 0.75}
+    relation = {"name": "r", "kind": "index", "from": "A", "to": "B", "index": "A.k", "association": True, "best": best, "match": match}
     header = converter({"A": {"k": I4}, "B": {}}, {**hints, "relations": [relation]}).header([], "t")
     assert {k: header[k] for k in hints} == hints
-    assert header["relations"]["r"] == {"from": "A", "to": "B", "weights": [], "association": True, "best": best}
+    assert header["relations"]["r"] == {"from": "A", "to": "B", "weights": [], "association": True, "best": best, "match": match}
     assert not set(hints) & set(converter({}, {}).header([], "t"))
     assert "note" not in converter({}, {"note": "for readers"}).header([], "t")  # a profile key, not a hint
     with pytest.raises(ValueError, match="header's own"):

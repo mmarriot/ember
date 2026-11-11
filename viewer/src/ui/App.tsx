@@ -3,7 +3,7 @@ import { effect } from "@preact/signals";
 import { useEffect } from "preact/hooks";
 import { blobSource } from "../io/bundle";
 import type { ViewName } from "../render/engine";
-import { bundleName, catalogue, dialog, domain, event, eventIndex, highlight, openBundle, refreshCatalogue, selection, showEvent, stepFocusLevel, view } from "../model/store";
+import { bundleName, catalogue, colourChoice, dialog, domain, event, eventIndex, highlight, openBundle, refreshCatalogue, selection, showEvent, stepFocusLevel, truthColours, view } from "../model/store";
 import { SYNTAX } from "./ExprForm";
 import { Header } from "./Header";
 import { Inspector } from "./Inspector";
@@ -53,6 +53,7 @@ export function App() {
       else if ((e.key === "ArrowDown" || e.key === "ArrowUp") && stepFocusLevel(e.key === "ArrowDown" ? 1 : -1)) e.preventDefault();
       else if (VIEW_KEYS[e.key]) view.value = VIEW_KEYS[e.key];
       else if (e.key === "d" || e.key === "D") nextDomain();
+      else if ((e.key === "t" || e.key === "T") && truthColours.value) colourChoice.value = colourChoice.value === "truth" ? "reco" : "truth";
       else if (e.key === "f" || e.key === "F") engine?.frame(highlight.value ?? undefined, true);
       else if (e.key === "Home") showWhole();
       else if (e.key === "r" || e.key === "R") void replayEvent();
@@ -92,6 +93,7 @@ function HelpDialog() {
     ["Leave the object", "click on empty space; Esc also shows the whole event (and closes this dialog)"],
     ["Previous / next event", "← / →, or the arrows at the top"], ["Views: 3D, front, side, ρ–z", "1, 2, 3, 4"],
     ["One part of the detector (e.g. the tracker), or all", "D, or the All · … buttons at the top (when the data has several parts)"],
+    ["Colours: what the reconstruction made, or what was really there", "T, or Reco · Truth in the colour key"],
     ["Replay: how the event builds up, step by step", "R"],
     ["Tour: replay, then visit the main showers, event after event", "P, or the play button; any key or touch stops it"],
     ["Live: play new data as it arrives", "the Live button"],
@@ -106,12 +108,16 @@ function HelpDialog() {
         of each particle, the history as a tree); the event. Each cut slider sits with the first kind it applies to and applies to
         every layer of its group, so the same objects from different reconstruction paths always get the same selection.</p>
       <h3>Colours</h3>
-      <p class="hint">With candidates in the data, they are coloured by particle type and everything they are made of (tracksters, layer
-        clusters, hits, tracks) takes the same colour; the key is at the bottom of the side panel. Selecting anything then shows its
-        truth ↔ reco pair: a truth-graph particle and its best candidate, with every hit coloured matched, contamination, split or
-        missed, and the particle's efficiency and the candidate's purity in the key. Without candidates, each collection shows its own
-        colours under its row. ⋯ on a row colours it by any column, or by the colour of a related object, instead.
-        With something selected, everything unrelated fades.</p>
+      <p class="hint">Colour means one thing at a time; the title of the key at the bottom of the side panel says which.
+        <b>Reco</b>: candidates by the particle type the reconstruction gave them, and everything they are made of (tracksters, layer
+        clusters, hits, tracks) in the same colour. <b>Truth</b> (T): everything by the generator particle it comes from, the same in
+        every part of the detector (a conversion's electrons and an interacting pion's daughters take their particle's colour); a reco
+        object takes its particle's colour only where it is a clean match (e.g. 75% of a track's hits), else grey. Selecting anything
+        shows its truth ↔ reco pair: a generator particle and its best candidate, every hit coloured shared, contamination, split off or
+        missed, with the particle's completeness and the candidate's purity in the key. The inspector says what each reco kind
+        reconstructs, how pure and complete its match is, and where its particle sits in the truth graph. Truth is drawn dashed.
+        ⋯ on a row colours it by any column, or by the colour of a related object, instead. With something selected, everything
+        unrelated fades.</p>
       <h3>Expressions</h3>
       <p class="hint">A filter or a new column (⋯ on a row) is an expression of the table's columns: {SYNTAX}. A filter hides the rows where
         it is 0; a new column is shown in the inspector and can colour or filter.</p>

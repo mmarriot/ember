@@ -4,6 +4,7 @@
 // one table a colour each, and the objects linked to them the same colour. Computed once per event on the CPU, so
 // shaders and legend agree.
 import { type Column, type DisplayLayer, type EventData, type Header, kindName, type Table, unitOf } from "../io/bundle";
+import { bestPurities, percent } from "../model/match";
 import { bestPartners, contentPartners, identities } from "../model/relations";
 
 export const PALETTES = {
@@ -15,15 +16,20 @@ export const PALETTES = {
     // dark theme's hue order where possible. Simulated protan/deutan/tritan vision (Machado 2009): every pair, and
     // "other", at least 17 CIELAB dE apart (dark set: 14.5; the categories above: 1.3).
     identity: ["#D55E00", "#2E8FCB", "#117733", "#CC6677", "#AA4499", "#332288", "#882255"], other: "#a3abb5",
-    // The pair view (model/pair.ts), by class: other, matched, contamination, split, missed. From the identity set.
-    pair: ["#cdd2d8", "#117733", "#AA4499", "#2E8FCB", "#D55E00"],
+    // Identity colouring with a `first` column (truth particles: signal first): keys without it (pile-up), lighter
+    // than "other" and darker than "unassigned" (no truth).
+    pileup: "#b3bbc4",
+    // The pair view (model/pair.ts), by class: other, matched, contamination, split, missed, and a candidate's objects
+    // when it has no truth particle (neutral: nothing is confirmed). From the identity set.
+    pair: ["#cdd2d8", "#117733", "#AA4499", "#2E8FCB", "#D55E00", "#4d5560"],
   },
   dark: {
     background: 0x0f1419, rim: [0.93, 0.95, 0.97], unassigned: "#3a424d", flash: 0.8,
     ramps: { heat: ["#6a2450", "#a0303f", "#d4533a", "#f59e42", "#fde89a"], cool: ["#1d4166", "#2563a0", "#3a8fd0", "#72c3ee", "#cdf0ff"] },
     categories: ["#4ea1ff", "#5fd068", "#b48cff", "#3dd6e0", "#ff8fd1", "#8e95ff", "#b5d94c", "#e08fd0", "#76b8ff", "#7be39a"],
     identity: ["#E69F00", "#56B4E9", "#009E73", "#D55E00", "#CC79A7", "#0072B2", "#F0E442"], other: "#68717c",
-    pair: ["#3a424d", "#009E73", "#CC79A7", "#56B4E9", "#D55E00"],
+    pileup: "#4b535d",
+    pair: ["#3a424d", "#009E73", "#CC79A7", "#56B4E9", "#D55E00", "#d9dde2"],
   },
 } as const;
 export type ThemeName = keyof typeof PALETTES;
@@ -124,18 +130,25 @@ export function colours(d: DisplayLayer, t: Table, ev: EventData, header: Header
     for (let i = 0; i < t.n; i++) setCategory(i, i);
     return { rgb: out, legend: { kind: "category", text: "one colour per object" } };
   }
+  if (d.colourBy === "none") { // a layer with nothing to take a colour from in this mode (e.g. vertices, by truth)
+    const c = rgb(pal.unassigned);
+    for (let i = 0; i < t.n; i++) set(i, c);
+    return { rgb: out, legend: { kind: "category", text: "one colour: no link to the colour's source" } };
+  }
   if (d.colourBy === "identity") {
     const { key, used, top, others } = identities(d, t, ev, header, pal.identity.length);
     const slot = new Map(top.map((k, j) => [k, j])), ids = pal.identity.map(rgb), other = rgb(pal.other), none = rgb(pal.unassigned);
+    const first = d.particle?.first ? t.columns[d.particle.first] : undefined, pileup = rgb(pal.pileup);
     const emphasis = new Uint8Array(t.n); // linked to nothing (e.g. a quark): small and grey, like any object without a partner
     for (let i = 0; i < t.n; i++) {
       const j = slot.get(key[i]);
-      set(i, !used[key[i]] ? none : j === undefined ? other : ids[j]);
-      emphasis[i] = used[key[i]];
+      const background = first && !Number(first[key[i]]); // pile-up: its own grey, drawn small so the signal shows
+      set(i, !used[key[i]] ? none : j !== undefined ? ids[j] : background ? pileup : other);
+      emphasis[i] = used[key[i]] && !background ? 1 : 0;
     }
     const items = top.map((row, j) => ({ label: `#${row}`, colour: pal.identity[j], ref: { table: d.table, row } }));
     return { rgb: out, emphasis, legend: { kind: "category", text: top.length === 1 ? "one colour for the largest" : `one colour each for the ${top.length} largest`, items,
-      ...(others ? { note: `grey: the other ${others}` } : {}) } };
+      ...(others ? { note: first ? `grey: the other ${others}; pile-up small` : `grey: the other ${others}` } : {}) } };
   }
   if (typeof d.colourBy === "object" && "category" in d.colourBy) {
     // Colours follow the order of `names`, so a value keeps its colour from event to event. As an object, its integer
@@ -161,21 +174,24 @@ export function colours(d: DisplayLayer, t: Table, ev: EventData, header: Header
     const from = od && ot && od.colourBy && !next.has(otherTable) ? colours(od, ot, ev, header, pal, { layerFor }, next) : null;
     const grey = rgb(pal.unassigned), emphasis = new Uint8Array(t.n);
     for (let i = 0; i < t.n; i++) {
-      const o = partner[i], none = o < 0 || (from?.emphasis !== undefined && !from.emphasis[o]);
-      if (none) set(i, grey);
+      // A partner drawn small passes that on with its colour (grey for one linked to nothing, pile-up's own grey).
+      const o = partner[i];
+      if (o < 0) set(i, grey);
       else if (from) set(i, from.rgb, 3 * o);
       else setCategory(i, o);
-      emphasis[i] = none ? 0 : 1;
+      emphasis[i] = o < 0 || (from?.emphasis !== undefined && !from.emphasis[o]) ? 0 : 1;
     }
     // A chain is named to its end: "colour of its layer clusters (SoA): colour of its candidates (legacy)".
     const via = from?.legend.kind === "category" && from.legend.text.startsWith("colour of") ? `: ${from.legend.text}` : "";
     return { rgb: out, emphasis, legend: { kind: "category", text: `${text}${via}`, note: "small grey: none" } };
   };
   if (typeof d.colourBy === "object" && "content" in d.colourBy && ev.tables[d.colourBy.content]) {
-    const { partner, weight, parts, derived } = contentPartners(d.table, d.colourBy.content, t.n, ev, header);
+    const { partner, share, weight, parts, derived } = contentPartners(d.table, d.colourBy.content, t.n, ev, header);
     const name = tableName(header, d.colourBy.content), of = parts ? tableName(header, parts) : "parts";
-    return partnerColours(d.colourBy.content, partner, weight
-      ? `colour of the ${name} with the most ${weight} in its ${of}${derived ? " (derived in evd)" : ""}`
+    // Derived truth (e.g. a layer cluster's particle) is held to a clean match too: at least half of the weight.
+    const gated = derived ? partner.map((p, i) => (share[i] >= 0.5 ? p : -1)) : partner;
+    return partnerColours(d.colourBy.content, gated, weight
+      ? `colour of the ${name} with the most ${weight} in its ${of}${derived ? " if at least half (derived in evd)" : ""}`
       : `colour of the ${name} holding most of its ${of}`);
   }
   const relName = typeof d.colourBy === "object" && "relation" in d.colourBy ? d.colourBy.relation : undefined;
@@ -185,7 +201,16 @@ export function colours(d: DisplayLayer, t: Table, ev: EventData, header: Header
     // the object it points to (e.g. a trackster's truth particle). With several, the relation's `best` weight
     // decides, else the first.
     const forward = info.from === d.table && info.to !== d.table, otherTable = forward ? info.to : info.from;
-    return partnerColours(otherTable, bestPartners(rel, info, forward, t.n).partner, relatedColourText(header, otherTable, relName));
+    let partner = bestPartners(rel, info, forward, t.n).partner, text = relatedColourText(header, otherTable, relName);
+    // A reco object takes its matched particle's colour only for a clean match (docs/truth.md): a colour then means
+    // "mostly this particle", never "is this particle".
+    const purity = forward && info.match?.good !== undefined ? bestPurities(ev, header, relName!) : null;
+    if (purity) {
+      const good = info.match!.good!;
+      partner = partner.map((p, i) => (purity[i] >= good ? p : -1));
+      text += ` if at least ${percent(good)} of its ${info.match!.measure === "hits" ? "hits are" : "energy is"} from it`;
+    }
+    return partnerColours(otherTable, partner, text);
   }
 
   const palette = d.palette ?? "heat", column = d.colour ?? "";

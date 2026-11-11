@@ -1,5 +1,5 @@
 // Browser check (headless Chromium, software WebGL) of every bundle in the site's index.json, or of those named.
-// Each: layers draw (helices end at finite points), domains draw only their layers, presets apply, a bundle with candidates has a colour key, summary charts show where the profile defines them,
+// Each: layers draw (helices end at finite points), domains draw only their layers, presets apply, a bundle with candidates has a colour key, T colours by generator particle where there is truth, summary charts show where the profile defines them,
 // a selection draws its objects that a layer's filter hides and its levels of lines (a vertex's tracks),
 // selecting an object shows what is related and only its bottom level (↓ ↑ step through the others), a related
 // object can be jumped to and back, Esc leaves. One bundle (`--deep`, default the smallest with reconstruction
@@ -77,6 +77,19 @@ async function checkBundle(file, tag, state) {
   const keys = await page.locator(".colourkey .key li").count();
   log(`${tag}: tabs ${tabs.join(" | ")}; colour key: ${keys} entries`);
   if (h.display.some((d) => d.stage !== undefined) && keys < 2) fail("no colour key for the candidates");
+  // With truth particles, T colours by generator particle and says so in the key's title; T again goes back.
+  if (h.display.some((d) => d.truth && d.particle)) {
+    const title = () => page.locator(".colourkey > summary").innerText().catch(() => "");
+    await page.keyboard.press("t");
+    await page.waitForTimeout(1500);
+    const truthTitle = await title(), entries = await page.locator(".colourkey .key li").count();
+    log(`${tag}: truth colours: "${truthTitle.split("\n")[0]}", ${entries} key entries`);
+    if (!truthTitle.includes("generator particle") || entries < 3) fail(`T did not colour by generator particle (${truthTitle})`);
+    await shot("1_truth");
+    await page.keyboard.press("t");
+    await page.waitForTimeout(1500);
+    if ((await title()).includes("generator particle")) fail("T again did not go back to the reco colours");
+  }
   if ((h.presets?.length ?? 0) > 1) await page.getByRole("group", { name: "Preset" }).getByRole("button").first().click({ timeout: 120000 }); // the default filters
   await checkFocusFilters(page, h, fail, tag);
 
@@ -154,7 +167,7 @@ async function checkDomains(page, h, fail, shot, tag) {
     await page.waitForTimeout(800);
     const drawn = await tables(), url = decodeURIComponent(new URL(page.url()).hash.match(/[#&]d=([^&]+)/)?.[1] ?? "");
     const other = drawn.filter((t) => h.display.some((d) => d.table === t && d.domain && d.domain !== name));
-    const key = await page.locator(".colourkey").count(), own = h.domains.find((d) => d.name === name).colourMode === "layers";
+    const key = await page.locator(".colourkey .key li").count(), own = h.domains.find((d) => d.name === name).colourMode === "layers";
     log(`${tag}: domain ${name}: ${drawn.length} layers drawn (${before.length} in All), URL d=${url}, colour key ${key ? "shown" : "none"}`);
     if (other.length) fail(`domain ${name} draws layers of other domains: ${other.join(", ")}`);
     if (url !== name) fail(`domain ${name} is not in the URL`);

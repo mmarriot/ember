@@ -104,7 +104,7 @@ export function Viewport() {
       return items.map((s, i) => {
         const { rgb, emphasis, legend } = coloured[i];
         drawn[s.key] = legend;
-        return { ...s, rgb, emphasis, layer: builders[s.d.repr]({ ...s, pal, rgb, emphasis }) };
+        return { ...s, rgb, emphasis, layer: builders[s.d.repr]({ ...s, pal, rgb, emphasis, field: header.field }) };
       });
     };
 
@@ -174,7 +174,7 @@ export function Viewport() {
       for (const e of entries) {
         if (!e.d.onSelection) continue;
         const cut = cutValues(e.d, e.t, f[e.d.table], onlyFor(e.d, e.key, hl));
-        const next = builders[e.d.repr]({ key: e.key, d: e.d, t: e.t, pal, rgb: e.rgb, emphasis: e.emphasis, cut });
+        const next = builders[e.d.repr]({ key: e.key, d: e.d, t: e.t, pal, rgb: e.rgb, emphasis: e.emphasis, cut, field: b?.header.field });
         eng.replaceLayer(e.layer, next);
         e.layer = next;
         e.cut = cut;

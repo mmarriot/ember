@@ -4,6 +4,7 @@
 import * as THREE from "three";
 import type { DisplayLayer, Table } from "../io/bundle";
 import { toF32, type Pal } from "./colour";
+import { type Field, helixPaths, type Paths, polylines } from "./helix";
 import { REPLAY_OFF } from "./replay";
 
 export interface Layer {
@@ -16,6 +17,9 @@ export interface Layer {
   readonly x: Float32Array; readonly y: Float32Array; readonly z: Float32Array;
   /** Objects picked along a segment rather than at a point (lines; showers along their principal axis): its ends. */
   readonly segment?: { readonly a: readonly [Float32Array, Float32Array, Float32Array]; readonly b: readonly [Float32Array, Float32Array, Float32Array] };
+  /** Curved lines (helices): each object's path as `points` points, object i at [i * points, (i + 1) * points), picked
+   *  along it and framed whole. */
+  readonly path?: { readonly points: number; readonly x: Float32Array; readonly y: Float32Array; readonly z: Float32Array };
   /** Lines (tracks, truth particles): framing a selection keeps them whole, start to end. */
   readonly line?: boolean;
   /** Multiplies the pick distance (default 1): below 1, the layer wins over others nearby (e.g. showers over hits). */
@@ -35,7 +39,7 @@ export interface Layer {
   setOutline?(on: boolean, envelope?: boolean): void;
   dispose(): void;
 }
-export interface LayerInput { key: string; d: DisplayLayer; t: Table; pal: Pal; rgb: Float32Array; emphasis?: Uint8Array; cut?: Float32Array }
+export interface LayerInput { key: string; d: DisplayLayer; t: Table; pal: Pal; rgb: Float32Array; emphasis?: Uint8Array; cut?: Float32Array; field?: Field }
 
 const GLSL = /* glsl */ `
 uniform float uProj, uAct0, uAct1, uMix, uCut, uClock, uFlash, uRetire;
@@ -412,4 +416,78 @@ export function segments(input: LayerInput): Layer {
   };
 }
 
-export const builders = { cells, markers, ellipsoids, segments } as const;
+/** Points per drawn helix (a line strip): enough for a smooth arc of a few turns. Each costs one vertex-shader run per
+ *  frame (a few sin and cos), nothing on the CPU or in memory. */
+const HELIX_POINTS = 48, PICK_POINTS = 17; // PICK_POINTS: the CPU polyline used for picking and framing
+// Paths per table and hint, kept while the event's table lives: a layer that shows only the selection's objects is
+// rebuilt on every click, and its paths do not change.
+const pathCache = new WeakMap<Table, Map<string, { paths: Paths; pick: NonNullable<Layer["path"]> }>>();
+
+/** Charged particles' paths in the solenoid field (render/helix.ts), drawn and picked like segments (cuts, selection,
+ *  replay, truth dashes). Per object the GPU gets the start, the unit direction, the curvature and two lengths; the
+ *  vertex shader puts each of the HELIX_POINTS points of the strip on the path, so a path costs 24 bytes besides its
+ *  start, not a polyline. Picking and framing use a coarser polyline computed once on the CPU. */
+export function helices(input: LayerInput): Layer {
+  const { d, t, field } = input;
+  const start = positions(input), cols = (names?: readonly string[]) => (names ?? []).map((c) => toF32(t.columns[c], t.n)) as [Float32Array, Float32Array, Float32Array];
+  const key = JSON.stringify([d.position, d.momentum, d.charge, d.end, field]);
+  let byHint = pathCache.get(t);
+  if (!byHint) pathCache.set(t, (byHint = new Map()));
+  let cached = byHint.get(key);
+  if (!cached) {
+    const momentum = d.momentum ? cols(d.momentum) : cols(["", "", ""]), charge = toF32(d.charge ? t.columns[d.charge] : undefined, t.n);
+    const paths = helixPaths(start, momentum, charge, cols(d.end ?? d.position), t.n, field);
+    byHint.set(key, (cached = { paths, pick: polylines(paths, start, PICK_POINTS) }));
+  }
+  const { paths, pick } = cached;
+  const g = new THREE.InstancedBufferGeometry();
+  g.setAttribute("position", new THREE.Float32BufferAttribute(Array.from({ length: 3 * HELIX_POINTS }, (_, i) => (i % 3 ? 0 : i / 3 / (HELIX_POINTS - 1))), 3));
+  g.setAttribute("idir", new THREE.InstancedBufferAttribute(paths.dir, 3));
+  g.setAttribute("ipath", new THREE.InstancedBufferAttribute(paths.path, 3));
+  const material = new THREE.ShaderMaterial({
+    uniforms: { ...baseUniforms(input.pal), uDash: { value: d.truth ? 1 : 0 } },
+    vertexShader: /* glsl */ `
+      attribute float ix, iy, iz, isel, ipsel, icut, iT;
+      attribute vec3 icol, idir, ipath; // ipath: curvature (rad/cm), length in the field, length (cm)
+      varying vec3 vCol;
+      varying float vS;
+      ${GLSL}
+      // The point at path length l: helix in the field, then straight along its last direction (render/helix.ts).
+      vec3 pathAt(float l) {
+        float lh = min(l, ipath.y), h = 0.5 * ipath.x * lh;
+        float s = abs(h) < 1e-4 ? 1.0 - h * h / 6.0 : sin(h) / h, a = s * cos(h), b = s * sin(h);
+        float c = cos(2.0 * h), sn = sin(2.0 * h), rest = max(l - lh, 0.0);
+        return vec3(ix + lh * (idir.x * a - idir.y * b) + rest * (idir.x * c - idir.y * sn),
+                    iy + lh * (idir.y * a + idir.x * b) + rest * (idir.x * sn + idir.y * c),
+                    iz + l * idir.z);
+      }
+      void main() {
+        ${CULL}
+        float grow = uClock > 1e29 ? 1.0 : clamp((uClock - iT) / 0.5, 0.0, 1.0);
+        vS = position.x * grow * ipath.z;
+        vec3 c = pathAt(vS);
+        float s = selected(ipsel, isel);
+        if (uProj > 0.5) c = projectRZ(c, s * 2.0);
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(c, 1.0);
+        vCol = fade(mix(icol, vec3(1.0), uFlash * pop(iT)), s) * remaining() + uBg * (1.0 - remaining());
+      }`,
+    fragmentShader: `uniform float uDash; uniform vec3 uBg; varying vec3 vCol; varying float vS;
+      void main() {
+        if (uDash > 0.5 && mod(vS, 7.0) > 4.0) discard;
+        gl_FragColor = vec4(uDash > 0.5 ? mix(vCol, uBg, 0.35) : vCol, 1.0);
+      }`,
+  });
+  const common = shaderLayer(input, g, material, true, { ix: start[0], iy: start[1], iz: start[2] });
+  g.instanceCount = t.n;
+  const lines = new THREE.Line(g, material);
+  lines.frustumCulled = false;
+  lines.renderOrder = 1;
+  const [x, y, z] = paths.end;
+  return {
+    ...identity(input, 8), object: lines, x, y, z, path: pick, pickBias: 0.8, line: true,
+    ...common,
+    dispose() { g.dispose(); material.dispose(); },
+  };
+}
+
+export const builders = { cells, markers, ellipsoids, segments, helix: helices } as const;

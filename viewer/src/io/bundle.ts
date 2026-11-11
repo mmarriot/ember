@@ -10,7 +10,7 @@ export type Column = InstanceType<(typeof TYPES)[TypeCode]>;
 
 export interface DisplayLayer {
   table: string;
-  repr: "cells" | "markers" | "ellipsoids" | "segments";
+  repr: "cells" | "markers" | "ellipsoids" | "segments" | "helix";
   group: string;
   label: string;
   kind?: string; // object type from the profile (e.g. "trackster"); `group` is then its label
@@ -18,7 +18,9 @@ export interface DisplayLayer {
   /** The part of the detector it belongs to (e.g. "HGCal"): its tab in the side panel. Truth layers have none. */
   domain?: string;
   position: [string, string, string];
-  end?: [string, string, string]; // segments: where the line ends (it starts at `position`)
+  end?: [string, string, string]; // segments: where the line ends (it starts at `position`); helix: where the path stops
+  momentum?: [string, string, string]; // helix: px, py, pz at the start [GeV]
+  charge?: string; // helix: charge column [e]; 0 (or none) draws a straight line
   colour?: string | null;
   palette?: "heat" | "cool";
   /** Categorical colouring: one colour per object ("row"); one colour each for the largest objects ("identity",
@@ -80,6 +82,8 @@ export interface Header {
   runTitle?: string;
   runFields?: string[]; // which run information to show, in this order (default: all)
   presets?: Preset[];
+  /** Solenoid field for `helix` layers: Bz (T), uniform inside the cylinder r < rMax, |z| < zMax (cm), none outside. */
+  field?: { bz: number; rMax: number; zMax: number };
 }
 /** The unit in a column's documentation, written as "[GeV]". */
 export const unitOf = (doc = "") => doc.match(/\[([^\]]+)\]/)?.[1] ?? "";

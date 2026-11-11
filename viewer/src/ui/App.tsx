@@ -79,7 +79,7 @@ function HelpDialog() {
     ["Rotate", "drag"], ["Pan", "right-drag (or shift + drag)"], ["Zoom", "scroll, towards the cursor"],
     ["Inspect an object", "click it: it and all its parts are shown, and further clicks pick among its parts"],
     ["Objects on top of each other", "click again on the same spot for the next one"],
-    ["Go to a related object", "click it in the inspector or the tree, or click an object linked to the one shown (e.g. its MC truth)"],
+    ["Go to a related object", "click it in the inspector or the tree, or click an object linked to the one shown (e.g. its truth-graph particle)"],
     ["Back to the previous object", "← in the bar at the top left of the view"],
     ["Zoom to the selection", "double-click it, or F"], ["Show the whole event", "Home, or the reset button"],
     ["Leave the object", "click on empty space; Esc also shows the whole event (and closes this dialog)"],
@@ -94,8 +94,11 @@ function HelpDialog() {
     <Modal title="How to use the event display">
       <table class="kv"><tbody>{rows.map(([what, how]) => <tr><td>{what}</td><td>{how}</td></tr>)}</tbody></table>
       <h3>Colours</h3>
-      <p class="hint">Each layer's colouring and its scale are shown under it in the Layers tab, where another column, or the colour of
-        a related object, can be chosen. With something selected, everything unrelated fades.</p>
+      <p class="hint">"Colour by" at the top of the Layers tab: Particle type colours candidates by particle type and everything they
+        are made of (tracksters, layer clusters, hits, tracks) in the same colour. Selecting anything then shows its truth ↔ reco pair:
+        a truth-graph particle and its best candidate, with every hit coloured matched, contamination, split or missed, and the
+        particle's efficiency and the candidate's purity in the key. Per layer colours each layer on its own (energies). Each layer's colouring is shown under it, where another column, or the colour of a related object, can be chosen.
+        With something selected, everything unrelated fades.</p>
       <h3>Cuts</h3>
       <p class="hint">The Cuts tab sets minimum values, e.g. energies. Each cut applies to every layer of its group, so the same objects
         from different reconstruction paths are always compared with the same selection.</p>

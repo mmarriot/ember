@@ -51,7 +51,7 @@ display entry are not drawn, but their columns and relations are still available
 Every relation is stored in CSR form (see [Record](#record)); the converter normalises all source forms to it.
 Optional hints:
 
-- `association: true`: the relation links two kinds of object, e.g. reco and MC truth. A selection crosses it once
+- `association: true`: the relation links two kinds of object, e.g. reco and the truth graph. A selection crosses it once
   and does not follow the other side's own relations.
 - `best: {"weight", "order": "min"|"max"}`: the weight that picks one partner where only one can be shown, e.g. the
   colour of a trackster by its best-matched particle.
@@ -69,7 +69,7 @@ Optional hints:
 | `size` | `cells` only: column with the cell's half-width in cm (centre to side), or null for 0.6 cm. The cell is drawn as a hexagon with its corners at that distance, so it fits inside the real cell and neighbours never overlap |
 | `colour` | numeric column for the colour scale over the bulk of the values: log scale when at least 95% of the finite values are positive (non-positive ones take the lowest colour), linear otherwise |
 | `palette` | scale for `colour`: `heat` (default) or `cool` |
-| `colourBy` | categorical colour instead of `colour`: `"row"` (one colour per object); `{"relation": name}` (the colour of the related object: for a layer on the relation's `to` side, the `from` object containing this row; on its `from` side, the `to` object it points to; with several, the relation's `best` weight picks one, else the first; grey if none; falls back to `colour` if the relation is absent); `{"category": column, "abs": bool, "names": {value: name}}` (one colour per value, in the order of `names`, which also label the legend) |
+| `colourBy` | categorical colour instead of `colour`: `"row"` (one colour per object); `"identity"` (one colour each for the largest objects by `colour`, never repeated, the rest one "other" colour; in a `truth` table with a parent -> children relation, a particle takes the colour of its highest ancestor that owns hits or is matched by a reco object, and only those use colours); `{"content": table}` (the colour of the `table` object with the most association weight in this object's parts, e.g. the truth particle with the most simulated energy in a layer cluster's hits, each hit weighted by the cluster's fraction); `{"relation": name}` (the colour of the related object: for a layer on the relation's `to` side, the `from` object containing this row; on its `from` side, the `to` object it points to; with several, the relation's `best` weight picks one, else the first; grey if none, or if the related object is itself grey; the related object's own categorical colouring is followed, so colours carry along chains; falls back to `colour` if the relation is absent); `{"category": column, "abs": bool, "names": {value: name}}` (one colour per value, in the order of `names`, which also label the legend) |
 | `time` | column with the arrival time in ns, used by the replay; values <= -50 mean "no time". A column corrected for time of flight (prompt particles near 0) is recognised and converted |
 | `group`, `label`, `visible` | heading in the layer list, layer name, default visibility |
 | `kind`, `source` | object type (e.g. `trackster`; `group` is then its display name) and the reconstruction path that produced it (e.g. `SoA`, `legacy`). Layers of one kind are listed together, tagged with their source |

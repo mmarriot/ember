@@ -1,4 +1,4 @@
-// Tree tab: objects linked to objects of the same table (e.g. MC-truth particles -> their children), as a
+// Tree tab: objects linked to objects of the same table (e.g. truth-graph particles -> their children), as a
 // collapsible tree, after a table of what became of each of them. Clicking an object focuses on it; selecting one
 // elsewhere opens the tree down to it.
 import { useEffect, useMemo, useState } from "preact/hooks";

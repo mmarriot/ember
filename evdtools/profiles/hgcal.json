@@ -1,6 +1,6 @@
 {
   "name": "hgcal",
-  "note": "HGCal/TICL reconstruction: NanoAOD tables of CMSSW step3 (Fireworks/EventExport, DPGAnalysis/HGCalNanoAOD), SoA and/or legacy collections, with MC truth from truth::Graph when present (particles, vertices, reco <-> truth associations of the TruthGraphAssociatorProducers: AdaptiveNominal, TruthToReco). Caveats: SoA objects are preferred and legacy ones start hidden; legacy layer clusters and CLUEstering tracksters that copy SoA ones are checked and dropped (sameRows); legacy trackster axes are read as (x, z, y) because HGCalNanoAOD swaps eVector0_y/z; tracks are drawn straight to their HGCal entry; above the 0.035 GeV rechit cut SoA and legacy rechits agree.",
+  "note": "HGCal/TICL reconstruction: NanoAOD tables of CMSSW step3 (Fireworks/EventExport, DPGAnalysis/HGCalNanoAOD), SoA and/or legacy collections, with truth from truth::Graph when present (particles, vertices, reco <-> truth associations of the TruthGraphAssociatorProducers: AdaptiveNominal, TruthToReco). Caveats: SoA objects are preferred and legacy ones start hidden; legacy layer clusters and CLUEstering tracksters that copy SoA ones are checked and dropped (sameRows); legacy trackster axes are read as (x, z, y) because HGCalNanoAOD swaps eVector0_y/z; tracks are drawn straight to their HGCal entry; above the 0.035 GeV rechit cut SoA and legacy rechits agree.",
   "exclude": ["Sim*", "Reco*2Sim*", "ticlSim*", "HGCalGenPart", "TICLCandidatesTrackIdxs", "TICLCandidatesGsfTrackIdxs"],
   "internal": ["HGCalLayerClusterHits", "HGCalLayerClusterSoAHitsEE", "HGCalLayerClusterSoAHitsHSi", "HGCalLayerClusterSoAHitsHSci",
                "TICLSoATrackstersLCOffsets", "TICLSoATrackstersLCs", "ticlTrackstersCLUE3DHighvertices", "ticlTrackstersCLUEsteringvertices",
@@ -130,10 +130,10 @@
                   "colourBy": {"category": "pdgID", "abs": true,
                                "names": {"22": "photon", "11": "electron", "13": "muon", "211": "charged hadron", "130": "neutral hadron", "111": "neutral pion"}}},
     "track": {"label": "Tracks", "repr": "segments", "visible": true, "onSelection": true},
-    "truthParticle": {"label": "MC truth", "repr": "segments", "colourBy": "row", "visible": true, "truth": true, "onSelection": true,
+    "truthParticle": {"label": "Truth graph", "repr": "segments", "colourBy": "identity", "visible": true, "truth": true, "onSelection": true,
                       "cut": {"group": "Truth particle energy", "unit": "GeV", "default": 1.0},
                       "describe": {"columns": ["pdgId", "energy"], "names": {"pdgId": {"1": "d", "-1": "d̄", "2": "u", "-2": "ū", "3": "s", "-3": "s̄", "4": "c", "-4": "c̄", "5": "b", "-5": "b̄", "6": "t", "-6": "t̄", "11": "e⁻", "-11": "e⁺", "12": "νe", "-12": "ν̄e", "13": "μ⁻", "-13": "μ⁺", "14": "νμ", "-14": "ν̄μ", "15": "τ⁻", "-15": "τ⁺", "16": "ντ", "-16": "ν̄τ", "21": "g", "22": "γ", "23": "Z", "24": "W⁺", "-24": "W⁻", "25": "H", "111": "π⁰", "211": "π⁺", "-211": "π⁻", "130": "K⁰L", "310": "K⁰S", "321": "K⁺", "-321": "K⁻", "2212": "p", "-2212": "p̄", "2112": "n", "-2112": "n̄", "2214": "Δ⁺", "1114": "Δ⁻", "3122": "Λ", "-3122": "Λ̄"}}}},
-    "truthVertex": {"label": "MC truth", "repr": "markers", "visible": false, "truth": true, "onSelection": true,
+    "truthVertex": {"label": "Truth graph", "repr": "markers", "visible": false, "truth": true, "onSelection": true,
                     "colourBy": {"category": "reason", "names": {"1": "primary", "2": "decay", "3": "bremsstrahlung", "4": "ionisation", "5": "conversion", "6": "Compton", "7": "photoelectric", "8": "annihilation", "11": "hadronic inelastic", "12": "hadronic elastic", "13": "nuclear capture", "17": "hard scatter", "18": "shower branching", "19": "hadronization"}}}
   },
   "display": [

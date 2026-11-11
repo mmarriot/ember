@@ -1,6 +1,6 @@
 // User-defined additions, remembered per profile in this browser: columns computed from expressions, row filters,
-// which column colours each layer, and the chosen preset. Columns are added to every event as it is shown (one loop
-// per column).
+// which column colours each layer, the colour mode and the chosen preset. Columns are added to every event as it is
+// shown (one loop per column).
 import { effect, signal } from "@preact/signals";
 import type { Column, DisplayLayer, EventData, Table } from "../io/bundle";
 import { compile } from "./expr";
@@ -11,6 +11,8 @@ export const customColumns = signal<CustomColumn[]>([]); // in order: later ones
 export const filters = signal<Record<string, string>>({});
 export const colourBy = signal<Record<string, string>>({}); // display layer key -> column, or RELATION + relation
 export const activePreset = signal(0); // index into the profile's presets
+export type ColourMode = "pid" | "layers"; // pid: candidates by particle type, a selection as its truth <-> reco pair
+export const colourMode = signal<ColourMode | null>(null); // the user's colour mode (model/modes.ts); null: the default
 let defaultFilters: Record<string, string> = {}; // from the display hints (`filter`) of the open bundle
 
 const numeric = (c: Column): ArrayLike<number> =>
@@ -73,16 +75,17 @@ let storageKey = "";
 /** The user's choices for a profile; `defaults` (table -> filter expression) apply where the user has set none. */
 export function loadCustom(profile: string, defaults: Record<string, string>) {
   storageKey = "";
-  let saved: Partial<{ columns: CustomColumn[]; filters: Record<string, string>; colourBy: Record<string, string>; preset: number }> = {};
+  let saved: Partial<{ columns: CustomColumn[]; filters: Record<string, string>; colourBy: Record<string, string>; preset: number; mode: ColourMode }> = {};
   try { saved = JSON.parse(localStorage.getItem(`evd.custom.${profile}`) ?? "{}"); } catch { /* defaults */ }
   defaultFilters = defaults;
   customColumns.value = Array.isArray(saved.columns) ? saved.columns : [];
   filters.value = { ...defaults, ...(saved.filters ?? {}) };
   colourBy.value = saved.colourBy ?? {};
   activePreset.value = typeof saved.preset === "number" ? saved.preset : 0;
+  colourMode.value = saved.mode ?? null;
   storageKey = `evd.custom.${profile}`;
 }
 effect(() => {
-  const data = JSON.stringify({ columns: customColumns.value, filters: filters.value, colourBy: colourBy.value, preset: activePreset.value });
+  const data = JSON.stringify({ columns: customColumns.value, filters: filters.value, colourBy: colourBy.value, preset: activePreset.value, mode: colourMode.value ?? undefined });
   if (storageKey) try { localStorage.setItem(storageKey, data); } catch { /* not remembered */ }
 });

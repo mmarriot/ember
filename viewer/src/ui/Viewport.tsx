@@ -5,17 +5,20 @@
 import { effect, signal } from "@preact/signals";
 import { useEffect, useRef } from "preact/hooks";
 import { type DisplayLayer, type EventData, type Header, type Table, unitOf } from "../io/bundle";
-import { colourBy, filters, withColour } from "../model/custom";
+import { colourBy, filters } from "../model/custom";
 import { cutMin, cutValues } from "../model/cuts";
-import { colours, type Legend, PALETTES, valueRange, type Pal, type Range } from "../render/colour";
+import { colours, type LayerFor, type Legend, PALETTES, valueRange, type Pal, type Range } from "../render/colour";
 import { Engine, MIN_RADIUS } from "../render/engine";
 import { builders, type ColourStage, type Layer } from "../render/layers";
 import { planReplay, type Plan } from "../render/replay";
 import { back, jump } from "./navigate";
 import {
-  bundle, cuts, describe, event, focus, focusHistory, focusIsTruth, focusLayers, focusLinked, following, highlight, hover, inFocus,
-  isHitLayer, kindOf, labelOf, layerKey, layerOf, legends, rawEvent, replayCaption, selection, short, showAll, shown, theme, touring, view, visible,
+  activeMode, bundle, cuts, describe, event, focus, focusHistory, focusIsTruth, focusLayers, focusLinked, following, highlight, hover,
+  inFocus, isHitLayer, kindOf, labelOf, layerKey, layerOf, legends, pairView, rawEvent, replayCaption, selection, short, showAll, shown,
+  shownLayer,
+  theme, touring, view, visible,
 } from "../model/store";
+import { PAIR } from "../model/pair";
 import { relationInto, type Ref } from "../model/relations";
 import { stopTour } from "./tour";
 
@@ -43,10 +46,11 @@ export function replayEvent(): Plan | null {
 }
 
 /** Grouped layers (e.g. layer clusters) take the colours of each stage in turn: the objects of that stage that
- *  contain them, through a relation from the stage's table, if there is one. */
+ *  contain them, through a relation from the stage's table, if there is one. Not in the truth and reco colour
+ *  modes: there a colour stays one object's for the whole replay. */
 function stageColours(p: Plan) {
   const b = bundle.peek(), ev = event.peek(), pal = PALETTES[theme.peek()];
-  if (!b || !ev) return;
+  if (!b || !ev || activeMode.peek() !== "layers") return;
   for (const e of entries) {
     if (!(typeof e.d.colourBy === "object" && "relation" in e.d.colourBy) || !e.layer.setColourStages) continue;
     const keys: ColourStage[] = [];
@@ -107,9 +111,9 @@ export function Viewport() {
     };
     // Builds the given layers, adding their legends to `drawn`; colour scales are shared with the layers in `pool`.
     const build = (layers: DisplayLayer[], header: Header, ev: EventData, drawn: Record<string, Legend>, pool: Entry[] = []): Entry[] => {
-      const by = colourBy.peek(), f = filters.peek(), hl = highlight.peek(), pal = PALETTES[theme.peek()];
+      const f = filters.peek(), hl = highlight.peek(), pal = PALETTES[theme.peek()];
       const items = layers.map((d0) => {
-        const key = layerKey(d0), d = withColour(d0, by[key]), t = ev.tables[d.table];
+        const key = layerKey(d0), d = shownLayer(d0), t = ev.tables[d.table];
         return { d, t, key, cut: cutValues(d, t, f[d.table], onlyFor(d, key, hl)) };
       });
       const coloured = colourEntries(items, ev, header, cuts.peek(), pal, [...pool, ...items]);
@@ -121,15 +125,17 @@ export function Viewport() {
     };
 
     let builtFor: EventData | null = null; // the event the layers were built for
+    let lastPair = pairView.peek(); // the pair whose colours the layers have (recoloured when it changes)
     const stopLayers = effect(() => {
       const b = bundle.value, ev = event.value, pal = PALETTES[theme.value];
-      visible.value; colourBy.value; filters.value; replaying.value; // any change rebuilds every layer
+      visible.value; colourBy.value; activeMode.value; filters.value; replaying.value; // any change rebuilds every layer
       if (!b || !ev) return;
       eng.setBackground(pal.background);
       eng.minRadius = b.header.view?.minRadius ?? MIN_RADIUS;
       const drawn: Record<string, Legend> = {};
       entries = build(wanted(b.header, ev), b.header, ev, drawn);
       builtFor = ev;
+      lastPair = pairView.peek(); // built with its colours
       legends.value = drawn;
       eng.setLayers(entries.map((e) => e.layer));
       applyCuts(false);
@@ -163,11 +169,24 @@ export function Viewport() {
       applyCuts(false);
     });
 
-    // A new focus: the layers that show only its objects (e.g. MC truth, candidate tracks) are rebuilt, which is
+    // A new focus: the layers that show only its objects (e.g. truth particles, candidate tracks) are rebuilt, which is
     // cheap as they are small (the big layers keep their buffers); then every layer fades to the new highlight.
     const stopFocus = effect(() => {
-      const hl = highlight.value, f = filters.peek(), pal = PALETTES[theme.peek()];
-      showAll.value;
+      const hl = highlight.value, f = filters.peek(), pal = PALETTES[theme.peek()], b = bundle.peek(), ev = event.peek();
+      showAll.value; pairView.value;
+      // A new truth <-> reco pair (or none any more): every layer is recoloured in place (a buffer upload each, no
+      // rebuild).
+      const pair = pairView.peek(), changed = pair?.particle !== lastPair?.particle || pair?.candidate !== lastPair?.candidate;
+      lastPair = pair;
+      if (changed && b && ev && ev === builtFor) {
+        const recolour = entries.filter((e) => !e.d.context), drawn = { ...legends.peek() };
+        colourEntries(recolour, ev, b.header, cuts.peek(), pal).forEach(({ rgb, legend }, i) => {
+          recolour[i].layer.setColours(rgb);
+          recolour[i].rgb = rgb;
+          drawn[recolour[i].key] = legend;
+        });
+        legends.value = drawn;
+      }
       for (const e of entries) {
         if (!e.d.onSelection) continue;
         const cut = cutValues(e.d, e.t, f[e.d.table], onlyFor(e.d, e.key, hl));
@@ -270,7 +289,7 @@ function ReplayCaption() {
 function Tooltip() {
   const h = hover.value, ev = event.value, b = bundle.value;
   if (!h || !ev || !b || !ev.tables[h.table]) return null;
-  const d0 = layerOf(h.table), d = d0 && withColour(d0, colourBy.value[layerKey(d0)]);
+  const d0 = layerOf(h.table), d = d0 && shownLayer(d0, activeMode.value, colourBy.value);
   const t = ev.tables[h.table], name = describe(h.table, h.row);
   const value = d?.colour && t.columns[d.colour] ? Number(t.columns[d.colour][h.row]) : null;
   return (
@@ -287,6 +306,11 @@ const onlyFor = (d: DisplayLayer, key: string, hl: Map<string, Set<number>> | nu
   !d.onSelection || showAll.peek()[key] ? undefined : hl?.get(d.table) ?? new Set<number>();
 
 type Item = Pick<Entry, "d" | "t" | "key" | "cut">;
+/** Each table's colouring as drawn: the colour mode's, then the user's (or the preset's) choice for its layer. */
+const chosenColours = (header: Header): LayerFor => (table) => {
+  const d = header.display.find((l) => l.table === table);
+  return d && shownLayer(d);
+};
 /** Colours for the given layers, mixed towards the background by their `dim`. Layers that share a cut group and
  *  colour column (e.g. SoA and legacy rechit energies) share one colour scale, computed from the objects of the
  *  layers in `pool` that pass the cuts and filters, so equal values get equal colours in every layer. */
@@ -302,18 +326,29 @@ function colourEntries(items: Item[], ev: EventData, header: Header, c: Record<s
     pools.set(scale(e), pool);
   }
   const ranges = new Map<string, Range>([...pools].map(([k, pool]) => [k, valueRange(pool)]));
+  const layerFor = chosenColours(header), pair = pairView.peek(), classRgb = pal.pair.map(hexRgb), chosen = colourBy.peek();
   const bg = [(pal.background >> 16) & 255, (pal.background >> 8) & 255, pal.background & 255].map((v) => v / 255);
   return items.map((e) => {
-    const out = colours(e.d, e.t, ev, header, pal, ranges.get(scale(e))), dim = e.d.dim;
+    const cls = e.d.context || chosen[e.key] ? undefined : pair?.classes.get(e.d.table); // a layer's own choice wins
+    const out = cls ? pairColours(cls, classRgb) : colours(e.d, e.t, ev, header, pal, { range: ranges.get(scale(e)), layerFor }), dim = e.d.dim;
     if (dim) for (let i = 0; i < out.rgb.length; i++) out.rgb[i] += (bg[i % 3] - out.rgb[i]) * dim;
     return out;
   });
 }
 
-/** Highlight the focus and what belongs to it on every layer (outlines for reco objects when the focus is MC
- *  truth), faded in over `ms` (0: at once, e.g. for freshly built layers). */
+/** The pair view's colours: one per class (model/pair.ts); objects outside the pair drawn small. */
+function pairColours(cls: Uint8Array, classRgb: number[][]) {
+  const rgb = new Float32Array(3 * cls.length), emphasis = new Uint8Array(cls.length);
+  for (let i = 0; i < cls.length; i++) { rgb.set(classRgb[cls[i]], 3 * i); emphasis[i] = cls[i] === PAIR.other ? 0 : 1; }
+  return { rgb, emphasis, legend: { kind: "category" as const, text: "truth ↔ reco pair: see the key at the top" } };
+}
+const hexRgb = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
+
+/** Highlight the focus and what belongs to it on every layer (outlines for reco objects when the focus is a
+ *  truth particle, except in the pair view, which looks the same from either side), faded in over `ms` (0: at once,
+ *  e.g. for freshly built layers). */
 function showFocus(ms: number) {
-  const hl = highlight.peek(), outline = focusIsTruth.peek();
+  const hl = highlight.peek(), outline = focusIsTruth.peek() && !pairView.peek();
   for (const { layer } of entries) {
     layer.setHighlight(hl ? hl.get(layer.table) ?? new Set() : null);
     layer.setOutline?.(outline);

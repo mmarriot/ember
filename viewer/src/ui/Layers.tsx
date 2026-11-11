@@ -1,11 +1,15 @@
-// Layers tab: presets, one card per kind of object with its layers (visibility, count, legend and colour choice),
-// truth shortcuts, and the other reconstruction paths folded at the end.
+// Layers tab: the colour mode and its key, presets, one card per kind of object with its layers (visibility, count,
+// legend and colour choice), truth shortcuts, and the other reconstruction paths folded at the end.
 import type { DisplayLayer } from "../io/bundle";
-import { activePreset, colourBy, RELATION } from "../model/custom";
+import { activePreset, colourBy, type ColourMode, RELATION } from "../model/custom";
 import { applyPreset } from "../model/presets";
-import { relationInto } from "../model/relations";
+import { PAIR, type PairClass } from "../model/pair";
 import { PALETTES, relatedColourText, type Legend } from "../render/colour";
-import { bundle, event, focusLayers, isHitLayer, layerKey, legends, short, showAll, shown, theme, visible } from "../model/store";
+import {
+  activeMode, bundle, describe, event, focusLayers, layerKey, layerOf, legends, modes, pairView, setMode, short, showAll, shown, shownLayer,
+  theme, visible,
+} from "../model/store";
+import { jump } from "./navigate";
 
 export function Layers() {
   const b = bundle.value;
@@ -17,6 +21,7 @@ export function Layers() {
   const presets = b.header.presets ?? [];
   return (
     <div>
+      <ColourModes />
       {presets.length > 1 && (
         <div class="segmented presets" role="group" aria-label="Preset">
           {presets.map((p, i) => <button class={activePreset.value === i ? "on" : ""} onClick={() => applyPreset(i)}>{p.name}</button>)}
@@ -71,35 +76,75 @@ function LayerRow({ d, label }: { d: DisplayLayer; label: string }) {
   );
 }
 
-/** One-click truth views: hits coloured by the particle that deposited them; every truth particle drawn. */
+const MODES: Record<ColourMode, [string, string]> = {
+  pid: ["Particle type", "Candidates by particle type, and everything they are made of in the same colour; select anything to see its truth <-> reco pair"],
+  layers: ["Per layer", "Each layer coloured on its own (energies, particle types): colours are not shared between layers"],
+};
+/** The pair view's classes: colour, name, meaning. */
+const CLASSES: [Exclude<PairClass, 0>, string, string][] = [
+  [PAIR.matched, "matched", "the particle's hits in its candidate"],
+  [PAIR.contamination, "contamination", "in the candidate, from other particles or none"],
+  [PAIR.split, "split", "the particle's hits in other candidates"],
+  [PAIR.missed, "missed", "the particle's hits in no candidate"],
+];
+const pct = (x: number, total: number) => `${total > 0 ? Math.round((100 * x) / total) : 0}%`;
+
+/** The colour mode switch and its key: particle types with nothing selected; the selection's pair otherwise. */
+function ColourModes() {
+  const { available, roots } = modes.value, mode = activeMode.value, pair = pairView.value, pal = PALETTES[theme.value];
+  if (available.length < 2) return null;
+  const candLayer = roots.reco ? layerOf(roots.reco) : undefined, pid = candLayer ? legends.value[layerKey(candLayer)] : undefined;
+  const chip = (t: string | undefined, r: number) => (t && r >= 0 ? <button class="chip" onClick={() => jump({ table: t, row: r })}>{describe(t, r) || `#${r}`}</button> : null);
+  const eff = pair?.efficiency, effTotal = eff ? eff.candidate + eff.others + eff.missed : 0, pur = pair?.purity;
+  return (
+    <div class="card colourmode">
+      <h3>Colour by</h3>
+      <div class="segmented presets" role="group" aria-label="Colour mode">
+        {available.map((m) => <button class={m === mode ? "on" : ""} title={MODES[m][1]} onClick={() => setMode(m)}>{MODES[m][0]}</button>)}
+      </div>
+      {mode === "pid" && !pair && (
+        <>
+          <p class="hint">Candidates by particle type; their interpretations, tracksters, layer clusters, hits and tracks take the same
+            colour. Small grey: in no candidate. Select anything to see its truth ↔ reco pair.</p>
+          {pid?.kind === "category" && pid.items && <ul class="key">{pid.items.map((it) => <li><i style={{ background: it.colour }} />{it.label}</li>)}</ul>}
+        </>
+      )}
+      {pair && (
+        <>
+          <p class="pairline"><span class="badge truth">truth graph</span> {chip(pair.truth, pair.particle) ?? <span class="muted">no particle</span>}
+            <span aria-hidden="true">↔</span> {chip(pair.reco, pair.candidate) ?? <span class="muted">no candidate</span>}</p>
+          {pair.particle < 0 && <p class="hint">{pair.truth ? "No truth particle matched" : "No truth in this file"}: the candidate's own objects are shown as matched.</p>}
+          <ul class="key">
+            {CLASSES.filter(([c]) => pair.particle >= 0 || c === PAIR.matched)
+              .map(([c, name, what]) => <li><i style={{ background: pal.pair[c] }} /><b>{pair.particle < 0 ? "in the candidate" : name}</b> {pair.particle >= 0 && <span>{what}</span>}</li>)}
+            <li><i class="small" style={{ background: pal.unassigned }} />everything else</li>
+          </ul>
+          {eff && effTotal > 0 && <p class="hint" title="The particle's simulated energy over its whole shower, in exported hits">
+            Particle's energy: {pct(eff.candidate, effTotal)} in its candidate, {pct(eff.others, effTotal)} in other candidates, {pct(eff.missed, effTotal)} in none.</p>}
+          {pur && pur.particle + pur.other > 0 && <p class="hint" title="The candidate's hit energy, by the particle that left the most simulated energy in each hit">
+            Candidate's energy: {pct(pur.particle, pur.particle + pur.other)} from the particle.</p>}
+        </>
+      )}
+    </div>
+  );
+}
+
+/** Truth shortcut: every truth particle drawn, not only those related to the selection. */
 function TruthActions() {
   const b = bundle.value!;
-  const truthTables = new Set(b.header.display.filter((d) => d.truth).map((d) => d.table));
-  const hitRels = b.header.display.filter((d) => isHitLayer(d) && !d.alternative).flatMap((d) => {
-    const rel = relationInto(b.header, truthTables, d.table);
-    return rel ? [[layerKey(d), `${RELATION}${rel}`] as const] : [];
-  });
-  const hitsByTruth = hitRels.length > 0 && hitRels.every(([k, v]) => colourBy.value[k] === v);
   const truthLayers = b.header.display.filter((d) => d.truth && d.onSelection && visible.value[layerKey(d)]);
   const allDrawn = truthLayers.length > 0 && truthLayers.every((d) => showAll.value[layerKey(d)]);
-  const toggleHits = () => {
-    const next = { ...colourBy.value };
-    for (const [k, v] of hitRels) if (hitsByTruth) delete next[k]; else next[k] = v;
-    colourBy.value = next;
-  };
   const toggleAll = () => {
     const next = { ...showAll.value };
     for (const d of truthLayers) next[layerKey(d)] = !allDrawn;
     showAll.value = next;
   };
-  return (
+  return truthLayers.length > 0 ? (
     <div class="actions-row">
-      {hitRels.length > 0 && <button class={hitsByTruth ? "pill active" : "pill"} onClick={toggleHits}
-        title="Colour each hit by the simulated particle that left most energy in it (grey: none)">Hits by particle</button>}
-      {truthLayers.length > 0 && <button class={allDrawn ? "pill active" : "pill"} onClick={toggleAll}
-        title="Draw every particle that passes the filter, not only those related to the selection">All particles</button>}
+      <button class={allDrawn ? "pill active" : "pill"} onClick={toggleAll}
+        title="Draw every particle that passes the filter, not only those related to the selection">All particles</button>
     </div>
-  );
+  ) : null;
 }
 
 /** The layer's colour scale, and a choice of what sets it: any column (custom ones too) or a related object. */
@@ -114,21 +159,25 @@ function LegendRow({ d, legend }: { d: DisplayLayer; legend: Legend }) {
     if ((r.from === d.table) === (r.to === d.table) || !drawnTables.has(other)) continue;
     if (!byTable.has(other) || r.from === d.table) byTable.set(other, name);
   }
-  const current = typeof d.colourBy === "object" && "relation" in d.colourBy ? d.colourBy.relation : "";
+  const shown = shownLayer(d, activeMode.value, {}), byMode = shown.colourBy !== d.colourBy;
+  // Identity colours (directly, or taken along a chain in a colour mode) show the identity palette.
+  const identity = shown.colourBy === "identity" || (byMode && !!shown.colourBy);
+  const current = typeof shown.colourBy === "object" && "relation" in shown.colourBy ? shown.colourBy.relation : "";
   const related = [...byTable].filter(([, name]) => name !== current)
-    .map(([other, name]) => [`${RELATION}${name}`, relatedColourText(header, other)]);
+    .map(([other, name]) => [`${RELATION}${name}`, relatedColourText(header, other, name)]);
   const choose = (c: string) => { const { [key]: _, ...rest } = colourBy.value; colourBy.value = c ? { ...rest, [key]: c } : rest; };
   return (
     <div class="legend">
       <select class="colourby" title="Colour by" value={chosen} onChange={(e) => choose((e.target as HTMLSelectElement).value)}>
-        <option value="">{d.colourBy ? "by object" : d.colour ?? "default"}</option>
+        <option value="">{byMode ? "colour mode" : d.colourBy ? "by object" : d.colour ?? "default"}</option>
         {related.length > 0 && <optgroup label="Related objects">{related.map(([v, text]) => <option value={v}>{text}</option>)}</optgroup>}
         {columns.filter((c) => d.colourBy || c !== d.colour).map((c) => <option value={c}>{c}</option>)}
       </select>
-      {legend.kind === "category" && legend.items ? (
+      {legend.kind === "category" && legend.items && !legend.items.some((it) => it.ref) ? (
         <span class="items">{legend.items.map((it) => <span><i style={{ background: it.colour }} />{it.label}</span>)}</span>
       ) : legend.kind === "category" ? (
-        <><span class="dots">{pal.categories.slice(0, 5).map((c) => <i style={{ background: c }} />)}</span>{legend.text}</>
+        <><span class="dots">{(identity ? pal.identity : pal.categories).slice(0, 5).map((c) => <i style={{ background: c }} />)}</span>
+          {legend.text}{legend.note && `; ${legend.note}`}</>
       ) : (
         <>
           <span class="ramp" style={{ background: `linear-gradient(to right, ${pal.ramps[legend.palette].join(",")})` }} />

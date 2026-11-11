@@ -7,7 +7,9 @@ browser viewer reads them over HTTP and draws them. What to draw, how objects re
 the bundle, written from a JSON profile, so the same code serves very different data:
 
 - **full reconstruction** (CMSSW step3, HGCal/TICL): rechits, layer clusters, tracksters through candidates, tracks,
-  and MC truth with reco-truth associations;
+  and the CMSSW truth graph (truth::Graph) with reco-truth associations: candidates and what they are made of
+  coloured by particle type, and any selection shown as its truth ↔ reco pair (matched, contamination, split,
+  missed);
 - **HGCal cassette tests** (MCT at P5): cosmic muons and noise events, with the whole readout as background;
 - **test beam**: layer stacks with beam showers, run information from the run registry.
 
@@ -44,7 +46,7 @@ viewer/            the viewer (src/io: reader, src/model: state and expressions,
 viewer/e2e/        headless-browser checks
 tests/             Python tests
 golden/            one real TICL v6 event, used by the tests
-docs/              format, profiles, viewer
+docs/              format, profiles, viewer, truth graph (what evd uses from it, what is missing)
 service/           deployment and cron scripts for the CERN site
 data/              bundles for the development server, listed in data/index.json (not tracked)
 ```

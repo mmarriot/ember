@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { EventData, Header } from "../io/bundle";
-import { bestPartners, levelsOf, related, relatedParts, relationInto } from "./relations";
+import type { DisplayLayer, EventData, Header } from "../io/bundle";
+import { bestPartners, contentPartners, identities, levelsOf, related, relatedParts, relationInto } from "./relations";
 
 // candidate 0 -> trackster 1 -> clusters 0, 2 -> hits; candidate 0 -> track 1; trackster 0 -> cluster 1 (no candidate)
 const csr = (rows: number[][]) => ({
@@ -73,5 +73,57 @@ describe("best partners", () => {
     expect(relationInto(header, ["T", "Cand"], "LC")).toBe("tLCs");
     expect(relationInto(header, ["Hit"], "Other")).toBe("missing");
     expect(relationInto(header, ["Hit"], "Other", ev)).toBeUndefined(); // not in this event
+  });
+});
+
+describe("truth identities", () => {
+  // particles: 0 π⁺ (100 GeV) -> children 1, 2 (inside the tracker); 1 owns hits 0, 1; 2 owns hit 2; 3 γ (30 GeV) owns
+  // hit 3; 4 a quark (500 GeV) linked to nothing; 5 (5 GeV) owns no hits but a trackster is matched to it
+  const tev = {
+    id: [1, 1, 1], tables: { P: { n: 6, columns: { energy: Float32Array.from([100, 40, 20, 30, 500, 5]) } }, Hit: { n: 4, columns: {} } },
+    relations: { kids: csr([[1, 2], [], [], [], [], []]), pHits: { ...csr([[], [0, 1], [2], [3], [], []]), weights: { simE: Float32Array.from([1, 2, 3, 4]) } },
+      tTruth: csr([[0], [5]]) },
+  } as unknown as EventData;
+  const th = { relations: {
+    kids: { from: "P", to: "P", weights: [] }, pHits: { from: "P", to: "Hit", weights: ["simE"], association: true, best: { weight: "simE", order: "max" } },
+    tTruth: { from: "T", to: "P", weights: [], association: true } },
+    display: [{ table: "Hit", repr: "cells" }, { table: "P", repr: "segments", truth: true, colour: "energy" }] } as unknown as Header;
+  const d = th.display[1] as DisplayLayer;
+  it("gives a particle the key of its highest ancestor that left hits or is matched", () => {
+    const { key, top, others } = identities(d, tev.tables.P, tev, th, 2);
+    expect([...key]).toEqual([0, 0, 0, 3, 4, 5]); // daughters of the matched π⁺ share its key
+    expect(top).toEqual([0, 3]); // largest first; the quark is linked to nothing and takes no colour
+    expect(others).toBe(1); // particle 5
+    expect([...identities(d, tev.tables.P, tev, th, 2).used]).toEqual([1, 0, 0, 1, 0, 1]); // keys in use: not the quark
+  });
+  it("keeps every reconstructed object its own key", () => {
+    const { key, top } = identities({ ...d, truth: false }, tev.tables.P, tev, th, 10);
+    expect([...key]).toEqual([0, 1, 2, 3, 4, 5]);
+    expect(top).toEqual([4, 0, 1, 3, 2, 5]);
+  });
+});
+
+describe("content partners", () => {
+  it("picks the object with the most weight in an object's parts, times its share of each part", () => {
+    // clusters: 0 -> hits 0 (fraction 1), 1 (0.5); 1 -> hit 2; 2 -> nothing. Particles: 0 -> hit 0 (1), hit 1 (4); 1 -> hit 1 (3)
+    const cev = {
+      id: [1, 1, 1], tables: { P: { n: 2, columns: {} }, LC: { n: 3, columns: {} }, Hit: { n: 3, columns: {} } },
+      relations: { lcHits: { ...csr([[0, 1], [2], []]), weights: { fraction: Float32Array.from([1, 0.5, 1]) } },
+        pHits: { ...csr([[0, 1], [1]]), weights: { simE: Float32Array.from([1, 4, 3]) } } },
+    } as unknown as EventData;
+    const ch = { relations: { lcHits: { from: "LC", to: "Hit", weights: ["fraction"] },
+      pHits: { from: "P", to: "Hit", weights: ["simE"], association: true, best: { weight: "simE", order: "max" } } } } as unknown as Header;
+    const { partner, weight } = contentPartners("LC", "P", 3, cev, ch);
+    expect([...partner]).toEqual([0, -1, -1]); // particle 0: 1 + 0.5 * 4 = 3 > particle 1: 0.5 * 3; hit 2 has no particle
+    expect(weight).toBe("simE");
+  });
+  it("votes through containment: a trackster takes the candidate holding most of its layer clusters", () => {
+    // trackster 0 -> clusters 0, 1, 2; candidate 0 holds cluster 0, candidate 1 holds clusters 1 and 2
+    const vev = { id: [1, 1, 1], tables: { T: { n: 1, columns: {} }, LC: { n: 3, columns: {} }, Cand: { n: 2, columns: {} } },
+      relations: { tLCs: csr([[0, 1, 2]]), candLCs: csr([[0], [1, 2]]) } } as unknown as EventData;
+    const vh = { relations: { tLCs: { from: "T", to: "LC", weights: [] }, candLCs: { from: "Cand", to: "LC", weights: [] } } } as unknown as Header;
+    const c = contentPartners("T", "Cand", 1, vev, vh);
+    expect([...c.partner]).toEqual([1]);
+    expect(c.derived).toBe(false);
   });
 });

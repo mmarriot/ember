@@ -19,9 +19,11 @@ export interface DisplayLayer {
   end?: [string, string, string]; // segments: where the line ends (it starts at `position`)
   colour?: string | null;
   palette?: "heat" | "cool";
-  /** Categorical colouring: one colour per object, the colour of the `from` object of a relation that contains it,
-   *  or one colour per value of a column (`abs`: of its absolute value; `names`: legend names per value). */
-  colourBy?: "row" | { relation: string } | { category: string; abs?: boolean; names?: Record<string, string> };
+  /** Categorical colouring: one colour per object ("row"); one colour each for the largest objects ("identity",
+   *  the others share one); the colour of the partner across a relation; the colour of the `content` table's object
+   *  with the most weight in its hits; or one colour per value of a column (`abs`: of its absolute value; `names`:
+   *  legend names per value). */
+  colourBy?: "row" | "identity" | { relation: string } | { content: string } | { category: string; abs?: boolean; names?: Record<string, string> };
   stage?: number; // reconstruction step (0, 1, ...) of the replay; the default view shows the last one
   size?: string | null;
   time?: string | null; // column with the arrival time in ns (missing: <= -50), for the replay

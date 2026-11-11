@@ -11,7 +11,7 @@ import { cutMin, cutValues, rescued } from "../model/cuts";
 import { colours, type LayerFor, type Legend, PALETTES, valueRange, type Pal, type Range } from "../render/colour";
 import { Engine, MIN_RADIUS } from "../render/engine";
 import { builders, type Layer } from "../render/layers";
-import { planReplay, type Plan } from "../render/replay";
+import { planReplay, type Parts, type Plan } from "../render/replay";
 import { back, jump } from "./navigate";
 import {
   activeMode, bundle, cuts, describe, domain, drawnLayers, event, focus, focusHidden, focusHistory, focusIsTruth, focusLayers, focusLevel, focusLinked, following,
@@ -44,7 +44,11 @@ export function replayEvent(): Plan | null {
   // through a relation (e.g. "Particle type") must not make them appear with the clusters.
   const header = bundle.peek()?.header, hints = new Map(header?.display.map((d) => [layerKey(d), d]));
   const items = entries.filter((e) => !e.d.context).map((e) => ({ ...e, d: hints.get(e.key) ?? e.d })); // background stays as it is
-  plan = planReplay(items, header?.replay);
+  const ev = event.peek(), parts: Parts = (name) => {
+    const r = header?.relations[name], rel = ev?.relations[name];
+    return r && rel ? { to: r.to, offsets: rel.offsets, indices: rel.indices } : undefined;
+  };
+  plan = planReplay(items, header?.replay, parts);
   engine.replay(plan.seconds);
   return plan;
 }
@@ -355,10 +359,17 @@ function Tooltip() {
 const bypassing = (d: DisplayLayer, f: Record<string, string>, hl: Map<string, Set<number>> | null) =>
   d.filter && f[d.table] === d.filter ? hl?.get(d.table) : undefined;
 
+/** Whether `table` holds the parts of paths built in the replay (display hint `grow`): a replay of the whole event draws
+ *  them all, so the building can be seen. */
+const grownFrom = (table: string) => {
+  const h = bundle.peek()?.header;
+  return !!h?.display.some((d) => d.grow && h.relations[d.grow.parts]?.to === table);
+};
+
 /** For a layer that shows only the focus's objects: the rows to keep (none without a focus), less those reached only
  *  from objects a cut hides (the hits and truth of a vertex's tracks below the pT cut); else undefined. */
 const onlyFor = (d: DisplayLayer, key: string, hl: Map<string, Set<number>> | null) => {
-  if (!d.onSelection || showAll.peek()[key]) return undefined;
+  if (!d.onSelection || showAll.peek()[key] || (replaying.peek() && !hl && grownFrom(d.table))) return undefined;
   const rows = hl?.get(d.table);
   if (!rows) return new Set<number>();
   const cut = belowCut(d.table, hl!);

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { DisplayLayer, Table } from "../io/bundle";
 import type { Layer } from "./layers";
-import { planReplay, type ReplayItem } from "./replay";
+import { type Parts, planReplay, type ReplayItem } from "./replay";
 
 const C = 29.9792458; // cm/ns
 
@@ -84,5 +84,58 @@ describe("replay timeline", () => {
     expect(c.out.retire).toBeGreaterThan(1e29); // the last stage stays
     expect(plan.linkEnd).toBeGreaterThan(plan.stages[2].start);
     expect(plan.caption(plan.stages[1].start + 0.1)?.title).toBe("Tracksters → linked");
+  });
+  it("builds paths from their parts before the clustering: seeds, then growth at one speed, then the fit", () => {
+    // Two straight paths along x from the origin (polylines of 17 points: 16 along the arc, then the end point), 100
+    // and 50 cm long; the second fails its cut. Six parts on the first, two on the second.
+    const P = 17, ends = [100, 50], out = { appear: new Float32Array(), done: new Float32Array() };
+    const path = { points: P, x: new Float32Array(2 * P), y: new Float32Array(2 * P), z: new Float32Array(2 * P), fill: () => {} };
+    ends.forEach((e, i) => { for (let j = 0; j < P; j++) path.x[i * P + j] = (e * Math.min(j, P - 2)) / (P - 2); });
+    const tracks = {
+      x: Float32Array.from(ends), y: new Float32Array(2), z: new Float32Array(2), path, passes: (i: number) => i === 0,
+      setTimeline: (a: Float32Array, l: Float32Array) => { out.appear = a; out.done = l; }, setRetire: () => {},
+    } as unknown as Layer;
+    const at = [5, 10, 20, 40, 60, 90, 10, 30];
+    let lit = new Float32Array();
+    const partLayer = {
+      x: Float32Array.from(at), y: new Float32Array(at.length), z: new Float32Array(at.length), passes: () => true,
+      setTimeline: (_: Float32Array, l: Float32Array) => (lit = l), setRetire: () => {}, setFade: () => {},
+    } as unknown as Layer;
+    const items: ReplayItem[] = [
+      { layer: tracks, d: { table: "Tracks", repr: "helix", group: "Tracks", kind: "track", label: "Tracks", grow: { parts: "trackHits", seed: 3 } } as DisplayLayer, t: { n: 2, columns: {} } },
+      { layer: partLayer, d: { table: "Hits", repr: "markers", group: "Track hits", kind: "hit", label: "Hits" } as DisplayLayer, t: { n: at.length, columns: {} } },
+    ];
+    const parts: Parts = (name) => (name === "trackHits" ? { to: "Hits", offsets: Uint32Array.of(0, 6, 8), indices: Uint32Array.from(at.keys()) } : undefined);
+    const plan = planReplay(items, undefined, parts), g = plan.growth!;
+    expect(g.start).toBeGreaterThanOrEqual(plan.travel);
+    expect(g.start).toBeLessThan(g.build);
+    expect(out.appear[0]).toBeCloseTo(g.build, 5); // float32
+    expect(out.done[0]).toBeGreaterThan(g.build);
+    expect(out.done[0]).toBeLessThan(g.end);
+    const l = [...lit];
+    expect(l[0]).toBe(l[1]); expect(l[1]).toBe(l[2]); // the seed: together, before the building
+    expect(l[0]).toBeLessThan(g.build);
+    for (const k of [3, 4, 5]) { // then in order along the path, as it reaches them
+      expect(l[k]).toBeGreaterThan(g.build);
+      expect(l[k]).toBeGreaterThan(l[k - 1]);
+    }
+    expect(l[4]).toBeCloseTo(g.build + 0.6 * (out.done[0] - g.build), 4); // 60 of 100 cm
+    expect(l[6]).toBeGreaterThan(1e28); // the parts of a path not drawn stay unlit
+    expect(plan.caption(g.start + 0.1)?.title).toBe("Seeding tracks");
+    expect(plan.caption(g.start + 0.1)?.detail).toBe("each starts from a seed: its first 3 track hits");
+    expect(plan.caption(g.build + 0.5)?.title).toBe("Building tracks outwards");
+    expect(plan.caption(g.end - 0.1)?.title).toBe("Fitting tracks");
+    expect(plan.seconds).toBeGreaterThan(g.end);
+  });
+  it("starts the clustering and the stages after the paths are built, and is unchanged without them", () => {
+    const h = hits([330, 340], [11, 11.3]), without = planReplay([h.item], undefined);
+    expect(without.growth).toBeUndefined();
+    expect([without.clusterStart, without.linkStart]).toEqual([3.2, 4.6]);
+    const path = { points: 3, x: Float32Array.of(0, 50, 100), y: new Float32Array(3), z: new Float32Array(3), fill: () => {} };
+    const tracks = { x: Float32Array.of(100), y: new Float32Array(1), z: new Float32Array(1), path, passes: () => true, setTimeline: () => {}, setRetire: () => {} } as unknown as Layer;
+    const d = { table: "Tracks", repr: "helix", group: "Tracks", label: "Tracks", grow: { parts: "none" } } as DisplayLayer;
+    const plan = planReplay([h.item, { layer: tracks, d, t: { n: 1, columns: {} } }], undefined);
+    expect(plan.clusterStart).toBeGreaterThan(plan.growth!.end - 1e-6);
+    expect(plan.linkStart - plan.clusterStart).toBeCloseTo(without.linkStart - without.clusterStart, 6);
   });
 });

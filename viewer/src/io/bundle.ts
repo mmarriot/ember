@@ -33,6 +33,10 @@ export interface DisplayLayer {
   colourBy?: "row" | "identity" | { relation: string } | { content: string }
     | { category: string; abs?: boolean; names?: Record<string, string> | [string | number, string][] };
   stage?: number; // reconstruction step (0, 1, ...) of the replay; the default view shows the last one
+  /** `helix`: the replay builds each path along its length, after the hits arrive and before the clustering and the
+   *  stages: its first `seed` parts (the `to` objects of relation `parts`, stored in order along the path) light up,
+   *  then the path grows out from its start, lighting each part as it reaches it. */
+  grow?: { parts: string; seed?: number };
   size?: string | null; // cells: half-width column [cm]; markers: a column whose larger values draw larger discs
   time?: string | null; // column with the arrival time in ns (missing: <= -50), for the replay
   axis?: [string, string, string];

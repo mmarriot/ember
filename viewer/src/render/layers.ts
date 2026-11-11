@@ -32,7 +32,7 @@ export interface Layer {
   setHighlight(rows: Set<number> | null): void; // the new selection; setHighlightMix fades from the previous one
   setHighlightMix(k: number): void; // 0: as before the last setHighlight, 1: as after
   setProjection(rz: boolean): void;
-  setTimeline(appear: Float32Array, link: Float32Array): void; // replay: when each object appears / joins its group (s)
+  setTimeline(appear: Float32Array, link: Float32Array): void; // replay: when each object appears / joins its group, or for a path being built is complete (s)
   setClock(t: number): void; // replay time in s; REPLAY_OFF shows the final state
   setRetire(t: number): void; // replay: when the layer gives way to the next reconstruction stage (s); REPLAY_OFF: never
   setFade?(from: number, to: number, amount: number): void; // replay: fade towards the background between these times
@@ -516,7 +516,7 @@ export function helices(input: LayerInput): Layer {
   const material = new THREE.ShaderMaterial({
     uniforms: { ...baseUniforms(input.pal), uDash: { value: d.truth ? 1 : 0 } },
     vertexShader: /* glsl */ `
-      attribute float isel, ipsel, icut, iT, ipiece, ipieces;
+      attribute float isel, ipsel, icut, iT, iL, ipiece, ipieces;
       attribute vec3 istart, iend, icol, idir, ipath; // ipath: curvature (rad/cm), length in the field, length of the arc (cm)
       varying vec3 vCol;
       varying float vS;
@@ -532,7 +532,8 @@ export function helices(input: LayerInput): Layer {
       }
       void main() {
         ${CULL()}
-        float grow = uClock > 1e29 ? 1.0 : clamp((uClock - iT) / 0.5, 0.0, 1.0), len = grow * ipath.z;
+        // Replay: the path grows from its start over 0.5 s once it appears, or until iL if later (a path being built).
+        float grow = uClock > 1e29 ? 1.0 : clamp((uClock - iT) / (iL > iT ? iL - iT : 0.5), 0.0, 1.0), len = grow * ipath.z;
         float l0 = len * ipiece / ipieces, l1 = len * (ipiece + 1.0) / ipieces;
         vec3 c = pathAt(position.x > 1.5 ? l1 : mix(l0, l1, position.x)), e = iend;
         vS = position.x > 1.5 ? l1 : mix(l0, l1, position.x);
@@ -542,7 +543,9 @@ export function helices(input: LayerInput): Layer {
         if (uProj > 0.5) c = projectRZ(c, s * 2.0, iend.y >= 0.0 ? 1.0 : -1.0);
         gl_Position = projectionMatrix * modelViewMatrix * vec4(c, 1.0);
         // A selected line is lifted towards white: a thin line in a dark colour (a low-pT track) would be hard to see.
-        vCol = fade(mix(mix(icol, vec3(1.0), 0.3 * s * selActive()), vec3(1.0), uFlash * pop(iT)), s) * remaining() + uBg * (1.0 - remaining());
+        // It flashes as it appears and, when built, as it is complete.
+        float p = max(pop(iT), iL > iT && grow >= 1.0 ? pop(iL) : 0.0);
+        vCol = fade(mix(mix(icol, vec3(1.0), 0.3 * s * selActive()), vec3(1.0), uFlash * p), s) * remaining() + uBg * (1.0 - remaining());
       }`,
     fragmentShader: `uniform float uDash; uniform vec3 uBg; varying vec3 vCol; varying float vS;
       void main() {

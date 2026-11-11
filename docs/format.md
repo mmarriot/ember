@@ -123,6 +123,8 @@ draws the others.
 | `describe` | `{"columns": [...], "names": {column: {value: name}}}`: how to name an object in lists (related objects, tree, inspector), e.g. `["pdgId", "energy"]` with PDG names |
 | `list` | `{"columns": [...], "sort": column, "max": n, "headline": "count"\|"value"}`: object rows under the layer in its side-panel tab (the Physics tab's event summary): its `max` (default 10) largest objects by `sort` (default: its cut, colour or energy column) that pass its cut and filter, with these columns; a click selects one. The tab's headline counts them, or with `"value"` gives the first column of a one-object table (MET) |
 | `inspect` | `[columns]`: the inspector's summary rows (e.g. `pt`, `eta`, `phi` of a jet), instead of the columns that colour, place and size the layer |
+| `fractions` | `{column: name}`: columns holding fractions (0..1) of the object's energy, shown in the inspector as one bar in a neutral ramp, each share named (e.g. a jet's `chargedHadronEF`: "charged hadrons") |
+| `labels` | `n`: label the `n` leading objects (by the `list` sort or the size column, passing the cut and filter) in a shared domain's view, with their kind and first `describe` value, at the far end of a line or cone (key L) |
 
 ### Viewer settings
 

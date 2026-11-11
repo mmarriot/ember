@@ -102,8 +102,10 @@ function HelpDialog() {
     ["Previous / next event", "← / →, or the arrows at the top"], ["Views: 3D, front, side, ρ–z", "1, 2, 3, 4, or the buttons in the top bar (with parts of the detector: at the bottom left of the view)"],
     ["One part of the detector (e.g. the tracker), or all", "D (Shift+D backwards), or the … · All buttons at the top (when the data has several parts); a selection stays selected, and D skips the parts it has nothing in"],
     ["Colours: what the reconstruction made, or what was really there", "T, or Reco · Truth in the colour key"],
+    ["Next / previous object of the selected kind, largest first (e.g. the next jet)", "N / Shift+N; with nothing selected, the leading object"],
+    ["Labels on the leading objects and the selection", "L; pointing at a row of the Physics tab rings its object"],
     ["Replay: how the event builds up, step by step", "R"],
-    ["Tour: replay, then visit the main showers, event after event", "P, or the play button; any key or touch stops it"],
+    ["Tour: replay, then visit the main showers (or the leading physics objects), event after event", "P, or the play button; any key or touch stops it"],
     ["Live: play new data as it arrives", "the Live button"],
     ["Colour, filter or a new column for a collection", "⋯ at the end of its row in the side panel"],
     ["Open a local .evdb file", "drop it on the page"], ["Resize the side panel", "drag its edge; double-click to reset"],
@@ -132,7 +134,8 @@ function HelpDialog() {
       <p class="hint">A filter or a new column (⋯ on a row) is an expression of the table's columns: {SYNTAX}. A filter hides the rows where
         it is 0; a new column is shown in the inspector and can colour or filter.</p>
       <h3>Sharing</h3>
-      <p class="hint">The address bar keeps the data set, event, view and selection; the share button copies it.</p>
+      <p class="hint">The address bar keeps the data set, event, view, part of the detector, selection, the level shown and the truth
+        colours; the share button copies it.</p>
     </Modal>
   );
 }

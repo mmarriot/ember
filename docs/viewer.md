@@ -22,8 +22,10 @@ The same list is in the viewer's help (`?`).
 | views: 3D, front, side, ρ–z | 1, 2, 3, 4, or the buttons at the bottom left of the view (in the top bar for bundles without parts of the detector) |
 | one part of the detector, or all | D (Shift+D backwards), or Physics · Tracker · … · All at the top (bundles with `domains`; a drop-down list below 1100 px): the part's layers, those of shared domains (e.g. the physics objects) and those of none (truth), framed on its region, in its view, and its layers' tab opens in the side panel (choosing a tab does not change the view); the side panel keeps your ticks. A shared domain (e.g. **Physics**) draws only its own layers and those of none. A bundle opens on its `view.domain`. With something selected it stays selected: the view frames its objects in that part, and D skips the parts it has nothing in |
 | what the colours show | T, or Reco · Truth in the colour key: the reconstruction (candidate types), or the truth (each generator particle in its own colour, reco objects only where they are a clean match); see [Colours](#colours-and-the-truth--reco-pair) |
+| next / previous object | N / Shift+N: the next object of the selected one's kind, largest first (the order of its object rows, e.g. the next jet by pT); with nothing selected, the leading object of the first layer with labels |
+| labels | L: labels on the leading objects of the layers with a `labels` hint (e.g. the 4 leading jets, MET) in a shared domain's view (Physics), and on the selection in any view; at the far end of a line or cone (where a jet meets the calorimeter), else at the object. Pointing at an object row in the side panel rings its object in the view |
 | replay | R: hits appear at their arrival time (display hint `time`, else time of flight, or the bundle's `replay` order), then paths are built from their hits (display hint `grow`: tracks seeded, built outwards, fitted), then each reconstruction stage in turn; a caption says what is happening |
-| tour | P, or the play button: replay with a moving camera (closer on the paths while they are built), visit the main showers, next event; any key or touch stops it |
+| tour | P, or the play button: replay with a moving camera (closer on the paths while they are built), visit the main showers, next event; any key or touch stops it. A bundle that opens on a shared domain (e.g. Physics) replays in All, then visits its leading labelled objects (e.g. jets, the lepton, MET) in that domain |
 | live | the Live button: play new files as they appear in the site's index |
 | help | ? |
 | resize the side panel | drag its edge; double-click to reset |
@@ -46,7 +48,8 @@ Preset buttons when the bundle has more than one preset; then tabs; then the col
   sigmaNoise`, computed in the browser for every event and usable for colour and filters like stored columns), and the
   table's custom columns. A ticked layer with a `list` hint lists its largest objects that pass its cut and filter
   (e.g. jets by pT, with pT, η, φ); a click selects one. The tab opens with a headline: how many objects of each such
-  layer pass (or the value of a one-object table, e.g. MET).
+  layer pass (or the value of a one-object table, e.g. MET). On a phone the panel is a sheet under the view, folded to
+  its tabs until one is chosen.
 - **Truth** (named **Tree** for a tree without truth layers): the truth collections with their cut, what became of
   each particle that left hits (its best candidate, or not reconstructed), and objects linked to objects of the same
   table, e.g. truth-graph particles and their children, as a collapsible tree.
@@ -106,6 +109,10 @@ none) and purity (the share of the candidate's hit energy from the particle). Th
 e.g. while clicking particles in Truth. Completeness counts each hit once per shower and any share of it; the colours
 use each hit's dominant particle. Truth layers show the pair's particle and the one the selection points at.
 
+**The inspector's summary** shows the layer's `inspect` columns (e.g. a jet's pT, η, φ), and for a layer with
+`fractions` its reconstructed energy fractions as one bar in a neutral grey ramp, each share named under it (e.g. a
+jet's charged and neutral hadrons, photons): a reconstruction quantity, not one of the view's colours.
+
 **The inspector's truth sections.** A reco object whose association has a `match` contract shows what its kind
 reconstructs (e.g. "the particle that entered the calorimeter"), the associator's best match, its purity (with the
 counted amounts: "21 of its 21 hits"), its completeness (and of what), whether it is clean, the associator's score
@@ -122,6 +129,6 @@ Expressions (filters, custom columns, summary `where`) admit column names, numbe
 `&& || !`, parentheses and a fixed list of Math functions. They are parsed, never evaluated as JavaScript
 (`viewer/src/model/expr.ts`).
 
-The URL keeps the bundle, event, view, domain (`All` when a bundle that opens on a domain shows everything) and
-selection, so links can be shared. Custom columns, filters, colour
+The URL keeps the bundle, event, view, domain (`All` when a bundle that opens on a domain shows everything),
+selection, the level shown (`lv`) and the truth colours (`c=truth`), so links can be shared. Custom columns, filters, colour
 choices and the active preset (per profile), the theme and the panel width are remembered per browser.

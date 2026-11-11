@@ -107,7 +107,9 @@ All optional; the converter copies them from the profile.
   rows that pass the cuts (and the expression `where`), grouped by the integer column `groupBy`; `op` is `count`,
   `sum` or `mean` (of `value`).
 - `presets`: `[{"name", "colour": {table: column}, "filters": {table: expression}}]`: named colour and filter
-  settings, shown as buttons when there are several. Applying one first resets every table any preset touches to its
+  settings, shown as buttons when there are several. A colour `"rel:<relation>"` instead of a column takes the colour
+  of the related object through that relation, as the layer's "Related objects" colour choice does (e.g.
+  `{"Tracks": "rel:trackVertex"}`: each track in its vertex's colour). Applying one first resets every table any preset touches to its
   default colour and `filter` hint. The first preset is active on opening, unless the viewer remembers another one
   chosen for the same profile.
 - `domains`: `[{"name", "region": {"rMin", "rMax", "zMin", "zMax"}, "view"}]`: the parts of the detector, in order (cm; z

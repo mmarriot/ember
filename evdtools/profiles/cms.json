@@ -20,5 +20,5 @@
     "candidate": {"domain": "HGCal"},
     "truthParticle": {"repr": "helix", "momentum": ["px", "py", "pz"], "charge": "charge"}
   },
-  "domains": [{"name": "HGCal", "region": {"rMax": 260, "zMin": 320, "zMax": 515}, "view": "3d"}]
+  "domains": [{"name": "HGCal", "region": {"rMax": 260, "zMax": 515}, "view": "3d"}]
 }

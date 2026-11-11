@@ -310,7 +310,7 @@ def test_tracker_profile_alone_and_tracker_only():
     tables (and truth, absent here), and its header keeps the Tracker domain alone."""
     t = load_profile("tracker")
     assert t["field"] == load_profile("cms")["field"] and t["domains"] == [load_profile("cms")["domains"][0]]
-    assert t["domains"][0]["colourMode"] == "layer"
+    assert t["domains"][0]["colourMode"] == "layers"
     types = {"Tracks": dict.fromkeys(("vx", "vy", "vz", "px", "py", "pz", "outerX", "outerY", "outerZ", "pt", "eta"), F4)
              | {"charge": np.dtype("i2"), "highPurity": np.dtype("u1"), "vertexIdx": I4},
              "TrackHits": {**XYZE, "trackIdx": I4, "subdet": np.dtype("u1")},

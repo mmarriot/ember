@@ -407,7 +407,10 @@ class Converter:
             for c in s.get("where", []):
                 self._check(s["table"], c)
 
-        self.display = _display(profile, self.written(), self.relations)
+        # A path layer (polyline) needs its points relation: without it (a table absent) the layer is dropped, as layers
+        # of absent tables are.
+        self.display = [layer for layer in _display(profile, self.written(), self.relations)
+                        if (layer.get("points") or {}).get("relation", None) in (None, *self.relations)]
         for layer in self.display:
             self._check_display(layer)
         self.viewer_hints = {k: v for k, v in profile.items() if k not in PROFILE_KEYS}

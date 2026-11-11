@@ -325,6 +325,14 @@ def test_relation_names_must_be_unique():
         converter({"A": {"k": I4}, "B": {}}, {"relations": [rel, {**rel, "to": "C"}]})
 
 
+def test_path_layer_without_its_points_relation_is_dropped():
+    """A polyline layer whose points relation is not built (its link table absent) is left out, not written broken."""
+    layer = {"table": "T", "repr": "polyline", "position": ["x", "y", "z"], "points": {"relation": "tPoints"}}
+    rel = {"name": "tPoints", "kind": "index", "from": "T", "to": "P", "index": "P.t"}
+    assert [x["table"] for x in converter({"T": XYZE, "P": {**XYZE, "t": I4}}, {"display": [layer], "relations": [rel]}).display] == ["T"]
+    assert converter({"T": XYZE}, {"display": [layer], "relations": [rel]}).display == []
+
+
 def test_fact_hint_is_passed_to_the_header():
     """`fact` marks a truth -> hit relation as simulated energy per particle and cell (a fact, not a match)."""
     rel = {"name": "truthHits", "kind": "index", "from": "P", "to": "H", "index": "H.p", "association": True,
@@ -507,9 +515,12 @@ def test_tracker_profile_alone_and_tracker_only():
              | {"charge": np.dtype("i2"), "highPurity": np.dtype("u1"), "vertexIdx": I4},
              "TrackHits": {**XYZE, "trackIdx": I4, "subdet": np.dtype("u1")},
              "Vertices": {**XYZE, "sumPt2": F4, "nTracks": np.dtype("u2")}, "VertexTracks": {"vertexIdx": I4, "trackIdx": I4, "weight": F4},
-             "TICLCandidates": {"trackIdx": I4, "time": F4, "energy": F4}, "HGCalHits": XYZE}
+             "TICLCandidates": {"trackIdx": I4, "time": F4, "energy": F4}, "HGCalHits": XYZE,
+             "MTDHits": {**XYZE, "time": F4, "timeError": F4, "energy": F4, "subdet": np.dtype("u1"), "row": np.dtype("i2"), "col": np.dtype("i2")},
+             **{t: XYZE for t in ("EcalHits", "PFCandidates", "Jets", "Muons", "MuonHits", "SecondaryVertices", "Electrons", "GsfTracks",
+                                  "PFClustersECAL", "EGammaSuperClusters", "Taus", "TruthMuonHits", "particleFlowClusterECALToTruth")}}
     conv = converter(types, load_profile("tracker_only"))
-    assert set(conv.written()) == {"Tracks", "TrackHits", "Vertices"}
+    assert set(conv.written()) == {"Tracks", "TrackHits", "Vertices", "MTDHits"}  # every other detector and object left out
     header = conv.header([], "t")
     assert [d["name"] for d in header["domains"]] == ["Tracker"] and header["field"]["bz"] == 3.8
     assert header["relations"]["trackVertex"]["inverseOf"] == "vertexTracks"

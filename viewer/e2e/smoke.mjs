@@ -240,7 +240,7 @@ async function checkObjectRows(page, h, fail, shot, tag) {
   const tabOf = (d) => (h.domains ?? []).find((x) => x.name === d.domain)?.shared || (h.domains?.length ?? 0) < 2 ? d.domain ?? "Objects" : "Detector";
   let d;
   for (const x of h.display.filter((l) => l.list && l.visible)) {
-    await page.getByRole("tab", { name: tabOf(x), exact: true }).click().catch(() => {});
+    await page.getByRole("tab", { name: tabOf(x), exact: true }).click({ timeout: 120000 }).catch(() => {});
     if (await page.locator(".layer", { hasText: x.label }).count()) { d = x; break; }
   }
   if (!d) return log(`${tag}: no object rows drawn`);
@@ -249,12 +249,12 @@ async function checkObjectRows(page, h, fail, shot, tag) {
   log(`${tag}: ${d.label}: ${n} object rows; headline "${headline}"`);
   if (!n) return fail(`${d.label} lists no objects (display hint list)`);
   if (!headline) fail("no headline above the object rows");
-  await rows.first().hover();
+  await rows.first().hover({ timeout: 120000 });
   await page.waitForTimeout(400);
   const ring = await page.locator(".labels .label.hover").count();
   log(`${tag}: pointing at a row rings its object: ${ring ? "yes" : "no"}`);
   if (!ring) fail("pointing at an object row does not ring its object in the view");
-  await rows.first().click();
+  await rows.first().click({ timeout: 120000 }); // software WebGL: a PU200 scene keeps the page busy
   await page.waitForTimeout(900);
   const s = decodeURIComponent(new URL(page.url()).hash.match(/s=([^&]+)/)?.[1] ?? "");
   const marked = await rows.first().getAttribute("class");

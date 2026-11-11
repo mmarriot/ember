@@ -1,6 +1,7 @@
 // Browser check (headless Chromium, software WebGL) of every bundle in the site's index.json, or of those named.
 // Each: layers draw (helices end at finite points), a start domain opens, domains draw only their layers (and shared
-// ones) and open their tab, object rows select, D and the focus bar's chips keep the selection, presets apply, a bundle with candidates has a colour key, T colours by generator particle where there is truth, summary charts show where the profile defines them,
+// ones) and open their tab, labels show (L hides them) and N selects, object rows ring and select, D and the focus
+// bar's chips keep the selection, the URL keeps the level and the truth colours, presets apply, a bundle with candidates has a colour key, T colours by generator particle where there is truth, summary charts show where the profile defines them,
 // a selection draws its objects that a layer's filter hides and its levels of lines (a vertex's tracks),
 // selecting an object shows what is related and only its bottom level (↓ ↑ step through the others), a related
 // object can be jumped to and back, Esc leaves. One bundle (`--deep`, default the smallest with reconstruction
@@ -88,6 +89,7 @@ async function checkBundle(file, tag, state) {
     const truthTitle = await title(), entries = await page.locator(".colourkey .key li").count();
     log(`${tag}: truth colours: "${truthTitle.split("\n")[0]}", ${entries} key entries`);
     if (!truthTitle.includes("generator particle") || entries < 3) fail(`T did not colour by generator particle (${truthTitle})`);
+    if (!new URL(page.url()).hash.includes("c=truth")) fail("the truth colours are not in the URL (c=truth)");
     await shot("1_truth");
     await page.keyboard.press("t");
     await page.waitForTimeout(1500);
@@ -171,6 +173,24 @@ async function checkStart(page, h, fail, tag) {
   log(`${tag}: opens on ${url || "All"} (start domain ${start}), drawing ${tables.join(", ")}`);
   if (url !== start) fail(`did not open on its start domain ${start} (URL d=${url})`);
   if (other.length) fail(`the start domain ${start} draws layers of other domains: ${other.join(", ")}`);
+  // Labels on the leading objects (layer hint labels) of the layers drawn; L hides them; N selects the leading one.
+  const labelled = h.display.filter((d) => d.labels && tables.includes(d.table));
+  if (!labelled.length) return;
+  const shown = () => page.$$eval(".labels .label.lead", (l) => l.filter((x) => x.style.visibility === "visible").map((x) => x.innerText));
+  const texts = await shown();
+  log(`${tag}: labels ${texts.join(" | ")}`);
+  if (!texts.length) fail(`no labels on the leading objects of ${labelled.map((d) => d.table).join(", ")}`);
+  await page.keyboard.press("l");
+  await page.waitForTimeout(300);
+  if ((await shown()).length) fail("L did not hide the labels");
+  await page.keyboard.press("l");
+  await page.keyboard.press("n");
+  await page.waitForTimeout(900);
+  const s = decodeURIComponent(new URL(page.url()).hash.match(/s=([^&]+)/)?.[1] ?? "");
+  log(`${tag}: N selected ${s}`);
+  if (!labelled.some((d) => s.startsWith(`${d.table}:`))) fail(`N did not select a leading labelled object (s=${s})`);
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(500);
 }
 
 /** With two or more domains: each one draws only its layers, those of shared domains and those without a domain,
@@ -227,6 +247,11 @@ async function checkObjectRows(page, h, fail, shot, tag) {
   log(`${tag}: ${d.label}: ${n} object rows; headline "${headline}"`);
   if (!n) return fail(`${d.label} lists no objects (display hint list)`);
   if (!headline) fail("no headline above the object rows");
+  await rows.first().hover();
+  await page.waitForTimeout(400);
+  const ring = await page.locator(".labels .label.hover").count();
+  log(`${tag}: pointing at a row rings its object: ${ring ? "yes" : "no"}`);
+  if (!ring) fail("pointing at an object row does not ring its object in the view");
   await rows.first().click();
   await page.waitForTimeout(900);
   const s = decodeURIComponent(new URL(page.url()).hash.match(/s=([^&]+)/)?.[1] ?? "");
@@ -331,6 +356,7 @@ async function checkLevels(page, h, target, fail, shot, tag) {
   const lit = await page.locator(".focusbar .level.on:not(:disabled)").allInnerTexts(), down = await drawn();
   log(`${tag}: levels: ${pills.join(" › ").replace(/\s+/g, " ")}; ↓ shows ${lit.join() || "nothing"}`);
   if (lit.length !== 1 || down === before) fail(`↓ did not show the first level (lit: ${lit.join() || "none"})`);
+  if (!new URL(page.url()).hash.includes("lv=")) fail("the level shown is not in the URL (lv)");
   if (style0 && (await style()) === style0) fail("↓ did not draw the focus as an outline around the level");
   await shot("3b_level");
   await page.keyboard.press("ArrowUp");

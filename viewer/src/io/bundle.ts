@@ -8,9 +8,11 @@ const TYPES = {
 export type TypeCode = keyof typeof TYPES;
 export type Column = InstanceType<(typeof TYPES)[TypeCode]>;
 
+/** How layers can be drawn (render/layers.ts `builders`); a bundle may name others, from a newer format. */
+export const REPRS = ["cells", "markers", "ellipsoids", "segments", "helix"] as const;
 export interface DisplayLayer {
   table: string;
-  repr: "cells" | "markers" | "ellipsoids" | "segments" | "helix";
+  repr: (typeof REPRS)[number];
   group: string;
   label: string;
   kind?: string; // object type from the profile (e.g. "trackster"); `group` is then its label

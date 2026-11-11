@@ -1,6 +1,6 @@
 // Application state. Components and the renderer react to these signals.
 import { computed, effect, signal } from "@preact/signals";
-import { Bundle, type DisplayLayer, type EventData, httpSource, kindName, type Table, unitOf } from "../io/bundle";
+import { Bundle, type DisplayLayer, type EventData, httpSource, kindName, REPRS, type Table, unitOf } from "../io/bundle";
 import type { Legend, ThemeName } from "../render/colour";
 import type { Caption } from "../render/replay";
 import type { Hit, ViewName } from "../render/engine";
@@ -286,6 +286,12 @@ export async function refreshCatalogue() {
 export async function openBundle(name: string, open = () => httpSource(name), start = 0) {
   try {
     const b = await Bundle.open(await open());
+    // A layer drawn in a way this viewer does not know (a newer bundle): left out, the rest is drawn.
+    const unknown = b.header.display.filter((d) => !(REPRS as readonly string[]).includes(d.repr));
+    if (unknown.length) {
+      console.warn(`Not drawn, unknown representation: ${unknown.map((d) => `${d.label} (${d.table}: ${d.repr})`).join(", ")}`);
+      b.header.display = b.header.display.filter((d) => !unknown.includes(d));
+    }
     // A layer whose position columns are missing would be drawn at the origin: leave it out and say so.
     const placed = (d: DisplayLayer) => d.position.every((c) => c in (b.header.tables[d.table]?.columns ?? {}));
     const unplaced = b.header.display.filter((d) => !placed(d));

@@ -69,7 +69,8 @@ tracks).
 ### Display hints
 
 `display` lists drawable layers, in display order. `repr` is one of `cells`, `markers`, `ellipsoids`, `segments`,
-`helix`.
+`helix`. A viewer leaves out a layer whose `repr` it does not know (from a newer bundle), with a console warning, and
+draws the others.
 
 | key | meaning |
 |---|---|

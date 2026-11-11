@@ -1,0 +1,42 @@
+{
+  "name": "physics",
+  "note": "CMS Phase-2 physics objects (Fireworks/EventExport preset pf): AK4 Puppi jets (ak4PFJetsPuppi, raw: RECO has no jet energy corrections) as cones from the leading primary vertex to the calorimeter surface (r 129 cm, |z| 320 cm), with their constituents (PF candidates); Puppi MET (pfMetPuppi) and PF MET (pfMet, a hidden alternative: at PU200 it is dominated by pile-up) as arrows from that vertex. Jets and MET start at the vertex PUPPI treats as the hard scatter (row 0 of the primary vertices: the jets' and MET's vertexIdx), gathered through relations that are not written. Physics domain: shared (its layers are drawn in every domain), the whole detector without HF, 3D, the start domain. Defaults: jets pT >= 30 GeV (measured: 3.8 / 3.6 per event at 0PU / PU200). No truth for jets and MET (truth-graph.md gaps 21, 22). Caveat measured on the ttbar samples: PUPPI gives weight 0 to every HGCal (pfTICL) neutral candidate at PU200 and to 94% of HF candidates even at 0PU, so Puppi jets and MET miss neutral energy above |eta| 1.5.",
+  "relations": [
+    {"name": "jetConstituents", "kind": "links", "from": "Jets", "to": "PFCandidates", "table": "JetConstituents",
+     "fromIndex": "JetConstituents.jetIdx", "toIndex": "JetConstituents.candIdx"},
+    {"name": "jetVertex", "kind": "index", "from": "Jets", "to": "Vertices", "index": "Jets.vertexIdx", "written": false},
+    {"name": "puppiMetVertex", "kind": "index", "from": "PuppiMET", "to": "Vertices", "index": "PuppiMET.vertexIdx", "written": false},
+    {"name": "pfMetVertex", "kind": "index", "from": "PFMET", "to": "Vertices", "index": "PFMET.vertexIdx", "written": false}
+  ],
+  "internal": ["JetConstituents"],
+  "derive": [
+    {"table": "Jets", "gather": [{"relation": "jetVertex", "columns": {"x": "x", "y": "y", "z": "z"}}], "fill": 0},
+    {"table": "PuppiMET", "gather": [{"relation": "puppiMetVertex", "columns": {"x": "x", "y": "y", "z": "z"}}], "fill": 0},
+    {"table": "PFMET", "gather": [{"relation": "pfMetVertex", "columns": {"x": "x", "y": "y", "z": "z"}}], "fill": 0}
+  ],
+  "kinds": {
+    "jet": {"label": "Jets", "domain": "Physics", "repr": "cones", "visible": true, "labels": 4,
+            "cut": {"group": "Jet pT", "unit": "GeV", "default": 30},
+            "truthGap": {"reason": "no jet associator in CMSSW, and no generator-jet level in the truth graph", "gap": 21}},
+    "met": {"label": "MET", "domain": "Physics", "repr": "segments", "visible": true, "labels": 1,
+            "truthGap": {"reason": "no truth MET from the truth graph", "gap": 22}}
+  },
+  "display": [
+    {"table": "Jets", "kind": "jet", "label": "AK4 Puppi", "source": "Puppi", "position": ["x", "y", "z"],
+     "direction": ["eta", "phi"], "radius": 0.4, "length": {"to": {"r": 129, "z": 320}}, "size": "pt",
+     "cut": {"column": "pt"},
+     "describe": {"columns": ["pt", "eta"]}, "list": {"columns": ["pt", "eta", "phi"], "sort": "pt", "max": 10},
+     "inspect": ["pt", "eta", "phi", "mass", "energy", "nConstituents", "area"],
+     "fractions": {"chargedHadronEF": "charged hadrons", "neutralHadronEF": "neutral hadrons", "photonEF": "photons",
+                   "electronEF": "electrons", "muonEF": "muons", "hfHadronEF": "HF hadronic", "hfEmEF": "HF EM"}},
+    {"table": "PuppiMET", "kind": "met", "label": "Puppi MET", "source": "Puppi", "position": ["x", "y", "z"],
+     "direction": ["px", "py", "pz"], "length": {"column": "pt", "scale": 2, "max": 500}, "arrow": true, "width": 4,
+     "views": ["3d", "front"], "size": null, "describe": {"columns": ["pt"]}, "list": {"columns": ["pt", "phi"], "headline": "value"},
+     "inspect": ["pt", "phi", "sumEt"]},
+    {"table": "PFMET", "kind": "met", "label": "PF MET", "source": "PF", "position": ["x", "y", "z"],
+     "direction": ["px", "py", "pz"], "length": {"column": "pt", "scale": 2, "max": 500}, "arrow": true, "width": 4,
+     "views": ["3d", "front"], "size": null, "describe": {"columns": ["pt"]}, "list": {"columns": ["pt", "phi"], "headline": "value"},
+     "inspect": ["pt", "phi", "sumEt"]}
+  ],
+  "domains": [{"name": "Physics", "shared": true, "region": {"rMax": 750, "zMax": 1080}, "view": "3d", "colourMode": "layers"}]
+}

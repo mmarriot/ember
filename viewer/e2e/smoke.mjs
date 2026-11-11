@@ -103,6 +103,11 @@ async function checkBundle(file, tag, state) {
     if (!pair) fail("no truth <-> reco pair for the selection");
   }
   await shot("3_selected");
+  // The levels need an object made of several kinds (row 0 may be e.g. a track-only candidate): the first such row.
+  const pills = () => page.locator(".focusbar .level").count();
+  let row = 0;
+  if (target.stage !== undefined) for (let r = 1; r < 6 && (await pills()) < 2; r++) await open(`b=${file}&e=1&s=${target.table}:${(row = r)}`);
+  if (row && (await pills()) < 2) await open(`b=${file}&e=1&s=${target.table}:${(row = 0)}`);
   await checkLevels(page, h, target, fail, shot, tag);
   const focused = async () => `${await page.locator(".focusbar b").innerText().catch(() => "")} (${decodeURIComponent(new URL(page.url()).hash.match(/s=([^&]+)/)?.[1] ?? "")})`;
   const first = await focused();
@@ -126,9 +131,15 @@ async function checkBundle(file, tag, state) {
 }
 
 // The focus is drawn with its bottom level (e.g. hits) only: no layer of an earlier reconstruction stage. ↓ adds one
-// level in between (one more layer kind drawn, its pill lit), ↑ goes back.
+// level in between (one more layer kind drawn, its pill lit) and turns a shower focus into an outline around it; ↑
+// goes back.
 async function checkLevels(page, h, target, fail, shot, tag) {
   const drawn = () => page.evaluate(() => window.evdEngine.layers.map((l) => l.table).sort().join());
+  const style = () => page.evaluate((t) => { // shower layers: surface style and transparency of the focus's layer
+    const m = window.evdEngine.layers.find((l) => l.table === t)?.object.children?.[0]?.material;
+    return m?.uniforms?.uStyle ? `${m.uniforms.uStyle.value}/${m.transparent}` : "";
+  }, target.table);
+  const style0 = await style();
   const before = await drawn(), pills = await page.locator(".focusbar .level").allInnerTexts();
   const earlier = h.display.filter((d) => target.stage !== undefined && d.stage !== undefined && d.stage < target.stage).map((d) => d.table);
   const early = before.split(",").filter((t) => earlier.includes(t));
@@ -139,10 +150,12 @@ async function checkLevels(page, h, target, fail, shot, tag) {
   const lit = await page.locator(".focusbar .level.on:not(:disabled)").allInnerTexts(), down = await drawn();
   log(`${tag}: levels: ${pills.join(" › ").replace(/\s+/g, " ")}; ↓ shows ${lit.join() || "nothing"}`);
   if (lit.length !== 1 || down === before) fail(`↓ did not show the first level (lit: ${lit.join() || "none"})`);
+  if (style0 && (await style()) === style0) fail("↓ did not draw the focus as an outline around the level");
   await shot("3b_level");
   await page.keyboard.press("ArrowUp");
   await page.waitForTimeout(600);
   if ((await drawn()) !== before) fail("↑ did not go back to the focus's default layers");
+  if ((await style()) !== style0) fail("↑ did not give the focus its own surface back");
 }
 
 async function deepChecks(page, fail, shot) {

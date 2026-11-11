@@ -220,7 +220,12 @@ export const shownLevel = computed(() => {
   const c = focusLevel.value;
   return levels.value.slice(0, -1).some((l) => l.name === c) ? c : null;
 });
-export const stepFocusLevel = (by: number) => { focusLevel.value = stepLevel(levels.peek(), focusLevel.peek(), by); };
+/** Step the shown level down (+1) or up (-1); false (and nothing changes) if the focus has no levels to step through. */
+export function stepFocusLevel(by: number) {
+  if (levels.peek().length < 2) return false;
+  focusLevel.value = stepLevel(levels.peek(), focusLevel.peek(), by);
+  return true;
+}
 
 // While a focus lasts, what is drawn differs from the Layers tab: the focus's layer, its stage (e.g. a candidate's
 // track) and what is linked to it (its truth) are drawn even from hidden layers; of its levels, only the bottom one

@@ -3,7 +3,7 @@ import { effect } from "@preact/signals";
 import { useEffect } from "preact/hooks";
 import { blobSource } from "../io/bundle";
 import type { ViewName } from "../render/engine";
-import { bundleName, catalogue, dialog, event, eventIndex, focus, highlight, openBundle, refreshCatalogue, selection, showEvent, stepFocusLevel, view } from "../model/store";
+import { bundleName, catalogue, dialog, event, eventIndex, highlight, openBundle, refreshCatalogue, selection, showEvent, stepFocusLevel, view } from "../model/store";
 import { Header } from "./Header";
 import { Inspector } from "./Inspector";
 import { Sidebar } from "./Sidebar";
@@ -46,7 +46,7 @@ export function App() {
       else if (e.key === "?") dialog.value = dialog.value ? null : "help";
       else if (e.key === "ArrowRight") showEvent(eventIndex.value + 1);
       else if (e.key === "ArrowLeft") showEvent(eventIndex.value - 1);
-      else if ((e.key === "ArrowDown" || e.key === "ArrowUp") && focus.value) { e.preventDefault(); stepFocusLevel(e.key === "ArrowDown" ? 1 : -1); }
+      else if ((e.key === "ArrowDown" || e.key === "ArrowUp") && stepFocusLevel(e.key === "ArrowDown" ? 1 : -1)) e.preventDefault();
       else if (VIEW_KEYS[e.key]) view.value = VIEW_KEYS[e.key];
       else if (e.key === "f" || e.key === "F") engine?.frame(highlight.value ?? undefined, true);
       else if (e.key === "Home") engine?.frame(undefined, true);

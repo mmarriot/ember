@@ -6,7 +6,7 @@
 import { PAIR, type PairClass } from "../model/pair";
 import { percent } from "../model/match";
 import { PALETTES } from "../render/colour";
-import { activeMode, bundle, colourChoice, describe, focus, layerKey, layerOf, legends, modes, pairView, short, theme, truthColours } from "../model/store";
+import { activeMode, bundle, colourChoice, describe, drawnLayers, focus, kindOf, layerKey, layerOf, legends, modes, pairView, short, theme, truthColours, truthStatuses } from "../model/store";
 import { jump } from "./navigate";
 
 /** The pair view's classes, as the regions of the particle and the candidate: colour, name, meaning. */
@@ -82,6 +82,8 @@ function TruthKey() {
   const truthLayer = roots.truth ? layerOf(roots.truth) : undefined, legend = truthLayer ? legends.value[layerKey(truthLayer)] : undefined;
   // The clean-match thresholds of the drawn reco kinds, e.g. tracks 75% of hits, calorimeter objects 50% of energy.
   const rules = new Map<string, string>();
+  // The kinds drawn now that have no truth of their own (docs/truth.md "Where truth stops").
+  const faint = [...new Set(b.header.display.filter((l) => drawnLayers.value[layerKey(l)] && truthStatuses.value.get(l.table)?.kind === "none").map((l) => kindOf(l.table)))];
   for (const info of Object.values(b.header.relations))
     if (info.match?.good !== undefined && info.to === roots.truth)
       rules.set(`${info.match.measure}|${info.match.good}`, `${percent(info.match.good)} of its ${info.match.measure === "hits" ? "hits" : "energy"} (${info.match.in})`);
@@ -94,6 +96,8 @@ function TruthKey() {
         <li><i class="small" style={{ background: pal.pileup }} />pile-up</li>
         <li><i class="small" style={{ background: pal.unassigned }} />no truth, or no clean match</li>
       </ul>
+      {faint.length > 0 && <p class="hint faintkinds" title="The truth graph has no answer for these kinds (no associator in CMSSW, or none exported): they are drawn faint and never take a particle's colour. The Truth tab lists every kind's truth.">
+        faint: no truth for this kind: {faint.join(", ")} (why: Truth tab)</p>}
       <p class="hint" title="Hits take the particle that left the most simulated energy in them. No truth: noise, out-of-time pile-up, or a particle the export left out.">
         Hits and truth lines: the generator particle they come from (secondaries, conversions and decays in the detector
         included). A reco object takes its particle's colour only when at least {[...rules.values()].join(", or ")} is from it; otherwise grey.

@@ -467,6 +467,17 @@ async function deepChecks(page, h, fail, shot) {
  *  the seeding, building and fitting captions come in order before any later step, and every path is complete by the
  *  fit. */
 async function checkReplay(page, h, fail) {
+  // Captions shown, recorded as they change (a MutationObserver on the view, installed before R), with the replay
+  // clock: a poller missed short ones whenever software-WebGL frames were slow.
+  await page.evaluate(() => {
+    window.captions = [];
+    const root = document.querySelector(".viewport");
+    window.captionObserver = new MutationObserver(() => {
+      const t = document.querySelector(".caption b")?.textContent, e = window.evdEngine;
+      if (t && !t.startsWith("t =") && window.captions.at(-1)?.[0] !== t) window.captions.push([t, e.replayClock ? (performance.now() - e.replayClock.t0) / 1000 : 0]);
+    });
+    window.captionObserver.observe(root, { subtree: true, childList: true, characterData: true });
+  });
   await page.keyboard.press("r");
   if (!(await page.evaluate(() => window.evdEngine.replaying))) fail("R did not start a replay");
   // Each hit layer arrives in the physics phase (its first 3 s, render/replay.ts TRAVEL) in any colour mode, not with
@@ -487,20 +498,23 @@ async function checkReplay(page, h, fail) {
     const late = growth ? [...ends].filter((t, i) => !(appear[i] < t && Math.abs(appear[i] - growth.build) < 1e-4 && t <= growth.complete + 1e-4)).length : -1;
     return { key, paths: ends.length, done: Math.max(...ends), late, lit: lit.filter((t) => t < 1e28).length, parts: lit.length };
   }), grown);
-  await page.evaluate(() => { // captions, recorded in the page (screenshots are too slow with software WebGL), with the replay clock
-    window.captions = [];
-    window.captionTimer = setInterval(() => {
-      const t = document.querySelector(".caption b")?.textContent, e = window.evdEngine;
-      if (t && !t.startsWith("t =") && window.captions.at(-1)?.[0] !== t && e.replaying) window.captions.push([t, (performance.now() - e.replayClock.t0) / 1000]);
-    }, 50);
-  });
   await page.waitForFunction(() => !window.evdEngine.replaying, null, { timeout: 60000 }).catch(() => fail("the replay did not end"));
-  const captions = await page.evaluate(() => { clearInterval(window.captionTimer); return window.captions; });
-  log(`  replay captions: ${captions.map(([c]) => c).join(" | ")}`);
+  const shown = await page.evaluate(() => { window.captionObserver.disconnect(); return window.captions; });
+  // The plan's captions, every 10 ms of the replay clock: what a frame at that time shows. A frame slower than a short
+  // step (the fit) skips it on screen; the plan still has it, and what was shown must follow the plan's order.
+  const captions = await page.evaluate(() => {
+    const p = window.evdPlan, out = [];
+    for (let s = 0; p && s < p.seconds; s += 0.01) { const t = p.caption(s)?.title; if (t && !t.startsWith("t =") && out.at(-1)?.[0] !== t) out.push([t, s]); }
+    return out;
+  });
+  log(`  replay captions: ${captions.map(([c]) => c).join(" | ")}; shown: ${shown.map(([c]) => c).join(" | ")}`);
+  let k = 0; // what was shown is the plan's captions in order, maybe with some skipped
+  for (const [c] of shown) { while (k < captions.length && captions[k][0] !== c) k++; if (k++ >= captions.length) { fail(`caption "${c}" shown out of the plan's order`); break; } }
+  if (!shown.length && captions.length) fail("no replay caption shown");
   // Every path is built to its full length by the time the fit is shown, and the steps after it wait for it.
   for (const b of building) {
     const at = (word) => captions.findIndex(([c]) => c.startsWith(word)), fit = captions[at("Fitting")]?.[1];
-    log(`  replay builds ${b.key}: ${b.paths} paths complete by ${b.done.toFixed(2)} s (fit shown at ${fit?.toFixed(2) ?? "-"} s), ${b.lit} of ${b.parts} parts lit`);
+    log(`  replay builds ${b.key}: ${b.paths} paths complete by ${b.done.toFixed(2)} s (the fit from ${fit?.toFixed(2) ?? "-"} s), ${b.lit} of ${b.parts} parts lit`);
     if (!(at("Seeding") >= 0 && at("Seeding") < at("Building") && at("Building") < at("Fitting"))) fail(`${b.key}: no seeding, building and fitting captions in order`);
     if (captions.some(([c], k) => k < at("Fitting") && /^(Clustering|Building (?!.* outwards)|.* → )/.test(c))) fail(`${b.key}: a later step started before the paths were built`);
     if (!b.paths || b.late) fail(`${b.key}: ${b.late < 0 ? "no plan" : `${b.late} paths`} not built from the building's start to whole by the fit`);

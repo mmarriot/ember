@@ -48,7 +48,9 @@ Preset buttons when the bundle has more than one preset; then tabs; then the col
   sigmaNoise`, computed in the browser for every event and usable for colour and filters like stored columns), and the
   table's custom columns. A ticked layer with a `list` hint lists its largest objects that pass its cut and filter
   (e.g. jets by pT, with pT, η, φ); a click selects one. The tab opens with a headline: how many objects of each such
-  layer pass (or the value of a one-object table, e.g. MET). On a phone the panel is a sheet under the view, folded to
+  layer pass (or the value of a one-object table, e.g. MET). In the truth colours each kind's heading gets one word
+  for what the truth graph says about it (match, fact, derived, no truth; the reason on hover; on each row where a
+  kind's layers differ), and the rows of kinds without truth are faint. On a phone the panel is a sheet under the view, folded to
   its tabs until one is chosen.
 - **Truth** (named **Tree** for a tree without truth layers): the truth collections with their cut, what became of
   each particle that left hits (its best candidate, or not reconstructed), and objects linked to objects of the same

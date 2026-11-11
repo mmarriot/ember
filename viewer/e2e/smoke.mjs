@@ -94,6 +94,10 @@ async function checkBundle(file, tag, state) {
     log(`${tag}: truth colours: "${truthTitle.split("\n")[0]}", ${entries} key entries`);
     if (!truthTitle.includes("generator particle") || entries < 3) fail(`T did not colour by generator particle (${truthTitle})`);
     if (!new URL(page.url()).hash.includes("c=truth")) fail("the truth colours are not in the URL (c=truth)");
+    // Each kind's truth in one word on the side panel's headings; kinds without truth faint.
+    const words = await page.locator(".sidebar .truthword").allInnerTexts(), faint = await page.locator(".sidebar .layer.faint").count();
+    log(`${tag}: truth words ${[...new Set(words)].join(", ") || "none"}; ${faint} faint rows`);
+    if (h.display.some((d) => d.truthGap) && !words.length) fail("no truth word on the side panel's kinds in the truth colours");
     await shot("1_truth");
     await page.keyboard.press("t");
     await page.waitForTimeout(1500);

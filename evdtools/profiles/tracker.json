@@ -32,6 +32,6 @@
     {"name": "Primary vertex", "filters": {"Tracks": "highPurity == 1 && vertexIdx == 0"}},
     {"name": "All vertices", "filters": {"Tracks": "highPurity == 1"}, "colour": {"Tracks": "rel:trackVertex"}}
   ],
-  "domains": [{"name": "Tracker", "region": {"rMax": 120, "zMax": 280}, "view": "front", "colourMode": "layers"}],
+  "domains": [{"name": "Tracker", "region": {"rMax": 120, "zMax": 280}, "view": "front", "colourMode": "layers", "minRadius": 15}],
   "field": {"bz": 3.8, "rMax": 295, "zMax": 320}
 }

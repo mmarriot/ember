@@ -44,10 +44,10 @@ export function Inspector() {
   const truthMatch = truth ? undefined : matches.find((m) => isTruth(m.table)), best = truthMatch?.rows[0];
   // A kind whose association carries a `match` contract gets the truth card instead of the bare best-match line.
   const hasCard = Object.entries(b.header.relations).some(([n, r]) => (r.match?.shared ?? r.match?.purity) && r.from === sel.table && isTruth(r.to) && ev.relations[n]);
-  // What the particles left in its hits, per detector; only for a kind with a match or evd's stand-in: for any other,
+  // What the particles left in its hits, per detector; only for a kind with a match, evd's stand-in or hits: for any other,
   // a ranking of the particles in its hits would be a match through hits (docs/truth.md "Constituents"): the facts stay on the hits.
   const status = truthStatuses.value.get(sel.table);
-  const content = !truth && parts && (status?.kind === "match" || status?.kind === "derived") ? simEnergyByParticle(ev, b.header, parts.madeOf, drawn) : [];
+  const content = !truth && parts && (status?.kind === "match" || status?.kind === "derived" || status?.kind === "fact") ? simEnergyByParticle(ev, b.header, parts.madeOf, drawn) : [];
   // What contains it, one object per kind, innermost first in display order: hit -> layer cluster -> trackster -> ...
   const order = (t: string) => b.header.display.findIndex((l) => l.table === t);
   const chain = [...(parts?.partOf ?? [])].filter(([t, set]) => set.size && order(t) >= 0 && !layerOf(t)?.alternative)

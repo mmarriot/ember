@@ -1,11 +1,13 @@
 // The levels of a focus: the kinds of object it is made of, from the top down (a candidate: interpretations, linked
 // tracksters, tracksters, layer clusters, hits). The view shows the focus and its bottom levels (its smallest objects,
-// one per branch: a candidate's hits and its track's hits); the levels in between are shown one at a time, on
-// request, so they do not cover each other.
+// one per branch: a candidate's hits and its track's hits), with the levels drawn as lines (its track: lines do not
+// hide the hits); the other levels in between are shown one at a time, on request, so they do not cover each other.
 import { type DisplayLayer, type Header, kindName } from "../io/bundle";
 import type { Related } from "./relations";
 
-export interface Level { name: string; layers: DisplayLayer[]; count: number; leaf: boolean } // count: the focus's objects in it
+/** `count`: the focus's objects in it; `leaf`: it holds no other level; `always`: drawn whenever the focus is (a leaf,
+ *  or a level drawn as lines), not one at a time. */
+export interface Level { name: string; layers: DisplayLayer[]; count: number; leaf: boolean; always: boolean }
 type Relations = Header["relations"];
 
 /** The levels below the focus (`focus`: its table) that `hl` (its highlight) has objects in, top first. `own`: whether
@@ -25,11 +27,12 @@ export function focusLevels(display: DisplayLayer[], focus: string, hl: Related,
     if (top && (kindName(d) === kindName(top) || (d.stage !== undefined && d.stage === top.stage))) continue;
     const name = kindName(d);
     let level = levels.find((l) => l.name === name);
-    if (!level) levels.push((level = { name, layers: [], count: 0, leaf: false, tables: new Set() }));
+    if (!level) levels.push((level = { name, layers: [], count: 0, leaf: false, always: false, tables: new Set() }));
     level.layers.push(d);
     if (!level.tables.has(d.table)) { level.tables.add(d.table); level.count += rows.size; }
   }
-  if (!relations) return levels.map(({ name, layers, count }, i) => ({ name, layers, count, leaf: i === levels.length - 1 }));
+  const lines = (l: { layers: DisplayLayer[] }) => l.layers.every((d) => d.repr === "helix" || d.repr === "segments");
+  if (!relations) return levels.map(({ name, layers, count }, i) => ({ name, layers, count, leaf: i === levels.length - 1, always: i === levels.length - 1 || lines({ layers }) }));
   const holds = (a: typeof levels[number], b: typeof levels[number]) =>
     a !== b && Object.values(relations).some((r) => !r.association && a.tables.has(r.from) && b.tables.has(r.to));
   // Kahn's order: a level once every level holding it is placed; of several, the first in display order.
@@ -39,26 +42,26 @@ export function focusLevels(display: DisplayLayer[], focus: string, hl: Related,
     order.push(next);
     left.splice(left.indexOf(next), 1);
   }
-  const out = order.map((l) => ({ name: l.name, layers: l.layers, count: l.count, leaf: !levels.some((o) => holds(l, o)) }));
-  return [...out.filter((l) => !l.leaf), ...out.filter((l) => l.leaf)];
+  const out = order.map((l) => { const leaf = !levels.some((o) => holds(l, o)); return { name: l.name, layers: l.layers, count: l.count, leaf, always: leaf || lines(l) }; });
+  return [...out.filter((l) => !l.always), ...out.filter((l) => l.always)];
 }
 
-/** Which layers of the levels are drawn: those of the leaves (the smallest objects) and of the `chosen` level, each by
- *  its layers ticked in the side panel, or all of them if none is; the others are not. */
+/** Which layers of the levels are drawn: those of the levels always drawn (the smallest objects, lines) and of the
+ *  `chosen` level, each by its layers ticked in the side panel, or all of them if none is; the others are not. */
 export function levelLayers(levels: Level[], chosen: string | null, ticked: (d: DisplayLayer) => boolean) {
   const draw: DisplayLayer[] = [], hide: DisplayLayer[] = [];
   levels.forEach((l) => {
-    if (!l.leaf && l.name !== chosen) return hide.push(...l.layers);
+    if (!l.always && l.name !== chosen) return hide.push(...l.layers);
     const on = l.layers.filter(ticked);
     draw.push(...(on.length ? on : l.layers));
   });
   return { draw, hide };
 }
 
-/** The level to show after stepping `by` levels down (+1) or up (-1) from `chosen`, among those that are not leaves:
+/** The level to show after stepping `by` levels down (+1) or up (-1) from `chosen`, among those not always drawn:
  *  from none to the first, and from the first back to none (null). */
 export function stepLevel(levels: Level[], chosen: string | null, by: number): string | null {
-  const names = levels.filter((l) => !l.leaf).map((l) => l.name);
+  const names = levels.filter((l) => !l.always).map((l) => l.name);
   const i = Math.min(Math.max((chosen ? names.indexOf(chosen) : -1) + by, -1), names.length - 1);
   return i < 0 ? null : names[i];
 }

@@ -51,12 +51,19 @@ describe("focusLevels with relations", () => {
   const relations = { candI: rel("Cand", "I"), iLCs: rel("I", "LC"), linkLCs: rel("Link", "LC"), tLCs: rel("T", "LC"), lcHits: rel("LC", "Hit"),
     candTrk: rel("Cand", "Trk"), trkHits: rel("Trk", "TH"), truthHits: { ...rel("P", "Hit"), association: true } };
   const hl = rows({ Cand: [0], I: [0], Link: [0], T: [2], LC: [0, 1], Hit: [0, 1, 2], Trk: [3], TH: [7, 8], P: [4] });
-  it("puts what holds something before it, and every branch's smallest objects last, always drawn", () => {
+  it("puts what holds something before it, and every branch's smallest objects and its lines last, always drawn", () => {
     const lv = focusLevels(branches, "Cand", hl, own, relations);
-    expect(lv.map((l) => `${l.name}${l.leaf ? " (leaf)" : ""}`)).toEqual(
-      ["Tracks", "Interpretations", "Linked tracksters", "Tracksters", "Layer clusters", "Track hits (leaf)", "Hits (leaf)"]);
-    expect(levelLayers(lv, null, () => false).draw.map((d) => d.table).sort()).toEqual(["Hit", "TH"]);
-    expect(stepLevel(lv, "Layer clusters", 1)).toBe("Layer clusters"); // the leaves are not stepped to
+    expect(lv.map((l) => `${l.name}${l.leaf ? " (leaf)" : ""}${l.always ? " (always)" : ""}`)).toEqual(
+      ["Interpretations", "Linked tracksters", "Tracksters", "Layer clusters", "Tracks (always)", "Track hits (leaf) (always)", "Hits (leaf) (always)"]);
+    expect(levelLayers(lv, null, () => false).draw.map((d) => d.table).sort()).toEqual(["Hit", "TH", "Trk"]);
+    expect(stepLevel(lv, "Layer clusters", 1)).toBe("Layer clusters"); // the leaves and lines are not stepped to
+    expect(stepLevel(lv, null, 1)).toBe("Interpretations");
+  });
+  it("draws a vertex's tracks with their hits: lines do not hide them", () => {
+    const vtx = [layer("TH", "Track hits", { repr: "markers" }), layer("Trk", "Tracks", { repr: "helix" }), layer("V", "Vertices", { repr: "markers" })];
+    const lv = focusLevels(vtx, "V", rows({ V: [0], Trk: [1, 2], TH: [3, 4, 5] }), () => true, { vTrk: rel("V", "Trk"), trkHits: rel("Trk", "TH") });
+    expect(lv.map((l) => `${l.name} ${l.count}${l.always ? " (always)" : ""}`)).toEqual(["Tracks 2 (always)", "Track hits 3 (always)"]);
+    expect(stepLevel(lv, null, 1)).toBeNull();
   });
 });
 

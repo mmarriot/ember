@@ -228,14 +228,14 @@ export const levels = computed(() => {
   if (!b || !top || !hl || !parts) return [];
   return focusLevels(b.header.display, top.table, hl, (t) => parts.madeOf.has(t) || !parts.linked.has(t), b.header.relations);
 });
-/** The chosen level, if the focus has it and it is not the bottom one (drawn anyway); else null. */
+/** The chosen level, if the focus has it and it is not one drawn anyway (the bottom ones, lines); else null. */
 export const shownLevel = computed(() => {
   const c = focusLevel.value;
-  return levels.value.some((l) => !l.leaf && l.name === c) ? c : null;
+  return levels.value.some((l) => !l.always && l.name === c) ? c : null;
 });
 /** Step the shown level down (+1) or up (-1); false (and nothing changes) if the focus has no levels to step through. */
 export function stepFocusLevel(by: number) {
-  if (!levels.peek().some((l) => !l.leaf)) return false;
+  if (!levels.peek().some((l) => !l.always)) return false;
   focusLevel.value = stepLevel(levels.peek(), focusLevel.peek(), by);
   return true;
 }

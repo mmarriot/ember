@@ -279,12 +279,12 @@ function FocusBar() {
  *  shown, one of the others on request (a click, or ↓ ↑), so they do not cover each other. */
 function Levels() {
   const lv = levels.value, chosen = focusLevel.value;
-  if (!lv.some((l) => !l.leaf)) return null;
+  if (!lv.some((l) => !l.always)) return null;
   return (
     <div class="row levels" title="What it is made of, from the largest objects down: click one to show it as well (↓ ↑)">
       {pairView.value && <span class="muted" title="Counts: the pair's objects (its candidate's, and its particle's in other candidates or none)">truth ↔ reco pair:</span>}
       {lv.map((l, i) => {
-        const last = l.leaf, on = last || l.name === chosen;
+        const last = l.always, on = last || l.name === chosen;
         return (
           <>
             {i > 0 && <span class="muted" aria-hidden="true">›</span>}

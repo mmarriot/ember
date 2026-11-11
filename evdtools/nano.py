@@ -360,6 +360,10 @@ class Converter:
                 self.derived.add((d["table"], c))
 
         rename = {s["drop"]: s["keep"] for s in self.same}
+        names = [r["name"] for r in profile.get("relations", [])]
+        twice = sorted({n for n in names if names.count(n) > 1})
+        if twice:  # e.g. two included profiles naming different relations alike: the later would replace the earlier
+            raise ValueError(f"relation names used twice in the profile: {', '.join(twice)}")
         self.relations = {}
         for r in profile.get("relations", []):
             if r["kind"] == "compose":  # its ends are those of the chain

@@ -298,6 +298,13 @@ def test_relation_not_written_still_gathers():
     assert tables["J"][1]["x"].tolist() == [3, 3] and "jetVertex" not in rels
 
 
+def test_relation_names_must_be_unique():
+    """Two relations with one name (e.g. from two included profiles) are an error, not a silent replacement."""
+    rel = {"name": "r", "kind": "index", "from": "A", "to": "B", "index": "A.k"}
+    with pytest.raises(ValueError, match="relation names used twice in the profile: r"):
+        converter({"A": {"k": I4}, "B": {}}, {"relations": [rel, {**rel, "to": "C"}]})
+
+
 def test_fact_hint_is_passed_to_the_header():
     """`fact` marks a truth -> hit relation as simulated energy per particle and cell (a fact, not a match)."""
     rel = {"name": "truthHits", "kind": "index", "from": "P", "to": "H", "index": "H.p", "association": True,
@@ -437,6 +444,30 @@ def test_muon_layers_in_cms():
         "MuonSegmentMatches": {"muonIdx": [0], "segmentIdx": [0]}})
     assert tables["Muons"][1]["endX"].tolist() == [5] and rels["muonTrackHits"]["offsets"].tolist() == [0, 1, 3]
     assert rels["muonSegments"]["indices"].tolist() == [0] and rels["chamberHits"]["indices"].tolist() == [0]
+
+
+def test_hgcal_profile_alone_keeps_its_bundles():
+    """hgcal.json (main's HGCal-only bundles) gained only truth hints: `fact` on its truth -> hit relations and the
+    layer clusters' derived truthGap. No domain, outline, view or new kind reaches an hgcal bundle."""
+    p = load_profile("hgcal")
+    assert not {"domains", "outlines", "field"} & set(p) and "domain" not in p["view"] and len(p["display"]) == 16
+    assert sorted(p["kinds"]) == ["candidate", "interpretation", "layerCluster", "linkedTrackster", "rechit", "track",
+                                  "trackster", "truthParticle", "truthVertex"]
+    assert {r["name"] for r in p["relations"] if "fact" in r} == {"truthHitsHGCal", "truthHitsSoAEE", "truthHitsSoAHSi", "truthHitsSoAHSci"}
+    assert [k for k, v in p["kinds"].items() if "truthGap" in v] == ["layerCluster"]
+    header = converter({"HGCalHits": {**XYZE, "energy": F4, "halfWidth": F4, "time": F4}}, p).header([], "t")
+    assert not {"domains", "outlines"} & set(header) and [d["table"] for d in header["display"]] == ["HGCalHits"]
+
+
+def test_every_cms_module_is_included_once():
+    """cms = physics, hgcal, tracker, calo, pf, muon: each module's kinds are there once, domains in the contract order."""
+    p = load_profile("cms")
+    for module in ("physics", "hgcal", "tracker", "calo", "pf", "muon"):
+        assert set(load_profile(module).get("kinds", {})) <= set(p["kinds"]), module
+    names = [r["name"] for r in p["relations"]]
+    assert len(names) == len(set(names))  # no relation twice
+    assert [d["name"] for d in p["domains"]] == ["Physics", "Tracker", "Calo", "HGCal", "Muons"]
+    assert p["view"]["domain"] == "Physics" and len({o["name"] for o in p["outlines"]}) == len(p["outlines"])
 
 
 def test_tracker_profile_alone_and_tracker_only():

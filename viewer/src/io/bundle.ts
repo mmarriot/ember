@@ -112,6 +112,11 @@ export interface DisplayLayer {
   list?: { columns: string[]; sort?: string; max?: number; headline?: "count" | "value" };
   /** The columns the inspector's summary shows first (e.g. pt, eta, phi for a jet, instead of its position). */
   inspect?: string[];
+  /** The inspector's energy-fraction bar (reconstruction): columns holding fractions (0..1) of the object's energy,
+   *  with their names, e.g. a jet's charged and neutral hadron, photon, electron and muon fractions. */
+  fractions?: Record<string, string>;
+  /** Label the `labels` leading objects (by the size column) in the view, with their `describe` (key L). */
+  labels?: number;
 }
 /** A per-event chart: `table` rows grouped by the integer column `groupBy`, counted or summed over `value`. */
 /** `where`: an expression (as for filters) choosing the rows that count, e.g. "time > 0". */

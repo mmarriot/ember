@@ -4,12 +4,12 @@ import { useEffect } from "preact/hooks";
 import { blobSource } from "../io/bundle";
 import type { ViewName } from "../render/engine";
 import { startDomain } from "../model/domains";
-import { bundle, bundleName, catalogue, colourChoice, dialog, domain, event, eventIndex, highlight, openBundle, refreshCatalogue, selection, showEvent, stepFocusLevel, truthColours, view } from "../model/store";
+import { activeMode, bundle, bundleName, catalogue, colourChoice, dialog, domain, event, eventIndex, focusLevel, highlight, labelsOn, openBundle, refreshCatalogue, selection, showEvent, shownLevel, stepFocusLevel, truthColours, view } from "../model/store";
 import { SYNTAX } from "./ExprForm";
 import { Header } from "./Header";
 import { Inspector } from "./Inspector";
 import { Sidebar } from "./Sidebar";
-import { chooseDomain, nextDomain, showWhole } from "./navigate";
+import { chooseDomain, nextDomain, nextObject, showWhole } from "./navigate";
 import { stopTour, toggleTour } from "./tour";
 import { engine, replayEvent, Viewport } from "./Viewport";
 import { Modal, Toasts } from "./widgets";
@@ -32,12 +32,16 @@ export function App() {
       const [table, row] = (url.get("s") ?? "").split(":");
       // A link made before the data set was re-converted may name a row that no longer exists.
       if (table && row && Number(row) < (event.peek()?.tables[table]?.n ?? 0)) selection.value = { table, row: Number(row) };
+      if (url.get("c") === "truth" && truthColours.peek()) colourChoice.value = "truth";
+      const lv = url.get("lv");
+      if (lv && selection.peek()) focusLevel.value = lv; // a level the focus does not have is ignored (store.ts shownLevel)
     });
     const poll = setInterval(() => document.visibilityState === "visible" && void refreshCatalogue(), POLL);
 
     const stopUrl = effect(() => {
-      const s = selection.value, d = domain.value ?? (startDomain(bundle.value?.header) ? ALL : null);
-      const p = new URLSearchParams({ b: bundleName.value, e: String(eventIndex.value), v: view.value, ...(d ? { d } : {}), ...(s ? { s: `${s.table}:${s.row}` } : {}) });
+      const s = selection.value, d = domain.value ?? (startDomain(bundle.value?.header) ? ALL : null), lv = s && shownLevel.value;
+      const p = new URLSearchParams({ b: bundleName.value, e: String(eventIndex.value), v: view.value, ...(d ? { d } : {}), ...(s ? { s: `${s.table}:${s.row}` } : {}),
+        ...(lv ? { lv } : {}), ...(activeMode.value === "truth" ? { c: "truth" } : {}) });
       if (bundleName.value) history.replaceState(null, "", `#${p}`);
     });
 
@@ -57,6 +61,8 @@ export function App() {
       else if (e.key === "d" || e.key === "D") nextDomain(e.shiftKey ? -1 : 1);
       else if ((e.key === "t" || e.key === "T") && truthColours.value) colourChoice.value = colourChoice.value === "truth" ? "reco" : "truth";
       else if (e.key === "f" || e.key === "F") engine?.frame(highlight.value ?? undefined, true);
+      else if (e.key === "l" || e.key === "L") labelsOn.value = !labelsOn.value;
+      else if (e.key === "n" || e.key === "N") nextObject(e.shiftKey ? -1 : 1);
       else if (e.key === "Home") showWhole();
       else if (e.key === "r" || e.key === "R") void replayEvent();
     };

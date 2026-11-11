@@ -52,6 +52,8 @@ export const view = signal<ViewName>("3d");
 export const dialog = signal<"help" | null>(null);
 export const toasts = signal<{ id: number; text: string; kind: "info" | "error" }[]>([]);
 export const touring = signal(false);
+/** Labels on the leading objects (layer hint `labels`) and the focus (key L). */
+export const labelsOn = signal(true);
 export const replayCaption = signal<Caption | null>(null); // what the replay is showing now
 
 // Colour theme: dark unless the user picked light before (remembered in this browser when storage is available).

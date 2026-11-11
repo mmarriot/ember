@@ -93,6 +93,7 @@ function CutRow({ name, here, named = false }: { name: string; here: DisplayLaye
 /** A symbol for how a layer is drawn, shown before its name. */
 const glyph = (d: DisplayLayer) =>
   d.repr === "cells" ? "⬢" : d.repr === "markers" ? "•" : d.repr === "segments" ? (d.truth ? "┄" : "─") : d.repr === "helix" ? (d.truth ? "┄" : "∿")
+    : d.repr === "polyline" ? "⟋" : d.repr === "cones" ? "◺"
     : d.shape === "shell" ? "◯" : d.shape === "cage" ? "⊕" : d.shape === "core" ? "●" : "⬮";
 
 function LayerRow({ d, label }: { d: DisplayLayer; label: string }) {

@@ -5,6 +5,7 @@ import { bundle, describe, event, full, highlight, isHitLayer, kindOf, labelOf, 
 import { bestFirst, type Related } from "../model/relations";
 import { engine } from "./Viewport";
 import { jump } from "./navigate";
+import { Lineage, TruthCard } from "./Truth";
 import { Icon, Tabs } from "./widgets";
 
 const weightsText = (w: Record<string, number>) => Object.entries(w).map(([k, v]) => `${k} ${Math.abs(v) < 5e-4 ? "0" : full(v)}`).join(" · ");
@@ -39,6 +40,8 @@ export function Inspector() {
   const nRelated = sections.reduce((s, [, , g]) => s + g.reduce((k, [, set]) => k + set.size, 0), 0);
   const matches = associations(sel.table, sel.row);
   const truthMatch = truth ? undefined : matches.find((m) => isTruth(m.table)), best = truthMatch?.rows[0];
+  // A kind whose association carries a `match` contract gets the truth card instead of the bare best-match line.
+  const hasCard = Object.entries(b.header.relations).some(([n, r]) => r.match?.shared && r.from === sel.table && ev.relations[n]);
   const content = !truth && parts ? truthInHits(parts.madeOf) : null;
   // What contains it, one object per kind, innermost first in display order: hit -> layer cluster -> trackster -> ...
   const order = (t: string) => b.header.display.findIndex((l) => l.table === t);
@@ -67,12 +70,13 @@ export function Inspector() {
           <div>
             {chain.length > 0 && <p class="chainline" title="The objects that contain it, one per kind (Related tab: all of them)">
               Part of {chain.map(([t, r]) => <><span class="muted"> {kindOf(t)}</span> {chip(t, r)}</>)}</p>}
-            {best && <p class="truthline" title="The truth-graph particle the association picked for it (best by its score); shared energy and score from CMSSW">
-              <span class="badge truth">truth graph</span> best match {chip(truthMatch!.table, best.row)}
+            {truth ? <Lineage row={sel.row} /> : <TruthCard table={sel.table} row={sel.row} />}
+            {!truth && best && !hasCard && <p class="truthline" title="The truth-graph particle the association picked for it (best by its score); shared energy and score from CMSSW">
+              <span class="badge truth">truth</span> {isHitLayer(d) ? "most simulated energy from" : "associator's best match"} {chip(truthMatch!.table, best.row)}
               <span class="muted">{weightsText(best.weights)}</span></p>}
             {content && content.particles.length > 0 && (
-              <div class="truthcontent" title={`Each particle's ${content.weight} in this object's hits, summed over the hit layers shown; only particles in the truth-graph export`}>
-                <p class="truthline"><span class="badge truth">truth graph</span> simulated energy in its hits, by particle (share of {content.weight}):</p>
+              <div class="truthcontent" title={`Each particle's ${content.weight} in this object's hits (sampling energy, not calibrated), summed over the hit layers shown; hits belong to the particles that entered the calorimeter, with their secondaries; only particles in the truth-graph export`}>
+                <p class="truthline"><span class="badge truth">truth</span> simulated energy in its hits, by particle that entered the calorimeter:</p>
                 <ul class="matches">{content.particles.slice(0, 5).map(([p, e]) => (
                   <li>{chip(content.table, p)}<span class="muted">{(100 * e / content.total).toFixed(0)}%</span></li>
                 ))}</ul>
@@ -124,14 +128,16 @@ function associations(table: string, row: number) {
     const rel = ev.relations[name];
     if (!info.association || !rel || (info.from !== table && info.to !== table)) continue;
     const rows: { row: number; weights: Record<string, number> }[] = [];
-    const weights = (k: number) => Object.fromEntries(Object.entries(rel.weights).map(([w, a]) => [w, a[k]]));
+    // Named by what they hold: a hit-based association (tracks) stores shared hit counts under its energy names.
+    const label = (w: string) => (info.match?.measure === "hits" && (w === "sharedEnergy" || w === "sharedFraction") ? "shared hits" : w);
+    const weights = (k: number) => Object.fromEntries(Object.entries(rel.weights).map(([w, a]) => [label(w), a[k]]));
     if (info.from === table)
       for (let k = rel.offsets[row]; k < rel.offsets[row + 1]; k++) rows.push({ row: rel.indices[k], weights: weights(k) });
     else
       for (let f = 0; f + 1 < rel.offsets.length; f++)
         for (let k = rel.offsets[f]; k < rel.offsets[f + 1]; k++) if (rel.indices[k] === row) rows.push({ row: f, weights: weights(k) });
     if (!rows.length) continue;
-    if (info.best) { const weight = info.best.weight, cmp = bestFirst(info.best); rows.sort((a, c) => cmp(a.weights[weight] ?? 0, c.weights[weight] ?? 0)); }
+    if (info.best) { const weight = label(info.best.weight), cmp = bestFirst(info.best); rows.sort((a, c) => cmp(a.weights[weight] ?? 0, c.weights[weight] ?? 0)); }
     const other = info.from === table ? info.to : info.from, same = out.find((o) => o.table === other);
     if (same) same.rows.push(...rows.filter((r) => !same.rows.some((x) => x.row === r.row)));
     else out.push({ table: other, rows });

@@ -1,6 +1,6 @@
 {
   "name": "tracker",
-  "note": "CMS Phase-2 tracker: tables of Fireworks/EventExport preset tracker. Tracks (generalTracks, in collection order) drawn as helices from their reference point to their outermost hit, high purity, pt >= 1 GeV and from the primary vertex (PV0) by default; offline primary vertices; the hits on each track (valid pixel and outer-tracker hits, positions from their clusters, mid-strip on the outer tracker), shown for a selection; the beam spot. Used alone (tracker_only.json writes only these tables), or with hgcal through cms.json. Domain Tracker: region from the hits of the ttbar samples (r <= 110 cm, |z| <= 268 cm), coloured by layer (pT) when chosen. Field: 3.8 T inside the coil (inner radius 295 cm) to |z| = 320 cm, where a helix from a track's reference point reaches HGCalNanoAOD's propagated HGCal entry within 0.23 cm (median; 1.3 cm for 90%) for high-purity tracks above 1 GeV.",
+  "note": "CMS Phase-2 tracker: tables of Fireworks/EventExport preset tracker. Tracks (generalTracks, in collection order) drawn as helices from their reference point to their outermost hit, high purity, pt >= 1 GeV and from the primary vertex (PV0) by default; offline primary vertices; the hits on each track (valid pixel and outer-tracker hits, positions from their clusters, mid-strip on the outer tracker), shown for a selection; the beam spot. Used alone (tracker_only.json writes only these tables), or with hgcal through cms.json. Domain Tracker: region from the hits of the ttbar samples (r <= 110 cm, |z| <= 268 cm), coloured by layer (pT) when chosen. The replay builds the tracks from their hits (grow): a seed of their first 4 hits (Phase-2 tracking seeds mostly from pixel quadruplets), then outwards along the helix. Field: 3.8 T inside the coil (inner radius 295 cm) to |z| = 320 cm, where a helix from a track's reference point reaches HGCalNanoAOD's propagated HGCal entry within 0.23 cm (median; 1.3 cm for 90%) for high-purity tracks above 1 GeV.",
   "internal": ["VertexTracks"],
   "relations": [
     {"name": "trackVertex", "kind": "index", "from": "Tracks", "to": "Vertices", "index": "Tracks.vertexIdx",
@@ -23,7 +23,7 @@
     {"table": "Tracks", "kind": "track", "label": "General tracks", "position": ["vx", "vy", "vz"],
      "momentum": ["px", "py", "pz"], "charge": "charge", "end": ["outerX", "outerY", "outerZ"], "colour": "pt",
      "size": null, "cut": {"column": "pt"}, "filter": "highPurity == 1 && vertexIdx == 0",
-     "describe": {"columns": ["pt", "eta"]}},
+     "grow": {"parts": "trackHits", "seed": 4}, "describe": {"columns": ["pt", "eta"]}},
     {"table": "TrackHits", "kind": "trackHit", "label": "Hits on tracks", "position": ["x", "y", "z"], "size": null,
      "describe": {"columns": ["subdet", "layer"], "names": {"subdet": {"1": "PXB", "2": "PXF", "5": "OT barrel", "4": "OT endcap"}}}},
     {"table": "BeamSpot", "kind": "beamSpot", "label": "Beam spot", "position": ["x", "y", "z"], "size": null}

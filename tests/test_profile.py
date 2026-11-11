@@ -291,6 +291,8 @@ def test_cms_profile_joins_hgcal_and_tracker():
     assert set(d) == {"Tracks", "TrackHits", "Vertices", "TICLCandidates"}  # GeneralTrack folded into Tracks
     assert (d["Tracks"]["repr"], d["Tracks"]["domain"], d["TICLCandidates"]["domain"]) == ("helix", "Tracker", "HGCal")
     assert d["Tracks"]["visible"] and not d["Tracks"]["onSelection"] and d["TrackHits"]["onSelection"]
+    assert d["Tracks"]["grow"] == {"parts": "trackHits", "seed": 4}  # the replay builds tracks from their hits
+    assert (conv.relations["trackHits"]["from"], conv.relations["trackHits"]["to"]) == ("Tracks", "TrackHits")
     trk = {"vx": [0, 0], "vy": [0, 0], "vz": [1, 2], "px": [1, 0], "py": [0, 1], "pz": [0, 9], "outerX": [100, 0],
            "outerY": [0, 9], "outerZ": [1, 270], "pt": [1, 1], "eta": [0, 2.9], "charge": [1, -1], "highPurity": [1, 1],
            "vertexIdx": [0, -1]}

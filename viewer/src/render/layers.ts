@@ -19,7 +19,7 @@ export interface Layer {
   readonly segment?: { readonly a: readonly [Float32Array, Float32Array, Float32Array]; readonly b: readonly [Float32Array, Float32Array, Float32Array] };
   /** Curved lines (helices): each object's path as `points` points, object i at [i * points, (i + 1) * points), picked
    *  along it and framed whole. */
-  readonly path?: { readonly points: number; readonly x: Float32Array; readonly y: Float32Array; readonly z: Float32Array };
+  readonly path?: { readonly points: number; readonly x: Float32Array; readonly y: Float32Array; readonly z: Float32Array; fill(i: number): void };
   /** Lines (tracks, truth particles): framing a selection keeps them whole, start to end. */
   readonly line?: boolean;
   /** Multiplies the pick distance (default 1): below 1, the layer wins over others nearby (e.g. showers over hits). */
@@ -426,7 +426,7 @@ const pathCache = new WeakMap<Table, Map<string, { paths: Paths; pick: NonNullab
 /** Charged particles' paths in the solenoid field (render/helix.ts), drawn and picked like segments (cuts, selection,
  *  replay, truth dashes). Per object the GPU gets the start, the unit direction, the curvature and two lengths; the
  *  vertex shader puts each of the HELIX_POINTS points of the strip on the path, so a path costs 24 bytes besides its
- *  start, not a polyline. Picking and framing use a coarser polyline computed once on the CPU. */
+ *  start, not a polyline. Picking and framing use a coarser polyline computed on the CPU, per path when first needed. */
 export function helices(input: LayerInput): Layer {
   const { d, t, field } = input;
   const start = positions(input), cols = (names?: readonly string[]) => (names ?? []).map((c) => toF32(t.columns[c], t.n)) as [Float32Array, Float32Array, Float32Array];

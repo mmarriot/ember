@@ -410,9 +410,11 @@ export class Engine {
       const scale = (bias * bias) / (layer.pickRadius * layer.pickRadius);
       let best = -1, bestScore = 1;
       for (let i = 0; i < X.length; i++) {
-        if (path) {
+        if (path) { // the cut test first: a path's points are computed when it is first looked at
+          if (!layer.passes(i)) continue;
+          path.fill(i);
           const score = scale * alongPath(path, i);
-          if (score < bestScore && layer.passes(i) && (!accept || accept(layer.table, i))) { bestScore = score; best = i; }
+          if (score < bestScore && (!accept || accept(layer.table, i))) { bestScore = score; best = i; }
           continue;
         }
         if (!(seg ? project(seg.b[0], seg.b[1], seg.b[2], i) : project(X, Y, Z, i))) continue;
@@ -460,7 +462,11 @@ export class Engine {
       if (!selection || !l.line) continue;
       const rows = selection.get(l.table) ?? [], path = l.path;
       if (path) {
-        for (const i of rows) if (l.passes(i)) for (let j = i * path.points; j < (i + 1) * path.points; j++) { this.toView(path.x, path.y, path.z, j, p); lo.min(p); hi.max(p); }
+        for (const i of rows) {
+          if (!l.passes(i)) continue;
+          path.fill(i);
+          for (let j = i * path.points; j < (i + 1) * path.points; j++) { this.toView(path.x, path.y, path.z, j, p); lo.min(p); hi.max(p); }
+        }
       } else if (l.segment) {
         const [X, Y, Z] = l.segment.a;
         for (const i of rows) if (l.passes(i)) { this.toView(X, Y, Z, i, p); lo.min(p); hi.max(p); }

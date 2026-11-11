@@ -101,6 +101,7 @@ describe("helix paths", () => {
   it("give polylines from start to end", () => {
     const h = one([0, 0, 0], [1, 0, 0], 1, [50, -15, 0], FIELD);
     const lines = polylines(h.paths, [col(0), col(0), col(0)], 9);
+    lines.fill(0);
     expect(lines.x.length).toBe(9);
     expect(lines.x[0]).toBe(0);
     expect(lines.x[8]).toBeCloseTo(h.end[0], 4);

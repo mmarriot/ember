@@ -137,15 +137,20 @@ function transverseLength(x0: number, y0: number, dx: number, dy: number, k: num
 }
 
 /** `points` points per path, evenly spaced in length from start to end (interleaved per path: path i is
- *  [i * points, (i + 1) * points)), for picking and framing on the CPU. */
+ *  [i * points, (i + 1) * points)), for picking and framing on the CPU. Filled per path on first use (`fill(i)`):
+ *  most paths of a big layer (e.g. 100k truth particles at PU200, drawn only for a selection) are never picked, and
+ *  the pages of the arrays they would use are then never touched. */
 export function polylines(paths: Paths, start: Columns3, points: number) {
   const { n, dir, path } = paths, x = new Float32Array(n * points), y = new Float32Array(n * points), z = new Float32Array(n * points);
-  const at = new Float64Array(3);
-  for (let i = 0; i < n; i++)
+  const done = new Uint8Array(n), at = new Float64Array(3);
+  const fill = (i: number) => {
+    if (done[i]) return;
+    done[i] = 1;
     for (let j = 0; j < points; j++) {
       point(start[0][i], start[1][i], start[2][i], dir[3 * i], dir[3 * i + 1], dir[3 * i + 2], path[3 * i], path[3 * i + 1],
         (path[3 * i + 2] * j) / (points - 1), at);
       x[i * points + j] = at[0]; y[i * points + j] = at[1]; z[i * points + j] = at[2];
     }
-  return { points, x, y, z };
+  };
+  return { points, x, y, z, fill };
 }

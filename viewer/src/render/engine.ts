@@ -143,7 +143,7 @@ export class Engine {
   private get controls() { return this.flat ? this.ctlRZ : this.ctl3d; }
   /** The layers drawn in the current view (display hint `views`). */
   private get drawn() { return this.layers.filter((l) => l.object.visible); }
-  private showIn(layer: Layer) { layer.object.visible = !layer.views || layer.views.includes(this.view); }
+  private showIn(layer: Layer) { layer.object.visible = !layer.views || layer.views.includes(this.view); layer.setView?.(this.view); }
   requestRender() { this.dirty = true; }
 
   setBackground(colour: number) {

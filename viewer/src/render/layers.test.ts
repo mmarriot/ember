@@ -74,19 +74,30 @@ describe("cones", () => {
     l.setOutline!(false);
     expect(u.value).toBe(0);
   });
-  it("in rho-z, outline as wedges: two edges from the apex and the base between them", () => {
+  it("in the 2D views, outline as wedges: two edges from the apex and the base between them", () => {
     const l = build(d({ to: { r: 129, z: 320 } }), jets()), [mesh, wedge] = (l.object as THREE.Group).children as [THREE.Mesh, THREE.LineSegments];
-    l.setProjection(true);
+    l.setProjection(true); l.setView!("rz");
     expect(wedge.visible).toBe(false); // filled cones as usual
     l.setOutline!(true);
     expect([mesh.visible, wedge.visible]).toEqual([false, true]);
-    const p = wedge.geometry.getAttribute("position");
-    expect(p.count).toBe(2 * 2 * (2 + 32)); // two cones, 34 lines each
+    let p = wedge.geometry.getAttribute("position");
+    expect(p.count).toBe(2 * 2 * (2 + 32)); // rho-z: two cones, two edges and the base's arc each
     expect([p.getX(0), p.getY(0)]).toEqual([1, 0]); // the first line starts at the first cone's apex: (z, rho)
     // its edges open by the cone's radius around the axis (the central jet at eta 0: 0.4 in eta is ~0.39 rad in theta)
     const edge = (k: number) => Math.atan2(p.getY(2 * k + 1) - p.getY(2 * k), p.getX(2 * k + 1) - p.getX(2 * k));
     expect(Math.abs(edge(0) - edge(1))).toBeCloseTo(2 * Math.atan(Math.sinh(0.4)), 1);
-    l.setProjection(false);
+    // Front: two edges and the chord each (the central jet's edges 0.8 rad apart in phi).
+    l.setProjection(false); l.setView!("front");
+    p = wedge.geometry.getAttribute("position");
+    expect(p.count).toBe(2 * 2 * 3);
+    expect([p.getX(0), p.getY(0), p.getZ(0)]).toEqual([0, 0, 1]); // drawn in 3D: the orthographic camera flattens it
+    const a = Math.atan2(p.getY(1), p.getX(1)), b = Math.atan2(p.getY(3), p.getX(3));
+    expect(Math.abs(a - b)).toBeCloseTo(0.8, 1);
+    // A cone seen along its axis (from the side, a jet along x) has no wedge: its base circle.
+    const along = build(d(100), table({ vx: col(0), vy: col(0), vz: col(0), eta: col(0), phi: col(0), pt: col(50) }));
+    along.setView!("side"); along.setOutline!(true);
+    expect(((along.object as THREE.Group).children[1] as THREE.LineSegments).geometry.getAttribute("position").count).toBe(2 * 32);
+    l.setView!("3d");
     expect([mesh.visible, wedge.visible]).toEqual([true, false]);
   });
   it("are made of side and cap triangles", () => {

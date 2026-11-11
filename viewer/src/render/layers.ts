@@ -41,6 +41,8 @@ export interface Layer {
   /** Shower objects: draw as outlines (e.g. the reco objects matched to a truth particle); `envelope`: as a
    *  full-size outline, also for compact cores (the focus around the level shown inside it). */
   setOutline?(on: boolean, envelope?: boolean): void;
+  /** The view drawn (engine): for layers that draw differently in the 2D views (cone outlines as wedges). */
+  setView?(view: ViewName): void;
   dispose(): void;
 }
 export interface LayerInput {
@@ -927,10 +929,12 @@ export function cones(input: LayerInput): Layer {
   const mesh = new THREE.Mesh(g, material);
   mesh.frustumCulled = false;
   mesh.renderOrder = 3; // after the opaque objects, so they show through
-  // Outline in rho-z: the base circle alone would be stray arcs there, so each cone is drawn as its wedge: the two lines
-  // from the apex to the outermost points of its base in the view's plane, and the base between them (CPU lines, for
-  // tens of jets). They follow the cut and the colours; the cone's own mesh is hidden meanwhile.
-  let rgb = input.rgb, rz = false, outlined = false;
+  // Outline in the 2D views: the base circle alone would be stray arcs (rho-z) or big overlapping circles (front, side),
+  // so each cone is drawn as its wedge in the view's plane: the two lines from the apex to the outermost points of its
+  // base, and between them the base (rho-z: its projected arc, as before) or its chord (front, side). A cone seen along
+  // its axis has no wedge: then its base circle. CPU lines, for tens of jets; they follow the cut and the colours, and
+  // the cone's own mesh is hidden meanwhile.
+  let rgb = input.rgb, rz = false, outlined = false, view: ViewName = "3d";
   const wedge = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.ShaderMaterial({ // raw colours, as the layers
     vertexShader: `attribute vec3 color; varying vec3 vCol; void main() { vCol = color; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
     fragmentShader: `varying vec3 vCol; void main() { gl_FragColor = vec4(vCol, 1.0); }`,
@@ -938,7 +942,7 @@ export function cones(input: LayerInput): Layer {
   wedge.frustumCulled = false;
   wedge.renderOrder = 3;
   const updateWedges = () => {
-    const show = rz && outlined;
+    const show = view !== "3d" && outlined;
     mesh.visible = !show;
     wedge.visible = show;
     if (!show) return;
@@ -946,20 +950,28 @@ export function cones(input: LayerInput): Layer {
     for (let i = 0; i < n; i++) {
       if (!common.passes(i)) continue;
       const side = ends[1][i] >= 0 ? 1 : -1, x0 = start[0][i], y0 = start[1][i], z0 = start[2][i];
-      const flat = (x: number, y: number, z: number): [number, number] => [z, Math.hypot(x, y) * side];
-      const apex = flat(x0, y0, z0), axis = flat(ends[0][i], ends[1][i], ends[2][i]), ax = [axis[0] - apex[0], axis[1] - apex[1]];
-      const rim: [number, number][] = [];
+      // A point in the view's plane (2D, for the silhouette) and as drawn (rho-z: in its plane; front, side: the point
+      // itself, the orthographic camera flattens it).
+      const flat = (x: number, y: number, z: number): [number, number] => (rz ? [z, Math.hypot(x, y) * side] : view === "side" ? [z, y] : [x, y]);
+      const drawn = (p: number[]): number[] => (rz ? [...flat(p[0], p[1], p[2]), 3] : p);
+      const apex3 = [x0, y0, z0], apex = flat(x0, y0, z0), axis = flat(ends[0][i], ends[1][i], ends[2][i]), ax = [axis[0] - apex[0], axis[1] - apex[1]];
+      const rim3: number[][] = [];
       for (let k = 0; k <= 32; k++) {
         const a = (2 * Math.PI * k) / 32, [dx, dy, dz] = etaPhiDirection(eta[i] + radius[i] * Math.cos(a), phi[i] + radius[i] * Math.sin(a));
-        rim.push(flat(x0 + length[i] * dx, y0 + length[i] * dy, z0 + length[i] * dz));
+        rim3.push([x0 + length[i] * dx, y0 + length[i] * dy, z0 + length[i] * dz]);
       }
+      const rim = rim3.map((p) => flat(p[0], p[1], p[2]));
+      const line = (a: number[], b: number[]) => { pos.push(...drawn(a), ...drawn(b)); col.push(...rgb.subarray(3 * i, 3 * i + 3), ...rgb.subarray(3 * i, 3 * i + 3)); };
+      // Seen along its axis (the axis shorter on screen than the base is wide): the base circle is its outline.
+      const spread = Math.max(...rim.map((p) => Math.hypot(p[0] - axis[0], p[1] - axis[1])));
+      if (Math.hypot(ax[0], ax[1]) < spread) { for (let k = 0; k < 32; k++) line(rim3[k], rim3[k + 1]); continue; }
       // The outermost base points on either side of the axis, by their angle from it seen from the apex.
       const turn = (p: [number, number]) => Math.atan2(ax[0] * (p[1] - apex[1]) - ax[1] * (p[0] - apex[0]), ax[0] * (p[0] - apex[0]) + ax[1] * (p[1] - apex[1]));
-      let lo = rim[0], hi = rim[0];
-      for (const p of rim) { if (turn(p) < turn(lo)) lo = p; if (turn(p) > turn(hi)) hi = p; }
-      const line = (a: [number, number], b: [number, number]) => { pos.push(a[0], a[1], 3, b[0], b[1], 3); col.push(...rgb.subarray(3 * i, 3 * i + 3), ...rgb.subarray(3 * i, 3 * i + 3)); };
-      line(apex, lo); line(apex, hi);
-      for (let k = 0; k < 32; k++) line(rim[k], rim[k + 1]);
+      let lo = 0, hi = 0;
+      rim.forEach((p, k) => { if (turn(p) < turn(rim[lo])) lo = k; if (turn(p) > turn(rim[hi])) hi = k; });
+      line(apex3, rim3[lo]); line(apex3, rim3[hi]);
+      if (rz) for (let k = 0; k < 32; k++) line(rim3[k], rim3[k + 1]);
+      else line(rim3[lo], rim3[hi]);
     }
     wedge.geometry.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
     wedge.geometry.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
@@ -971,6 +983,7 @@ export function cones(input: LayerInput): Layer {
     setPinned(row) { common.setPinned(row); updateWedges(); },
     setColours(c) { rgb = c; common.setColours(c); updateWedges(); },
     setProjection(v) { rz = v; common.setProjection(v); updateWedges(); },
+    setView(v) { view = v; updateWedges(); },
     setOutline(on: boolean, envelope = false) { outlined = on || envelope; material.uniforms.uOutline.value = outlined ? 1 : 0; updateWedges(); },
     dispose() { g.dispose(); base.dispose(); material.dispose(); wedge.geometry.dispose(); (wedge.material as THREE.Material).dispose(); },
   };

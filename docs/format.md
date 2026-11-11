@@ -199,8 +199,7 @@ A `cones` layer draws each object as a translucent cone from `position` along `d
 circle of `radius` in η-φ at `length` (e.g. a jet: `{"to": {"r": 129, "z": 320}}` ends it on the calorimeter's
 surface). Each vertex is placed in the shader at start + L · dir(η + R cos t, φ + R sin t), so the base is the jet's
 η-φ area seen from its vertex; in the ρ-z view a cone becomes a wedge on the side of its end. Seen from another
-domain than its own shared one (header `domains[i].shared`), or when the viewer asks for outlines, only its rim is
-drawn. Picked along its axis; colours, cuts, filters, selection and the replay (it grows from its start) as for
+domain than its own shared one (header `domains[i].shared`), or when the viewer asks for outlines, only its outline is drawn: in 3D its base circle and silhouette, in the front, side and ρ-z views its wedge (the two edges from the apex to the outermost points of its base, and the base's chord, or in ρ-z its arc; its base circle when seen along its axis). Picked along its axis; colours, cuts, filters, selection and the replay (it grows from its start) as for
 `segments`.
 
 ### Polylines

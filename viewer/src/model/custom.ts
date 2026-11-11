@@ -64,8 +64,8 @@ export const RELATION = "rel:";
 /** The display hint with the user's colour choice, if any: a column (a value scale, replacing any categorical
  *  colouring), or RELATION + relation name (the colour of the related object, e.g. a trackster's truth particle). */
 export function withColour(d: DisplayLayer, column: string | undefined): DisplayLayer {
-  if (column?.startsWith(RELATION)) return { ...d, colourBy: { relation: column.slice(RELATION.length) } };
-  return column ? { ...d, colour: column, colourBy: undefined, palette: d.palette ?? "heat" } : d;
+  if (column?.startsWith(RELATION)) return { ...d, colourBy: { relation: column.slice(RELATION.length) }, fixedColour: undefined };
+  return column ? { ...d, colour: column, colourBy: undefined, fixedColour: undefined, palette: d.palette ?? "heat" } : d;
 }
 
 export const customDoc = (table: string, column: string) => {

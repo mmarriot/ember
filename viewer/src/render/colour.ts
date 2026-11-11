@@ -130,6 +130,13 @@ export function colours(d: DisplayLayer, t: Table, ev: EventData, header: Header
     for (let i = 0; i < t.n; i++) setCategory(i, i);
     return { rgb: out, legend: { kind: "category", text: "one colour per object" } };
   }
+  // A kind's own colour (display hint `fixedColour`), also over "none", which bundles give as old viewers' fallback; the
+  // truth mode and a user's colour choice drop the hint (store.ts shownLayer, custom.ts withColour).
+  if (d.fixedColour && (d.colourBy === undefined || d.colourBy === "none")) {
+    const c = rgb(d.fixedColour);
+    for (let i = 0; i < t.n; i++) set(i, c);
+    return { rgb: out, legend: { kind: "category", text: "its kind's colour", items: [{ label: d.label, colour: d.fixedColour }] } };
+  }
   if (d.colourBy === "none") { // a layer with nothing to take a colour from in this mode (e.g. vertices, by truth)
     const c = rgb(pal.unassigned);
     for (let i = 0; i < t.n; i++) set(i, c);

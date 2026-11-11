@@ -40,6 +40,9 @@ export interface DisplayLayer {
   momentum?: [string, string, string]; // helix: px, py, pz at the start [GeV]
   charge?: string; // helix: charge column [e]; 0 (or none) draws a straight line
   colour?: string | null;
+  /** One colour ("#rrggbb") for every row, e.g. each physics kind its own, instead of a scale; takes precedence over
+   *  `colourBy: "none"` (an older viewer's fallback) but not over the colour modes' or the user's choices. */
+  fixedColour?: string;
   palette?: "heat" | "cool";
   /** Categorical colouring: one colour per object ("row"); one neutral colour ("none", set by a colour mode for a
    *  layer it cannot reach); one colour each for the largest objects ("identity",

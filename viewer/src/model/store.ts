@@ -119,7 +119,7 @@ export function shownLayer(d: DisplayLayer, mode = activeMode.peek(), by = colou
   const { colouring, roots } = modes.peek();
   if (mode === "truth" && !d.context && !d.truth) { // by truth: the chain to the truth particles, else one neutral colour
     const c = colouring.truth?.[d.table];
-    return withColour({ ...d, colourBy: c ?? "none" }, by[layerKey(d)]);
+    return withColour({ ...d, colourBy: c ?? "none", fixedColour: undefined }, by[layerKey(d)]);
   }
   const pid = mode === "pid" && !d.context && !d.truth;
   const c = pid && d.table !== roots.reco ? colouring.reco?.[d.table] : undefined;

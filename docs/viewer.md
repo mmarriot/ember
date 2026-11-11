@@ -32,7 +32,7 @@ The same list is in the viewer's help (`?`).
 Preset buttons when the bundle has more than one preset; then tabs; then the colour key.
 
 - **One tab per part of the detector** (display hint `domain`, e.g. **HGCal**; **Objects** for bundles made before
-  layers had one): its collections by kind of object. Each kind lists its `cut` slider (log scale over the group's
+  layers had one), in the order of the header's `domains`, as the top bar's buttons: its collections by kind of object. Each kind lists its `cut` slider (log scale over the group's
   values in the shown event; the lowest position is no cut; it applies to every layer of the group, also those listed
   elsewhere, which it names) and then one row per layer: visibility and count, the layer's filter, "only for the
   selection" for `onSelection` layers, and its colour scale when the colour key does not already explain it. Other

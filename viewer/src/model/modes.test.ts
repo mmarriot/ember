@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { Header } from "../io/bundle";
-import { modeColouring, modeRoots } from "./modes";
+import { modeColouring, modeRoots, reachesRoot, recoColourOf } from "./modes";
+import all from "./fixtures/all_header.json";
+import { truthStatus } from "./match";
 import cms from "./fixtures/cms_header.json";
 import cmsColourings from "./fixtures/cms_colourings.json";
 
@@ -78,7 +80,7 @@ describe("colour modes", () => {
     for (const t of ["Jet", "PFCand", "Muon"]) expect(p[t]).toBeUndefined();
   });
   it("truth mode: a vertex matched to a truth vertex stays neutral (no colour from what decays there)", () => {
-    const h = { ...physics, relations: { ...physics.relations, decay: rel("P", "TV"), vtxTruth: assoc("Vtx", "TV", "score", "min") },
+    const h = { ...physics, relations: { ...physics.relations, decay: rel("P", "TV"), vtxTruth: assoc("Vtx", "TV", "score", "min"), truthVtx: assoc("TV", "Vtx", "fraction", "max") },
       display: [...physics.display, { table: "Vtx", repr: "markers" }, { table: "TV", repr: "markers", truth: true }] } as unknown as Header;
     expect(modeColouring(h, "P", true).Vtx).toBeUndefined();
   });
@@ -99,5 +101,23 @@ describe("colour modes", () => {
     expect(roots).toEqual(cmsColourings.roots);
     expect(modeColouring(h, roots.truth!, true)).toEqual(cmsColourings.truth);
     expect(modeColouring(h, roots.reco!)).toEqual(cmsColourings.reco);
+  });
+  // The all-detectors bundle (physics objects, calorimeters, muons, vertices with truth vertices).
+  it("all-detectors bundle: by truth, no kind with a truthGap and no vertex takes a particle colour", () => {
+    const h = all as unknown as Header, roots = modeRoots(h), c = modeColouring(h, roots.truth!, true);
+    expect(c).toMatchSnapshot();
+    const none = h.display.filter((d) => truthStatus(h, d.table, c)?.kind === "none").map((d) => d.table);
+    expect(none).toEqual(expect.arrayContaining(["Jets", "Muons", "MuonSegments", "PFCandidates", "PFClustersHF", "PuppiMET"]));
+    for (const t of none) expect([t, c[t]]).toEqual([t, undefined]);
+    for (const t of ["Vertices", "SecondaryVertices"]) expect(c[t]).toBeUndefined();
+  });
+  it("all-detectors bundle: the candidate-type colours reach only layers whose chain ends at the candidates", () => {
+    const h = all as unknown as Header, roots = modeRoots(h), c = modeColouring(h, roots.reco!);
+    expect(c).toMatchSnapshot();
+    const pid = Object.fromEntries(h.display.map((d) => [d.table, recoColourOf(h, c, roots.reco!, d.table)]).filter(([, x]) => x));
+    for (const t of Object.keys(pid)) expect([t, reachesRoot(h, c, t)]).toEqual([t, true]);
+    for (const t of ["EcalHits", "HBHEHits", "PFClustersECAL", "PFClustersHCAL", "Muons", "MuonHits", "MuonSegments", "GsfTracks", "EGammaSuperClusters"])
+      expect([t, pid[t]]).toEqual([t, undefined]);
+    expect(pid.HGCalSoARecHitsEE).toEqual({ relation: "lcSoAHitsEE" }); // HGCal keeps its candidate colours
   });
 });

@@ -63,7 +63,8 @@ export function modeColouring(header: Header, root: string, truthRoot = false): 
     const gap = truthRoot ? header.display.find((d) => d.table === table)?.truthGap : undefined;
     // By truth, an association is crossed only to the root itself: a vertex matched to a truth vertex is not given the
     // colour of whatever particle that vertex belongs to.
-    const usable = (r: Header["relations"][string]) => (r.association && (!truthRoot || r.from === root || r.to === root)) || staged(table) || (r.to === table && !inverse(r));
+    const usable = (r: Header["relations"][string]) => (r.association && (!truthRoot || r.from === root || r.to === root)) || staged(table) ||
+      (r.to === table && !inverse(r) && !(truthRoot && r.association));
     const direct = rels.filter(([, r]) => usable(r) && ((r.from === table && r.to === root) || (r.to === table && r.from === root)));
     const vote = !truthRoot || gap?.derived === "content" || legacy;
     if (gap && !direct.length && !vote) continue;
@@ -90,4 +91,10 @@ export function reachesRoot(header: Header, colouring: Record<string, ColourBy>,
   if (typeof c !== "object" || !("relation" in c)) return false;
   const r = header.relations[c.relation];
   return !!r && reachesRoot(header, colouring, r.from === table ? r.to : r.from, new Set(seen).add(table));
+}
+
+/** The colouring the "pid" mode gives `table`: its chain to the reco root, only if it reaches it (a chain that ends
+ *  elsewhere would show another table's categories under a key that describes the root's). */
+export function recoColourOf(header: Header, colouring: Record<string, ColourBy>, root: string, table: string): ColourBy | undefined {
+  return table !== root && reachesRoot(header, colouring, table) ? colouring[table] : undefined;
 }

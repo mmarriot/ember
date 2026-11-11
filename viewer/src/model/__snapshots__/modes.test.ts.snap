@@ -1,0 +1,166 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`colour modes > all-detectors bundle: by truth, no kind with a truthGap and no vertex takes a particle colour 1`] = `
+{
+  "EcalHits": {
+    "relation": "truthHitsEcal",
+  },
+  "HBHEHits": {
+    "relation": "truthHitsHBHE",
+  },
+  "HFHits": {
+    "relation": "truthHitsHF",
+  },
+  "HGCalHits": {
+    "relation": "truthHitsHGCal",
+  },
+  "HGCalSoALayerClusters": {
+    "content": "TruthParticles",
+  },
+  "HGCalSoARecHitsEE": {
+    "relation": "truthHitsSoAEE",
+  },
+  "HGCalSoARecHitsHSci": {
+    "relation": "truthHitsSoAHSci",
+  },
+  "HGCalSoARecHitsHSi": {
+    "relation": "truthHitsSoAHSi",
+  },
+  "HOHits": {
+    "relation": "truthHitsHO",
+  },
+  "MuonHits": {
+    "relation": "truthHitsMuon",
+  },
+  "PFClustersECAL": {
+    "relation": "pfClusterECALTruth",
+  },
+  "PFClustersHCAL": {
+    "relation": "pfClusterHCALTruth",
+  },
+  "TICLCandidates": {
+    "relation": "candidateTruth",
+  },
+  "TICLSoATracksters": {
+    "relation": "clusteringTruth",
+  },
+  "TrackHits": {
+    "relation": "trackHits",
+  },
+  "Tracks": {
+    "relation": "trackTruth",
+  },
+  "TruthParticles": "identity",
+  "TruthVertices": {
+    "relation": "truthDecayVertex",
+  },
+  "ticlTracksterInterpretations": {
+    "relation": "interpretationTruth",
+  },
+  "ticlTracksterLinks": {
+    "relation": "linksTruth",
+  },
+  "ticlTracksterLinksSuperclusteringDNN": {
+    "relation": "superclusterTruth",
+  },
+}
+`;
+
+exports[`colour modes > all-detectors bundle: the candidate-type colours reach only layers whose chain ends at the candidates 1`] = `
+{
+  "EGammaSuperClusters": {
+    "relation": "electronSuperCluster",
+  },
+  "EcalHits": {
+    "relation": "pfClusterHitsECAL",
+  },
+  "GsfTrackHits": {
+    "relation": "gsfTrackHits",
+  },
+  "GsfTracks": {
+    "relation": "pfGsfTrack",
+  },
+  "HBHEHits": {
+    "relation": "pfClusterHitsHCAL",
+  },
+  "HFHits": {
+    "relation": "pfClusterHitsHF",
+  },
+  "HGCalEGammaSuperClusters": {
+    "relation": "electronHGCSuperCluster",
+  },
+  "HGCalHits": {
+    "relation": "lcHits",
+  },
+  "HGCalSoALayerClusters": {
+    "relation": "candidateLCs",
+  },
+  "HGCalSoARecHitsEE": {
+    "relation": "lcSoAHitsEE",
+  },
+  "HGCalSoARecHitsHSci": {
+    "relation": "lcSoAHitsHSci",
+  },
+  "HGCalSoARecHitsHSi": {
+    "relation": "lcSoAHitsHSi",
+  },
+  "HOHits": {
+    "relation": "pfClusterHitsHO",
+  },
+  "MuonChambers": {
+    "relation": "muonChambers",
+  },
+  "MuonHits": {
+    "relation": "chamberHits",
+  },
+  "MuonSegments": {
+    "relation": "muonSegments",
+  },
+  "MuonTrackHits": {
+    "relation": "muonTrackHits",
+  },
+  "MuonTracks": {
+    "relation": "muonTracks",
+  },
+  "Muons": {
+    "relation": "pfMuon",
+  },
+  "PFClustersECAL": {
+    "relation": "pfClustersECAL",
+  },
+  "PFClustersHCAL": {
+    "relation": "pfClustersHCAL",
+  },
+  "PFClustersHF": {
+    "relation": "pfClustersHF",
+  },
+  "PFClustersHO": {
+    "relation": "pfClustersHO",
+  },
+  "TICLCandidates": "identity",
+  "TICLSoATracksters": {
+    "content": "TICLCandidates",
+  },
+  "TrackHits": {
+    "relation": "trackHits",
+  },
+  "Tracks": {
+    "relation": "candidateTrack",
+  },
+  "TruthParticles": {
+    "relation": "truthCandidates",
+  },
+  "TruthVertices": {
+    "relation": "truthDecayVertex",
+  },
+  "ticlTracksterInterpretations": {
+    "relation": "candidateTrackster",
+  },
+  "ticlTracksterLinks": {
+    "content": "TICLCandidates",
+  },
+  "ticlTracksterLinksSuperclusteringDNN": {
+    "content": "TICLCandidates",
+  },
+}
+`;

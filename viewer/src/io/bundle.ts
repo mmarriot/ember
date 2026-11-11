@@ -26,11 +26,12 @@ export interface DisplayLayer {
   charge?: string; // helix: charge column [e]; 0 (or none) draws a straight line
   colour?: string | null;
   palette?: "heat" | "cool";
-  /** Categorical colouring: one colour per object ("row"); one colour each for the largest objects ("identity",
+  /** Categorical colouring: one colour per object ("row"); one neutral colour ("none", set by a colour mode for a
+   *  layer it cannot reach); one colour each for the largest objects ("identity",
    *  the others share one); the colour of the partner across a relation; the colour of the `content` table's object
    *  with the most weight in its hits; or one colour per value of a column (`abs`: of its absolute value; `names`:
    *  legend names per value, as {value: name} or, to keep the order of integer values, [value, name] pairs). */
-  colourBy?: "row" | "identity" | { relation: string } | { content: string }
+  colourBy?: "row" | "identity" | "none" | { relation: string } | { content: string }
     | { category: string; abs?: boolean; names?: Record<string, string> | [string | number, string][] };
   stage?: number; // reconstruction step (0, 1, ...) of the replay; the default view shows the last one
   /** `helix`: the replay builds each path along its length, after the hits arrive and before the clustering and the
@@ -57,6 +58,11 @@ export interface DisplayLayer {
   shape?: "solid" | "shell" | "cage" | "core";
   /** Simulation truth rather than reconstruction: labelled as such, drawn dashed (segments). */
   truth?: boolean;
+  /** Truth particles: which of them is "the particle" that colours and groups everything below it (docs/truth.md):
+   *  the rows with `bit` set in the integer column `flags` (e.g. truth::LevelFlag 2, generator-level stable). A row
+   *  takes the colour of its highest such ancestor, or its own without one. Colours go first to rows with `first`
+   *  non-zero (e.g. isSignal), then by size. */
+  particle?: { flags: string; bit: number; first?: string };
   /** Draw only the objects related to the current selection (none without one), until the user chooses all. */
   onSelection?: boolean;
   visible: boolean;
@@ -77,7 +83,7 @@ export interface Header {
    *  other side's own relations. `best`: the weight that picks one partner where only one can be shown (colours).
    *  `inverseOf`: the relation points from a part back up to its container, the inverse of the named relation (a
    *  track's vertex, next to the vertex's tracks). */
-  relations: Record<string, { from: string; to: string; weights: string[]; association?: boolean; best?: { weight: string; order: "min" | "max" }; inverseOf?: string }>;
+  relations: Record<string, { from: string; to: string; weights: string[]; association?: boolean; best?: { weight: string; order: "min" | "max" }; inverseOf?: string; match?: Match }>;
   display: DisplayLayer[];
   /** How particles move through the detector, for the reconstruction replay: away from a point (default: the
    *  origin, i.e. collisions), along a direction (e.g. [0, -1, 0] for cosmics), or in a fixed random order (hits
@@ -97,6 +103,16 @@ export interface Header {
   domains?: Domain[];
   /** Solenoid field for `helix` layers: Bz (T), uniform inside the cylinder r < rMax, |z| < zMax (cm), none outside. */
   field?: { bz: number; rMax: number; zMax: number };
+}
+/** How a reco <-> truth association measures a match (docs/truth.md), on the relation. On reco -> truth: the truth
+ *  level the reco kind reconstructs (`target`), what is shared (`measure`: detector hits, or rechit energy) and where
+ *  (`in`), the weight holding the shared amount (`shared`) and the object's own amount as expressions on its table,
+ *  the first that can be computed (`over`), so purity = shared / over; `good`: the purity from which a match is clean.
+ *  On truth -> reco: `completeness`, the weight giving the share of the particle's amount in the object (or 1 minus
+ *  it, `complement`). */
+export interface Match {
+  measure: "hits" | "energy"; in: string; target?: "trackerHits" | "caloBoundary" | "particle";
+  shared?: string; over?: string[]; good?: number; completeness?: { weight: string; complement?: boolean };
 }
 export interface Domain {
   name: string; region: { rMax: number; zMax: number }; view?: "3d" | "front" | "side" | "rz";

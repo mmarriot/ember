@@ -458,7 +458,7 @@ class Converter:
                        for t, m in written.items()},
             "relations": {n: {"from": r["from"], "to": r["to"],
                               "weights": [_column(w)[1] for w in r.get("weights", [])],
-                              **{k: r[k] for k in ("association", "best") if k in r},  # viewer hints
+                              **{k: r[k] for k in ("association", "best", "match") if k in r},  # viewer hints
                               **({"inverseOf": r["inverseOf"]} if r.get("inverseOf") in relations else {})}
                           for n, r in relations.items()},
             "display": self.display,

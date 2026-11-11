@@ -64,7 +64,9 @@ async function checkBundle(file, tag, state) {
   const rows = await page.$$eval(".layer:not(.off) label", (r) => r.map((x) => x.innerText.replace(/\s+/g, " ").trim()));
   log(`${tag}: ${drawn} layers, ${objects} objects drawn: ${rows.join(" | ")}`);
   if (!drawn) fail("no layer drawn");
-  if ((small = objects > BIG)) await page.setViewportSize({ width: 720, height: 450 });
+  // A big scene (or a big file, whose start view may be light, e.g. only the physics objects): software WebGL is too
+  // slow for the replay and full-size screenshots.
+  if ((small = objects > BIG || h.size > BIG_FILE)) await page.setViewportSize({ width: 720, height: 450 });
   await shot("1_layers");
   await checkHelices(page, fail, tag);
   await checkDomains(page, h, fail, shot, tag);

@@ -8,6 +8,7 @@
                "particleFlowClusterHCALToTruth", "particleFlowClusterHCALFromTruth"],
   "relations": [
     {"name": "pfTrack", "kind": "index", "from": "PFCandidates", "to": "Tracks", "index": "PFCandidates.trackIdx"},
+    {"name": "pfGsfTrack", "kind": "index", "from": "PFCandidates", "to": "GsfTracks", "index": "PFCandidates.gsfTrackIdx"},
     {"name": "pfTicl", "kind": "index", "from": "PFCandidates", "to": "TICLCandidates", "index": "PFCandidates.ticlCandidateIdx"},
     {"name": "pfClustersECAL", "kind": "links", "from": "PFCandidates", "to": "PFClustersECAL", "table": "PFCandidateClustersECAL",
      "fromIndex": "PFCandidateClustersECAL.candIdx", "toIndex": "PFCandidateClustersECAL.clusterIdx"},
@@ -62,10 +63,10 @@
   "kinds": {
     "pfCandidate": {"label": "PF candidates", "domain": "Physics", "repr": "helix", "visible": false,
                     "colourBy": {"category": "pdgId", "abs": true, "names": [["211", "charged hadron"], ["22", "photon"], ["130", "neutral hadron"], ["11", "electron"], ["13", "muon"], ["1", "HF hadron"], ["2", "HF EM"]]},
-                    "cut": {"group": "PF candidate pT", "unit": "GeV", "default": 0.0},
+                    "cut": {"group": "PF candidate pT", "label": "PF candidate pT", "unit": "GeV", "default": 0.0},
                     "truthGap": {"reason": "no PF-candidate associator in CMSSW", "gap": 20}},
     "pfCluster": {"label": "PF clusters", "domain": "Calo", "repr": "markers", "palette": "cool", "visible": true,
-                  "cut": {"group": "PF cluster energy", "unit": "GeV", "default": 0.5},
+                  "cut": {"group": "PF cluster energy", "label": "PF cluster energy", "unit": "GeV", "default": 0.5},
                   "truthGap": {"reason": "no PF-cluster associator for HF and HO is configured in CMSSW", "gap": 15}}
   },
   "display": [
@@ -74,13 +75,13 @@
      "size": null, "time": "time", "cut": {"column": "pt"}, "filter": "puppiWeight > 0",
      "describe": {"columns": ["pdgId", "pt"], "names": {"pdgId": {"211": "π⁺", "-211": "π⁻", "22": "γ", "130": "h⁰", "11": "e⁻", "-11": "e⁺", "13": "μ⁻", "-13": "μ⁺", "1": "HF had", "2": "HF EM"}}},
      "inspect": ["pt", "eta", "phi", "energy", "ecalEnergy", "hcalEnergy", "puppiWeight", "time"]},
-    {"table": "PFClustersECAL", "kind": "pfCluster", "label": "ECAL", "position": ["x", "y", "z"], "colour": "energy", "size": "energy",
+    {"table": "PFClustersECAL", "kind": "pfCluster", "label": "ECAL", "position": ["x", "y", "z"], "colour": "energy", "size": null,
      "time": "time", "cut": {"column": "energy"}, "describe": {"columns": ["energy"]}, "inspect": ["energy", "eta", "phi", "nHits", "time"]},
-    {"table": "PFClustersHCAL", "kind": "pfCluster", "label": "HCAL barrel", "position": ["x", "y", "z"], "colour": "energy", "size": "energy",
+    {"table": "PFClustersHCAL", "kind": "pfCluster", "label": "HCAL barrel", "position": ["x", "y", "z"], "colour": "energy", "size": null,
      "time": "time", "cut": {"column": "energy"}, "describe": {"columns": ["energy"]}, "inspect": ["energy", "eta", "phi", "nHits", "depth"]},
-    {"table": "PFClustersHO", "kind": "pfCluster", "label": "HCAL outer", "position": ["x", "y", "z"], "colour": "energy", "size": "energy",
+    {"table": "PFClustersHO", "kind": "pfCluster", "label": "HCAL outer", "position": ["x", "y", "z"], "colour": "energy", "size": null,
      "visible": false, "cut": {"column": "energy"}, "describe": {"columns": ["energy"]}},
-    {"table": "PFClustersHF", "kind": "pfCluster", "label": "HCAL forward", "position": ["x", "y", "z"], "colour": "energy", "size": "energy",
+    {"table": "PFClustersHF", "kind": "pfCluster", "label": "HCAL forward", "position": ["x", "y", "z"], "colour": "energy", "size": null,
      "visible": false, "views": ["3d", "side", "rz"], "cut": {"column": "energy"}, "describe": {"columns": ["energy", "layer"], "names": {"layer": {"11": "EM", "12": "HAD"}}}}
   ],
   "presets": [

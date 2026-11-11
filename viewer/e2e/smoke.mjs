@@ -1,5 +1,6 @@
 // Browser check (headless Chromium, software WebGL) of every bundle in the site's index.json, or of those named.
 // Each: layers draw (helices end at finite points), domains draw only their layers, presets apply, a bundle with candidates has a colour key, summary charts show where the profile defines them,
+// a selection draws its objects that a layer's filter hides and its levels of lines (a vertex's tracks),
 // selecting an object shows what is related and only its bottom level (↓ ↑ step through the others), a related
 // object can be jumped to and back, Esc leaves. One bundle (`--deep`, default the smallest with reconstruction
 // stages) also gets: themes, help, a rotate drag keeping the selection, a custom column used for colour and a filter,
@@ -66,7 +67,7 @@ async function checkBundle(file, tag, state) {
 
   for (const name of await page.$$eval(".segmented.presets button", (b) => b.map((x) => x.textContent))) {
     const button = page.locator(".segmented.presets button", { hasText: name });
-    await button.click({ force: true, timeout: 120000 }); // force: see checkDomains
+    await button.click({ timeout: 120000 });
     if (!(await button.getAttribute("class"))?.includes("on")) fail(`preset ${name} did not apply`);
   }
 
@@ -75,6 +76,8 @@ async function checkBundle(file, tag, state) {
   const keys = await page.locator(".colourkey .key li").count();
   log(`${tag}: tabs ${tabs.join(" | ")}; colour key: ${keys} entries`);
   if (h.display.some((d) => d.stage !== undefined) && keys < 2) fail("no colour key for the candidates");
+  await page.getByRole("group", { name: "Preset" }).getByRole("button").first().click({ timeout: 120000 }).catch(() => {}); // the default filters
+  await checkFocusFilters(page, h, fail, tag);
 
   await page.getByRole("tab", { name: "Event", exact: true }).click();
   const charts = await page.locator(".bars").count(), run = await page.locator(".tabpanel section h3", { hasText: /^Run \d+/, hasNotText: "Lumi" }).count();
@@ -111,8 +114,7 @@ async function checkBundle(file, tag, state) {
   await page.waitForTimeout(900);
   const jumped = await focused();
   await shot("4_jumped");
-  // force: Playwright's "stable" check waits for animation frames, which software WebGL makes very slow on big scenes.
-  await page.locator(".focusbar button", { hasText: "←" }).click({ force: true, timeout: 30000 }).catch(() => fail("no way back after a jump"));
+  await page.locator(".focusbar button", { hasText: "←" }).click({ timeout: 120000 }).catch(() => fail("no way back after a jump"));
   const back = await focused();
   log(`${tag}: focus ${first} -> ${jumped} -> back to ${back}`);
   if (first.startsWith(" ") || jumped === first || back !== first) fail("jumping to a related object and back did not move the focus");
@@ -147,8 +149,7 @@ async function checkDomains(page, h, fail, shot, tag) {
   const tables = () => page.evaluate(() => window.evdEngine.layers.map((l) => l.table));
   const bar = page.getByRole("group", { name: "Detector part" }), before = await tables();
   for (const name of names) {
-    // force: Playwright's "stable" check waits for animation frames, which software WebGL makes very slow on big scenes.
-    await bar.getByRole("button", { name, exact: true }).click({ force: true, timeout: 120000 });
+    await bar.getByRole("button", { name, exact: true }).click({ timeout: 120000 });
     await page.waitForTimeout(800);
     const drawn = await tables(), url = decodeURIComponent(new URL(page.url()).hash.match(/[#&]d=([^&]+)/)?.[1] ?? "");
     const other = drawn.filter((t) => h.display.some((d) => d.table === t && d.domain && d.domain !== name));
@@ -164,10 +165,53 @@ async function checkDomains(page, h, fail, shot, tag) {
     await tabs.getByText(tab, { exact: true }).click();
     await shot(`1_domain_${name}`);
   }
-  await bar.getByRole("button", { name: "All", exact: true }).click({ force: true, timeout: 120000 });
+  await bar.getByRole("button", { name: "All", exact: true }).click({ timeout: 120000 });
   await page.waitForTimeout(800);
   if ((await tables()).length !== before.length) fail("All did not bring every layer back");
   if (h.display.some((d) => d.stage !== undefined) && !(await page.locator(".colourkey").count())) fail("All did not bring the colour key back");
+}
+
+/** A selection draws its objects that a layer's filter hides (cuts still apply), and its levels drawn as lines (e.g. a
+ *  vertex's tracks) with its smallest parts. Looks, in the page, for an object related through a plain relation to a
+ *  row that a non-onSelection layer's filter hides but that passes the layer's cut; selects it and checks that row is
+ *  drawn. Uses the app's own modules (dev server). */
+async function checkFocusFilters(page, h, fail, tag) {
+  if (!h.display.some((d) => d.filter && !d.onSelection)) return;
+  const found = await page.evaluate(async () => {
+    const url = (f) => performance.getEntriesByType("resource").map((r) => r.name).find((n) => n.includes(f)); // ?t= after hot updates
+    const store = await import(url("/src/model/store.ts")), custom = await import(url("/src/model/custom.ts"));
+    const frames = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const b = store.bundle.peek(), ev = store.event.peek(), cuts = store.cuts.peek(), out = [];
+    for (const d of b.header.display.filter((x) => x.filter && !x.onSelection)) {
+      const t = ev.tables[d.table], keep = t && custom.filterMask(t, custom.filters.peek()[d.table]);
+      if (!keep) continue;
+      const passes = (i) => !d.cut || Number(t.columns[d.cut.column][i]) >= (cuts[d.cut.group] ?? 0);
+      for (const [name, r] of Object.entries(b.header.relations)) {
+        const rel = ev.relations[name];
+        if (!rel || r.association || r.inverseOf || r.to !== d.table || r.from === d.table) continue;
+        let from = -1, row = -1;
+        for (let f = 0; f + 1 < rel.offsets.length && from < 0; f++)
+          for (let k = rel.offsets[f]; k < rel.offsets[f + 1]; k++) if (!keep[rel.indices[k]] && passes(rel.indices[k])) { from = f; row = rel.indices[k]; break; }
+        if (from < 0) continue;
+        store.selection.value = { table: r.from, row: from };
+        await frames();
+        const layer = window.evdEngine.layers.find((l) => l.table === d.table);
+        const lines = store.levels.peek().filter((l) => l.layers.every((x) => x.repr === "helix" || x.repr === "segments"));
+        const undrawn = lines.flatMap((l) => l.layers).filter((x) => !window.evdEngine.layers.some((l) => l.table === x.table)).map((x) => x.table);
+        out.push({ sel: `${r.from}:${from}`, table: d.table, row, drawn: !!layer?.passes(row), undrawn });
+        store.selection.value = null;
+        await frames();
+        break;
+      }
+    }
+    return out;
+  });
+  if (!found.length) log(`${tag}: no selection reaches a row hidden by a filter`);
+  for (const f of found) {
+    log(`${tag}: focus ${f.sel} reaches ${f.table} #${f.row}, hidden by the filter: ${f.drawn ? "drawn" : "not drawn"}${f.undrawn.length ? `; levels of lines not drawn: ${f.undrawn}` : ""}`);
+    if (!f.drawn) fail(`selecting ${f.sel} does not draw ${f.table} #${f.row}, which the layer's filter hides`);
+    if (f.undrawn.length) fail(`selecting ${f.sel} does not draw its levels of lines: ${f.undrawn.join(", ")}`);
+  }
 }
 
 async function checkLevels(page, h, target, fail, shot, tag) {
@@ -213,7 +257,7 @@ async function checkLevels(page, h, target, fail, shot, tag) {
   const fromTruth = await looks();
   log(`${tag}: the pair from its particle, a level shown: ${fromTruth === fromCandidate ? "the same picture" : `differs: ${fromTruth} vs ${fromCandidate}`}`);
   if (fromTruth !== fromCandidate) fail("the pair's particle and candidate draw different pictures");
-  await page.locator(".focusbar button", { hasText: "←" }).click({ force: true, timeout: 30000 });
+  await page.locator(".focusbar button", { hasText: "←" }).click({ timeout: 120000 });
   await page.keyboard.press("ArrowUp");
   await page.waitForTimeout(600);
 }

@@ -82,8 +82,8 @@ export function Inspector() {
               <span class="badge truth">truth</span> associator's best match {chip(truthMatch!.table, best.row)}
               <span class="muted">{weightsText(best.weights)}</span></p>)}
             {content.map((g) => g.particles.length > 0 && (
-              <div class="truthcontent" title={`Each particle's ${g.weight} in this object's hits${g.in ? ` in ${g.in}` : ""} (deposited in the sensors, not calibrated: compare only within one detector), summed over the hit layers shown; hits belong to the particles that entered the calorimeter, with their secondaries; only particles in the truth-graph export`}>
-                <p class="truthline"><span class="badge truth">truth</span> simulated energy in its hits{content.length > 1 && g.in ? ` in ${g.in}` : ""}, by particle that entered the calorimeter:</p>
+              <div class="truthcontent" title={`Each particle's ${g.weight} in this object's hits${g.in ? ` in ${g.in}` : ""} (deposited in the sensors, not calibrated: compare only within one detector), summed over the hit layers shown; each particle with its secondaries; only particles in the truth-graph export${g.unit ? `; the simulation records ${g.in || "these"} hits per ${typeof g.unit === "string" ? g.unit : Object.values(g.unit.names).join(", ")}, not per hit` : ""}`}>
+                <p class="truthline"><span class="badge truth">truth</span> simulated energy in its hits{content.length > 1 && g.in ? ` in ${g.in}` : ""}{g.unit ? " (per simulation unit)" : ""}, by particle with its secondaries:</p>
                 <ul class="matches">{g.particles.slice(0, 5).map(([p, e]) => (
                   <li>{chip(g.table, p)}<span class="muted">{(100 * e / g.total).toFixed(0)}%</span></li>
                 ))}</ul>

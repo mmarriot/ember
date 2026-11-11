@@ -131,16 +131,34 @@ export function opensPair(header: Header, table: string, colouring?: Record<stri
  *  across detectors: sampling and homogeneous calorimeters, photoelectrons in HF): per particle, the sum of the fact
  *  relations' weight over those hits, in hit layers for which `use` holds (e.g. drawn, so a hit is not counted twice
  *  through two hit tables). Largest first; groups without any energy are left out. */
+/** Truth -> hit relation `name` read from the hit side: per hit, its particles and their entries in the relation. Once
+ *  per event (one pass over the relation: about 10 ms for the 600k HGCal entries of a PU200 event). */
+function byHit(ev: EventData, name: string, nHits: number) {
+  return cached(ev, `byHit|${name}`, () => {
+    const rel = ev.relations[name], offsets = new Uint32Array(nHits + 1);
+    for (let k = 0; k < rel.indices.length; k++) if (rel.indices[k] < nHits) offsets[rel.indices[k] + 1]++;
+    for (let h = 0; h < nHits; h++) offsets[h + 1] += offsets[h];
+    const fill = offsets.slice(0, nHits), particle = new Int32Array(offsets[nHits]), entry = new Uint32Array(offsets[nHits]);
+    for (let p = 0; p + 1 < rel.offsets.length; p++)
+      for (let k = rel.offsets[p]; k < rel.offsets[p + 1]; k++) {
+        const h = rel.indices[k];
+        if (h < nHits) { particle[fill[h]] = p; entry[fill[h]++] = k; }
+      }
+    return { offsets, particle, entry };
+  });
+}
+
 export function simEnergyByParticle(ev: EventData, header: Header, objects: Related, use: (table: string) => boolean) {
-  const groups = new Map<string, { in: string; table: string; weight: string; total: number; sums: Map<number, number> }>();
+  const groups = new Map<string, { in: string; unit?: Fact["unit"]; table: string; weight: string; total: number; sums: Map<number, number> }>();
   for (const f of facts(header)) {
     const info = header.relations[f.name], rel = ev.relations[f.name], rows = objects.get(f.to), weight = info.best?.weight ?? info.weights[0];
     const w = weight ? rel?.weights[weight] : undefined;
     if (!rel || !rows || !w || !use(f.to)) continue;
-    const g = groups.get(f.in) ?? { in: f.in, table: f.from, weight, total: 0, sums: new Map() };
-    for (let p = 0; p + 1 < rel.offsets.length; p++)
-      for (let k = rel.offsets[p]; k < rel.offsets[p + 1]; k++)
-        if (rows.has(rel.indices[k])) { g.sums.set(p, (g.sums.get(p) ?? 0) + w[k]); g.total += w[k]; }
+    const g = groups.get(f.in) ?? { in: f.in, unit: f.unit, table: f.from, weight, total: 0, sums: new Map() };
+    // Through the hits: the relation read from the hit side, once per event, so a selection costs its own hits.
+    const { offsets, particle, entry } = byHit(ev, f.name, ev.tables[f.to]?.n ?? 0);
+    for (const h of rows)
+      for (let j = offsets[h]; j < offsets[h + 1]; j++) { const p = particle[j], e = w[entry[j]]; g.sums.set(p, (g.sums.get(p) ?? 0) + e); g.total += e; }
     groups.set(f.in, g);
   }
   return [...groups.values()].filter((g) => g.total > 0)

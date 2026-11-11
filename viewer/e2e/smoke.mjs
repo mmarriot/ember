@@ -4,7 +4,8 @@
 // selecting an object shows what is related and only its bottom level (↓ ↑ step through the others), a related
 // object can be jumped to and back, Esc leaves. One bundle (`--deep`, default the smallest with reconstruction
 // stages) also gets: themes, help, a rotate drag keeping the selection, a custom column used for colour and a filter,
-// the replay and the tour. Any console error, or a bundle taking over BUNDLE_TIMEOUT, fails.
+// the replay and the tour. Any console error, or a bundle taking over BUNDLE_TIMEOUT (three times that for files over
+// BIG_FILE: software WebGL takes seconds per frame on their scenes, and clicks wait for frames), fails.
 // Screenshots: <dir>/<bundle>_*.png (one small one for scenes over BIG objects). Progress: one timestamped line per step.
 // Usage: node e2e/smoke.mjs <dev server URL> <screenshot dir> [--deep <bundle>] [bundle ...]  (dev builds expose the engine)
 import { chromium } from "playwright";
@@ -16,7 +17,7 @@ const files = names.length ? names : (await (await fetch(`${base}index.json`)).j
 const headers = Object.fromEntries(await Promise.all(files.map(async (f) => [f, await header(f)])));
 const deep = deepName ?? files.filter((f) => headers[f].display.some((d) => d.stage !== undefined)).sort((a, c) => headers[a].size - headers[c].size)[0];
 
-const BUNDLE_TIMEOUT = 300_000; // ms: a bundle not checked by then fails, and the run goes on with the next
+const BUNDLE_TIMEOUT = 300_000, BIG_FILE = 500e6; // ms: a bundle not checked by then fails, and the run goes on with the next; bytes
 const BIG = 200_000; // objects drawn above which a bundle gets one small screenshot (software WebGL is slow)
 const log = (text) => console.log(`[${new Date().toISOString().slice(11, 19)}] ${text}`);
 const browser = await chromium.launch({ args: ["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader"] });
@@ -26,7 +27,7 @@ for (const file of files) {
   let timer;
   const result = await Promise.race([
     checkBundle(file, tag, state).then(() => "checked", (e) => `error: ${e.message.split("\n")[0]}`),
-    new Promise((done) => (timer = setTimeout(() => done(`not finished after ${BUNDLE_TIMEOUT / 1000} s`), BUNDLE_TIMEOUT))),
+    new Promise((done) => { const ms = (headers[file].size > BIG_FILE ? 3 : 1) * BUNDLE_TIMEOUT; timer = setTimeout(() => done(`not finished after ${ms / 1000} s`), ms); }),
   ]);
   clearTimeout(timer);
   await state.page?.close().catch(() => {}); // also ends a check that timed out

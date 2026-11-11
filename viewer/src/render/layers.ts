@@ -907,28 +907,72 @@ export function cones(input: LayerInput): Layer {
       }`,
     // Translucent, more opaque towards the rim; in rho-z (no normal) evenly. Outline: the base's circle (about 1.5 px)
     // and the sides' silhouette, which fades as the cone is seen along its axis (then the circle is the outline).
+    // On a light background a translucent pale colour washes out: denser and a little darker there.
     fragmentShader: /* glsl */ `
       uniform float uOutline;
+      uniform vec3 uBg;
       varying vec3 vCol, vN, vV, vA;
       varying float vEdge;
       void main() {
-        bool flat2d = dot(vN, vN) < 1e-6;
+        bool flat2d = dot(vN, vN) < 1e-6, light = dot(uBg, vec3(0.299, 0.587, 0.114)) > 0.5;
         float rim = flat2d ? 0.55 : 1.0 - abs(dot(normalize(vN), normalize(vV)));
         float ring = smoothstep(1.0 - 1.5 * fwidth(vEdge), 1.0, vEdge);
         float side = flat2d ? 0.0 : pow(rim, 6.0) * (1.0 - abs(dot(normalize(vA), normalize(vV))));
         float a = uOutline > 0.5 ? max(0.9 * ring, 0.8 * side) : 0.12 + 0.55 * pow(rim, 2.0);
-        gl_FragColor = vec4(vCol * (0.8 + 0.4 * rim), a);
+        vec3 col = vCol * (0.8 + 0.4 * rim);
+        gl_FragColor = light ? vec4(col * 0.8, min(1.0, 1.6 * a)) : vec4(col, a);
       }`,
   });
   const common = shaderLayer(input, g, material, true, { ilen: length }, { istart: interleave(start), icone: interleave([eta, phi, radius]) });
   const mesh = new THREE.Mesh(g, material);
   mesh.frustumCulled = false;
   mesh.renderOrder = 3; // after the opaque objects, so they show through
+  // Outline in rho-z: the base circle alone would be stray arcs there, so each cone is drawn as its wedge: the two lines
+  // from the apex to the outermost points of its base in the view's plane, and the base between them (CPU lines, for
+  // tens of jets). They follow the cut and the colours; the cone's own mesh is hidden meanwhile.
+  let rgb = input.rgb, rz = false, outlined = false;
+  const wedge = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.ShaderMaterial({ // raw colours, as the layers
+    vertexShader: `attribute vec3 color; varying vec3 vCol; void main() { vCol = color; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+    fragmentShader: `varying vec3 vCol; void main() { gl_FragColor = vec4(vCol, 1.0); }`,
+  }));
+  wedge.frustumCulled = false;
+  wedge.renderOrder = 3;
+  const updateWedges = () => {
+    const show = rz && outlined;
+    mesh.visible = !show;
+    wedge.visible = show;
+    if (!show) return;
+    const pos: number[] = [], col: number[] = [];
+    for (let i = 0; i < n; i++) {
+      if (!common.passes(i)) continue;
+      const side = ends[1][i] >= 0 ? 1 : -1, x0 = start[0][i], y0 = start[1][i], z0 = start[2][i];
+      const flat = (x: number, y: number, z: number): [number, number] => [z, Math.hypot(x, y) * side];
+      const apex = flat(x0, y0, z0), axis = flat(ends[0][i], ends[1][i], ends[2][i]), ax = [axis[0] - apex[0], axis[1] - apex[1]];
+      const rim: [number, number][] = [];
+      for (let k = 0; k <= 32; k++) {
+        const a = (2 * Math.PI * k) / 32, [dx, dy, dz] = etaPhiDirection(eta[i] + radius[i] * Math.cos(a), phi[i] + radius[i] * Math.sin(a));
+        rim.push(flat(x0 + length[i] * dx, y0 + length[i] * dy, z0 + length[i] * dz));
+      }
+      // The outermost base points on either side of the axis, by their angle from it seen from the apex.
+      const turn = (p: [number, number]) => Math.atan2(ax[0] * (p[1] - apex[1]) - ax[1] * (p[0] - apex[0]), ax[0] * (p[0] - apex[0]) + ax[1] * (p[1] - apex[1]));
+      let lo = rim[0], hi = rim[0];
+      for (const p of rim) { if (turn(p) < turn(lo)) lo = p; if (turn(p) > turn(hi)) hi = p; }
+      const line = (a: [number, number], b: [number, number]) => { pos.push(a[0], a[1], 3, b[0], b[1], 3); col.push(...rgb.subarray(3 * i, 3 * i + 3), ...rgb.subarray(3 * i, 3 * i + 3)); };
+      line(apex, lo); line(apex, hi);
+      for (let k = 0; k < 32; k++) line(rim[k], rim[k + 1]);
+    }
+    wedge.geometry.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+    wedge.geometry.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
+  };
   return {
-    ...identity(input, 14), object: mesh, x: ends[0], y: ends[1], z: ends[2], segment: { a: start, b: ends }, pickBias: 0.6, line: true,
+    ...identity(input, 14), object: new THREE.Group().add(mesh, wedge), x: ends[0], y: ends[1], z: ends[2], segment: { a: start, b: ends }, pickBias: 0.6, line: true,
     ...common,
-    setOutline(on: boolean, envelope = false) { material.uniforms.uOutline.value = on || envelope ? 1 : 0; },
-    dispose() { g.dispose(); base.dispose(); material.dispose(); },
+    setCut(min) { const shown = common.setCut(min); updateWedges(); return shown; },
+    setPinned(row) { common.setPinned(row); updateWedges(); },
+    setColours(c) { rgb = c; common.setColours(c); updateWedges(); },
+    setProjection(v) { rz = v; common.setProjection(v); updateWedges(); },
+    setOutline(on: boolean, envelope = false) { outlined = on || envelope; material.uniforms.uOutline.value = outlined ? 1 : 0; updateWedges(); },
+    dispose() { g.dispose(); base.dispose(); material.dispose(); wedge.geometry.dispose(); (wedge.material as THREE.Material).dispose(); },
   };
 }
 

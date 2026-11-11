@@ -74,6 +74,21 @@ describe("cones", () => {
     l.setOutline!(false);
     expect(u.value).toBe(0);
   });
+  it("in rho-z, outline as wedges: two edges from the apex and the base between them", () => {
+    const l = build(d({ to: { r: 129, z: 320 } }), jets()), [mesh, wedge] = (l.object as THREE.Group).children as [THREE.Mesh, THREE.LineSegments];
+    l.setProjection(true);
+    expect(wedge.visible).toBe(false); // filled cones as usual
+    l.setOutline!(true);
+    expect([mesh.visible, wedge.visible]).toEqual([false, true]);
+    const p = wedge.geometry.getAttribute("position");
+    expect(p.count).toBe(2 * 2 * (2 + 32)); // two cones, 34 lines each
+    expect([p.getX(0), p.getY(0)]).toEqual([1, 0]); // the first line starts at the first cone's apex: (z, rho)
+    // its edges open by the cone's radius around the axis (the central jet at eta 0: 0.4 in eta is ~0.39 rad in theta)
+    const edge = (k: number) => Math.atan2(p.getY(2 * k + 1) - p.getY(2 * k), p.getX(2 * k + 1) - p.getX(2 * k));
+    expect(Math.abs(edge(0) - edge(1))).toBeCloseTo(2 * Math.atan(Math.sinh(0.4)), 1);
+    l.setProjection(false);
+    expect([mesh.visible, wedge.visible]).toEqual([true, false]);
+  });
   it("are made of side and cap triangles", () => {
     const g = unitCone(8);
     expect(g.getAttribute("position").count).toBe(8 * 6);

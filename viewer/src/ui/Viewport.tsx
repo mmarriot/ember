@@ -8,7 +8,7 @@ import { Color, LinearSRGBColorSpace } from "three";
 import { useEffect, useRef } from "preact/hooks";
 import { type DisplayLayer, type EventData, type Header, type Table, unitOf } from "../io/bundle";
 import { colourBy, filterMask, filters } from "../model/custom";
-import { cutMin, cutValues, rescued } from "../model/cuts";
+import { cutMin, cutValues, HIDDEN, rescued } from "../model/cuts";
 import { colours, type LayerFor, type Legend, PALETTES, valueRange, type Pal, type Range } from "../render/colour";
 import { Engine, MIN_RADIUS, type ViewName } from "../render/engine";
 import { builders, type Layer } from "../render/layers";
@@ -26,7 +26,8 @@ import { stopTour } from "./tour";
 export let engine: Engine | null = null;
 
 /** `keep`: the layer's filter (null: none); `rescued`: the focus's rows it hides, drawn anyway (see cutValues). */
-interface Entry { d: DisplayLayer; t: Table; key: string; cut?: Float32Array; keep: Float32Array | null; rescued: string; rgb: Float32Array; emphasis?: Uint8Array; layer: Layer }
+/** `uncoloured`: nothing of it is drawn yet (e.g. truth particles before a selection), so its colours wait (see build). */
+interface Entry { d: DisplayLayer; t: Table; key: string; cut?: Float32Array; keep: Float32Array | null; rescued: string; rgb: Float32Array; emphasis?: Uint8Array; layer: Layer; uncoloured?: boolean }
 let entries: Entry[] = []; // what is drawn now
 
 let plan: Plan | null = null;
@@ -96,7 +97,12 @@ export function Viewport() {
       for (const e of entries) {
         const only = onlyFor(e.d, e.key, hl), focusRows = bypassing(e.d, f, hl), again = rescued(e.keep, focusRows);
         if (cutsOnly ? !only : !only && again === e.rescued) continue;
-        const cut = cutValues(e.d, e.t, f[e.d.table], only, focusRows);
+        const cut = cutValues(e.d, e.t, f[e.d.table], only, focusRows), ev = event.peek();
+        if (e.uncoloured && b && ev && !nothingDrawn(cut)) { // its first rows: its colours now
+          const [{ rgb, emphasis, legend }] = colourEntries([{ ...e, cut }], ev, b.header, cuts.peek(), pal, entries);
+          Object.assign(e, { rgb, emphasis, uncoloured: false });
+          legends.value = { ...legends.peek(), [e.key]: legend };
+        }
         const next = builders[e.d.repr]({ key: e.key, d: e.d, t: e.t, pal, rgb: e.rgb, emphasis: e.emphasis, cut, field: b?.header.field, relation: relationOf(b?.header, event.peek()) });
         eng.replaceLayer(e.layer, next);
         next.setHighlight(hl ? hl.get(next.table) ?? new Set() : null);
@@ -138,11 +144,15 @@ export function Viewport() {
         const key = layerKey(d0), d = shownLayer(d0), t = ev.tables[d.table], keep = filterMask(t, f[d.table]), focusRows = bypassing(d, f, hl);
         return { d, t, key, keep, rescued: rescued(keep, focusRows), cut: cutValues(d, t, f[d.table], onlyFor(d, key, hl), focusRows) };
       });
-      const coloured = colourEntries(items, ev, header, cuts.peek(), pal, [...pool, ...items]);
-      return items.map((s, i) => {
-        const { rgb, emphasis, legend } = coloured[i];
-        drawn[s.key] = legend;
-        return { ...s, rgb, emphasis, layer: builders[s.d.repr]({ ...s, pal, rgb, emphasis, field: header.field, relation: relationOf(header, ev) }) };
+      // A layer with nothing drawn yet (truth particles before a selection: identity colours of 100k particles cost
+      // ~20-50 ms per event) is coloured when it gets rows (rebuildForFocus); the truth colours always need its legend.
+      const later = (s: (typeof items)[number]) => nothingDrawn(s.cut) && activeMode.peek() !== "truth";
+      const now = items.filter((s) => !later(s)), done = colourEntries(now, ev, header, cuts.peek(), pal, [...pool, ...items]);
+      const coloured = new Map(now.map((s, i) => [s, done[i]]));
+      return items.map((s) => {
+        const c = coloured.get(s), rgb = c?.rgb ?? new Float32Array(3 * s.t.n), emphasis = c?.emphasis;
+        if (c) drawn[s.key] = c.legend;
+        return { ...s, rgb, emphasis, uncoloured: !c, layer: builders[s.d.repr]({ ...s, pal, rgb, emphasis, field: header.field, relation: relationOf(header, ev) }) };
       });
     };
 
@@ -215,6 +225,7 @@ export function Viewport() {
         colourEntries(recolour, ev, b.header, cuts.peek(), pal).forEach(({ rgb, legend }, i) => {
           recolour[i].layer.setColours(rgb);
           recolour[i].rgb = rgb;
+          recolour[i].uncoloured = false;
           drawn[recolour[i].key] = legend;
         });
         legends.value = drawn;
@@ -419,6 +430,9 @@ function belowCut(table: string, hl: Map<string, Set<number>>) {
   for (const r of kept) hidden.delete(r);
   return hidden;
 }
+
+/** A layer's cut values hide every row (a layer drawn only for a selection, without one). */
+const nothingDrawn = (cut?: Float32Array) => !!cut && !cut.some((v) => v > HIDDEN);
 
 /** An event's relation with its `to` table, for layers drawn through one (e.g. a polyline's points). */
 const relationOf = (header: Header | undefined, ev: EventData | null) => (name: string) => {

@@ -1,6 +1,6 @@
 // Moving the focus between objects from lists and links (e.g. a candidate and its truth-graph particle), with "back";
 // the camera glides to the new focus, conservatively. Moving between the parts of the detector (domains).
-import { bundle, domain, focusBack, focusOn, highlight, selection, view } from "../model/store";
+import { bundle, domain, focusBack, focusOn, highlight, openTab, selection, view } from "../model/store";
 import type { Ref } from "../model/relations";
 import { engine } from "./Viewport";
 
@@ -23,6 +23,7 @@ export function chooseDomain(name: string | null, animate = true) {
   const h = bundle.peek()?.header, d = h?.domains?.find((x) => x.name === name);
   if (!h || (name && !d)) return;
   domain.value = d ? d.name : null;
+  if (d) openTab.value = { name: d.name }; // its tab in the side panel (choosing a tab does not change the view)
   view.value = d?.view ?? h.view?.start ?? "3d";
   if (d) engine?.frameRegion(d.region.rMax, d.region.zMax, animate);
   else engine?.frame(undefined, animate);

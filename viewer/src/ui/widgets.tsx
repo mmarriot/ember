@@ -1,13 +1,15 @@
 // Small shared UI pieces: tabs, icons, modal dialog, notifications.
 import type { ComponentChildren } from "preact";
-import { useState } from "preact/hooks";
+import { useEffect, useState } from "preact/hooks";
 import { dialog, toasts } from "../model/store";
 
 /** Tabs named "Name" or "Name · count". The chosen one is remembered by name, so it stays chosen as counts change
- *  and other tabs come and go; while it is absent, the first is shown. */
-export function Tabs({ tabs }: { tabs: [string, () => ComponentChildren][] }) {
+ *  and other tabs come and go; while it is absent, the first is shown. `open`: a tab to choose from outside, each time
+ *  a new object is passed (if there is such a tab). */
+export function Tabs({ tabs, open }: { tabs: [string, () => ComponentChildren][]; open?: { name: string } | null }) {
   const id = (name: string) => name.split(" · ")[0];
   const [chosen, choose] = useState("");
+  useEffect(() => { if (open && tabs.some(([name]) => id(name) === open.name)) choose(open.name); }, [open]);
   const current = tabs.find(([name]) => id(name) === chosen) ?? tabs[0];
   return (
     <div class="tabs">

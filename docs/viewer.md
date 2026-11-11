@@ -20,7 +20,7 @@ The same list is in the viewer's help (`?`).
 | back to the normal view, close a dialog | Esc, or click on empty space |
 | previous / next event | ← / →, or the arrows at the top |
 | views: 3D, front, side, ρ–z | 1, 2, 3, 4 |
-| one part of the detector, or all | D (cycles), or All · Tracker · HGCal … at the top (bundles with `domains`): the part's layers and the shared ones (e.g. truth), framed on its region, in its view; the side panel keeps your ticks |
+| one part of the detector, or all | D (cycles), or All · Tracker · HGCal … at the top (bundles with `domains`): the part's layers and the shared ones (e.g. truth), framed on its region, in its view, and its tab opens in the side panel (choosing a tab does not change the view); the side panel keeps your ticks |
 | replay | R: hits appear at their arrival time (display hint `time`, else time of flight, or the bundle's `replay` order), then each reconstruction stage in turn |
 | tour | P, or the play button: replay with a moving camera, visit the main showers, next event; any key or touch stops it |
 | live | the Live button: play new files as they appear in the site's index |

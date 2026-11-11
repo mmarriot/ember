@@ -25,6 +25,8 @@ export const loadMs = signal(0);
 export const visible = signal<Record<string, boolean>>({}); // display layer key -> ticked by the user
 /** The domain looked at (header `domains`), null for all: a view, it leaves the user's ticks alone. */
 export const domain = signal<string | null>(null);
+/** The side-panel tab to open: a domain's, when it is chosen (a new object each time, so choosing it again reopens it). */
+export const openTab = signal<{ name: string } | null>(null);
 /** Whether a layer belongs in the current domain's view: its own domain's layers and those without a domain. */
 export const inDomain = (d: DisplayLayer, current = domain.value) => !current || !d.domain || d.domain === current;
 /** The layers drawn: ticked and in the domain's view (display layer key -> drawn). */

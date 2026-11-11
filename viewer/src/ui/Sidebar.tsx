@@ -4,7 +4,7 @@
 import type { ComponentChildren } from "preact";
 import { activePreset } from "../model/custom";
 import { applyPreset } from "../model/presets";
-import { bundle, bundleName } from "../model/store";
+import { bundle, bundleName, openTab } from "../model/store";
 import { EventInfo } from "./EventInfo";
 import { ColourKey } from "./Key";
 import { Collections, tabOf } from "./Layers";
@@ -25,7 +25,7 @@ export function Sidebar() {
             {presets.map((p, i) => <button class={activePreset.value === i ? "on" : ""} onClick={() => applyPreset(i)}>{p.name}</button>)}
           </div>
         )}
-        <Tabs tabs={tabs} />
+        <Tabs tabs={tabs} open={openTab.value} />
         <ColourKey />
       </aside>
       <div class="resizer" title="Drag to resize, double-click to reset" onPointerDown={startResize} onDblClick={() => setWidth(DEFAULT_WIDTH)} />

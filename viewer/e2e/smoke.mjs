@@ -139,7 +139,8 @@ async function checkHelices(page, fail, tag) {
 }
 
 /** With two or more domains: each one draws only its layers and those without a domain, puts itself in the URL, and
- *  hides the particle-type colour key if it colours layer by layer (`colourMode`); All brings every layer back. */
+ *  hides the particle-type colour key if it colours layer by layer (`colourMode`), and opens its side-panel tab (another tab
+ *  leaves the view as it is); All brings every layer back. */
 async function checkDomains(page, h, fail, shot, tag) {
   const names = (h.domains ?? []).map((d) => d.name);
   if (names.length < 2) return;
@@ -156,6 +157,11 @@ async function checkDomains(page, h, fail, shot, tag) {
     if (other.length) fail(`domain ${name} draws layers of other domains: ${other.join(", ")}`);
     if (url !== name) fail(`domain ${name} is not in the URL`);
     if (own && key) fail(`domain ${name} colours layer by layer, but the particle-type colour key is shown`);
+    const tabs = page.locator(".sidebar .tablist [role=tab]"), tab = await page.locator(".sidebar .tablist [aria-selected=true]").innerText();
+    if ((await tabs.allInnerTexts()).includes(name) && tab !== name) fail(`domain ${name} did not open its tab (open: ${tab})`);
+    await tabs.last().click();
+    if (!new URL(page.url()).hash.includes(`d=${encodeURIComponent(name)}`)) fail(`the ${await tabs.last().innerText()} tab changed the view from ${name}`);
+    await tabs.getByText(tab, { exact: true }).click();
     await shot(`1_domain_${name}`);
   }
   await bar.getByRole("button", { name: "All", exact: true }).click({ force: true, timeout: 120000 });

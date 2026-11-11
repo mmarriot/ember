@@ -33,6 +33,15 @@ export function flatView(view: Exclude<ViewName, "3d">) {
 export const flatZoom = (frustumW: number, frustumH: number, w: number, h: number) =>
   0.85 * Math.min(frustumW / Math.max(w + 30, 80), frustumH / Math.max(h + 30, 80));
 
+/** A 2D view's zoom and target: a width x height (cm) around `ctr` fitted into the part of the view a panel on the
+ *  right leaves free (`free`: its share of the width, at least 0.4) and centred there, so the target moves right on
+ *  screen by half the covered width. */
+export function flatAim(ctr: THREE.Vector3, dir: THREE.Vector3, frustumW: number, frustumH: number, w: number, h: number, free: number) {
+  const f = Math.min(1, Math.max(0.4, free)), zoom = flatZoom(f * frustumW, frustumH, w, h);
+  const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), dir).normalize();
+  return { zoom, target: ctr.clone().addScaledVector(right, (0.5 * (1 - f) * frustumW) / zoom) };
+}
+
 /** A camera distance far enough that the orthographic camera's depth range (+-5000 cm around it) holds the detector. */
 const FLAT_DISTANCE = 1000;
 
@@ -397,8 +406,9 @@ export class Engine {
 
   /** A 2D view: centre on `ctr` (view coordinates) and fit a width x height (cm on screen). */
   private aimFlat(ctr: THREE.Vector3, w: number, h: number, animate: boolean, ms: number) {
-    const c = this.camRZ, zoom = flatZoom(c.right - c.left, c.top - c.bottom, w, h), dir = flatView(this.view as Exclude<ViewName, "3d">).dir;
-    this.go([ctr.clone().addScaledVector(dir, FLAT_DISTANCE), ctr, zoom], animate, ms, 0);
+    const c = this.camRZ, dir = flatView(this.view as Exclude<ViewName, "3d">).dir;
+    const { zoom, target } = flatAim(ctr, dir, c.right - c.left, c.top - c.bottom, w, h, 1 - this.insetRight / this.width);
+    this.go([target.clone().addScaledVector(dir, FLAT_DISTANCE), target, zoom], animate, ms, 0);
   }
 
   /** 3D: look at a sphere around `ctr` of this radius along `dir` (default: the current direction), filling the view
@@ -500,46 +510,9 @@ export class Engine {
     return (fg.length ? fg : found).sort((a, c) => a.score - c.score).map((f) => f.hit);
   }
 
-  /** Bounding box (view coordinates) of the bulk of the drawn objects, or of the given rows: 2nd to 98th
-   *  percentile per axis, from at most ~20k objects. Context layers count only when nothing else is drawn. */
+  /** Bounding box (view coordinates) of the bulk of the drawn objects, or of the given rows (see boxOf). */
   private box(selection?: Rows): [THREE.Vector3, THREE.Vector3] | null {
-    const drawn = this.drawn, fg = drawn.some((l) => !l.context && l.x.length);
-    const layers = drawn.filter((l) => (selection ? selection.has(l.table) : !l.context || !fg));
-    const step = Math.max(1, Math.floor(layers.reduce((s, l) => s + l.x.length, 0) / 20000));
-    const pts: number[][] = [[], [], []], p = new THREE.Vector3();
-    let k = 0;
-    const add = (l: Layer, i: number) => {
-      if (!l.passes(i) || k++ % step) return;
-      this.toView(l.x, l.y, l.z, i, p);
-      pts[0].push(p.x); pts[1].push(p.y); pts[2].push(p.z);
-    };
-    for (const l of layers) {
-      const rows = selection?.get(l.table);
-      if (rows) for (const i of rows) add(l, i);
-      else for (let i = 0; i < l.x.length; i++) add(l, i);
-    }
-    if (!pts[0].length) return null;
-    const sorted = pts.map((a) => Float64Array.from(a).sort());
-    const q = (f: number) => new THREE.Vector3(...sorted.map((a) => a[Math.floor(f * (a.length - 1))]));
-    const trim = pts[0].length > 50 ? 0.02 : 0;
-    const lo = q(trim), hi = q(1 - trim);
-    // A selection's lines (e.g. a candidate's track, from the vertex) stay in view whole: their start points are
-    // few, so the trimming above would drop them.
-    for (const l of layers) {
-      if (!selection || !l.line) continue;
-      const rows = selection.get(l.table) ?? [], path = l.path;
-      if (path) {
-        for (const i of rows) {
-          if (!l.passes(i)) continue;
-          path.fill(i);
-          for (let j = i * path.points; j < (i + 1) * path.points; j++) { this.toView(path.x, path.y, path.z, j, p, l.y[i]); lo.min(p); hi.max(p); }
-        }
-      } else if (l.segment) {
-        const [X, Y, Z] = l.segment.a;
-        for (const i of rows) if (l.passes(i)) { this.toView(X, Y, Z, i, p, l.y[i]); lo.min(p); hi.max(p); }
-      }
-    }
-    return [lo, hi];
+    return boxOf(this.drawn, selection, (X, Y, Z, i, out, sideY) => this.toView(X, Y, Z, i, out, sideY));
   }
 
   /** A point in view coordinates. ρ-z: ρ signed by the side of y, or of `sideY` (a line's end, so a line crossing
@@ -599,6 +572,51 @@ export class Engine {
 }
 
 const presetDirection = (view: ViewName) => new THREE.Vector3(...DIRECTIONS[view as Exclude<ViewName, "rz">]).normalize();
+
+type ToView = (X: Float32Array, Y: Float32Array, Z: Float32Array, i: number, out: THREE.Vector3, sideY?: number) => THREE.Vector3;
+/** Bounding box (view coordinates, from `toView`) of the bulk of the given layers' objects, or of the given rows: 2nd
+ *  to 98th percentile per axis, from at most ~20k objects. Context layers count only when nothing else is drawn. A
+ *  point that is not finite (a path with no points, a line without an end) is left out: it would make the box NaN. */
+export function boxOf(drawn: readonly Layer[], selection: Rows | undefined, toView: ToView): [THREE.Vector3, THREE.Vector3] | null {
+  const fg = drawn.some((l) => !l.context && l.x.length);
+  const layers = drawn.filter((l) => (selection ? selection.has(l.table) : !l.context || !fg));
+  const step = Math.max(1, Math.floor(layers.reduce((s, l) => s + l.x.length, 0) / 20000));
+  const pts: number[][] = [[], [], []], p = new THREE.Vector3(), finite = (v: THREE.Vector3) => Number.isFinite(v.x + v.y + v.z);
+  let k = 0;
+  const add = (l: Layer, i: number) => {
+    if (!l.passes(i) || k++ % step) return;
+    if (!finite(toView(l.x, l.y, l.z, i, p))) return;
+    pts[0].push(p.x); pts[1].push(p.y); pts[2].push(p.z);
+  };
+  for (const l of layers) {
+    const rows = selection?.get(l.table);
+    if (rows) for (const i of rows) add(l, i);
+    else for (let i = 0; i < l.x.length; i++) add(l, i);
+  }
+  if (!pts[0].length) return null;
+  const sorted = pts.map((a) => Float64Array.from(a).sort());
+  const q = (f: number) => new THREE.Vector3(...sorted.map((a) => a[Math.floor(f * (a.length - 1))]));
+  const trim = pts[0].length > 50 ? 0.02 : 0;
+  const lo = q(trim), hi = q(1 - trim);
+  // A selection's lines (e.g. a candidate's track, from the vertex) stay in view whole: their start points are
+  // few, so the trimming above would drop them.
+  const grow = () => { if (finite(p)) { lo.min(p); hi.max(p); } };
+  for (const l of layers) {
+    if (!selection || !l.line) continue;
+    const rows = selection.get(l.table) ?? [], path = l.path;
+    if (path) {
+      for (const i of rows) {
+        if (!l.passes(i)) continue;
+        path.fill(i);
+        for (let j = i * path.points; j < (i + 1) * path.points; j++) { toView(path.x, path.y, path.z, j, p, l.y[i]); grow(); }
+      }
+    } else if (l.segment) {
+      const [X, Y, Z] = l.segment.a;
+      for (const i of rows) if (l.passes(i)) { toView(X, Y, Z, i, p, l.y[i]); grow(); }
+    }
+  }
+  return [lo, hi];
+}
 
 /** An angle in (-pi, pi]. */
 const angle = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));

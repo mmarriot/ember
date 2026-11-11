@@ -706,7 +706,14 @@ export function helices(input: LayerInput): Layer {
   let byHint = pathCache.get(t);
   if (!byHint) pathCache.set(t, (byHint = new Map()));
   let cached = byHint.get(key);
-  if (!cached) {
+  // A layer with nothing to draw (e.g. truth particles shown for a selection, none yet) skips the paths: computing them
+  // for every row (100k truth particles at PU200) costs ~50 ms per event; the first selection computes them.
+  if (!cached && input.cut && !input.cut.some((v) => v > HIDDEN)) {
+    const zeros = () => [new Float32Array(t.n), new Float32Array(t.n), new Float32Array(t.n)] as [Float32Array, Float32Array, Float32Array];
+    const paths: Paths = { n: t.n, dir: new Float32Array(3 * t.n), path: new Float32Array(3 * t.n), end: zeros() };
+    const none = new Float32Array(2 * t.n).fill(NaN); // picking: never reached (nothing passes the cut)
+    cached = { paths, pieces: new Uint16Array(t.n).fill(1), ends: [new Float32Array(3 * t.n), new Float32Array(3 * t.n)], pick: { points: 2, x: none, y: none, z: none, fill() {} } };
+  } else if (!cached) {
     const momentum = d.momentum ? cols(d.momentum) : cols(["", "", ""]), charge = toF32(d.charge ? t.columns[d.charge] : undefined, t.n);
     let end = cols(d.end ?? d.position);
     if (isToCylinder(d.length)) end = endsOrCylinder(start, momentum, end, t.n, d.length.to); // where `end` is not finite

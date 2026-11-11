@@ -167,3 +167,16 @@ describe("polylines", () => {
     expect(Number.isNaN(l.x[0])).toBe(true);
   });
 });
+
+describe("helices with nothing to draw", () => {
+  it("skip the paths, and compute them once a row is kept", () => {
+    const t = table({ x: col(0, 0), y: col(0, 0), z: col(0, 0), px: col(3, 1), py: col(4, 1), pz: col(1, 1), q: col(1, -1), ex: col(50, 10), ey: col(60, 10), ez: col(10, 10) });
+    const d = hint({ repr: "helix", momentum: ["px", "py", "pz"], charge: "q", end: ["ex", "ey", "ez"], onSelection: true });
+    const input = { key: "k", d, t, pal: PALETTES.dark, rgb: new Float32Array(6), field: { bz: 3.8, rMax: 295, zMax: 320 } };
+    const none = builders.helix({ ...input, cut: col(-Infinity, -Infinity) });
+    expect((parts(none).g as THREE.InstancedBufferGeometry).instanceCount).toBe(0);
+    const one = builders.helix({ ...input, cut: col(1, -Infinity) });
+    expect((parts(one).g as THREE.InstancedBufferGeometry).instanceCount).toBe(1);
+    expect(one.x[0]).toBeCloseTo(50, 3);
+  });
+});

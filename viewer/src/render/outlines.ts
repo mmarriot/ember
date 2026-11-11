@@ -49,7 +49,8 @@ export function outlineObject(outlines: readonly Outline[], colour: THREE.Color,
   const material = new THREE.ShaderMaterial({
     uniforms: {
       uProj: { value: 0 }, uLines: { value: 0 }, uFade: { value: 0 }, uReach: { value: 1000 }, uTarget: { value: new THREE.Vector3() },
-      uCol: { value: colour.clone().lerp(background, 0.55) }, uBg: { value: background.clone() },
+      // fainter on a dark background; a light one needs more contrast for the same impression
+      uCol: { value: colour.clone().lerp(background, background.getHSL({ h: 0, s: 0, l: 0 }).l > 0.5 ? 0.15 : 0.55) }, uBg: { value: background.clone() },
     },
     depthWrite: false,
     vertexShader: /* glsl */ `

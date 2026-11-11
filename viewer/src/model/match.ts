@@ -11,6 +11,8 @@ export const TARGETS: Record<NonNullable<Match["target"]>, string> = {
   trackerHits: "the particle whose own tracker hits it collected",
   caloBoundary: "the particle that entered the calorimeter",
   particle: "the generator particle",
+  interaction: "the collision it comes from (its truth vertex)",
+  decayVertex: "the decay vertex of a b or c hadron",
 };
 
 /** The object's own amount (`over`: the first expression that can be computed on its table), once per event. */

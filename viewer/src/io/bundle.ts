@@ -82,6 +82,11 @@ export interface DisplayLayer {
    *  takes the colour of its highest such ancestor, or its own without one. Colours go first to rows with `first`
    *  non-zero (e.g. isSignal), then by size. */
   particle?: { flags: string; bit: number; first?: string };
+  /** A reco kind the truth graph says nothing about (docs/truth.md): why (`reason`, for the UI) and the number of the
+   *  gap in docs/truth-graph.md. Ignored once the kind has its own reco -> truth relation with a `match` hint.
+   *  `derived: "content"`: evd's stand-in may colour it by the particle with the most simulated energy in its parts
+   *  (only HGCal layer clusters). */
+  truthGap?: { reason: string; gap?: number; derived?: "content" };
   /** Draw only the objects related to the current selection (none without one), until the user chooses all. */
   onSelection?: boolean;
   /** `cells`: the cell's shape (default: hexagon). */
@@ -123,8 +128,9 @@ export interface Header {
   /** `association`: links two kinds of object (e.g. reco <-> truth); selections cross it once, without following the
    *  other side's own relations. `best`: the weight that picks one partner where only one can be shown (colours).
    *  `inverseOf`: the relation points from a part back up to its container, the inverse of the named relation (a
-   *  track's vertex, next to the vertex's tracks). */
-  relations: Record<string, { from: string; to: string; weights: string[]; association?: boolean; best?: { weight: string; order: "min" | "max" }; inverseOf?: string; match?: Match }>;
+   *  track's vertex, next to the vertex's tracks). `fact`: truth -> hits, the simulated energy per particle and cell
+   *  in detector `in` (a simulation fact, not a match; model/facts.ts). */
+  relations: Record<string, { from: string; to: string; weights: string[]; association?: boolean; best?: { weight: string; order: "min" | "max" }; inverseOf?: string; match?: Match; fact?: { in: string } }>;
   display: DisplayLayer[];
   /** How particles move through the detector, for the reconstruction replay: away from a point (default: the
    *  origin, i.e. collisions), along a direction (e.g. [0, -1, 0] for cosmics), or in a fixed random order (hits
@@ -152,10 +158,13 @@ export interface Header {
  *  (`in`), the weight holding the shared amount (`shared`) and the object's own amount as expressions on its table,
  *  the first that can be computed (`over`), so purity = shared / over; `good`: the purity from which a match is clean.
  *  On truth -> reco: `completeness`, the weight giving the share of the particle's amount in the object (or 1 minus
- *  it, `complement`). */
+ *  it, `complement`). Vertices are matched to truth vertices (`target` "interaction" or "decayVertex", `measure`
+ *  "pt2": the pT² of their tracks), with the purity as a weight (`purity`). */
 export interface Match {
-  measure: "hits" | "energy"; in: string; target?: "trackerHits" | "caloBoundary" | "particle";
+  measure: "hits" | "energy" | "pt2"; in: string; target?: "trackerHits" | "caloBoundary" | "particle" | "interaction" | "decayVertex";
   shared?: string; over?: string[]; good?: number; completeness?: { weight: string; complement?: boolean };
+  /** A weight that already is the purity (constituent-based maps, e.g. a vertex's pT² share), instead of shared / over. */
+  purity?: string;
 }
 export interface Outline { name: string; r: [number, number]; z: [number, number] }
 export interface Domain {

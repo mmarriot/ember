@@ -28,7 +28,8 @@ export let engine: Engine | null = null;
 
 /** `keep`: the layer's filter (null: none); `rescued`: the focus's rows it hides, drawn anyway (see cutValues). */
 /** `uncoloured`: nothing of it is drawn yet (e.g. truth particles before a selection), so its colours wait (see build). */
-interface Entry { d: DisplayLayer; t: Table; key: string; cut?: Float32Array; keep: Float32Array | null; rescued: string; rgb: Float32Array; emphasis?: Uint8Array; layer: Layer; uncoloured?: boolean }
+/** `limited`: built with only the focus's rows (an onSelection layer), so showing them all again rebuilds it. */
+interface Entry { d: DisplayLayer; t: Table; key: string; cut?: Float32Array; keep: Float32Array | null; rescued: string; rgb: Float32Array; emphasis?: Uint8Array; layer: Layer; uncoloured?: boolean; limited?: boolean }
 let entries: Entry[] = []; // what is drawn now
 
 let plan: Plan | null = null;
@@ -97,7 +98,9 @@ export function Viewport() {
       const hl = highlight.peek(), f = filters.peek(), pal = PALETTES[theme.peek()], b = bundle.peek();
       for (const e of entries) {
         const only = onlyFor(e.d, e.key, hl), focusRows = bypassing(e.d, f, hl), again = rescued(e.keep, focusRows);
-        if (cutsOnly ? !only : !only && again === e.rescued) continue;
+        // Rebuilt: a layer of the focus's rows (on a new focus, or a cut), one that goes back to all its rows ("only for
+        // the selection" unticked), and a filtered one whose rescued focus rows changed.
+        if (cutsOnly ? !only : !only && !e.limited && again === e.rescued) continue;
         const cut = cutValues(e.d, e.t, f[e.d.table], only, focusRows), ev = event.peek();
         if (e.uncoloured && b && ev && !nothingDrawn(cut)) { // its first rows: its colours now
           const [{ rgb, emphasis, legend }] = colourEntries([{ ...e, cut }], ev, b.header, cuts.peek(), pal, entries);
@@ -107,10 +110,12 @@ export function Viewport() {
         const next = builders[e.d.repr]({ key: e.key, d: e.d, t: e.t, pal, rgb: e.rgb, emphasis: e.emphasis, cut, field: b?.header.field, relation: relationOf(b?.header, event.peek()) });
         eng.replaceLayer(e.layer, next);
         next.setHighlight(hl ? hl.get(next.table) ?? new Set() : null);
+        next.setOutline?.(truthOutline() || sharedOutline(next) || faintOutline(next), isEnvelope(next)); // as drawn before
         next.setHighlightMix(1);
         e.layer = next;
         e.cut = cut;
         e.rescued = again;
+        e.limited = !!only;
       }
       pinSelection();
     };
@@ -143,7 +148,8 @@ export function Viewport() {
       const f = filters.peek(), hl = highlight.peek(), pal = PALETTES[theme.peek()];
       const items = layers.map((d0) => {
         const key = layerKey(d0), d = shownLayer(d0), t = ev.tables[d.table], keep = filterMask(t, f[d.table]), focusRows = bypassing(d, f, hl);
-        return { d, t, key, keep, rescued: rescued(keep, focusRows), cut: cutValues(d, t, f[d.table], onlyFor(d, key, hl), focusRows) };
+        const only = onlyFor(d, key, hl);
+        return { d, t, key, keep, rescued: rescued(keep, focusRows), cut: cutValues(d, t, f[d.table], only, focusRows), limited: !!only };
       });
       // A layer with nothing drawn yet (truth particles before a selection: identity colours of 100k particles cost
       // ~20-50 ms per event) is coloured when it gets rows (rebuildForFocus); the truth colours always need its legend.
@@ -158,6 +164,7 @@ export function Viewport() {
     };
 
     let builtFor: EventData | null = null; // the event the layers were built for
+    let outlinesFor: unknown[] = []; // the bundle and palette the detector outlines were drawn for
     let lastPair = pairView.peek(); // the pair whose colours the layers have (recoloured when it changes)
     // What every layer was built with: a change rebuilds them all. Which layers are drawn (ticks, domain, focus) is not
     // in it: those changes only build or free the layers concerned (stopForced).
@@ -169,7 +176,10 @@ export function Viewport() {
       builtWith = settings();
       if (!b || !ev) return;
       eng.setBackground(pal.background);
-      eng.setOutlines(b.header.outlines ?? [], new Color().setStyle(pal.unassigned, LinearSRGBColorSpace), new Color().setHex(pal.background, LinearSRGBColorSpace));
+      if (outlinesFor[0] !== b || outlinesFor[1] !== pal) { // their geometry: once per bundle and theme
+        eng.setOutlines(b.header.outlines ?? [], new Color().setStyle(pal.unassigned, LinearSRGBColorSpace), new Color().setHex(pal.background, LinearSRGBColorSpace));
+        outlinesFor = [b, pal];
+      }
       const drawn: Record<string, Legend> = {};
       entries = build(wanted(b.header, ev), b.header, ev, drawn);
       builtFor = ev;
@@ -500,7 +510,7 @@ const sharedOutline = (layer: Layer) => {
 };
 /** By truth, a kind with no truth of its own drawn as cones (jets) is an outline, so it never looks like a matched
  *  object (docs/truth.md "Where truth stops"). */
-const faintOutline = (layer: Layer) => activeMode.peek() === "truth" && (layerOf(layer.table)?.repr as string) === "cones" && noTruth(layer.table);
+const faintOutline = (layer: Layer) => activeMode.peek() === "truth" && layerOf(layer.table)?.repr === "cones" && noTruth(layer.table);
 
 /** While a level is shown inside the focus (e.g. a candidate's tracksters), the focus's layer draws it as a
  *  full-size outline around them: the largest object, without covering what is inside. */

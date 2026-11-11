@@ -4,7 +4,7 @@
 // selecting an object shows what is related and only its bottom level (↓ ↑ step through the others), a related
 // object can be jumped to and back, Esc leaves. One bundle (`--deep`, default the smallest with reconstruction
 // stages) also gets: themes, help, a rotate drag keeping the selection, a custom column used for colour and a filter,
-// the replay and the tour. Any console error, or a bundle taking over BUNDLE_TIMEOUT (three times that for files over
+// the replay and the tour; the replay also for any bundle whose paths are built from their parts (`grow`: captions in order, paths complete by the fit). Any console error, or a bundle taking over BUNDLE_TIMEOUT (three times that for files over
 // BIG_FILE: software WebGL takes seconds per frame on their scenes, and clicks wait for frames), fails.
 // Screenshots: <dir>/<bundle>_*.png (one small one for scenes over BIG objects). Progress: one timestamped line per step.
 // Usage: node e2e/smoke.mjs <dev server URL> <screenshot dir> [--deep <bundle>] [bundle ...]  (dev builds expose the engine)
@@ -124,8 +124,8 @@ async function checkBundle(file, tag, state) {
   if (file === deep && small) log(`${tag}: too big for the interaction checks with software WebGL`);
   else if (file === deep) {
     await open(`b=${file}&e=1&s=${target.table}:0`);
-    await deepChecks(page, fail, shot);
-  }
+    await deepChecks(page, h, fail, shot);
+  } else if (h.display.some((d) => d.grow) && !small) await checkReplay(page, h, fail); // the path building, also when not deep
 }
 
 // The focus is drawn with its bottom level (e.g. hits) only: no layer of an earlier reconstruction stage. ↓ adds one
@@ -263,7 +263,7 @@ async function checkLevels(page, h, target, fail, shot, tag) {
   await page.waitForTimeout(600);
 }
 
-async function deepChecks(page, fail, shot) {
+async function deepChecks(page, h, fail, shot) {
   await page.getByTitle("Light theme").click();
   await shot("5_light");
   await page.getByTitle("Dark theme").click();
@@ -295,25 +295,7 @@ async function deepChecks(page, fail, shot) {
   await shot("7_filter");
 
   await page.keyboard.press("Escape"); // the replay and tour start from the whole event
-  await page.keyboard.press("r");
-  if (!(await page.evaluate(() => window.evdEngine.replaying))) fail("R did not start a replay");
-  // Each hit layer arrives in the physics phase (its first 3 s, render/replay.ts TRAVEL) in any colour mode, not with
-  // the clusters: half of its hits are shown by then. A layer has instances only for the rows the filter can show.
-  const hitsAt = await page.evaluate(() => window.evdEngine.layers.filter((l) => l.key.endsWith(":cells") && !l.context && l.object.geometry.getAttribute("iT").array.length).map((l) => {
-    const t = [...l.object.geometry.getAttribute("iT").array].sort((a, b) => a - b);
-    return [l.label, t[t.length >> 1]];
-  }));
-  log(`  replay: half the hits shown after ${hitsAt.map(([l, t]) => `${t.toFixed(2)} s (${l})`).join(", ") || "- (no hit layer)"}`);
-  for (const [l, t] of hitsAt) if (!(t < 3)) fail(`${l}: the hits appear after the physics phase of the replay (half by ${t.toFixed(2)} s)`);
-  await page.evaluate(() => { // captions, recorded in the page (screenshots are too slow with software WebGL)
-    window.captions = [];
-    window.captionTimer = setInterval(() => {
-      const t = document.querySelector(".caption b")?.textContent;
-      if (t && !t.startsWith("t =") && window.captions.at(-1) !== t) window.captions.push(t);
-    }, 50);
-  });
-  await page.waitForFunction(() => !window.evdEngine.replaying, null, { timeout: 60000 }).catch(() => fail("the replay did not end"));
-  log(`  replay captions: ${await page.evaluate(() => { clearInterval(window.captionTimer); return window.captions.join(" | "); })}`);
+  await checkReplay(page, h, fail);
 
   // The tour replays the event, then selects its main showers one by one; any key stops it.
   const cam = () => page.evaluate(() => window.evdEngine.cam3d.position.toArray().map(Math.round).join());
@@ -329,6 +311,48 @@ async function deepChecks(page, fail, shot) {
   await page.keyboard.press("ArrowRight");
   await page.waitForTimeout(1500);
   await shot("9_next_event");
+}
+
+/** The replay (R): hit layers arrive in the physics phase; with paths built from their parts (display hint `grow`),
+ *  the seeding, building and fitting captions come in order before any later step, and every path is complete by the
+ *  fit. */
+async function checkReplay(page, h, fail) {
+  await page.keyboard.press("r");
+  if (!(await page.evaluate(() => window.evdEngine.replaying))) fail("R did not start a replay");
+  // Each hit layer arrives in the physics phase (its first 3 s, render/replay.ts TRAVEL) in any colour mode, not with
+  // the clusters: half of its hits are shown by then. A layer has instances only for the rows the filter can show.
+  const hitsAt = await page.evaluate(() => window.evdEngine.layers.filter((l) => l.key.endsWith(":cells") && !l.context && l.object.geometry.getAttribute("iT").array.length).map((l) => {
+    const t = [...l.object.geometry.getAttribute("iT").array].sort((a, b) => a - b);
+    return [l.label, t[t.length >> 1]];
+  }));
+  log(`  replay: half the hits shown after ${hitsAt.map(([l, t]) => `${t.toFixed(2)} s (${l})`).join(", ") || "- (no hit layer)"}`);
+  for (const [l, t] of hitsAt) if (!(t < 3)) fail(`${l}: the hits appear after the physics phase of the replay (half by ${t.toFixed(2)} s)`);
+  // Paths built from their parts (display hint `grow`): when each is complete (iL) and when its parts light up.
+  const grown = h.display.filter((d) => d.grow).map((d) => [`${d.table}:${d.repr}`, h.relations[d.grow.parts]?.to]);
+  const building = await page.evaluate((grown) => grown.map(([key, parts]) => {
+    const layers = window.evdEngine.layers, ends = layers.find((l) => l.key === key)?.object.geometry.getAttribute("iL").array ?? [];
+    const lit = layers.find((l) => l.table === parts)?.object.geometry.getAttribute("iL").array ?? [];
+    return { key, paths: ends.length, done: Math.max(...ends), lit: lit.filter((t) => t < 1e28).length, parts: lit.length };
+  }), grown);
+  await page.evaluate(() => { // captions, recorded in the page (screenshots are too slow with software WebGL), with the replay clock
+    window.captions = [];
+    window.captionTimer = setInterval(() => {
+      const t = document.querySelector(".caption b")?.textContent, e = window.evdEngine;
+      if (t && !t.startsWith("t =") && window.captions.at(-1)?.[0] !== t && e.replaying) window.captions.push([t, (performance.now() - e.replayClock.t0) / 1000]);
+    }, 50);
+  });
+  await page.waitForFunction(() => !window.evdEngine.replaying, null, { timeout: 60000 }).catch(() => fail("the replay did not end"));
+  const captions = await page.evaluate(() => { clearInterval(window.captionTimer); return window.captions; });
+  log(`  replay captions: ${captions.map(([c]) => c).join(" | ")}`);
+  // Every path is built to its full length by the time the fit is shown, and the steps after it wait for it.
+  for (const b of building) {
+    const at = (word) => captions.findIndex(([c]) => c.startsWith(word)), fit = captions[at("Fitting")]?.[1];
+    log(`  replay builds ${b.key}: ${b.paths} paths complete by ${b.done.toFixed(2)} s (fit shown at ${fit?.toFixed(2) ?? "-"} s), ${b.lit} of ${b.parts} parts lit`);
+    if (!(at("Seeding") >= 0 && at("Seeding") < at("Building") && at("Building") < at("Fitting"))) fail(`${b.key}: no seeding, building and fitting captions in order`);
+    if (captions.some(([c], k) => k < at("Fitting") && /^(Clustering|Building (?!.* outwards)|.* → )/.test(c))) fail(`${b.key}: a later step started before the paths were built`);
+    if (!(b.paths && b.done <= fit + 0.05)) fail(`${b.key}: paths still growing when the fit is shown`);
+    if (b.parts && !b.lit) fail(`${b.key}: no part lit up`);
+  }
 }
 
 /** The bundle's JSON header and file size: two range requests, or the whole file from a server without ranges. */

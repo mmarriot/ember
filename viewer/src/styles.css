@@ -265,6 +265,11 @@ table.outcome td { padding: 2px 4px 2px 0; font-size: 12px; vertical-align: midd
 table.outcome td:nth-child(2) { text-align: left; white-space: nowrap; }
 table.outcome td:nth-child(3) { color: var(--muted); text-align: right; }
 .outcome .missed .chip { border-color: #e5534b; }
+section.coverage { margin: 0 0 12px; }
+ul.coverage { list-style: none; margin: 4px 0 0; padding: 0; font-size: 12px; }
+ul.coverage li { margin: 0 0 3px; }
+ul.coverage .kindname { font-weight: 600; }
+ul.coverage li.none { opacity: 0.75; }
 .layer .sub.filter code { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .sidebar .tablist { background: var(--surface-2); z-index: 2; }
 .focusbar { position: absolute; top: 10px; left: 12px; max-width: max(46%, calc(100% - 420px)); background: var(--surface); border: 1px solid var(--accent); border-radius: 14px; padding: 3px 12px; font-size: 12px; display: flex; flex-direction: column; gap: 4px; box-shadow: 0 2px 10px rgba(0,0,0,0.25); z-index: 3; }

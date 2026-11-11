@@ -205,12 +205,12 @@ export function Coverage() {
       <h3>Truth coverage</h3>
       <p class="hint">What the truth graph says about each kind: matched by CMSSW's associator, a simulation fact, or derived in evd. Where
         it has no answer, evd builds none.</p>
-      <table class="kv coverage"><tbody>
+      <ul class="coverage">
         {rows.map(([kind, s]) => {
-          const [word, detail] = what(s);
-          return <tr class={s.kind === "none" ? "muted" : undefined}><td>{kind}</td><td title={detail}><b>{word}</b> <span class="muted">{detail}</span></td></tr>;
+          const [word, detail] = what(s), why = s.kind === "none" || s.kind === "derived";
+          return <li class={s.kind === "none" ? "none" : undefined} title={detail}><span class="kindname">{kind}</span> {word}{why && <span class="muted">: {detail}</span>}</li>;
         })}
-      </tbody></table>
+      </ul>
     </section>
   );
 }

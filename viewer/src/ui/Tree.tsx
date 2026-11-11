@@ -6,7 +6,9 @@ import type { Relation, Table } from "../io/bundle";
 import { PALETTES } from "../render/colour";
 import { filterMask, filters } from "../model/custom";
 import { bundle, describe, event, isHitLayer, labelOf, layerOf, selection, short, sizeColumn, theme } from "../model/store";
+import { factIn } from "../model/facts";
 import { bestPartners } from "../model/relations";
+import { Coverage } from "./Truth";
 import { Collections } from "./Layers";
 import { jump } from "./navigate";
 
@@ -31,6 +33,7 @@ export function Truth() {
   const trees = treeRelations(), truth = bundle.value?.header.display.filter((d) => d.truth) ?? [];
   return (
     <div>
+      {truth.length > 0 && <Coverage />}
       {truth.length > 0 && <Collections layers={truth} />}
       {trees.map(([, table]) => <Outcome table={table} />)}
       {trees.map(([name, table]) => <OneTree name={name} table={table} />)}
@@ -44,7 +47,7 @@ export function Truth() {
 function Outcome({ table }: { table: string }) {
   const b = bundle.value!, ev = event.value!, t = ev.tables[table], sel = selection.value;
   const rels = Object.entries(b.header.relations).filter(([n, r]) => r.from === table && r.association && ev.relations[n]);
-  const hitRels = rels.filter(([, r]) => isHitLayer(layerOf(r.to)));
+  const hitRels = rels.filter(([n, r]) => factIn(b.header, n) !== undefined || isHitLayer(layerOf(r.to))); // facts; cells without truth (a tree)
   const final = b.header.display.filter((l) => l.stage !== undefined && !l.alternative && rels.some(([, r]) => r.to === l.table))
     .reduce<typeof b.header.display[number] | undefined>((a, l) => (!a || l.stage! > a.stage! ? l : a), undefined);
   const toFinal = final && rels.find(([, r]) => r.to === final.table);

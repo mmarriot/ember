@@ -201,6 +201,7 @@ ul.matches li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 
 .card.truth { border-style: dashed; }
 .card.truth h3 .badge { margin-left: 6px; }
 .layer .sub { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); margin: 2px 0 4px 24px; }
+.layer .sub.wrap { flex-wrap: wrap; gap: 0 4px; }
 .relsection h4 { margin: 10px 0 2px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
 .truthline, .chainline { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px; margin: 0 0 6px; font-size: 12px; }
 .inspector .kind.truth { color: #d7a6ff; }

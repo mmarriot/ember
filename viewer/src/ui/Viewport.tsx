@@ -201,7 +201,7 @@ export function Viewport() {
     // A level shown inside the focus turns the focus into an outline around it (see isEnvelope).
     const stopEnvelope = effect(() => {
       shownLevel.value;
-      const outline = focusIsTruth.peek();
+      const outline = focusIsTruth.peek() && !pairView.peek(); // as in showFocus
       for (const { layer } of entries) layer.setOutline?.(outline, isEnvelope(layer));
       eng.requestRender();
     });

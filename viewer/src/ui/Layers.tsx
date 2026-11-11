@@ -68,7 +68,7 @@ function LayerRow({ d, label }: { d: DisplayLayer; label: string }) {
       </label>
       {!on && focusLayers.value.has(key) && <div class="sub muted">shown for the focus</div>}
       {on && focusHidden.value.has(key) && (
-        <div class="sub muted">hidden for the focus, which shows one level at a time · <button class="link" onClick={showLevel}>show {level}</button></div>
+        <div class="sub muted wrap" title="A focus shows one of its levels at a time">hidden for the focus · <button class="link" onClick={showLevel}>show {level}</button></div>
       )}
       {on && legend && <LegendRow d={d} legend={legend} />}
       {on && d.onSelection && (

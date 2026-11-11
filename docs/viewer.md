@@ -130,5 +130,7 @@ Expressions (filters, custom columns, summary `where`) admit column names, numbe
 (`viewer/src/model/expr.ts`).
 
 The URL keeps the bundle, event, view, domain (`All` when a bundle that opens on a domain shows everything),
-selection, the level shown (`lv`) and the truth colours (`c=truth`), so links can be shared. Custom columns, filters, colour
+selection, the level shown (`lv`) and the truth colours (`c=truth`), so links can be shared. They are in the hash
+(`#b=…&e=…`; a query, `?b=…&e=…`, is read too); `e` is the event's place in the file from 0 (the top bar counts
+from 1), not its event number (the Event… box takes that). Custom columns, filters, colour
 choices and the active preset (per profile), the theme and the panel width are remembered per browser.

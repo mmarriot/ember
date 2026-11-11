@@ -20,7 +20,9 @@ const POLL = 30_000; // ms between index.json checks (keeps the data set list cu
 
 export function App() {
   useEffect(() => {
-    const url = new URLSearchParams(location.hash.slice(1));
+    // The state is in the hash (#b=…&e=…); a link written as a query (?b=…&e=…) works too. `e` is the event's place in
+    // the file, from 0 (the top bar shows it from 1: "2 of 50"), not its event number (the Event… box takes that).
+    const url = new URLSearchParams(location.hash.slice(1) || location.search.slice(1));
     refreshCatalogue().then(async () => {
       const name = url.get("b") ?? catalogue.value.bundles[0]?.file;
       if (!name) return;

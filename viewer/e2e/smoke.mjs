@@ -214,11 +214,14 @@ async function checkDomains(page, h, fail, shot, tag) {
 /** Layers with object rows (`list`): the ticked ones list their objects; a click on a row selects that object (URL,
  *  inspector, the row marked). */
 async function checkObjectRows(page, h, fail, shot, tag) {
-  const listed = [];  // the ticked layers with object rows that this viewer draws (it leaves out reprs it does not know)
-  for (const d of h.display.filter((x) => x.list && x.visible)) if (await page.locator(".layer", { hasText: d.label }).count()) listed.push(d);
-  if (!listed.length) return;
-  const d = listed[0], tab = (h.domains ?? []).find((x) => x.name === d.domain)?.shared || (h.domains?.length ?? 0) < 2 ? d.domain ?? "Objects" : "Detector";
-  await page.getByRole("tab", { name: tab, exact: true }).click().catch(() => {});
+  // The first ticked layer with object rows that this viewer draws (it leaves out reprs it does not know), in its tab.
+  const tabOf = (d) => (h.domains ?? []).find((x) => x.name === d.domain)?.shared || (h.domains?.length ?? 0) < 2 ? d.domain ?? "Objects" : "Detector";
+  let d;
+  for (const x of h.display.filter((l) => l.list && l.visible)) {
+    await page.getByRole("tab", { name: tabOf(x), exact: true }).click().catch(() => {});
+    if (await page.locator(".layer", { hasText: x.label }).count()) { d = x; break; }
+  }
+  if (!d) return log(`${tag}: no object rows drawn`);
   const rows = page.locator(".layer", { hasText: d.label }).locator("table.objects tbody tr:not(.more)");
   const n = await rows.count(), headline = await page.locator(".tabpanel .headline").innerText().catch(() => "");
   log(`${tag}: ${d.label}: ${n} object rows; headline "${headline}"`);

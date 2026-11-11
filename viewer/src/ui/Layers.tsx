@@ -5,7 +5,7 @@
 import { computed } from "@preact/signals";
 import { Fragment } from "preact";
 import { useState } from "preact/hooks";
-import { type DisplayLayer, unitOf } from "../io/bundle";
+import { type DisplayLayer, kindName, unitOf } from "../io/bundle";
 import { colourBy, customColumns, filterMask, filters, RELATION, removeFilter } from "../model/custom";
 import { columnName, passes, topRows } from "../model/objects";
 import { PALETTES, relatedColourText, type Legend } from "../render/colour";
@@ -139,23 +139,27 @@ function passing(d: DisplayLayer) {
   return { t, pass: passes(d, t, d.cut ? cuts.value[d.cut.group] ?? 0 : 0, filterMask(t, filters.value[d.table])) };
 }
 
-/** The event in one line, from the ticked layers with object rows (`list`): how many objects of each pass its cut and
- *  filter ("Jets 4"), or the value of a one-object table ("MET 42.2 GeV"). */
+/** The event in one line, from the ticked layers with object rows (`list`): how many objects of each kind pass the cuts
+ *  and filters ("Jets 4", the layers of a kind summed, e.g. barrel and endcap electrons), or the value of a one-object
+ *  table ("Puppi MET 42.2 GeV"). */
 function Headline({ layers }: { layers: DisplayLayer[] }) {
-  const parts = layers.filter((d) => d.list && visible.value[layerKey(d)]).flatMap((d) => {
+  const parts = new Map<string, number | string>();
+  for (const d of layers.filter((l) => l.list && visible.value[layerKey(l)])) {
     const p = passing(d);
-    if (!p) return [];
+    if (!p) continue;
     if (d.list!.headline === "value") {
       const c = d.list!.columns[0], col = p.t.columns[c];
-      if (!col || !p.t.n) return [];
+      if (!col || !p.t.n) continue;
       const unit = unitOf(bundle.value!.header.tables[d.table]?.columns[c]?.doc);
-      return [[d.label, `${short(Number(col[0]))}${unit ? ` ${unit}` : ""}`]];
+      parts.set(d.label, `${short(Number(col[0]))}${unit ? ` ${unit}` : ""}`);
+      continue;
     }
     let n = 0;
     for (let i = 0; i < p.t.n; i++) if (p.pass(i)) n++;
-    return [[d.label, n.toLocaleString()]];
-  });
-  return parts.length ? <p class="headline">{parts.map(([label, value], i) => <>{i > 0 && " · "}{label} <b>{value}</b></>)}</p> : null;
+    const name = kindName(d);
+    parts.set(name, (Number(parts.get(name)) || 0) + n);
+  }
+  return parts.size ? <p class="headline">{[...parts].map(([label, value], i) => <>{i > 0 && " · "}{label} <b>{typeof value === "number" ? value.toLocaleString() : value}</b></>)}</p> : null;
 }
 
 /** The largest objects of a layer with a `list` hint, one row each with its columns; a click selects (and frames) it. */

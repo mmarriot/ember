@@ -8,7 +8,7 @@
 import type { Header } from "../io/bundle";
 import { completeness, percent, quality, TARGETS, type TruthStatus } from "../model/match";
 import { bestPartners, identities } from "../model/relations";
-import { bundle, describe, event, kindOf, labelOf, layerOf, modes, short, truthStatuses } from "../model/store";
+import { bundle, describe, event, kindOf, labelOf, layerOf, modes, short, truthName, truthStatuses } from "../model/store";
 import { jump } from "./navigate";
 
 /** Names of truth::LevelFlag bits worth showing on a particle (SimDataFormats/TruthInfo ParticleData.h). */
@@ -73,7 +73,7 @@ export function TruthCard({ table, row }: { table: string; row: number }) {
 
 /** A kind with no truth of its own: why, and the one constituent's own match where one part speaks for it. */
 function NoTruth({ table, row, reason, gap }: { table: string; row: number; reason: string; gap?: number }) {
-  const kind = kindOf(table).toLowerCase();
+  const kind = truthName(table);
   return (
     <section class="truthcard">
       <p class="truthline" title="The truth graph has no answer for this kind: evd builds none (no ΔR, no vote through hits). See the Truth tab's coverage list.">
@@ -94,6 +94,9 @@ function NoMatch({ table, row, truth }: { table: string; row: number; truth: str
   );
 }
 
+/** One object of `table`'s kind, in running text: "track", "PF candidate", "MET". */
+const one = (table: string) => kindOf(table).replace(/s$/, "").split(" ").map((w) => (/^[A-Z][a-z]/.test(w) ? w.toLowerCase() : w)).join(" ");
+
 /** The own match of one constituent, named as the constituent's (docs/truth.md "Constituents"): only where a relation
  *  of what it is made of gives exactly one part (a muon's inner track, a candidate's track), never an association or a
  *  pointer back up, never aggregated over several parts; the first such part in the header's order. */
@@ -108,7 +111,7 @@ function Constituent({ table, row, truth }: { table: string; row: number; truth:
       const r = ev.relations[name];
       if (!r || m.to !== truth) continue;
       const { partner } = bestPartners(r, m, true, ev.tables[info.to]?.n ?? 0);
-      if (partner[part] >= 0) return <p class="hint">Its {kindOf(info.to).toLowerCase().replace(/s$/, "")} {chip(info.to, part)} is matched to {chip(truth, partner[part])} (the associator's answer for that {kindOf(info.to).toLowerCase().replace(/s$/, "")}, not for this {kindOf(table).toLowerCase().replace(/s$/, "")}).</p>;
+      if (partner[part] >= 0) return <p class="hint">Its {one(info.to)} {chip(info.to, part)} is matched to {chip(truth, partner[part])} (the associator's answer for that {one(info.to)}, not for this {one(table)}).</p>;
     }
   }
   return null;
@@ -188,7 +191,7 @@ export function Coverage() {
   if (!b || !modes.value.roots.truth) return null;
   const seen = new Set<string>(), rows: [string, TruthStatus][] = [];
   for (const d of b.header.display) {
-    const s = statuses.get(d.table), kind = kindOf(d.table);
+    const s = statuses.get(d.table), kind = truthName(d.table);
     if (!s || d.context || d.alternative || seen.has(kind)) continue;
     seen.add(kind);
     rows.push([kind, s]);

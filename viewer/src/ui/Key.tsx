@@ -6,7 +6,7 @@
 import { PAIR, type PairClass } from "../model/pair";
 import { percent } from "../model/match";
 import { PALETTES } from "../render/colour";
-import { activeMode, bundle, colourChoice, describe, drawnLayers, focus, kindOf, layerKey, layerOf, legends, modes, pairView, short, theme, truthColours, truthStatuses } from "../model/store";
+import { activeMode, bundle, colourChoice, describe, drawnLayers, focus, layerKey, layerOf, legends, modes, pairView, short, theme, truthColours, truthName, truthStatuses } from "../model/store";
 import { jump } from "./navigate";
 
 /** The pair view's classes, as the regions of the particle and the candidate: colour, name, meaning. */
@@ -83,10 +83,14 @@ function TruthKey() {
   // The clean-match thresholds of the drawn reco kinds, e.g. tracks 75% of hits, calorimeter objects 50% of energy.
   const rules = new Map<string, string>();
   // The kinds drawn now that have no truth of their own (docs/truth.md "Where truth stops").
-  const faint = [...new Set(b.header.display.filter((l) => drawnLayers.value[layerKey(l)] && truthStatuses.value.get(l.table)?.kind === "none").map((l) => kindOf(l.table)))];
+  const faint = [...new Set(b.header.display.filter((l) => drawnLayers.value[layerKey(l)] && truthStatuses.value.get(l.table)?.kind === "none").map((l) => truthName(l.table)))];
+  const where = new Map<string, Set<string>>(); // per rule, the detectors it applies to
   for (const info of Object.values(b.header.relations))
-    if (info.match?.good !== undefined && info.to === roots.truth)
-      rules.set(`${info.match.measure}|${info.match.good}`, `${percent(info.match.good)} of its ${info.match.measure === "hits" ? "hits" : "energy"} (${info.match.in})`);
+    if (info.match?.good !== undefined && info.to === roots.truth) {
+      const k = `${info.match.measure}|${info.match.good}`, w = where.get(k) ?? new Set();
+      where.set(k, w.add(info.match.in));
+      rules.set(k, `${percent(info.match.good)} of its ${info.match.measure === "hits" ? "hits" : "energy"} (${[...w].join(", ")})`);
+    }
   return (
     <>
       <ul class="key inline">

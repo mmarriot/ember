@@ -330,9 +330,12 @@ async function checkReplay(page, h, fail) {
   // Paths built from their parts (display hint `grow`): when each is complete (iL) and when its parts light up.
   const grown = h.display.filter((d) => d.grow).map((d) => [`${d.table}:${d.repr}`, h.relations[d.grow.parts]?.to]);
   const building = await page.evaluate((grown) => grown.map(([key, parts]) => {
-    const layers = window.evdEngine.layers, ends = layers.find((l) => l.key === key)?.object.geometry.getAttribute("iL").array ?? [];
+    const layers = window.evdEngine.layers, g = layers.find((l) => l.key === key)?.object.geometry, growth = window.evdPlan?.growth;
+    const appear = g?.getAttribute("iT").array ?? [], ends = g?.getAttribute("iL").array ?? [];
     const lit = layers.find((l) => l.table === parts)?.object.geometry.getAttribute("iL").array ?? [];
-    return { key, paths: ends.length, done: Math.max(...ends), lit: lit.filter((t) => t < 1e28).length, parts: lit.length };
+    // every drawn path grows from the building's start (not the 0.5 s of an appearing line) and is whole by the fit
+    const late = growth ? [...ends].filter((t, i) => !(appear[i] < t && Math.abs(appear[i] - growth.build) < 1e-4 && t <= growth.complete + 1e-4)).length : -1;
+    return { key, paths: ends.length, done: Math.max(...ends), late, lit: lit.filter((t) => t < 1e28).length, parts: lit.length };
   }), grown);
   await page.evaluate(() => { // captions, recorded in the page (screenshots are too slow with software WebGL), with the replay clock
     window.captions = [];
@@ -350,7 +353,7 @@ async function checkReplay(page, h, fail) {
     log(`  replay builds ${b.key}: ${b.paths} paths complete by ${b.done.toFixed(2)} s (fit shown at ${fit?.toFixed(2) ?? "-"} s), ${b.lit} of ${b.parts} parts lit`);
     if (!(at("Seeding") >= 0 && at("Seeding") < at("Building") && at("Building") < at("Fitting"))) fail(`${b.key}: no seeding, building and fitting captions in order`);
     if (captions.some(([c], k) => k < at("Fitting") && /^(Clustering|Building (?!.* outwards)|.* → )/.test(c))) fail(`${b.key}: a later step started before the paths were built`);
-    if (!(b.paths && b.done <= fit + 0.05)) fail(`${b.key}: paths still growing when the fit is shown`);
+    if (!b.paths || b.late) fail(`${b.key}: ${b.late < 0 ? "no plan" : `${b.late} paths`} not built from the building's start to whole by the fit`);
     if (b.parts && !b.lit) fail(`${b.key}: no part lit up`);
   }
 }

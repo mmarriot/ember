@@ -92,6 +92,8 @@ export function App() {
 }
 
 function HelpDialog() {
+  // The tab with the object rows: the shared domain's (e.g. Physics), named as the bundle names it.
+  const h = bundle.value?.header, listTab = h?.domains?.find((d) => d.shared && h.display.some((l) => l.list && l.domain === d.name))?.name;
   const rows: [string, string][] = [
     ["Rotate", "drag"], ["Pan", "right-drag (or shift + drag)"], ["Zoom", "scroll, towards the cursor"],
     ["Inspect an object", "click it: it is shown with its smallest parts (e.g. hits), and further clicks pick among its parts"],
@@ -105,7 +107,7 @@ function HelpDialog() {
     ["One part of the detector (e.g. the tracker), or all", "D (Shift+D backwards), or the … · All buttons at the top (when the data has several parts); a selection stays selected, and D skips the parts it has nothing in"],
     ["Colours: what the reconstruction made, or what was really there", "T, or Reco · Truth in the colour key"],
     ["Next / previous object of the selected kind, largest first (e.g. the next jet)", "N / Shift+N; with nothing selected, the leading object"],
-    ["Labels on the leading objects and the selection", "L; pointing at a row of the Physics tab rings its object"],
+    ["Labels on the leading objects and the selection", `L; pointing at an object's row in ${listTab ? `the ${listTab} tab` : "the side panel"} rings it in the view`],
     ["Replay: how the event builds up, step by step", "R"],
     ["Tour: replay, then visit the main showers (or the leading physics objects), event after event", "P, or the play button; any key or touch stops it"],
     ["Live: play new data as it arrives", "the Live button"],

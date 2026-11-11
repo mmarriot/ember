@@ -66,7 +66,9 @@ Optional hints:
   object, or 1 minus the weight). A reco table with such a relation has truth status "matched by CMSSW".
 - `fact: {"in": detector}`: a truth -> hit relation holding the simulated energy each particle left in each hit (a
   simulation fact, not a match; [truth.md](truth.md#where-truth-stops)), in detector `in` (e.g. `"HGCal"`, `"ECAL"`,
-  `"HCAL"`, `"HF"`). The viewer never adds simulated energy across detectors. Without the hint, a truth association
+  `"HCAL"`, `"HF"`), and optionally `unit`: what one row of the simulation's record covers when it is coarser than a
+  hit, a phrase or one name per value of a hit column (`{"column": "subdet", "names": {"2": "CSC layer"}}`, so a hit
+  says "in this CSC layer"). The viewer never adds simulated energy across detectors. Without the hint, a truth association
   into a `cells` layer is read as a fact in that layer's `domain` (bundles made before it).
 
 - `inverseOf: <relation>`: the relation points from a part back up to its container, the inverse of the named

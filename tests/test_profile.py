@@ -368,7 +368,7 @@ def test_physics_and_pf_in_cms():
     and filtered to what PUPPI kept, the vertices in the shared Physics domain where the event opens; kinds without an
     associator carry their truthGap."""
     p = load_profile("cms")
-    assert p["view"]["domain"] == "Physics" and p["domains"][0] == {"name": "Physics", "shared": True, "region": {"rMax": 750, "zMax": 1080}, "view": "3d", "colourMode": "layers"}
+    assert p["view"]["domain"] == "Physics" and p["domains"][0] == {"name": "Physics", "shared": True, "region": {"rMax": 180, "zMax": 350}, "view": "3d", "colourMode": "layers"}
     met = dict.fromkeys(("pt", "phi", "sumEt", "px", "py", "pz"), F4) | {"vertexIdx": I4}
     pf = dict.fromkeys(("vx", "vy", "vz", "px", "py", "pz", "endX", "endY", "endZ", "pt", "eta", "phi", "energy", "ecalEnergy",
                         "hcalEnergy", "puppiWeight", "time"), F4) | {"charge": I4, "pdgId": I4, "trackIdx": I4, "ticlCandidateIdx": I4}
@@ -397,6 +397,11 @@ def test_physics_and_pf_in_cms():
     assert tables["Jets"][1]["z"].tolist() == [3, 3] and tables["PuppiMET"][1]["x"].tolist() == [np.float32(0.1)]
     assert rels["jetConstituents"]["offsets"].tolist() == [0, 1, 3] and rels["pfClustersECAL"]["indices"].tolist() == [0]
     assert "jetVertex" not in rels and "JetConstituents" not in tables
+    rel = {r["name"]: r for r in p["relations"]}
+    assert rel["vertexTruth"]["match"] == {"measure": "pt2", "in": "tracker", "target": "interaction", "purity": "fraction", "good": 0.5}
+    assert rel["secondaryVertexTruth"]["match"]["target"] == "decayVertex" and "truthGap" not in p["kinds"]["vertex"]
+    assert {k: v["truthGap"]["gap"] for k, v in p["kinds"].items() if "truthGap" in v and k in ("electron", "photon", "tau", "met")} == \
+        {"electron": 23, "photon": 23, "tau": 24, "met": 22}
 
 
 def test_tracker_profile_alone_and_tracker_only():

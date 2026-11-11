@@ -8,8 +8,7 @@
   ],
   "kinds": {
     "truthParticle": {"repr": "helix", "momentum": ["px", "py", "pz"], "charge": "charge"},
-    "vertex": {"domain": "Physics", "list": {"columns": ["z", "nTracks", "sumPt2"], "sort": "sumPt2", "max": 5},
-               "truthGap": {"reason": "the vertex associations are written in step3 but not exported yet", "gap": 14}}
+    "vertex": {"domain": "Physics", "list": {"columns": ["z", "nTracks", "sumPt2"], "sort": "sumPt2", "max": 5}}
   },
   "view": {"domain": "Physics"},
   "domains": [{"name": "HGCal", "region": {"rMax": 260, "zMax": 515}, "view": "3d"}],

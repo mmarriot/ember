@@ -4,7 +4,7 @@
 import type { ComponentChildren } from "preact";
 import { activePreset } from "../model/custom";
 import { applyPreset } from "../model/presets";
-import { bundle } from "../model/store";
+import { bundle, bundleName } from "../model/store";
 import { EventInfo } from "./EventInfo";
 import { ColourKey } from "./Key";
 import { Collections, tabOf } from "./Layers";
@@ -14,7 +14,7 @@ import { Tabs } from "./widgets";
 export function Sidebar() {
   const b = bundle.value, display = b?.header.display ?? [], presets = b?.header.presets ?? [];
   const reco = display.filter((d) => !d.truth), truth = display.some((d) => d.truth);
-  const tabs: [string, () => ComponentChildren][] = [...new Set(reco.map(tabOf))].map((name) => [name, () => <Collections layers={reco.filter((d) => tabOf(d) === name)} />]);
+  const tabs: [string, () => ComponentChildren][] = [...new Set(reco.map(tabOf))].map((name) => [name, () => <Collections key={`${bundleName.value}|${name}`} layers={reco.filter((d) => tabOf(d) === name)} />]);
   if (truth || treeRelations().length) tabs.push([truth ? "Truth" : "Tree", Truth]);
   tabs.push(["Event", EventInfo]);
   return (

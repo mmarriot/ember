@@ -75,7 +75,7 @@ async function checkBundle(file, tag, state) {
   if (h.display.some((d) => d.stage !== undefined) && keys < 2) fail("no colour key for the candidates");
 
   await page.getByRole("tab", { name: "Event", exact: true }).click();
-  const charts = await page.locator(".bars").count(), run = await page.locator(".card h3", { hasText: /^Run \d+/ }).count();
+  const charts = await page.locator(".bars").count(), run = await page.locator(".tabpanel section h3", { hasText: /^Run \d+/, hasNotText: "Lumi" }).count();
   log(`${tag}: ${charts} summary charts (profile defines ${h.summaries?.length ?? 0}), run information ${run ? "shown" : "none"}`);
   if (h.summaries?.length && !charts) fail("no summary charts");
   await shot("2_event");

@@ -1,9 +1,10 @@
-// Event tab: event identity, run information and summary charts (where the bundle has them), and provenance with
-// every table of the event. (Each displayed collection's count is on its row in its own tab.)
+// Event tab: event identity, run information and summary charts (where the bundle has them), provenance with every
+// table of the event, and the custom columns no collection lists. (Each collection's count is on its row in its tab.)
 import type { Summary } from "../io/bundle";
-import { evaluate, filters } from "../model/custom";
+import { customColumns, evaluate, filters } from "../model/custom";
 import { cutMin, cutValues } from "../model/cuts";
 import { bundle, cuts, event, eventIndex, layerOf, loadMs, short } from "../model/store";
+import { Icon } from "./widgets";
 
 export function EventInfo() {
   const b = bundle.value, ev = event.value, e = b?.events[eventIndex.value];
@@ -32,7 +33,27 @@ export function EventInfo() {
           </tbody></table>
         </details>
       </section>
+      <OtherColumns />
     </div>
+  );
+}
+
+/** Custom columns on tables that are not drawn (their collections' ⋯ list the others), e.g. saved with another data
+ *  set of the same profile: still computed where the table exists, and removable here. */
+function OtherColumns() {
+  const h = bundle.value!.header, drawn = new Set(h.display.map((d) => d.table));
+  const defs = customColumns.value.filter((c) => !drawn.has(c.table));
+  if (!defs.length) return null;
+  return (
+    <section>
+      <h3>Other custom columns</h3>
+      {defs.map((c) => (
+        <div class="defn" title={h.tables[c.table] ? undefined : "This data set has no such table"}>
+          <span class="muted">{c.table}</span><code>{c.name} = {c.expr}</code>
+          <button class="icon-button small" title="Remove column" onClick={() => (customColumns.value = customColumns.value.filter((x) => x !== c))}><Icon name="close" /></button>
+        </div>
+      ))}
+    </section>
   );
 }
 

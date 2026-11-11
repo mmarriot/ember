@@ -8,7 +8,7 @@ import type { DisplayLayer } from "../io/bundle";
 import { colourBy, customColumns, filters, RELATION, removeFilter } from "../model/custom";
 import { PALETTES, relatedColourText, type Legend } from "../render/colour";
 import {
-  activeMode, bundle, cutGroups, cuts, event, focusHidden, focusLayers, focusLevel, layerKey, layerName, legends, levels, modes, pairView, short,
+  activeMode, bundle, cutGroups, cuts, event, focusHidden, focusLayers, focusLevel, labelOf, layerKey, layerName, legends, levels, modes, pairView, short,
   showAll, shown, shownLayer, theme, visible,
 } from "../model/store";
 import { ExprForm } from "./ExprForm";
@@ -28,17 +28,17 @@ export function Collections({ layers }: { layers: DisplayLayer[] }) {
   return (
     <>
       {[...groups].map(([group, ls]) => (
-        <section class="kind">
+        <section class="kind" key={group}>
           <h3>{group}</h3>
           {cutsOf(ls).map((name) => <CutRow name={name} here={ls} />)}
-          {ls.map((d) => <LayerRow d={d} label={d.label} />)}
+          {ls.map((d) => <LayerRow key={layerKey(d)} d={d} label={d.label} />)}
         </section>
       ))}
       {alternatives.length > 0 && (
         <details class="others">
           <summary title="The same kinds of object from another reconstruction path; hidden by default">Other reconstruction paths ({alternatives.length})</summary>
           {cutsOf(alternatives).map((name) => <CutRow name={name} here={alternatives} />)}
-          {alternatives.map((d) => <LayerRow d={d} label={`${d.group} · ${d.label}`} />)}
+          {alternatives.map((d) => <LayerRow key={layerKey(d)} d={d} label={`${d.group} · ${d.label}`} />)}
         </details>
       )}
     </>
@@ -79,7 +79,7 @@ function CutRow({ name, here }: { name: string; here: DisplayLayer[] }) {
         <span class="muted unit">{g.unit}</span>
         {v !== g.default && <button class="icon-button small" title={`Reset to ${g.default} ${g.unit}`} onClick={() => set(g.default)}><Icon name="reset" /></button>}
       </div>
-      {elsewhere.length > 0 && <div class="sub muted">also cuts {elsewhere.map(layerName).join(", ")}</div>}
+      {elsewhere.length > 0 && <div class="sub muted">also cuts {elsewhere.map((d) => labelOf(d.table)).join(", ")}</div>}
     </div>
   );
 }

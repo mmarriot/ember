@@ -16,6 +16,9 @@ export function ExprForm({ table }: { table: string }) {
   const ok = !!result && !("error" in result);
   const feedback = !result ? (t ? "" : "Not in this event") : "error" in result ? result.error : summary(result.values, result.boolean);
   const done = () => { setName(""); setExpr(""); };
+  const named = ok && !!name && !nameError;
+  const addColumn = () => { if (named) { customColumns.value = [...customColumns.value, { table, name, expr: expr.trim() }]; done(); } };
+  // Enter in the expression filters (the submit button); Enter in the name adds the column.
   return (
     <form class="exprform" onSubmit={(e) => { e.preventDefault(); if (ok) { setFilter(table, expr.trim()); done(); } }}>
       <input class="expr" placeholder="e.g. energy / sigmaNoise > 5" title={SYNTAX} value={expr} spellcheck={false}
@@ -23,9 +26,10 @@ export function ExprForm({ table }: { table: string }) {
       <div class={`feedback ${result && "error" in result ? "bad" : ""}`}>{nameError || feedback}</div>
       <div class="row">
         <button type="submit" class="primary" disabled={!ok} title="Show only the rows where it holds">Filter</button>
-        <input class="name" placeholder="column name" value={name} onInput={(e) => setName((e.target as HTMLInputElement).value)} />
-        <button type="button" disabled={!ok || !name || !!nameError} title="Add it to this table as a column, for every event"
-          onClick={() => { customColumns.value = [...customColumns.value, { table, name, expr: expr.trim() }]; done(); }}>Add column</button>
+        <input class="name" placeholder="column name" value={name} onInput={(e) => setName((e.target as HTMLInputElement).value)}
+          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addColumn(); } }} />
+        <button type="button" disabled={!named} title="Add it to this table as a column, for every event"
+          onClick={addColumn}>Add column</button>
       </div>
       <details>
         <summary>Columns of this table ({columns.length})</summary>

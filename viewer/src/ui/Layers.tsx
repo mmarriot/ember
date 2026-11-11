@@ -3,10 +3,10 @@
 import type { DisplayLayer } from "../io/bundle";
 import { activePreset, colourBy, type ColourMode, RELATION } from "../model/custom";
 import { applyPreset } from "../model/presets";
-import { identities } from "../model/relations";
-import { PALETTES, relatedColourText, tableName, type Legend } from "../render/colour";
+import { PAIR, type PairClass } from "../model/pair";
+import { PALETTES, relatedColourText, type Legend } from "../render/colour";
 import {
-  activeMode, bundle, colourFirst, describe, event, focusLayers, layerKey, layerOf, legends, modes, setMode, short, showAll, shown, shownLayer,
+  activeMode, bundle, describe, event, focusLayers, layerKey, layerOf, legends, modes, pairView, setMode, short, showAll, shown, shownLayer,
   theme, visible,
 } from "../model/store";
 import { jump } from "./navigate";
@@ -77,47 +77,50 @@ function LayerRow({ d, label }: { d: DisplayLayer; label: string }) {
 }
 
 const MODES: Record<ColourMode, [string, string]> = {
-  truth: ["Truth particle", "One colour per truth-graph particle; hits, layer clusters and reconstructed objects take the colour of the particle linked to them"],
-  reco: ["Reconstruction", "One colour per final reconstructed object (candidate); everything it is made of, and the truth particles it reconstructs, take its colour"],
+  pid: ["Particle type", "Candidates by particle type, and everything they are made of in the same colour; select anything to see its truth <-> reco pair"],
   layers: ["Per layer", "Each layer coloured on its own (energies, particle types): colours are not shared between layers"],
 };
-/** What each layer takes its colour from, per mode, for the key. */
-const HOW: Record<Exclude<ColourMode, "layers">, string[]> = {
-  truth: ["hits: the particle that left the most simulated energy in them", "layer clusters: the particle with the most simulated energy in their hits (worked out here: the truth graph has no layer-cluster association)",
-    "tracksters, candidates, tracks: their best truth match",
-    "a particle shares the colour of its highest ancestor that left hits or is matched to a reco object: one colour per truth shower, e.g. a π⁺ that interacted before the calorimeter and its daughters"],
-  reco: ["layer clusters, tracks, interpretations: their candidate", "hits: their layer cluster's candidate", "tracksters, linked tracksters: the candidate holding most of their layer clusters",
-    "truth particles: the candidate that reconstructs the largest share of them"],
-};
+/** The pair view's classes: colour, name, meaning. */
+const CLASSES: [Exclude<PairClass, 0>, string, string][] = [
+  [PAIR.matched, "matched", "the particle's hits in its candidate"],
+  [PAIR.contamination, "contamination", "in the candidate, from other particles or none"],
+  [PAIR.split, "split", "the particle's hits in other candidates"],
+  [PAIR.missed, "missed", "the particle's hits in no candidate"],
+];
+const pct = (x: number, total: number) => `${total > 0 ? Math.round((100 * x) / total) : 0}%`;
 
-/** How many other objects take the colour of `row` (e.g. the descendants in a truth particle's branch). */
-const branch = (key: Int32Array, row: number) => key.reduce((n, k, i) => n + (k === row && i !== row ? 1 : 0), 0);
-
-/** The colour mode switch and, for the truth and reco modes, the key: which object each colour stands for. */
+/** The colour mode switch and its key: particle types with nothing selected; the selection's pair otherwise. */
 function ColourModes() {
-  const { available, roots } = modes.value, mode = activeMode.value, b = bundle.value!, ev = event.value;
+  const { available, roots } = modes.value, mode = activeMode.value, pair = pairView.value, pal = PALETTES[theme.value];
   if (available.length < 2) return null;
-  const root = mode === "layers" ? undefined : roots[mode], d = root ? layerOf(root) : undefined, t = root ? ev?.tables[root] : undefined;
-  const pal = PALETTES[theme.value], key = d && t && ev ? identities(shownLayer(d), t, ev, b.header, pal.identity.length, colourFirst.value.get(root!)) : null;
+  const candLayer = roots.reco ? layerOf(roots.reco) : undefined, pid = candLayer ? legends.value[layerKey(candLayer)] : undefined;
+  const chip = (t: string | undefined, r: number) => (t && r >= 0 ? <button class="chip" onClick={() => jump({ table: t, row: r })}>{describe(t, r) || `#${r}`}</button> : null);
+  const eff = pair?.efficiency, effTotal = eff ? eff.candidate + eff.others + eff.missed : 0, pur = pair?.purity;
   return (
     <div class="card colourmode">
       <h3>Colour by</h3>
       <div class="segmented presets" role="group" aria-label="Colour mode">
         {available.map((m) => <button class={m === mode ? "on" : ""} title={MODES[m][1]} onClick={() => setMode(m)}>{MODES[m][0]}</button>)}
       </div>
-      {key && root && mode !== "layers" && (
+      {mode === "pid" && !pair && (
         <>
-          <p class="hint">One colour each for the largest {tableName(b.header, root)}; the same colour in another layer means linked to it.</p>
+          <p class="hint">Candidates by particle type; their interpretations, tracksters, layer clusters, hits and tracks take the same
+            colour. Small grey: in no candidate. Select anything to see its truth ↔ reco pair.</p>
+          {pid?.kind === "category" && pid.items && <ul class="key">{pid.items.map((it) => <li><i style={{ background: it.colour }} />{it.label}</li>)}</ul>}
+        </>
+      )}
+      {pair && (
+        <>
+          <p class="pairline"><span class="badge truth">truth graph</span> {chip(pair.truth, pair.particle) ?? <span class="muted">no particle</span>}
+            <span aria-hidden="true">↔</span> {chip(pair.reco, pair.candidate) ?? <span class="muted">no candidate</span>}</p>
           <ul class="key">
-            {key.top.map((row, j) => {
-              const below = branch(key.key, row);
-              return <li><i style={{ background: pal.identity[j] }} /><button class="chip" onClick={() => jump({ table: root, row })}>{describe(root, row) || `#${row}`}</button>
-                {below > 0 && <span title="particles below it that share its colour">+{below} below</span>}</li>;
-            })}
-            {key.others > 0 && <li><i style={{ background: pal.other }} />the other {key.others.toLocaleString()}</li>}
-            <li><i class="small" style={{ background: pal.unassigned }} />small: nothing linked{mode === "truth" ? " (noise, or a particle not exported)" : ""}</li>
+            {CLASSES.map(([c, name, what]) => <li><i style={{ background: pal.pair[c] }} /><b>{name}</b> <span>{what}</span></li>)}
+            <li><i class="small" style={{ background: pal.unassigned }} />everything else</li>
           </ul>
-          <details class="how"><summary>How each layer is coloured</summary><ul>{HOW[mode].map((x) => <li>{x}</li>)}</ul></details>
+          {eff && effTotal > 0 && <p class="hint" title="The particle's simulated energy over its whole shower, in exported hits">
+            Particle's energy: {pct(eff.candidate, effTotal)} in its candidate, {pct(eff.others, effTotal)} in other candidates, {pct(eff.missed, effTotal)} in none.</p>}
+          {pur && pur.particle + pur.other > 0 && <p class="hint" title="The candidate's hit energy, by the particle that left the most simulated energy in each hit">
+            Candidate's energy: {pct(pur.particle, pur.particle + pur.other)} from the particle.</p>}
         </>
       )}
     </div>

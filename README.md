@@ -7,8 +7,9 @@ browser viewer reads them over HTTP and draws them. What to draw, how objects re
 the bundle, written from a JSON profile, so the same code serves very different data:
 
 - **full reconstruction** (CMSSW step3, HGCal/TICL): rechits, layer clusters, tracksters through candidates, tracks,
-  and the CMSSW truth graph (truth::Graph) with reco-truth associations, coloured so that one colour is one truth
-  particle or one candidate across every layer;
+  and the CMSSW truth graph (truth::Graph) with reco-truth associations: candidates and what they are made of
+  coloured by particle type, and any selection shown as its truth ↔ reco pair (matched, contamination, split,
+  missed);
 - **HGCal cassette tests** (MCT at P5): cosmic muons and noise events, with the whole readout as background;
 - **test beam**: layer stacks with beam showers, run information from the run registry.
 

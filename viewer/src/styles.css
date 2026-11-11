@@ -225,3 +225,5 @@ table.outcome tr.missed td:first-child .chip { border-color: #e5534b; }
 .how { font-size: 11px; color: var(--muted); margin-top: 6px; }
 .how summary { cursor: pointer; }
 .how ul { margin: 4px 0 0; padding-left: 16px; }
+.pairline { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 2px 0 6px; font-size: 12px; }
+.key li b { font-weight: 600; color: var(--text, inherit); }

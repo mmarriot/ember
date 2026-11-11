@@ -143,8 +143,7 @@ const isHitTable = (header: Header, table: string) => header.display?.some((l) =
 
 /** Identity colouring of a table (render/colour.ts): per object, the key whose colour it takes, and the keys that get
  *  a colour of their own (`top`, at most `slots`), largest first by the layer's colour column (else in row order).
- *  `others`: keys in use beyond `top`. The keys of the objects in `first` (e.g. related to the selection) come first,
- *  in that order.
+ *  `others`: keys in use beyond `top`.
  *  Every object is its own key, except in a truth table (`truth`) with a parent ->
  *  children relation (truth particles), where colours follow truth branches:
  *  - anchors are the particles something points at: those that own hits (an association into a hit layer; the
@@ -153,13 +152,9 @@ const isHitTable = (header: Header, table: string) => header.display?.some((l) =
  *    and was matched as a whole shares its colour with the hits of its daughters, and a shower secondary matched to
  *    a trackster shares the colour of the shower's hits;
  *  - only anchors' keys use colours (`used`): a particle linked to nothing (e.g. a quark) takes none. */
-export function identities(d: DisplayLayer, t: Table, ev: EventData, header: Header, slots: number, first?: readonly number[]) {
+export function identities(d: DisplayLayer, t: Table, ev: EventData, header: Header, slots: number) {
   const { key, used, bySize } = cached(ev, `identities|${d.table}|${d.truth}|${d.colour}`, () => identityKeys(d, t, ev, header));
-  if (!first?.length) return { key, used, top: bySize.slice(0, slots), others: Math.max(0, bySize.length - slots) };
-  const n = t.n, lead = new Int32Array(n).fill(first.length); // position in `first` of each key's first object
-  first.forEach((r, i) => { if (r < n && used[key[r]] && lead[key[r]] > i) lead[key[r]] = i; });
-  const order = new Map(bySize.map((k, i) => [k, i])), keys = [...bySize].sort((a, b) => lead[a] - lead[b] || order.get(a)! - order.get(b)!);
-  return { key, used, top: keys.slice(0, slots), others: Math.max(0, keys.length - slots) };
+  return { key, used, top: bySize.slice(0, slots), others: Math.max(0, bySize.length - slots) };
 }
 
 /** The part of `identities` that does not depend on the selection, once per event: keys, which keys are in use, and
@@ -194,7 +189,7 @@ function identityKeys(d: DisplayLayer, t: Table, ev: EventData, header: Header) 
 /** Per-event results that do not depend on the selection (identity keys, content partners), so a click that only
  *  reorders the colours does not redo them. Dropped with the event. */
 const perEvent = new WeakMap<EventData, Map<string, unknown>>();
-function cached<T>(ev: EventData, what: string, make: () => T): T {
+export function cached<T>(ev: EventData, what: string, make: () => T): T {
   let m = perEvent.get(ev);
   if (!m) perEvent.set(ev, (m = new Map()));
   if (!m.has(what)) m.set(what, make());

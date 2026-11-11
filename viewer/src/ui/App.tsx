@@ -94,10 +94,10 @@ function HelpDialog() {
     <Modal title="How to use the event display">
       <table class="kv"><tbody>{rows.map(([what, how]) => <tr><td>{what}</td><td>{how}</td></tr>)}</tbody></table>
       <h3>Colours</h3>
-      <p class="hint">"Colour by" at the top of the Layers tab colours every layer at once: by truth particle (one colour per particle
-        of the truth graph, shared by the hits, layer clusters and reconstructed objects linked to it), by reconstruction (one colour
-        per candidate, shared by what it is made of), or per layer (energies, particle types). Its key names the object behind each
-        colour. Each layer's colouring is shown under it, where another column, or the colour of a related object, can be chosen.
+      <p class="hint">"Colour by" at the top of the Layers tab: Particle type colours candidates by particle type and everything they
+        are made of (tracksters, layer clusters, hits, tracks) in the same colour. Selecting anything then shows its truth ↔ reco pair:
+        a truth-graph particle and its best candidate, with every hit coloured matched, contamination, split or missed, and the
+        particle's efficiency and the candidate's purity in the key. Per layer colours each layer on its own (energies). Each layer's colouring is shown under it, where another column, or the colour of a related object, can be chosen.
         With something selected, everything unrelated fades.</p>
       <h3>Cuts</h3>
       <p class="hint">The Cuts tab sets minimum values, e.g. energies. Each cut applies to every layer of its group, so the same objects

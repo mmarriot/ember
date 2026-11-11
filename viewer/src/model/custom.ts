@@ -11,7 +11,7 @@ export const customColumns = signal<CustomColumn[]>([]); // in order: later ones
 export const filters = signal<Record<string, string>>({});
 export const colourBy = signal<Record<string, string>>({}); // display layer key -> column, or RELATION + relation
 export const activePreset = signal(0); // index into the profile's presets
-export type ColourMode = "truth" | "reco" | "layers";
+export type ColourMode = "pid" | "layers"; // pid: candidates by particle type, a selection as its truth <-> reco pair
 export const colourMode = signal<ColourMode | null>(null); // the user's colour mode (model/modes.ts); null: the default
 let defaultFilters: Record<string, string> = {}; // from the display hints (`filter`) of the open bundle
 

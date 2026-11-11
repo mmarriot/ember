@@ -1,19 +1,15 @@
-// Colour modes: one switch that colours every layer so that a colour means one object in all of them.
-//  - truth: one colour per truth particle (its root layer); hits, layer clusters and reco objects take the colour of
-//    the particle linked to them;
-//  - reco: one colour per object of the last reconstruction stage (candidates); what they are made of, and the truth
-//    particles they reconstruct, take their colour;
-//  - layers: each layer's own colouring (energies, particle types), as the profile sets it.
-// Which relation colours which layer is worked out from the bundle's relations, not named in the profile.
-// The mode in use and how it applies to a layer are in store.ts (activeMode, shownLayer).
+// How colours follow the links between tables, from one root table: the truth root (the truth particles) or the
+// reconstruction root (candidates). Each table is coloured through the relation that leads towards the root, so a
+// colour chain such as hit -> layer cluster -> candidate is worked out from the bundle's relations, not named in the
+// profile. Used by the "pid" colour mode (everything takes its candidate's colour) and by the pair view
+// (model/pair.ts: which candidate and which truth particle each object belongs to); the signals are in store.ts.
 import type { DisplayLayer, Header } from "../io/bundle";
-import type { ColourMode } from "./custom";
 
 export type ColourBy = NonNullable<DisplayLayer["colourBy"]>;
 
-/** The table each mode is built around: for truth, the truth layer with the most associations (the particles);
- *  for reco, the preferred layer of the last reconstruction stage. */
-export function modeRoots(header: Header): Partial<Record<Exclude<ColourMode, "layers">, string>> {
+/** The root tables: for truth, the truth layer with the most associations (the particles); for reco, the preferred
+ *  layer of the last reconstruction stage. */
+export function modeRoots(header: Header): { truth?: string; reco?: string } {
   const links = (table: string) => Object.values(header.relations).filter((r) => r.association && (r.from === table || r.to === table)).length;
   const truth = header.display.filter((d) => d.truth && links(d.table)).sort((a, b) => links(b.table) - links(a.table))[0];
   // Of the last stage's layers (e.g. candidates and the tracks shown with them), the one that contains the others.
@@ -23,12 +19,12 @@ export function modeRoots(header: Header): Partial<Record<Exclude<ColourMode, "l
   return { ...(truth ? { truth: truth.table } : {}), ...(last ? { reco: last.table } : {}) };
 }
 
-/** How `mode` colours each table: the root gets identity colours; a table related to the root takes its partner's
- *  colour through that relation; a table whose parts are linked to the root, but which is not itself, takes the root
- *  object with the most in its parts (layer clusters in truth mode: the particle with the most simulated energy in
- *  their hits; tracksters in reco mode: the candidate holding most of their layer clusters); every other table takes
- *  the colour of its neighbour on the shortest path to the root (associations count as long steps, so
- *  reconstruction is followed first). Tables the mode cannot reach are not listed (store.ts draws them plainly). */
+/** How each table follows the links to `root`: the root itself is "identity"; a table related to the root takes
+ *  its partner through that relation; a table whose parts are linked to the root, but which is not itself, takes the
+ *  root object with the most in its parts (layer clusters from the truth root: the particle with the most simulated
+ *  energy in their hits; tracksters from the reco root: the candidate holding most of their layer clusters); every
+ *  other table takes its neighbour on the shortest path to the root (associations count as long steps, so the
+ *  reconstruction is followed first). Tables that cannot reach the root are not listed. */
 export function modeColouring(header: Header, root: string): Record<string, ColourBy> {
   const rels = Object.entries(header.relations).filter(([, r]) => r.from !== r.to);
   const out: Record<string, ColourBy> = { [root]: "identity" };

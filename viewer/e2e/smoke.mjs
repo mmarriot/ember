@@ -68,7 +68,8 @@ async function checkBundle(file, tag, state) {
     if (!(await button.getAttribute("class"))?.includes("on")) fail(`preset ${name} did not apply`);
   }
 
-  // Colour modes: each applies, and the truth and reconstruction modes show a key naming their colours.
+  // Colour modes: each applies; "Particle type" shows a key naming its colours. The last mode clicked is "Per layer", so
+  // the default mode is selected again first.
   for (const name of await page.$$eval(".colourmode .segmented button", (b) => b.map((x) => x.textContent))) {
     const button = page.locator(".colourmode .segmented button", { hasText: name });
     await button.click();
@@ -78,6 +79,7 @@ async function checkBundle(file, tag, state) {
     if (name !== "Per layer" && !keys) fail(`colour mode ${name}: no key`);
     await shot(`1_mode_${name.replace(/\W+/g, "_")}`);
   }
+  await page.locator(".colourmode .segmented button").first().click().catch(() => {});
 
   await page.getByRole("tab", { name: "Event", exact: true }).click();
   const charts = await page.locator(".bars").count(), run = await page.locator(".card h3", { hasText: /^Run \d+/ }).count();
@@ -94,6 +96,12 @@ async function checkBundle(file, tag, state) {
   await open(`b=${file}&e=1&s=${target.table}:0`);
   const related = await page.locator(".inspector [role=tab]", { hasText: "Related" }).innerText().catch(() => "");
   if (!/Related · [1-9]/.test(related)) fail(`selecting ${target.table} #0 shows nothing related (${related})`);
+  // In the "Particle type" mode a selection shows its truth <-> reco pair (a candidate, and its particle with truth).
+  if (await page.locator(".colourmode").count()) {
+    const pair = await page.locator(".colourmode .pairline").innerText().catch(() => "");
+    log(`${tag}: pair ${pair.replace(/\s+/g, " ")}`);
+    if (!pair) fail("no truth <-> reco pair for the selection");
+  }
   await shot("3_selected");
   const focused = async () => `${await page.locator(".focusbar b").innerText().catch(() => "")} (${decodeURIComponent(new URL(page.url()).hash.match(/s=([^&]+)/)?.[1] ?? "")})`;
   const first = await focused();

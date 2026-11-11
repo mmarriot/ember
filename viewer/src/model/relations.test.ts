@@ -96,9 +96,6 @@ describe("truth identities", () => {
     expect(others).toBe(1); // particle 5
     expect([...identities(d, tev.tables.P, tev, th, 2).used]).toEqual([1, 0, 0, 1, 0, 1]); // keys in use: not the quark
   });
-  it("ranks the keys of the given objects first", () => {
-    expect(identities(d, tev.tables.P, tev, th, 2, [5, 2]).top).toEqual([5, 0]); // in order; daughter 2 brings its key 0
-  });
   it("keeps every reconstructed object its own key", () => {
     const { key, top } = identities({ ...d, truth: false }, tev.tables.P, tev, th, 10);
     expect([...key]).toEqual([0, 1, 2, 3, 4, 5]);

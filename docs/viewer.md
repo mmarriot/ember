@@ -37,24 +37,41 @@ The same list is in the viewer's help (`?`).
   truth-graph particles and their children, as a collapsible tree.
 - **Event**: run and event information, the bundle's `summaries` charts.
 
-### Colour modes
+### Colour modes and the truth ↔ reco pair
 
-"Colour by" at the top of the Layers tab colours every layer at once, so that a colour means one object in all of
-them. The modes are worked out from the bundle's relations (`viewer/src/model/modes.ts`); a mode a bundle cannot
-support is not offered.
+"Colour by" at the top of the Layers tab colours every layer at once. How each layer reaches a candidate or a truth
+particle is worked out from the bundle's relations (`viewer/src/model/modes.ts`), so the modes need no profile
+settings; a bundle without reconstruction stages offers only "Per layer".
 
-| mode | one colour per | how the other layers take it |
-|---|---|---|
-| **Truth particle** (default with truth) | truth particle (`truth` layer with associations), largest first | hits: the particle with the most simulated energy in them; layer clusters: the particle with the most simulated energy in their hits, weighted by the hit fractions (worked out in the viewer: the truth graph has no layer-cluster association); tracksters, candidates, tracks: their best truth match. A particle shares the colour of its highest ancestor that owns hits or is matched (one colour per truth shower) |
-| **Reconstruction** (default without truth) | object of the last reconstruction stage (candidates), largest first | what contains it, step by step: layer clusters, tracks and interpretations their candidate, hits their layer cluster's; tracksters and linked tracksters the candidate holding most of their layer clusters; truth particles the candidate that reconstructs the largest share of them |
-| **Per layer** | — | each layer's own colouring from the profile (energies, particle types) |
+- **Particle type** (default): candidates by particle type, and everything they are made of in the same colour:
+  interpretations and tracks (their candidate), tracksters and linked tracksters (the candidate holding most of their
+  layer clusters), layer clusters, and hits (their layer cluster's candidate). Objects in no candidate are small and
+  grey.
+- **Per layer**: each layer's own colouring from the profile (energies, particle types).
 
-Seven colours (Okabe-Ito and Tol hues, checked for protan, deutan and tritan vision); the other objects share one
-grey, and objects with nothing to take a colour from (no truth particle in the export, no candidate) are drawn small
-in a faint grey. The colouring of a layer the mode cannot reach falls back to its colour column, so that no other
-categorical colours appear next to the mode's. The key under the switch names the
-object behind each colour (click to select it). Choosing a colour for one layer overrides the mode for that layer;
-switching mode clears those choices. The replay keeps the mode's colours (per layer: each stage's).
+**The pair view.** In the Particle type mode, selecting anything shows its truth ↔ reco pair
+(`viewer/src/model/pair.ts`): a truth particle (with its whole shower: a particle stands for its highest ancestor that
+owns hits or is matched) and the candidate that best reconstructs it. A candidate pairs with its best truth match, a
+truth particle with its best candidate, and any other object with the candidate that contains it (or, in none, with
+its own truth match). Selecting the particle, the candidate or anything inside them gives the same pair and the same
+picture. Every layer is coloured by where its objects ended up:
+
+| class | meaning |
+|---|---|
+| matched | the particle's hits (and clusters, tracksters...) in its candidate; the particle and the candidate |
+| contamination | in the candidate, but from other particles or from none |
+| split | the particle's hits in other candidates, and those candidates |
+| missed | the particle's hits, and reco objects matched to it, in no candidate |
+
+Everything else fades. A hit belongs to the particle that left the most simulated energy in it (a layer cluster: the
+particle with the most simulated energy in its hits). Missed layer clusters stay in the background, as their hits
+show the same and a shower's many one-hit halo clusters would cover the used ones. The key gives the particle's
+simulated energy in its candidate, in other candidates and in none (efficiency), and the share of the candidate's hit
+energy from the particle (purity).
+
+Colours are Okabe-Ito and Tol hues, checked for protan, deutan and tritan vision. Choosing a colour for one layer
+overrides the mode and the pair view for that layer; switching mode clears those choices. The replay keeps each
+stage's colours in the Per layer mode only.
 
 Expressions (filters, custom columns, summary `where`) admit column names, numbers, `pi`, `+ - * / % ^`, comparisons,
 `&& || !`, parentheses and a fixed list of Math functions. They are parsed, never evaluated as JavaScript

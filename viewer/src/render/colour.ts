@@ -15,12 +15,15 @@ export const PALETTES = {
     // dark theme's hue order where possible. Simulated protan/deutan/tritan vision (Machado 2009): every pair, and
     // "other", at least 17 CIELAB dE apart (dark set: 14.5; the categories above: 1.3).
     identity: ["#D55E00", "#2E8FCB", "#117733", "#CC6677", "#AA4499", "#332288", "#882255"], other: "#a3abb5",
+    // The pair view (model/pair.ts), by class: other, matched, contamination, split, missed. From the identity set.
+    pair: ["#cdd2d8", "#117733", "#AA4499", "#2E8FCB", "#D55E00"],
   },
   dark: {
     background: 0x0f1419, rim: [0.93, 0.95, 0.97], unassigned: "#3a424d", flash: 0.8,
     ramps: { heat: ["#6a2450", "#a0303f", "#d4533a", "#f59e42", "#fde89a"], cool: ["#1d4166", "#2563a0", "#3a8fd0", "#72c3ee", "#cdf0ff"] },
     categories: ["#4ea1ff", "#5fd068", "#b48cff", "#3dd6e0", "#ff8fd1", "#8e95ff", "#b5d94c", "#e08fd0", "#76b8ff", "#7be39a"],
     identity: ["#E69F00", "#56B4E9", "#009E73", "#D55E00", "#CC79A7", "#0072B2", "#F0E442"], other: "#68717c",
+    pair: ["#3a424d", "#009E73", "#CC79A7", "#56B4E9", "#D55E00"],
   },
 } as const;
 export type ThemeName = keyof typeof PALETTES;
@@ -101,9 +104,8 @@ interface Coloured { rgb: Float32Array; legend: Legend; emphasis?: Uint8Array }
 
 /** Options of `colours`. `range` shares one value scale between layers; without it the layer's own values set the
  *  scale. `layerFor` gives the colouring of related tables (default: their display hints), so colours follow chains:
- *  a hit takes its layer cluster's colour, which is its candidate's. `first`: per table, objects whose identity
- *  colours come first, in this order (e.g. those related to the selection), so they never fall among the "other" grey. */
-interface ColourOptions { range?: Range; layerFor?: LayerFor; first?: ReadonlyMap<string, readonly number[]> }
+ *  a hit takes its layer cluster's colour, which is its candidate's. */
+interface ColourOptions { range?: Range; layerFor?: LayerFor }
 
 /** Per-object RGB (n * 3), the legend describing it, and (for relation colouring) which objects to emphasise:
  *  0 for objects not related to anything, which are drawn as background. `seen`: the tables already on a chain of
@@ -112,7 +114,8 @@ export function colours(d: DisplayLayer, t: Table, ev: EventData, header: Header
   seen: ReadonlySet<string> = new Set()): Coloured {
   const { range, layerFor = (table: string) => header.display.find((l) => l.table === table) } = opts;
   const out = new Float32Array(3 * t.n), cats = pal.categories.map(rgb);
-  const category = (k: number) => pal.categories[k % pal.categories.length];
+  // Named categories (e.g. a candidate's particle type) take the colour-blind-checked identity set first.
+  const named = [...pal.identity, ...pal.categories], namedRgb = named.map(rgb);
   const set = (i: number, c: ArrayLike<number>, at = 0) => { out[3 * i] = c[at]; out[3 * i + 1] = c[at + 1]; out[3 * i + 2] = c[at + 2]; };
   const setCategory = (i: number, k: number) => set(i, cats[k % cats.length]);
 
@@ -121,7 +124,7 @@ export function colours(d: DisplayLayer, t: Table, ev: EventData, header: Header
     return { rgb: out, legend: { kind: "category", text: "one colour per object" } };
   }
   if (d.colourBy === "identity") {
-    const { key, used, top, others } = identities(d, t, ev, header, pal.identity.length, opts.first?.get(d.table));
+    const { key, used, top, others } = identities(d, t, ev, header, pal.identity.length);
     const slot = new Map(top.map((k, j) => [k, j])), ids = pal.identity.map(rgb), other = rgb(pal.other), none = rgb(pal.unassigned);
     const emphasis = new Uint8Array(t.n); // linked to nothing (e.g. a quark): small and grey, like any object without a partner
     for (let i = 0; i < t.n; i++) {
@@ -141,9 +144,9 @@ export function colours(d: DisplayLayer, t: Table, ev: EventData, header: Header
       const raw = col ? Number(col[i]) : 0, v = abs ? Math.abs(raw) : raw;
       let k = used.get(v);
       if (k === undefined) used.set(v, (k = order.includes(String(v)) ? order.indexOf(String(v)) : order.length + used.size));
-      setCategory(i, k);
+      set(i, namedRgb[k % namedRgb.length]);
     }
-    const items = [...used].sort((a, b) => a[1] - b[1]).map(([v, k]) => ({ label: names[String(v)] ?? String(v), colour: category(k) }));
+    const items = [...used].sort((a, b) => a[1] - b[1]).map(([v, k]) => ({ label: names[String(v)] ?? String(v), colour: named[k % named.length] }));
     // Up to 16 values get a legend entry each; more (e.g. one colour per module) only tell neighbours apart.
     return { rgb: out, legend: { kind: "category", text: items.length > 16 ? `by ${column} (${items.length} values)` : `by ${column}`, ...(items.length > 16 ? {} : { items }) } };
   }
@@ -152,7 +155,7 @@ export function colours(d: DisplayLayer, t: Table, ev: EventData, header: Header
     // A partner with colours of its own passes them on (one per object, a category such as a candidate's particle
     // type, or taken from its own partner, with its grey); otherwise one colour per partner.
     const od = layerFor(otherTable), ot = ev.tables[otherTable], next = new Set(seen).add(d.table);
-    const from = od && ot && od.colourBy && !next.has(otherTable) ? colours(od, ot, ev, header, pal, { layerFor, first: opts.first }, next) : null;
+    const from = od && ot && od.colourBy && !next.has(otherTable) ? colours(od, ot, ev, header, pal, { layerFor }, next) : null;
     const grey = rgb(pal.unassigned), emphasis = new Uint8Array(t.n);
     for (let i = 0; i < t.n; i++) {
       const o = partner[i], none = o < 0 || (from?.emphasis !== undefined && !from.emphasis[o]);

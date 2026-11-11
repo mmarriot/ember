@@ -13,7 +13,7 @@ and what is missing, so each gap can be checked off as CMSSW adds it.
 | in the viewer | from |
 |---|---|
 | Truth graph · Particles, Vertices; the Truth tab (parent -> children) | `TruthParticles`, `TruthVertices`, `TruthParticleChildren` |
-| a reco object's "best match", and its colour in the Truth particle mode | `<collection>ToTruth`: the AdaptiveNominal working point, one particle per reco object, with `sharedEnergy` and `score` (0 is best) |
+| a reco object's "best match"; the pair view's choice of particle for a candidate | `<collection>ToTruth`: the AdaptiveNominal working point, one particle per reco object, with `sharedEnergy` and `score` (0 is best) |
 | a truth particle's matched reco objects (Related, Matches) | `<collection>FromTruth` (TruthToReco), with `sharedFraction` and `score` |
 | a hit's particle, "simulated energy in its hits, by particle" | `TruthHGCalHits`, `TruthSoAHits{EE,HSi,HSci}`: per (particle, hit) the simulated energy of the particle's subgraph |
 
@@ -83,7 +83,7 @@ information. Priority is for the event display.
 | 1 | **Layer cluster <-> truth association** | A | no `TruthAssociationTraits<reco::CaloCluster>`, no `layerClusters` domain in `truthGraphRecoLabelsPSet` (`truthGraphAssociationLabels_cff.py:37-54`), nothing in `truthGraphAssociatorsSequence` (cff `:190-199`), no LC validator in `Validation/TruthInfo` | high |
 | 2 | Hits of the particle a reco object is matched to, when that particle is not the one entering the calorimeter | X | `TruthHitTableProducer` exports subgraph hits only for particles with `LevelFlag::CaloBoundary` (`TruthTableProducers.cc:398`, default `:435`) | high |
 | 3 | Total simulated energy per hit (all particles), so a grey hit can be told apart as noise or as an un-exported particle | X (data in index, not exported) | `TruthTableProducers.cc:385-424` writes only (exported particle, hit) rows | high |
-| 4 | Particles that deposit energy but are neither signal nor matched by a calorimeter object are not exported, so their hits stay unattributed | X | selection `TruthTableProducers.cc:105-130`; `keepMatchedBy` excludes tracks (`eventExport_cff.py:114-115`); pairs to un-exported particles dropped (`TruthTableProducers.cc:328-330`) | high at PU |
+| 4 | Particles that deposit energy but are neither signal nor matched by a calorimeter object are not exported, so their hits stay unattributed (**fixed in evd's exporter**: `keepLevelMask`, see 3–5) | X | selection `TruthTableProducers.cc:105-130`; `keepMatchedBy` excludes tracks (`eventExport_cff.py:114-115`); pairs to un-exported particles dropped (`TruthTableProducers.cc:328-330`) | high at PU |
 | 5 | Out-of-time pile-up has no particles at all | G | `truthGraphMixedDigi_cff.py:49` (`pileupBunchCrossings=[0]`) | medium |
 | 6 | First-stage tracksters of a non-v6 (CLUE3D) reconstruction | X | the associator follows the scheduled labels (`truthGraphAssociationLabels_cff.py:170-189`), but EventExport hard-codes v6 labels (`eventExport_cff.py:105-112`); the profile has `clue3dLCs` but no CLUE3D truth relation (`hgcal.json:40-42`) | medium |
 | 7 | Candidate truth is calorimeter-only; a track-only candidate has no candidate match | A (by design) | `RecoHitAdapters.h:148-161`, traits `AllRecoToTruthBranchAssociatorsProducer.cc:217-224` | medium |
@@ -137,8 +137,18 @@ the hits without truth are spread over both endcaps (η from −2.8 to +2.8, fir
 ttbar PU200, event 0: CE-E 42 % (53k of 157k hits), CE-H Si 34 %, CE-H scintillator 73 %. 85k of the 140k SoA layer
 clusters have no hit with truth. 7741 particles are exported (2156 signal); 2683 of them own CE-E hits (122 signal).
 
-In PU200 the unattributed energy is noise, in-time pile-up that no calorimeter object matched (gap 4), and
-out-of-time pile-up (gap 5). The export cannot tell these apart (gap 3). The per-cell total sim energy is computed
+**Checked against the full graph** (step3 of ttbar PU200, FWLite, every RECO rechit above 35 MeV: does any graph
+particle have simulated energy in its cell?): in-time pile-up 94–96 % of the CE-E energy and 84–93 % of the CE-H
+silicon energy, signal 1–2 %, no graph particle 2–5 % (CE-E) and 6–15 % (CE-H silicon). The graph holds 120–174k
+pile-up particles per event; the export kept about 8k. So the sample is complete for in-time pile-up and the loss was
+the export's selection (gap 4). The rest is noise (gun 0PU: about 250 CE-H silicon hits per event at E/σ ≈ 3, no
+time) and, most likely, out-of-time pile-up (gap 5; about 7k such hits per PU200 event, far above the noise).
+
+**Gap 4 addressed in evd's exporter** (branch `evd-export` of the CMSSW developments area): `TruthGraphTableProducer`
+has `keepLevelMask`, set to CaloBoundary, so every particle entering the calorimeter is exported, pile-up included,
+with its hits. ttbar PU200: 83k particles per event instead of 7.7k; hit energy with a particle 95–98 % (CE-E) and
+85–91 % (CE-H silicon), as the full graph allows; NanoAOD 1.79 GB instead of 1.16 GB, bundle 1.56 GB instead of
+0.96 GB (+62 %). The export still cannot tell noise from out-of-time pile-up (gap 3). The per-cell total sim energy is computed
 inside the associator (`BranchHitAssociator.h:187-188`, `cellTotalEnergy`) but never written out.
 **Check:** a `simEnergyTotal` (or `hasSim`) column on the hit tables, or a `TruthHitTable` row for "all other
 particles".

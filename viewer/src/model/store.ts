@@ -5,8 +5,9 @@ import type { Legend, ThemeName } from "../render/colour";
 import type { Caption } from "../render/replay";
 import type { Hit, ViewName } from "../render/engine";
 import { colourBy, colourMode, type ColourMode, customColumns, loadCustom, withColour, withCustomColumns } from "./custom";
-import { type ColourBy, modeColouring, modeRoots } from "./modes";
-import { bestFirst, levelsOf, relatedParts, sameRef, type Ref } from "./relations";
+import { modeColouring, modeRoots } from "./modes";
+import { PAIR, type Pair, pairFor } from "./pair";
+import { levelsOf, type Related, relatedParts, sameRef, type Ref } from "./relations";
 
 /** One entry of the site's index.json (written by `evdtools sync`; hand-written ones need only file and title). */
 export interface Listed { file: string; title: string; campaign?: string; campaign_title?: string; events?: number; data_time?: string }
@@ -62,13 +63,15 @@ export const sizeColumn = (table: string, t: Table) => {
   return [d?.cut?.column, d?.colour, "energy"].find((c): c is string => !!c && c in t.columns);
 };
 
-// Colour modes (model/modes.ts).
-/** The modes this bundle offers (layers always), the default first (truth if it has truth, else reco). */
+// Colour modes (model/modes.ts) and the truth <-> reco pair of the selection (model/pair.ts).
+/** The bundle's mode roots and how each reaches every table; "pid" (the default) needs a reconstruction root. */
 export const modes = computed(() => {
   const h = bundle.value?.header, roots = h ? modeRoots(h) : {};
-  const available: ColourMode[] = [...(["truth", "reco"] as const).filter((m) => roots[m]), "layers"];
-  const colouring: Partial<Record<ColourMode, Record<string, ColourBy>>> =
-    Object.fromEntries(Object.entries(roots).map(([m, root]) => [m, modeColouring(h!, root)]));
+  const available: ColourMode[] = roots.reco ? ["pid", "layers"] : ["layers"];
+  const colouring = {
+    reco: h && roots.reco ? modeColouring(h, roots.reco) : undefined,
+    truth: h && roots.truth ? modeColouring(h, roots.truth) : undefined,
+  };
   return { available, roots, colouring };
 });
 /** The mode in use: the user's choice if this bundle offers it, else the bundle's default. */
@@ -77,53 +80,32 @@ export const activeMode = computed<ColourMode>(() => {
   return m && available.includes(m) ? m : available[0];
 });
 
-/** In the truth and reco modes, the root objects related to the focus, in the order their colours are given out
- *  before any other: first those an association links to the focus itself (its best match first), then the rest of
- *  what is related to it (e.g. every particle in a candidate's hits, the candidate containing a hit). So what is
- *  selected is never "other". */
-const NO_FIRST: ReadonlyMap<string, number[]> = new Map(); // one object, so "still nothing selected" is no change
-export const colourFirst = computed(() => {
-  const mode = activeMode.value, root = mode === "layers" ? undefined : modes.value.roots[mode];
-  const f = focus.value, parts = focusParts.value, b = bundle.value, ev = event.value;
-  if (!root || !f || !parts || !b || !ev) return NO_FIRST;
-  const rows: number[] = [];
-  for (const [name, info] of Object.entries(b.header.relations)) {
-    const rel = ev.relations[name];
-    if (!rel || !info.association) continue;
-    if (info.from === f.table && info.to === root) {
-      const w = info.best ? rel.weights[info.best.weight] : undefined, cmp = info.best && bestFirst(info.best), ks: number[] = [];
-      for (let k = rel.offsets[f.row]; k < rel.offsets[f.row + 1]; k++) ks.push(k);
-      if (w && cmp) ks.sort((a, c) => cmp(w[a], w[c]));
-      rows.push(...ks.map((k) => rel.indices[k]));
-    } else if (info.to === f.table && info.from === root) {
-      for (let p = 0; p + 1 < rel.offsets.length; p++)
-        for (let k = rel.offsets[p]; k < rel.offsets[p + 1]; k++) if (rel.indices[k] === f.row) rows.push(p);
-    }
-  }
-  const rest = [parts.madeOf, parts.partOf, parts.linked].flatMap((r) => [...(r.get(root) ?? [])]);
-  const t = ev.tables[root], size = t && sizeColumn(root, t), col = size ? t.columns[size] : undefined; // largest first
-  if (col) rest.sort((a, c) => Number(col[c]) - Number(col[a]));
-  return new Map([[root, [...rows, ...rest]]]);
-});
-
-/** A layer's display hint as drawn: the colour mode's colouring, then the user's choice for that layer. In the truth
- *  and reco modes a layer the mode cannot reach loses its categorical colours (they would read as linked) and is
- *  drawn by its colour column. */
+/** A layer's display hint as drawn. In the "pid" mode, the reconstruction root (candidates) keeps its own colouring
+ *  (particle type) and everything it reaches takes its candidate's colour; a categorical layer it cannot reach is
+ *  drawn by its colour column. Then the user's choice for that layer. */
 export function shownLayer(d: DisplayLayer, mode = activeMode.peek(), by = colourBy.peek()): DisplayLayer {
-  const c = d.context ? undefined : modes.peek().colouring[mode]?.[d.table];
-  const plain = !c && mode !== "layers" && !d.context && d.colourBy;
+  const { colouring, roots } = modes.peek(), pid = mode === "pid" && !d.context;
+  const c = pid && d.table !== roots.reco ? colouring.reco?.[d.table] : undefined;
+  const plain = pid && !c && d.table !== roots.reco && d.colourBy;
   return withColour(c ? { ...d, colourBy: c } : plain ? { ...d, colourBy: undefined } : d, by[layerKey(d)]);
 }
 
-/** Switch mode: the per-layer colour choices of the layers either mode colours are dropped, so the new mode colours
- *  them; other choices (e.g. a preset's) stay. */
+/** Switch mode: the per-layer colour choices of the layers the "pid" mode colours are dropped; others (e.g. a
+ *  preset's) stay. */
 export function setMode(m: ColourMode) {
-  const { colouring } = modes.peek(), tables = new Set([...Object.keys(colouring[activeMode.peek()] ?? {}), ...Object.keys(colouring[m] ?? {})]);
-  const by = { ...colourBy.peek() };
+  const tables = new Set(Object.keys(modes.peek().colouring.reco ?? {})), by = { ...colourBy.peek() };
   for (const d of bundle.peek()?.header.display ?? []) if (tables.has(d.table)) delete by[layerKey(d)];
   colourBy.value = by;
   colourMode.value = m;
 }
+
+/** In the "pid" mode with something selected: its truth <-> reco pair, which colours every layer (Viewport). */
+export const pairView = computed<Pair | null>(() => {
+  const f = focus.value, b = bundle.value, ev = event.value, { roots, colouring } = modes.value;
+  if (activeMode.value !== "pid" || !f || !b || !ev || !roots.reco || !colouring.reco || f.row >= (ev.tables[f.table]?.n ?? 0)) return null;
+  const truthLayer = roots.truth ? b.header.display.find((d) => d.table === roots.truth) : undefined;
+  return pairFor(ev, b.header, f, { truth: roots.truth, reco: roots.reco }, { truth: colouring.truth, reco: colouring.reco }, truthLayer);
+});
 
 /** A number in a few significant figures, for names, legends and charts. */
 export const short = (v: number) => (Number.isInteger(v) || Math.abs(v) >= 100 ? v.toFixed(0) : v.toPrecision(3));
@@ -173,7 +155,19 @@ export const relatives = computed(() => (sameRef(selection.value, focus.value) ?
 /** What is drawn highlighted: the focus, its levels and what is linked to it (e.g. its truth particle). What contains it
  *  is listed in the inspector, not highlighted: big containers would cover it. */
 export const highlight = computed(() => {
-  const b = bundle.value, ev = event.value, f = focus.value, parts = focusParts.value;
+  const b = bundle.value, ev = event.value, f = focus.value, parts = focusParts.value, pair = pairView.value;
+  if (pair && f && b) { // the pair view: the objects of the pair, wherever they ended up, and the focus
+    const hl: Related = new Map([[f.table, new Set([f.row])]]);
+    // Missed layer clusters stay in the background: their hits show the same, and the many one-hit clusters of a
+    // shower's halo would otherwise cover the clusters that were used (markers are drawn on top of the hits).
+    const markers = new Set(b.header.display.filter((d) => d.repr === "markers").map((d) => d.table));
+    for (const [t, cls] of pair.classes) {
+      const rows = hl.get(t) ?? new Set<number>(), skip = markers.has(t) ? PAIR.missed : -1;
+      for (let i = 0; i < cls.length; i++) if (cls[i] !== PAIR.other && cls[i] !== skip) rows.add(i);
+      if (rows.size) hl.set(t, rows);
+    }
+    return hl;
+  }
   return b && ev && f && parts ? levelsOf(ev, b.header, f, parts) : null;
 });
 /** Objects linked to the focus through an association (its truth; a truth particle's reco objects): a click on one

@@ -156,6 +156,16 @@ async function checkLevels(page, h, target, fail, shot, tag) {
   await page.waitForTimeout(600);
   if ((await drawn()) !== before) fail("↑ did not go back to the focus's default layers");
   if ((await style()) !== style0) fail("↑ did not give the focus its own surface back");
+  // In the truth <-> reco pair view, the pair's particle shows the same layers as its candidate.
+  const particle = page.locator(".inspector .truthline .chip").first();
+  if (!(await page.locator(".pairline").count()) || !(await particle.count())) return;
+  await particle.click();
+  await page.waitForTimeout(900);
+  const fromTruth = await drawn();
+  log(`${tag}: the pair from its particle: ${fromTruth === before ? "same layers" : `other layers (${fromTruth})`}`);
+  if (fromTruth !== before) fail("the pair's particle and candidate draw different layers");
+  await page.locator(".focusbar button", { hasText: "←" }).click({ force: true, timeout: 30000 });
+  await page.waitForTimeout(600);
 }
 
 async function deepChecks(page, fail, shot) {

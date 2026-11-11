@@ -14,11 +14,11 @@ import { planReplay, type Plan } from "../render/replay";
 import { back, jump } from "./navigate";
 import {
   activeMode, bundle, cuts, describe, event, focus, focusHidden, focusHistory, focusIsTruth, focusLayers, focusLevel, focusLinked, following,
-  highlight, hover, inFocus, isHitLayer, kindOf, labelOf, layerKey, layerOf, legends, levels, pairView, rawEvent, replayCaption, selection, short,
+  highlight, hover, inFocus, isHitLayer, kindOf, labelOf, layerKey, layerOf, legends, levels, levelTop, pairView, rawEvent, replayCaption, selection, short,
   showAll, shown, shownLayer, shownLevel, theme, touring, view, visible,
 } from "../model/store";
 import { PAIR } from "../model/pair";
-import { relationInto, type Ref } from "../model/relations";
+import { relationInto, type Ref, sameRef } from "../model/relations";
 import { stopTour } from "./tour";
 
 export let engine: Engine | null = null;
@@ -272,13 +272,14 @@ export function Viewport() {
 }
 
 /** What the view is focused on, the way back, and how to leave. */
+const refName = (r: Ref) => {
+  const n = describe(r.table, r.row);
+  return `${kindOf(r.table)}${n ? ` · ${n}` : ` #${r.row}`}`;
+};
+
 function FocusBar() {
-  const f = focus.value, prev = focusHistory.value.at(-1);
+  const f = focus.value, prev = focusHistory.value.at(-1), name = refName;
   if (!f) return null;
-  const name = (r: Ref) => {
-    const n = describe(r.table, r.row);
-    return `${kindOf(r.table)}${n ? ` · ${n}` : ` #${r.row}`}`;
-  };
   return (
     <div class="focusbar" role="status">
       <div class="row" title="It is shown with its smallest parts; only its parts can be clicked">
@@ -294,10 +295,11 @@ function FocusBar() {
 /** The kinds of object the focus is made of, top first: the last one (e.g. hits) is always shown, one of the others
  *  on request (a click, or ↓ ↑), so they do not cover each other. */
 function Levels() {
-  const lv = levels.value, chosen = focusLevel.value;
+  const lv = levels.value, chosen = focusLevel.value, top = levelTop.value;
   if (lv.length < 2) return null;
   return (
     <div class="row levels" title="What it is made of, from the largest objects down: click one to show it as well (↓ ↑)">
+      {top && !sameRef(top, focus.value) && <span class="muted">{refName(top)}:</span>}
       {lv.map((l, i) => {
         const last = i === lv.length - 1, on = last || l.name === chosen;
         return (
@@ -377,7 +379,7 @@ const hexRgb = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2
 
 /** While a level is shown inside the focus (e.g. a candidate's tracksters), the focus's layer draws it as a
  *  full-size outline around them: the largest object, without covering what is inside. */
-const isEnvelope = (layer: Layer) => !!shownLevel.peek() && layer.table === focus.peek()?.table;
+const isEnvelope = (layer: Layer) => !!shownLevel.peek() && layer.table === levelTop.peek()?.table;
 
 /** Highlight the focus and what belongs to it on every layer (outlines for reco objects when the focus is a
  *  truth particle, except in the pair view, which looks the same from either side; the focus as an envelope, see

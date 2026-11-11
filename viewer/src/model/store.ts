@@ -209,11 +209,18 @@ effect(() => {
   else if (!sel) { focus.value = null; focusLevel.value = null; if (focusHistory.peek().length) focusHistory.value = []; }
 });
 
+/** The object whose levels are shown: in the pair view, the pair's candidate, so that its particle, the candidate and
+ *  anything inside them give the same picture; else the focus. */
+export const levelTop = computed<Ref | null>(() => {
+  const pair = pairView.value;
+  return pair && pair.candidate >= 0 ? { table: pair.reco, row: pair.candidate } : focus.value;
+});
+const topParts = computed(() => (sameRef(levelTop.value, focus.value) ? focusParts.value : partsOf(levelTop.value)));
 /** The kinds of object the focus is made of, top first (see model/levels.ts); its own kind and truth are not levels. */
 export const levels = computed(() => {
-  const b = bundle.value, f = focus.value, hl = highlight.value, parts = focusParts.value;
-  if (!b || !f || !hl || !parts) return [];
-  return focusLevels(b.header.display, f.table, hl, (t) => parts.madeOf.has(t) || !parts.linked.has(t));
+  const b = bundle.value, top = levelTop.value, hl = highlight.value, parts = topParts.value;
+  if (!b || !top || !hl || !parts) return [];
+  return focusLevels(b.header.display, top.table, hl, (t) => parts.madeOf.has(t) || !parts.linked.has(t));
 });
 /** The chosen level, if the focus has it and it is not the bottom one (drawn anyway); else null. */
 export const shownLevel = computed(() => {

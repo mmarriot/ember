@@ -56,7 +56,8 @@ highest ancestor that owns hits or is matched; a reco object takes its best trut
 the most simulated energy in it), then that particle's best candidate. So the particle, its candidate and anything
 inside them give the same pair and the same picture; a selected candidate that is not its particle's best (a
 fragment) shows as split. Without a particle (no truth in the file, or none matched) the pair is the selection's
-candidate alone, and its objects show as "in the candidate". Every layer is coloured by where its objects ended up:
+candidate alone, and its objects show as "in the candidate". The levels in the focus bar are then the pair
+candidate's, whichever of its objects is selected. Every layer is coloured by where its objects ended up:
 
 | class | meaning |
 |---|---|

@@ -23,13 +23,40 @@ from .bundle import BundleWriter, type_code
 
 PROFILES = os.path.join(os.path.dirname(__file__), "profiles")
 OPS = {"<": np.less, "<=": np.less_equal, ">": np.greater, ">=": np.greater_equal, "==": np.equal, "!=": np.not_equal}
-VIEWER_KEYS = ("replay", "view", "summaries", "runTitle", "runFields", "presets")  # passed to the viewer verbatim
+# Profile keys the converter acts on; every other top-level key is a viewer setting, copied to the header verbatim.
+PROFILE_KEYS = {"name", "note", "include", "exclude", "internal", "sameRows", "derive", "relations", "cuts", "select",
+                "display", "kinds", "prefer", "stages"}
+HEADER_KEYS = {"schema", "source", "profile", "tables"}  # written by the converter, not taken from the profile
 
 
-def load_profile(name_or_path):
-    path = name_or_path if os.path.exists(name_or_path) else os.path.join(PROFILES, f"{name_or_path}.json")
+def _merge(a, b):
+    """`b` over `a`: dicts merge key by key (recursively), lists concatenate, anything else: `b` wins."""
+    if isinstance(a, dict) and isinstance(b, dict):
+        return {**a, **{k: _merge(a[k], v) if k in a else v for k, v in b.items()}}
+    if isinstance(a, list) and isinstance(b, list):
+        return a + b
+    return b
+
+
+def load_profile(name_or_path, _within=()):
+    """A profile with its `include`s resolved: the included profiles (by name or path, looked up next to the
+    including profile first, then among the built-in ones) merged in order, then the profile's own keys over them.
+    An included profile's `name` is not inherited."""
+    here = os.path.dirname(_within[-1]) if _within else ""
+    candidates = [os.path.join(here, name_or_path), os.path.join(here, f"{name_or_path}.json")] if here else \
+        [name_or_path]
+    path = next((c for c in candidates if os.path.isfile(c)), os.path.join(PROFILES, f"{name_or_path}.json"))
+    path = os.path.realpath(path)
+    if path in _within:
+        raise ValueError(f"profile {path} includes itself (through {' -> '.join(_within)})")
     with open(path) as f:
-        return json.load(f)
+        profile = json.load(f)
+    merged = {}
+    for name in profile.pop("include", []):
+        included = load_profile(name, (*_within, path))
+        included.pop("name", None)
+        merged = _merge(merged, included)
+    return _merge(merged, profile)
 
 
 def discover(tree):
@@ -315,10 +342,18 @@ class Converter:
         # every event and not written; relations to or from them are redirected to the kept table.
         self.same = [s for s in profile.get("sameRows", []) if s["keep"] in self.tables and s["drop"] in self.tables]
         self.internal = (set(profile.get("internal", [])) & set(self.tables)) | {s["drop"] for s in self.same}
+        self.derived = set()
+        for s in self.same:  # `copy`: columns of the dropped table that the kept one takes over
+            keep, drop = self.tables[s["keep"]]["columns"], self.tables[s["drop"]]["columns"]
+            for c in s.get("copy", []):
+                if c not in drop or c in keep:
+                    raise ValueError(f"sameRows {s['keep']} / {s['drop']}: cannot copy column {c} (missing from "
+                                     f"{s['drop']}, or already in {s['keep']})")
+                keep[c] = drop[c]
+                self.derived.add((s["keep"], c))
 
         self.derive = [d for d in profile.get("derive", [])
                        if d["table"] in self.tables and d.get("lookup", d["table"]) in self.tables]
-        self.derived = set()
         for d in self.derive:
             for c, meta in _derived_columns(d, self.tables).items():
                 self.tables[d["table"]]["columns"][c] = meta
@@ -357,7 +392,9 @@ class Converter:
         self.display = _display(profile, self.written(), self.relations)
         for layer in self.display:
             self._check_display(layer)
-        self.viewer_hints = {k: profile[k] for k in VIEWER_KEYS if k in profile}
+        self.viewer_hints = {k: v for k, v in profile.items() if k not in PROFILE_KEYS}
+        if set(self.viewer_hints) & HEADER_KEYS:
+            raise ValueError(f"profile keys {sorted(set(self.viewer_hints) & HEADER_KEYS)} are the bundle header's own")
 
     def _available(self, rel):
         """A relation is kept if all its tables are in the file; then every column it names must exist."""
@@ -389,7 +426,8 @@ class Converter:
         table = layer["table"]
         cut = layer.get("cut") or {}
         named = [*layer["position"], *layer.get("end", []), *layer.get("axis", []), *layer.get("extent", []),
-                 *(layer.get(k) for k in ("colour", "size", "time")), cut.get("column")]
+                 *layer.get("momentum", []), *(layer.get(k) for k in ("colour", "size", "time", "charge")),
+                 cut.get("column")]
         missing = [c for c in named if c and c not in self.tables[table]["columns"]]
         if missing:
             raise ValueError(f"display {table}: no column {', '.join(missing)}; "
@@ -533,6 +571,7 @@ class Converter:
         tables.update(run_tables or {})
         for s in self.same:
             _check_same(s, tables, event_id)
+            tables[s["keep"]][1].update({c: tables[s["drop"]][1][c] for c in s.get("copy", [])})
         self._derive(tables, skip=self.run_scope)
         relations = {}
         for name, rel in self.relations.items():  # in profile order, so a composition follows its parts

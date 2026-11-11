@@ -1,10 +1,12 @@
 """Profile resolution against a file's tables: display kinds, sources and stages, column checks, sameRows, derived
 columns, relation kinds beyond the plain ones, and the hints passed to the viewer."""
+import json
+
 import numpy as np
 import pytest
 from nanoaod import chunk, converter
 
-from evdtools.nano import _compose, _gather
+from evdtools.nano import _compose, _gather, load_profile
 
 F4, I4, U4 = np.dtype("f4"), np.dtype("i4"), np.dtype("u4")
 XYZE = dict.fromkeys(("x", "y", "z", "e"), F4)
@@ -184,11 +186,60 @@ def test_neighbour_distance_derive():
 
 
 def test_viewer_hints_are_passed_to_the_header():
+    """Every top-level key the converter does not act on is a viewer setting, copied verbatim."""
     hints = {"replay": {"direction": [0, -1, 0]}, "view": {"minRadius": 25}, "summaries": [],
-             "presets": [{"name": "E"}], "runTitle": "{Beam}", "runFields": ["Beam"]}
+             "presets": [{"name": "E"}], "runTitle": "{Beam}", "runFields": ["Beam"],
+             "domains": [{"name": "Tracker", "region": {"rMax": 125}}], "field": {"bz": 3.8, "rMax": 295, "zMax": 300}}
     best = {"weight": "score", "order": "min"}
     relation = {"name": "r", "kind": "index", "from": "A", "to": "B", "index": "A.k", "association": True, "best": best}
     header = converter({"A": {"k": I4}, "B": {}}, {**hints, "relations": [relation]}).header([], "t")
     assert {k: header[k] for k in hints} == hints
     assert header["relations"]["r"] == {"from": "A", "to": "B", "weights": [], "association": True, "best": best}
     assert not set(hints) & set(converter({}, {}).header([], "t"))
+    assert "note" not in converter({}, {"note": "for readers"}).header([], "t")  # a profile key, not a hint
+    with pytest.raises(ValueError, match="header's own"):
+        converter({}, {"tables": {}})
+
+
+def test_include_merges_profiles(tmp_path):
+    """Included profiles merge in order, then the profile's own keys: dicts key by key, lists concatenate, other
+    values are replaced. Includes are found next to the including profile, else among the built-in profiles."""
+    write = lambda name, p: (tmp_path / f"{name}.json").write_text(json.dumps(p))
+    write("a", {"name": "a", "note": "A", "internal": ["X"], "kinds": {"hit": {"repr": "cells", "cut": {"default": 1}}},
+                "view": {"minRadius": 90}})
+    write("b", {"name": "b", "internal": ["Y"], "kinds": {"track": {"repr": "helix"}}, "field": {"bz": 3.8}})
+    write("top", {"include": ["a", "b"], "kinds": {"hit": {"domain": "HGCal", "cut": {"default": 2}}},
+                  "view": {"start": "3d"}})
+    p = load_profile(str(tmp_path / "top.json"))
+    assert "include" not in p and "name" not in p  # an included profile's name is not inherited
+    assert p["note"] == "A" and p["internal"] == ["X", "Y"] and p["field"] == {"bz": 3.8}
+    assert p["kinds"] == {"hit": {"repr": "cells", "cut": {"default": 2}, "domain": "HGCal"}, "track": {"repr": "helix"}}
+    assert list(p["kinds"]) == ["hit", "track"]  # the order of first appearance (kinds order the layers)
+    assert p["view"] == {"minRadius": 90, "start": "3d"}
+    write("builtin", {"include": ["testbeam"], "name": "mine"})
+    assert load_profile(str(tmp_path / "builtin.json"))["name"] == "mine"  # a built-in profile, by name
+    write("loop", {"include": ["loop2"]})
+    write("loop2", {"include": ["loop"]})
+    with pytest.raises(ValueError, match="includes itself"):
+        load_profile(str(tmp_path / "loop.json"))
+
+
+def test_same_rows_copy_takes_over_columns():
+    """sameRows `copy`: the kept table gains columns of the dropped one (e.g. the HGCal entry point that another
+    producer wrote for the same tracks), so derives and layers that used them keep working."""
+    profile = {"sameRows": [{"keep": "T", "drop": "OldT", "columns": [["pt", "pt"]], "copy": ["hx"]}],
+               "relations": [{"name": "candT", "kind": "index", "from": "C", "to": "OldT", "index": "C.t"}],
+               "derive": [{"table": "C", "gather": [{"relation": "candT", "columns": {"x": "hx"}}]}]}
+    conv = converter({"T": {"pt": F4}, "OldT": {"pt": F4, "hx": F4}, "C": {"t": I4}}, profile)
+    assert "hx" in conv.written()["T"]["columns"] and "T_hx" not in conv.branches()
+    _, tables, _ = one_event(conv, {"T": {"pt": [1, 2]}, "OldT": {"pt": [1, 2], "hx": [5, 6]}, "C": {"t": [1]}})
+    assert tables["T"][1]["hx"].tolist() == [5, 6] and tables["C"][1]["x"].tolist() == [6]
+    with pytest.raises(ValueError, match="cannot copy column hx"):
+        converter({"T": {"pt": F4, "hx": F4}, "OldT": {"pt": F4, "hx": F4}}, profile)
+
+
+def test_helix_columns_are_checked():
+    layer = {"table": "T", "repr": "helix", "position": ["x", "y", "z"], "momentum": ["px", "py", "pz"],
+             "charge": "q", "end": ["x", "y", "z"]}
+    with pytest.raises(ValueError, match="display T: no column pz, q"):
+        converter({"T": {**XYZE, "px": F4, "py": F4}}, {"display": [layer]})

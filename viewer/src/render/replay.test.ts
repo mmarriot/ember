@@ -136,6 +136,13 @@ describe("replay timeline", () => {
     const d = { table: "Tracks", repr: "helix", group: "Tracks", label: "Tracks", grow: { parts: "none" } } as DisplayLayer;
     const plan = planReplay([h.item, { layer: tracks, d, t: { n: 1, columns: {} } }], undefined);
     expect(plan.clusterStart).toBeGreaterThan(plan.growth!.end - 1e-6);
+    // no parts drawn: nothing to seed, the building starts at once and its captions do not name the parts
+    expect(plan.growth!.build).toBe(plan.growth!.start);
+    expect(plan.caption(plan.growth!.start + 0.1)).toEqual({ title: "Building tracks outwards", detail: "each follows its path out from its start" });
+    const named = planReplay([h.item, { layer: tracks, d, t: { n: 1, columns: {} } }], undefined,
+      () => ({ to: "Absent", offsets: Uint32Array.of(0, 0), indices: new Uint32Array(), name: "track hits" }));
+    expect(named.growth!.build).toBe(named.growth!.start);
+    expect(named.caption(named.growth!.end - 0.1)?.detail).toBe("a fit gives each its final path");
     expect(plan.linkStart - plan.clusterStart).toBeCloseTo(without.linkStart - without.clusterStart, 6);
   });
   it("ends the physics window with the other hits when the parts of built paths arrive before them", () => {

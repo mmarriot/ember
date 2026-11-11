@@ -45,11 +45,14 @@ export function replayEvent(): Plan | null {
   const header = bundle.peek()?.header, hints = new Map(header?.display.map((d) => [layerKey(d), d]));
   const items = entries.filter((e) => !e.d.context).map((e) => ({ ...e, d: hints.get(e.key) ?? e.d })); // background stays as it is
   const ev = event.peek(), parts: Parts = (name) => {
-    const r = header?.relations[name], rel = ev?.relations[name];
-    return r && rel ? { to: r.to, offsets: rel.offsets, indices: rel.indices } : undefined;
+    const r = header?.relations[name], rel = ev?.relations[name], to = r && layerOf(r.to);
+    return r && rel ? { to: r.to, offsets: rel.offsets, indices: rel.indices, name: to ? (to.kind ? to.group : to.label).toLowerCase() : undefined } : undefined;
   };
   plan = planReplay(items, header?.replay, parts);
+  // The parts drawn whole only for the replay shrink away at its end, rather than vanishing when the layers are rebuilt.
+  for (const e of entries) if (replayOnly(e.d, e.key, highlight.peek())) e.layer.setRetire(plan.linkEnd);
   engine.replay(plan.seconds);
+  if (import.meta.env.DEV) Object.assign(window, { evdPlan: plan }); // for the e2e tests
   return plan;
 }
 
@@ -359,17 +362,18 @@ function Tooltip() {
 const bypassing = (d: DisplayLayer, f: Record<string, string>, hl: Map<string, Set<number>> | null) =>
   d.filter && f[d.table] === d.filter ? hl?.get(d.table) : undefined;
 
-/** Whether `table` holds the parts of paths built in the replay (display hint `grow`): a replay of the whole event draws
- *  them all, so the building can be seen. */
-const grownFrom = (table: string) => {
-  const h = bundle.peek()?.header;
-  return !!h?.display.some((d) => d.grow && h.relations[d.grow.parts]?.to === table);
+/** Whether a layer that shows only the focus's objects is drawn whole only because a replay of the whole event builds
+ *  paths from its objects (display hint `grow` on a drawn layer), so the building can be seen. */
+const replayOnly = (d: DisplayLayer, key: string, hl: Map<string, Set<number>> | null) => {
+  const h = bundle.peek()?.header, drawn = drawnLayers.peek();
+  return !!d.onSelection && !showAll.peek()[key] && replaying.peek() && !hl
+    && !!h?.display.some((p) => p.grow && drawn[layerKey(p)] && inDomain(p) && h.relations[p.grow.parts]?.to === d.table);
 };
 
 /** For a layer that shows only the focus's objects: the rows to keep (none without a focus), less those reached only
  *  from objects a cut hides (the hits and truth of a vertex's tracks below the pT cut); else undefined. */
 const onlyFor = (d: DisplayLayer, key: string, hl: Map<string, Set<number>> | null) => {
-  if (!d.onSelection || showAll.peek()[key] || (replaying.peek() && !hl && grownFrom(d.table))) return undefined;
+  if (!d.onSelection || showAll.peek()[key] || replayOnly(d, key, hl)) return undefined;
   const rows = hl?.get(d.table);
   if (!rows) return new Set<number>();
   const cut = belowCut(d.table, hl!);

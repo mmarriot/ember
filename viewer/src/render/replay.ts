@@ -27,13 +27,15 @@ const MISSING = -50; // ns: HGCal stores "no time" as -99
 
 export interface ReplayItem { layer: Layer; d: DisplayLayer; t: Table; emphasis?: Uint8Array }
 export interface Caption { title: string; detail?: string }
-/** The parts of each object of a relation's `from` table (e.g. a track's hits): rows of `to`, in CSR form. */
-export type Parts = (relation: string) => { to: string; offsets: Uint32Array; indices: Uint32Array } | undefined;
+/** The parts of each object of a relation's `from` table (e.g. a track's hits): rows of `to`, in CSR form; `name`: what
+ *  the parts are called (e.g. "track hits"), also when their layer is not drawn. */
+export type Parts = (relation: string) => { to: string; offsets: Uint32Array; indices: Uint32Array; name?: string } | undefined;
 export interface Plan {
   seconds: number; // total
   travel: number; clusterStart: number; linkStart: number; linkEnd: number; // phase boundaries (s)
-  /** Path building, when a layer has the `grow` hint: seeding from `start`, building from `build` to `end` (s). */
-  growth?: { start: number; build: number; end: number; tables: string[] };
+  /** Path building, when a layer has the `grow` hint: seeding from `start`, building from `build`, every path whole by
+   *  `complete`, the fit until `end` (s). */
+  growth?: { start: number; build: number; complete: number; end: number; tables: string[] };
   stages: { start: number; tables: string[] }[]; // reconstruction stages present, in order
   caption(s: number): Caption | null;
 }
@@ -127,11 +129,11 @@ export function planReplay(items: ReplayItem[], how: Header["replay"], parts?: P
 
   const linkEnd = stages.length ? stages[stages.length - 1].start + STAGE[1] : shower || grouped ? link0 + LINK[1] : built ? built.end : TRAVEL * LATE;
   const name = (x?: ReplayItem) => (x?.d.kind ? x.d.group : x?.d.label ?? "").toLowerCase(); // "layer clusters", not "merged"
-  const paths = name(growing[0]), bits = built?.partsItem ? name(built.partsItem) : "parts";
+  const paths = name(growing[0]), bits = built?.partsName ?? "parts";
   return {
     seconds: linkEnd + SETTLE, travel: TRAVEL, clusterStart: cluster0, linkStart: link0, linkEnd,
     stages: stages.map(({ start, tables }) => ({ start, tables })),
-    ...(built ? { growth: { start: built.start, build: built.build, end: built.end, tables: growing.map(({ d }) => d.table) } } : {}),
+    ...(built ? { growth: { start: built.start, build: built.build, complete: built.end - FIT, end: built.end, tables: growing.map(({ d }) => d.table) } } : {}),
     caption(s) {
       if (s < TRAVEL * LATE)
         return random
@@ -142,8 +144,9 @@ export function planReplay(items: ReplayItem[], how: Header["replay"], parts?: P
               detail: measured ? `${Math.round((100 * measured) / total)}% of hits at their measured time, the rest at their time of flight` : "times of flight from the collision point" };
       if (built && s < built.end) {
         if (s < built.build) return { title: `Seeding ${paths}`, detail: `each starts from a seed: its first ${built.seed} ${bits}` };
-        if (s < built.end - FIT) return { title: `Building ${paths} outwards`, detail: `each follows its path from the seed, picking up the ${bits} it crosses` };
-        return { title: `Fitting ${paths}`, detail: `a fit through all its ${bits} gives each its final path` };
+        if (s < built.end - FIT)
+          return { title: `Building ${paths} outwards`, detail: built.seeded ? `each follows its path from the seed, picking up the ${bits} it crosses` : "each follows its path out from its start" };
+        return { title: `Fitting ${paths}`, detail: built.seeded ? `a fit through all its ${bits} gives each its final path` : "a fit gives each its final path" };
       }
       if (grouped && s < link0) return { title: `Clustering hits into ${name(grouped)}` };
       if (stages.length && s < linkEnd + SETTLE) {
@@ -176,10 +179,17 @@ function convention(col: ArrayLike<number | bigint>, tof: Float64Array): 0 | 1 |
  *  path appears and is complete; per layer of their parts, when each part lights up (NEVER for the parts of paths not
  *  drawn: below a cut, filtered out). */
 function buildPaths(items: ReplayItem[], growing: ReplayItem[], parts?: Parts) {
-  const start = TRAVEL * LATE, build = start + SEEDS + PAUSE, end = build + BUILD + FIT;
+  // Each path layer's parts and the index of their layer in `items` (-1: not drawn). Without parts drawn there is
+  // nothing to seed: the building starts at once.
+  const links = growing.map(({ d }) => {
+    const rel = d.grow && parts?.(d.grow.parts);
+    return { rel, k: rel ? items.findIndex((it) => it.d.table === rel.to) : -1 };
+  });
+  const named = links.map(({ rel, k }) => rel?.name ?? (k >= 0 ? (items[k].d.kind ? items[k].d.group : items[k].d.label).toLowerCase() : undefined));
+  const seeded = links.some(({ k }) => k >= 0), seed = growing[0].d.grow?.seed ?? SEED, partsName = named.find((x) => x);
+  const start = TRAVEL * LATE, build = seeded ? start + SEEDS + PAUSE : start, end = build + BUILD + FIT;
   const paths = new Map<number, { appear: Float32Array; done: Float32Array }>(), lit = new Map<number, Float32Array>();
-  let partsItem: ReplayItem | undefined, seed = SEED;
-  for (const item of growing) {
+  for (const [g, item] of growing.entries()) {
     const { layer, d } = item, path = layer.path!, n = layer.x.length, P = path.points, { x, y, z } = path;
     // Arc length of each drawn path, from its polyline (the piece joining the arc to the end point is drawn last).
     const length = new Float32Array(n), drawn: number[] = [];
@@ -194,23 +204,21 @@ function buildPaths(items: ReplayItem[], growing: ReplayItem[], parts?: Parts) {
     for (const i of drawn) done[i] = build + BUILD * Math.max(0.05, Math.min(1, length[i] / longest)); // one speed
     paths.set(items.indexOf(item), { appear, done });
 
-    const rel = d.grow && parts?.(d.grow.parts), k = rel ? items.findIndex((it) => it.d.table === rel.to) : -1;
+    const { rel, k } = links[g];
     if (!rel || k < 0) continue;
-    const hits = items[k].layer;
-    seed = d.grow!.seed ?? SEED;
-    partsItem = items[k];
+    const hits = items[k].layer, first = d.grow?.seed ?? SEED;
     let out = lit.get(k);
     if (!out) lit.set(k, (out = new Float32Array(hits.x.length).fill(NEVER)));
     for (const i of drawn) {
-      const seededAt = start + SEEDS * ((Math.imul(i + 1, 2654435761) >>> 0) / 4294967296), first = rel.offsets[i];
-      for (let m = first; m < rel.offsets[i + 1]; m++) {
+      const seededAt = start + SEEDS * ((Math.imul(i + 1, 2654435761) >>> 0) / 4294967296), from = rel.offsets[i];
+      for (let m = from; m < rel.offsets[i + 1]; m++) {
         const h = rel.indices[m];
-        const t = m - first < seed ? seededAt : build + (done[i] - build) * along(path, i, hits.x[h], hits.y[h], hits.z[h]);
+        const t = m - from < first ? seededAt : build + (done[i] - build) * along(path, i, hits.x[h], hits.y[h], hits.z[h]);
         if (t < out[h]) out[h] = t; // a part of several paths: the first to reach it
       }
     }
   }
-  return { start, build, end, seed, paths, parts: lit, partsItem };
+  return { start, build, end, seed, seeded, partsName, paths, parts: lit };
 }
 
 /** How far along path i's arc (0 to 1) its polyline comes nearest to (x, y, z); the piece joining the arc to the end

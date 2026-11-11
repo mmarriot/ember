@@ -110,6 +110,8 @@ draws the others.
 | `particle` | truth particles: `{"flags", "bit", "first"}`, the level that is "the particle" ([truth.md](truth.md#two-levels-the-particle-and-each-kinds-target)): rows with `bit` set in the integer column `flags` (truth::LevelFlag bit 2: generator-level stable). With `"colourBy": "identity"`, a particle takes the colour of its highest ancestor in the level; with `first` (e.g. `isSignal`), only rows with it non-zero take colours (the others, pile-up, are drawn small in their own grey); rows in the level before those above it, then by size. The viewer's Truth colours need this hint |
 | `onSelection` | draw only objects related to the selection (none without one), until the user asks for all; not those reached only from objects a cut hides (the hits of a vertex's tracks below the pT cut). The selected object itself is drawn whatever the cut |
 | `describe` | `{"columns": [...], "names": {column: {value: name}}}`: how to name an object in lists (related objects, tree, inspector), e.g. `["pdgId", "energy"]` with PDG names |
+| `list` | `{"columns": [...], "sort": column, "max": n, "headline": "count"\|"value"}`: object rows under the layer in its side-panel tab (the Physics tab's event summary): its `max` (default 10) largest objects by `sort` (default: its cut, colour or energy column) that pass its cut and filter, with these columns; a click selects one. The tab's headline counts them, or with `"value"` gives the first column of a one-object table (MET) |
+| `inspect` | `[columns]`: the inspector's summary rows (e.g. `pt`, `eta`, `phi` of a jet), instead of the columns that colour, place and size the layer |
 
 ### Viewer settings
 
@@ -122,7 +124,8 @@ All optional; the converter copies them from the profile.
 - `view`: `{"start": "3d"|"front"|"side"|"rz", "minRadius": cm, "tour": "beam"|"orbit"}`. `start`: the view on
   opening (`front`, `side` and `rz` are 2D views: orthographic, pan and zoom only). `minRadius` (default 70): the smallest radius framed around the objects, e.g. small for a test-beam
   stack. `tour`: `beam` for collider data (the camera stays outside the detector, glides to the showers and back),
-  `orbit` (default) frames the objects at their own scale and orbits them.
+  `orbit` (default) frames the objects at their own scale and orbits them. `domain`: the domain the viewer opens on (one of `domains`,
+  e.g. `Physics`).
 - `summaries`: `[{"title", "table", "groupBy", "value", "op", "unit", "where"}]`: per-event charts of the `table`
   rows that pass the cuts (and the expression `where`), grouped by the integer column `groupBy`; `op` is `count`,
   `sum` or `mean` (of `value`).
@@ -132,9 +135,11 @@ All optional; the converter copies them from the profile.
   `{"Tracks": "rel:trackVertex"}`: each track in its vertex's colour). Applying one first resets every table any preset touches to its
   default colour and `filter` hint. The first preset is active on opening, unless the viewer remembers another one
   chosen for the same profile.
-- `domains`: `[{"name", "region": {"rMax", "zMax"}, "view", "colourMode", "minRadius"}]`: the parts of the detector, in order (cm; z
-  is |z|, so a region covers both ends). With two or more, the viewer offers All · <name> · <name>: a domain's view
-  draws its layers (display hint `domain`) and those without a domain, frames the cylinder `rMax`, `zMax` (in the
+- `domains`: `[{"name", "region": {"rMax", "zMax"}, "view", "colourMode", "minRadius", "shared"}]`: the parts of the detector, in order (cm; z
+  is |z|, so a region covers both ends). With two or more, the viewer offers <name> · <name> · All: a domain's view
+  draws its layers (display hint `domain`), those of `shared` domains and those without a domain (a `shared` domain,
+  e.g. the physics objects, has its layers drawn in every domain, and its own view draws only them and those without a
+  domain), frames the cylinder `rMax`, `zMax` (in the
   front and side views, its section through the beam line, which then fills the view), and switches to `view` (`3d`,
   `front`, `side`, `rz`). A layer of another domain is still drawn when a selection has objects in it (e.g. a track's
   calorimeter candidate). `colourMode`, a colour mode id of the viewer: `"layers"`: while the domain is looked at,

@@ -50,12 +50,12 @@ async function checkBundle(file, tag, state) {
     await page.waitForTimeout(500);
     await page.screenshot({ path: `${out}/${tag}_${name}.png`, timeout: 60000 }).catch(() => log(`${tag}: screenshot ${name} timed out`));
   };
-  const open = async (hash) => { // a fresh page each time: software WebGL is slow to let go of a big scene
+  const open = async (hash, query = false) => { // a fresh page each time: software WebGL is slow to let go of a big scene
     await page?.close();
     page = state.page = await browser.newPage({ viewport: small ? { width: 720, height: 450 } : { width: 1440, height: 860 } });
     page.on("console", (m) => m.type() === "error" && fail(m.text()));
     page.on("pageerror", (e) => fail(e.message));
-    await page.goto(`${base}#${hash}`, { timeout: 90000 });
+    await page.goto(`${base}${query ? "?" : "#"}${hash}`, { timeout: 90000 });
     await page.waitForSelector(".eventid strong:has-text('Event')", { timeout: 90000 });
     await page.waitForTimeout(1200);
   };
@@ -136,6 +136,18 @@ async function checkBundle(file, tag, state) {
   if (row && (await pills()) < 2) await open(`b=${file}&e=1${all}&s=${target.table}:${(row = 0)}`);
   await checkLevels(page, h, target, fail, shot, tag);
   await checkDomainFocus(page, h, fail, shot, tag);
+  // A shared link reopens its state: data set, event (its place in the file), domain and selection, also written as a
+  // query (?b=…) rather than the hash.
+  const names = (h.domains ?? []).map((d) => d.name), part = names.find((n) => !h.domains.find((d) => d.name === n).shared);
+  for (const query of [false, true]) {
+    const want = { b: file, e: "2", ...(part ? { d: part } : {}), s: `${target.table}:${row}` };
+    await open(new URLSearchParams(want).toString(), query);
+    await page.waitForTimeout(800);
+    const got = Object.fromEntries(new URLSearchParams(new URL(page.url()).hash.slice(1))), at = await page.locator(".eventid small").innerText();
+    const bad = Object.entries(want).filter(([k, v]) => got[k] !== v).map(([k, v]) => `${k}=${got[k]} (not ${v})`);
+    log(`${tag}: link ${query ? "?" : "#"}${new URLSearchParams(want)} reopens ${bad.length ? `wrongly: ${bad.join(", ")}` : "its state"}; ${at}`);
+    if (bad.length || !/^3 of|· 3 of/.test(at.trim())) fail(`a ${query ? "query" : "hash"} link did not reopen its state: ${bad.join(", ") || at}`);
+  }
   const focused = async () => `${await page.locator(".focusbar b").innerText().catch(() => "")} (${decodeURIComponent(new URL(page.url()).hash.match(/s=([^&]+)/)?.[1] ?? "")})`;
   const first = await focused();
   await page.locator(".inspector [role=tab]", { hasText: "Related" }).click();

@@ -426,7 +426,7 @@ def test_muon_layers_in_cms():
     conv = converter(types, p)
     d = {x["table"]: x for x in conv.display}
     assert (d["Muons"]["domain"], d["Muons"]["repr"], d["MuonTracks"]["repr"], d["MuonTracks"]["points"]) == ("Physics", "helix", "polyline", {"relation": "muonTrackHits"})
-    assert d["MuonChambers"]["cell"]["shape"] == "box" and not d["MuonChambers"].get("context") and d["MuonHits"]["filter"] == "subdet != 4 || station != 0"
+    assert d["MuonChambers"]["cell"]["shape"] == "box" and not d["MuonChambers"].get("context") and d["MuonHits"]["filter"] == "subdet != 4 || station != 0" and d["MuonHits"]["onSelection"] and d["MuonChambers"]["onSelection"]
     assert d["MuonSegments"]["centred"] and d["Muons"]["truthGap"]["gap"] == 18 and d["MuonSegments"]["truthGap"]["gap"] == 17
     _, tables, rels = one_event(conv, {
         "Muons": {**{k: [1] for k in types["Muons"]}, "trackIdx": [0]}, "Tracks": {**{k: [1] for k in types["Tracks"]}, "outerX": [5], "outerY": [6], "outerZ": [7]},

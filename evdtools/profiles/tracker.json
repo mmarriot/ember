@@ -33,5 +33,10 @@
     {"name": "All vertices", "filters": {"Tracks": "highPurity == 1"}, "colour": {"Tracks": "rel:trackVertex"}}
   ],
   "domains": [{"name": "Tracker", "region": {"rMax": 120, "zMax": 280}, "view": "front", "colourMode": "layers", "minRadius": 15}],
-  "field": {"bz": 3.8, "rMax": 295, "zMax": 320}
+  "field": {"bz": 3.8, "rMax": 295, "zMax": 320},
+  "outlines": [
+    {"name": "Tracker", "r": [2, 118], "z": [0, 270]},
+    {"name": "MTD barrel", "r": [114, 118], "z": [0, 270]},
+    {"name": "MTD endcap", "r": [32, 118], "z": [296, 304]}
+  ]
 }

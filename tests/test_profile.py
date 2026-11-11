@@ -300,7 +300,7 @@ def test_cms_profile_joins_hgcal_and_tracker():
     HGCalNanoAOD's GeneralTrack folded in (its HGCal entry taken over, its relations redirected); hgcal.json alone is
     unchanged."""
     p = load_profile("cms")
-    assert p["name"] == "cms" and [d["name"] for d in p["domains"]] == ["Tracker", "HGCal"] and p["field"]["bz"] == 3.8
+    assert p["name"] == "cms" and [d["name"] for d in p["domains"]] == ["Tracker", "Calo", "HGCal"] and p["field"]["bz"] == 3.8
     assert p["kinds"]["rechit"]["domain"] == "HGCal" and p["kinds"]["rechit"]["repr"] == "cells"
     assert p["kinds"]["truthParticle"]["repr"] == "helix" and "domain" not in p["kinds"]["truthParticle"]
     assert load_profile("hgcal")["kinds"]["rechit"] == p["kinds"]["rechit"]
@@ -332,6 +332,21 @@ def test_cms_profile_joins_hgcal_and_tracker():
     assert tables["Tracks"][1]["hgcal_z"].tolist() == [-999, 322] and tables["TICLCandidates"][1]["x"].tolist() == [5]
     assert rels["candidateTrack"]["indices"].tolist() == [1] and rels["trackHits"]["offsets"].tolist() == [0, 2, 3]
     assert rels["trackVertex"]["indices"].tolist() == [0] and rels["vertexTracks"]["indices"].tolist() == [0]
+
+
+def test_calo_layers_in_cms():
+    """cms includes calo.json: the barrel and forward calorimeter hits as towers in the Calo domain, one cut group
+    per subdetector, HO and HF hidden, HF not drawn in the front view; HGCal truth -> hit relations are facts."""
+    p = load_profile("cms")
+    hit = {**XYZE, "energy": F4, "time": F4, "halfWidth": F4, "layer": np.dtype("i2")}
+    conv = converter({t: hit for t in ("EcalHits", "HBHEHits", "HOHits", "HFHits")}, p)
+    d = {x["table"]: x for x in conv.display}
+    assert {x["domain"] for x in d.values()} == {"Calo"} and all(x["cell"]["shape"] == "tower" for x in d.values())
+    assert [t for t, x in d.items() if x["visible"]] == ["EcalHits", "HBHEHits"]
+    assert len({x["cut"]["group"] for x in d.values()}) == 4 and "front" not in d["HFHits"]["views"]
+    assert [x["name"] for x in conv.header([], "t")["domains"]] == ["Calo"]
+    assert all(r["fact"] == {"in": "HGCal"} for r in p["relations"] if r["name"].startswith("truthHits"))
+    assert p["kinds"]["layerCluster"]["truthGap"]["derived"] == "content"
 
 
 def test_tracker_profile_alone_and_tracker_only():

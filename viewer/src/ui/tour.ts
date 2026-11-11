@@ -2,7 +2,7 @@
 // are visited one by one (selected, so the inspector describes them), then the next event; until any key or touch,
 // or the play button. Profile view.tour "beam" (collider data): the camera starts on the whole detector and never
 // enters it (Engine.tourCamera); "orbit" (default): it frames the objects at their own scale and orbits them.
-import { bundle, cuts, event, eventIndex, highlight, layerKey, selection, showAll, showEvent, sizeColumn, touring, view, visible } from "../model/store";
+import { bundle, cuts, event, eventIndex, highlight, layerKey, selection, showAll, showEvent, sizeColumn, touring, view, drawnLayers } from "../model/store";
 import { related, type Ref } from "../model/relations";
 import { isShower } from "../render/replay";
 import { stopLive } from "./live";
@@ -61,6 +61,14 @@ async function startTour() {
       // Start wide (collider data: the whole detector, both endcaps) while the particles travel; orbit tours come
       // closer to the action straight away.
       move(beam ? undefined : around(targets), plan.travel * 1000, 0.6);
+      if (plan.growth) { // closer on the paths while they are built (e.g. tracks in the tracker)
+        if (!(await until(plan.growth.start))) return;
+        move(everything(plan.growth.tables), (plan.growth.build - plan.growth.start) * 1000 + 800, 0.3, 1.15);
+        if (plan.linkEnd > plan.growth.end) { // back out for what follows (e.g. clusters forming in the endcaps)
+          if (!(await until(plan.growth.end))) return;
+          move(beam ? undefined : around(targets), (plan.linkStart - plan.growth.end) * 1000, 0.4);
+        }
+      }
       if (!(await until(plan.linkStart))) return; // circle while the clusters form
       // Glide into the leading shower while it is built and linked; at the last reconstruction step, pull back to
       // show every final object (and the tracks that reach them).
@@ -109,7 +117,7 @@ function around(targets: Ref[]) {
 function showers(k: number): Ref[] {
   const b = bundle.value, ev = event.value;
   if (!b || !ev) return [];
-  const drawn = b.header.display.filter((l) => visible.value[layerKey(l)] && ev.tables[l.table]?.n);
+  const drawn = b.header.display.filter((l) => drawnLayers.value[layerKey(l)] && ev.tables[l.table]?.n);
   const d = drawn.filter((l) => l.stage !== undefined).sort((a, c) => c.stage! - a.stage!)[0]
     ?? drawn.find(isShower);
   if (!d) return [];

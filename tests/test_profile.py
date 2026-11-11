@@ -1,10 +1,12 @@
 """Profile resolution against a file's tables: display kinds, sources and stages, column checks, sameRows, derived
 columns, relation kinds beyond the plain ones, and the hints passed to the viewer."""
+import json
+
 import numpy as np
 import pytest
 from nanoaod import chunk, converter
 
-from evdtools.nano import _compose, _gather
+from evdtools.nano import _compose, _gather, load_profile
 
 F4, I4, U4 = np.dtype("f4"), np.dtype("i4"), np.dtype("u4")
 XYZE = dict.fromkeys(("x", "y", "z", "e"), F4)
@@ -184,11 +186,143 @@ def test_neighbour_distance_derive():
 
 
 def test_viewer_hints_are_passed_to_the_header():
+    """Every top-level key the converter does not act on is a viewer setting, copied verbatim."""
     hints = {"replay": {"direction": [0, -1, 0]}, "view": {"minRadius": 25}, "summaries": [],
-             "presets": [{"name": "E"}], "runTitle": "{Beam}", "runFields": ["Beam"]}
+             "presets": [{"name": "E"}], "runTitle": "{Beam}", "runFields": ["Beam"],
+             "field": {"bz": 3.8, "rMax": 295, "zMax": 300}}
     best = {"weight": "score", "order": "min"}
     relation = {"name": "r", "kind": "index", "from": "A", "to": "B", "index": "A.k", "association": True, "best": best}
     header = converter({"A": {"k": I4}, "B": {}}, {**hints, "relations": [relation]}).header([], "t")
     assert {k: header[k] for k in hints} == hints
     assert header["relations"]["r"] == {"from": "A", "to": "B", "weights": [], "association": True, "best": best}
     assert not set(hints) & set(converter({}, {}).header([], "t"))
+    assert "note" not in converter({}, {"note": "for readers"}).header([], "t")  # a profile key, not a hint
+    with pytest.raises(ValueError, match="header's own"):
+        converter({}, {"tables": {}})
+
+
+def test_domains_without_layers_are_dropped():
+    """`domains` is copied to the header without the domains none of the written layers is in (e.g. HGCal in a
+    tracker-only bundle made from a profile that includes cms)."""
+    domains = [{"name": "Tracker", "region": {"rMax": 125}, "colourMode": "layers"}, {"name": "HGCal", "region": {}}]
+    kinds = {"hit": {"label": "Hits", "repr": "markers", "domain": "Tracker"}, "cell": {"label": "Cells", "repr": "cells", "domain": "HGCal"}}
+    display = [{"table": "T", "kind": "hit", "position": ["x", "y", "z"]}, {"table": "H", "kind": "cell", "position": ["x", "y", "z"]}]
+    profile = {"domains": domains, "kinds": kinds, "display": display}
+    assert converter({"T": XYZE, "H": XYZE}, profile).header([], "t")["domains"] == domains
+    assert converter({"T": XYZE}, profile).header([], "t")["domains"] == domains[:1]
+
+
+def test_inverse_of_is_checked_and_passed_when_both_relations_are_written():
+    """`inverseOf` (a part's pointer back up to its container) reaches the header only with the relation it names,
+    which must have the opposite ends."""
+    up = {"name": "up", "kind": "index", "from": "T", "to": "V", "index": "T.v", "inverseOf": "down"}
+    down = {"name": "down", "kind": "index", "from": "V", "to": "T", "index": "T.v"}
+    types = {"T": {"v": I4}, "V": {}}
+    header = converter(types, {"relations": [up, down]}).header([], "t")
+    assert header["relations"]["up"]["inverseOf"] == "down" and "inverseOf" not in header["relations"]["down"]
+    assert "inverseOf" not in converter(types, {"relations": [up]}).header([], "t")["relations"]["up"]
+    with pytest.raises(ValueError, match="not the inverse of"):
+        converter(types | {"W": {"t": I4}}, {"relations": [up, {**down, "from": "W", "index": "W.t"}]})
+
+
+def test_include_merges_profiles(tmp_path):
+    """Included profiles merge in order, then the profile's own keys: dicts key by key, lists concatenate, other
+    values are replaced. Includes are found next to the including profile, else among the built-in profiles."""
+    write = lambda name, p: (tmp_path / f"{name}.json").write_text(json.dumps(p))
+    write("a", {"name": "a", "note": "A", "internal": ["X"], "kinds": {"hit": {"repr": "cells", "cut": {"default": 1}}},
+                "view": {"minRadius": 90}})
+    write("b", {"name": "b", "internal": ["Y"], "kinds": {"track": {"repr": "helix"}}, "field": {"bz": 3.8}})
+    write("top", {"include": ["a", "b"], "kinds": {"hit": {"domain": "HGCal", "cut": {"default": 2}}},
+                  "view": {"start": "3d"}})
+    p = load_profile(str(tmp_path / "top.json"))
+    assert "include" not in p and "name" not in p  # an included profile's name is not inherited
+    assert p["note"] == "A" and p["internal"] == ["X", "Y"] and p["field"] == {"bz": 3.8}
+    assert p["kinds"] == {"hit": {"repr": "cells", "cut": {"default": 2}, "domain": "HGCal"}, "track": {"repr": "helix"}}
+    assert list(p["kinds"]) == ["hit", "track"]  # the order of first appearance (kinds order the layers)
+    assert p["view"] == {"minRadius": 90, "start": "3d"}
+    write("builtin", {"include": ["testbeam"], "name": "mine"})
+    assert load_profile(str(tmp_path / "builtin.json"))["name"] == "mine"  # a built-in profile, by name
+    write("loop", {"include": ["loop2"]})
+    write("loop2", {"include": ["loop"]})
+    with pytest.raises(ValueError, match="includes itself"):
+        load_profile(str(tmp_path / "loop.json"))
+
+
+def test_same_rows_copy_takes_over_columns():
+    """sameRows `copy`: the kept table gains columns of the dropped one (e.g. the HGCal entry point that another
+    producer wrote for the same tracks), so derives and layers that used them keep working."""
+    profile = {"sameRows": [{"keep": "T", "drop": "OldT", "columns": [["pt", "pt"]], "copy": ["hx"]}],
+               "relations": [{"name": "candT", "kind": "index", "from": "C", "to": "OldT", "index": "C.t"}],
+               "derive": [{"table": "C", "gather": [{"relation": "candT", "columns": {"x": "hx"}}]}]}
+    conv = converter({"T": {"pt": F4}, "OldT": {"pt": F4, "hx": F4}, "C": {"t": I4}}, profile)
+    assert "hx" in conv.written()["T"]["columns"] and "T_hx" not in conv.branches()
+    _, tables, _ = one_event(conv, {"T": {"pt": [1, 2]}, "OldT": {"pt": [1, 2], "hx": [5, 6]}, "C": {"t": [1]}})
+    assert tables["T"][1]["hx"].tolist() == [5, 6] and tables["C"][1]["x"].tolist() == [6]
+    with pytest.raises(ValueError, match="cannot copy column hx"):
+        converter({"T": {"pt": F4, "hx": F4}, "OldT": {"pt": F4, "hx": F4}}, profile)
+
+
+def test_helix_columns_are_checked():
+    layer = {"table": "T", "repr": "helix", "position": ["x", "y", "z"], "momentum": ["px", "py", "pz"],
+             "charge": "q", "end": ["x", "y", "z"]}
+    with pytest.raises(ValueError, match="display T: no column pz, q"):
+        converter({"T": {**XYZE, "px": F4, "py": F4}}, {"display": [layer]})
+
+
+def test_cms_profile_joins_hgcal_and_tracker():
+    """cms = hgcal + tracker: HGCal kinds in the HGCal domain (from hgcal.json), truth particles as helices, the tracker's tracks with
+    HGCalNanoAOD's GeneralTrack folded in (its HGCal entry taken over, its relations redirected); hgcal.json alone is
+    unchanged."""
+    p = load_profile("cms")
+    assert p["name"] == "cms" and [d["name"] for d in p["domains"]] == ["Tracker", "HGCal"] and p["field"]["bz"] == 3.8
+    assert p["kinds"]["rechit"]["domain"] == "HGCal" and p["kinds"]["rechit"]["repr"] == "cells"
+    assert p["kinds"]["truthParticle"]["repr"] == "helix" and "domain" not in p["kinds"]["truthParticle"]
+    assert load_profile("hgcal")["kinds"]["rechit"] == p["kinds"]["rechit"]
+    assert [r["name"] for r in p["relations"]].count("truthProdVertex") == 1  # in-time truth from hgcal.json, once
+    assert p["cuts"]["TruthParticles"] == [["bunchCrossing", "==", 0]] and len(p["cuts"]["TruthVertices"]) == 1
+    types = {"Tracks": dict.fromkeys(("vx", "vy", "vz", "px", "py", "pz", "outerX", "outerY", "outerZ", "pt", "eta"), F4)
+             | {"charge": np.dtype("i2"), "highPurity": np.dtype("u1"), "vertexIdx": I4},
+             "GeneralTrack": dict.fromkeys(("pt", "eta", "vz", "hgcal_x", "hgcal_y", "hgcal_z"), F4),
+             "TrackHits": {**XYZE, "trackIdx": I4, "subdet": np.dtype("u1")},
+             "Vertices": {**XYZE, "sumPt2": F4}, "VertexTracks": {"vertexIdx": I4, "trackIdx": I4, "weight": F4},
+             "TICLCandidates": {"trackIdx": I4, "time": F4, "energy": F4}}
+    conv = converter(types, p)
+    d = {x["table"]: x for x in conv.display}
+    assert set(d) == {"Tracks", "TrackHits", "Vertices", "TICLCandidates"}  # GeneralTrack folded into Tracks
+    assert (d["Tracks"]["repr"], d["Tracks"]["domain"], d["TICLCandidates"]["domain"]) == ("helix", "Tracker", "HGCal")
+    assert d["Tracks"]["visible"] and not d["Tracks"]["onSelection"] and d["TrackHits"]["onSelection"]
+    assert d["Tracks"]["grow"] == {"parts": "trackHits", "seed": 4}  # the replay builds tracks from their hits
+    assert (conv.relations["trackHits"]["from"], conv.relations["trackHits"]["to"]) == ("Tracks", "TrackHits")
+    trk = {"vx": [0, 0], "vy": [0, 0], "vz": [1, 2], "px": [1, 0], "py": [0, 1], "pz": [0, 9], "outerX": [100, 0],
+           "outerY": [0, 9], "outerZ": [1, 270], "pt": [1, 1], "eta": [0, 2.9], "charge": [1, -1], "highPurity": [1, 1],
+           "vertexIdx": [0, -1]}
+    gen = {"pt": [1, 1], "eta": [0, 2.9], "vz": [1, 2], "hgcal_x": [-999, 5], "hgcal_y": [-999, 6], "hgcal_z": [-999, 322]}
+    _, tables, rels = one_event(conv, {
+        "Tracks": trk, "GeneralTrack": gen, "Vertices": {"x": [0], "y": [0], "z": [1], "e": [0], "sumPt2": [4]},
+        "VertexTracks": {"vertexIdx": [0], "trackIdx": [0], "weight": [0.9]},
+        "TrackHits": {"x": [3, 6, 2], "y": [0, 0, 1], "z": [1, 1, 30], "e": [0, 0, 0], "trackIdx": [0, 0, 1], "subdet": [1, 1, 2]},
+        "TICLCandidates": {"trackIdx": [1], "time": [0], "energy": [3]}})
+    assert "GeneralTrack" not in tables and "VertexTracks" not in tables
+    assert tables["Tracks"][1]["hgcal_z"].tolist() == [-999, 322] and tables["TICLCandidates"][1]["x"].tolist() == [5]
+    assert rels["candidateTrack"]["indices"].tolist() == [1] and rels["trackHits"]["offsets"].tolist() == [0, 2, 3]
+    assert rels["trackVertex"]["indices"].tolist() == [0] and rels["vertexTracks"]["indices"].tolist() == [0]
+
+
+def test_tracker_profile_alone_and_tracker_only():
+    """tracker.json alone has the field and the Tracker domain (cms.json has them once, through it), with trackVertex
+    declared the inverse of vertexTracks; tracker_only.json (cms without the calorimeters) reads only the tracker
+    tables (and truth, absent here), and its header keeps the Tracker domain alone."""
+    t = load_profile("tracker")
+    assert t["field"] == load_profile("cms")["field"] and t["domains"] == [load_profile("cms")["domains"][0]]
+    assert t["domains"][0]["colourMode"] == "layers"
+    types = {"Tracks": dict.fromkeys(("vx", "vy", "vz", "px", "py", "pz", "outerX", "outerY", "outerZ", "pt", "eta"), F4)
+             | {"charge": np.dtype("i2"), "highPurity": np.dtype("u1"), "vertexIdx": I4},
+             "TrackHits": {**XYZE, "trackIdx": I4, "subdet": np.dtype("u1")},
+             "Vertices": {**XYZE, "sumPt2": F4}, "VertexTracks": {"vertexIdx": I4, "trackIdx": I4, "weight": F4},
+             "TICLCandidates": {"trackIdx": I4, "time": F4, "energy": F4}, "HGCalHits": XYZE}
+    conv = converter(types, load_profile("tracker_only"))
+    assert set(conv.written()) == {"Tracks", "TrackHits", "Vertices"}
+    header = conv.header([], "t")
+    assert [d["name"] for d in header["domains"]] == ["Tracker"] and header["field"]["bz"] == 3.8
+    assert header["relations"]["trackVertex"]["inverseOf"] == "vertexTracks"
+    assert header["view"]["start"] == "front" and {d["table"]: d["repr"] for d in header["display"]}["Tracks"] == "helix"

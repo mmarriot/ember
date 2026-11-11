@@ -28,7 +28,7 @@ NanoAOD ──► evdtools from-nano --profile P ──► .evdb bundle ──�
 - **Converter** (`evdtools/`, Python, numpy + uproot): discovers the NanoAOD tables, applies the profile (derived
   columns, relations normalised to CSR, row cuts, event selection), writes the bundle. Also `inspect`, `validate`,
   and the site tools `sync`, `publish`, `simulate`.
-- **Profiles** (`evdtools/profiles/*.json`): `hgcal`, `mct`, `mct_diagnostics`, `testbeam`. A new data type
+- **Profiles** (`evdtools/profiles/*.json`): `hgcal`, `tracker`, `cms` (both), `tracker_only` (cms without the calorimeters), `mct`, `mct_diagnostics`, `testbeam`. A new data type
   normally needs only a new profile. See [docs/profiles.md](docs/profiles.md).
 - **Bundle format**: one file, a JSON header and index plus gzip records of typed column arrays, readable with one
   ranged request per event. See [docs/format.md](docs/format.md).
@@ -78,6 +78,5 @@ From a laptop: `ssh -L 5173:127.0.0.1:5173 <host>`, then open http://localhost:5
 
 - CMSSW exporter: write the reconstruction and truth tables the `hgcal` profile reads, so step3 output converts
   without patches.
-- More representations: helices for tracks in the magnetic field (tracks are straight segments now), polylines,
-  cones.
+- More representations: polylines, cones.
 - More detectors and data types through new profiles.

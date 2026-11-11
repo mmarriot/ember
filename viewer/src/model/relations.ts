@@ -16,7 +16,9 @@ export const sameRef = (a: Ref | null, b: Ref | null) => !!a && !!b && a.table =
  *  Objects that merely share a parent (the other hits of the same shower) are not included: they are one click away,
  *  through the parent. */
 export function relatedParts(ev: EventData, header: Header, sel: Ref): { madeOf: Related; partOf: Related; linked: Related } {
-  const rels = Object.entries(header.relations).filter(([name]) => ev.relations[name]);
+  const back = backPointers(ev, header);
+  const rels = Object.entries(header.relations).filter(([name]) => ev.relations[name])
+    .map(([name, info]) => [name, back.has(name) ? { ...info, association: true } : info] as const);
   const linked: Related = new Map();
   const link = (table: string, row: number) => { if (!linked.has(table)) linked.set(table, new Set()); linked.get(table)!.add(row); };
   const madeOf = closure(sel, (frontier, reached) => {
@@ -32,7 +34,7 @@ export function relatedParts(ev: EventData, header: Header, sel: Ref): { madeOf:
   const partOf = closure(sel, (frontier, reached) => { // one pass over each relation per level, whatever the frontier size
     for (const [name, info] of rels) {
       const rows = frontier.get(info.to), rel = ev.relations[name];
-      if (!rows || (info.association && !first)) continue;
+      if (!rows || (info.association && !first) || back.has(name)) continue; // its inverse finds the container
       for (let i = 0; i + 1 < rel.offsets.length; i++)
         for (let k = rel.offsets[i]; k < rel.offsets[i + 1]; k++)
           if (rows.has(rel.indices[k])) { if (info.association) link(info.from, i); else reached(info.from, i); break; }
@@ -44,29 +46,58 @@ export function relatedParts(ev: EventData, header: Header, sel: Ref): { madeOf:
   return { madeOf, partOf, linked };
 }
 
+/** Plain relations that point back up a containment that their inverse gives, e.g. track -> its vertex next to
+ *  vertex -> its tracks. Navigation treats them as an association (crossed once, the partner linked), so a track's
+ *  relatives are its vertex, not every track of the vertex and their hits. A relation says so with its `inverseOf`
+ *  hint; for a pair of inverse relations without one, the one with at most one link per object, where the other has
+ *  more, is taken (which way is "up" then shows in the data). Once per event. */
+export function backPointers(ev: EventData, header: Header): Set<string> {
+  return cached(ev, "backPointers", () => {
+    const out = new Set<string>(), plain = Object.entries(header.relations).filter(([name, r]) => !r.association && ev.relations[name] && r.from !== r.to);
+    const most = (name: string) => { const o = ev.relations[name].offsets; let m = 0; for (let i = 0; i + 1 < o.length; i++) m = Math.max(m, o[i + 1] - o[i]); return m; };
+    for (const [name, r] of plain) {
+      if (r.inverseOf) { out.add(name); continue; }
+      const inverse = plain.find(([, o]) => o.from === r.to && o.to === r.from);
+      if (inverse && !inverse[1].inverseOf && most(name) <= 1 && most(inverse[0]) > 1) out.add(name);
+    }
+    return out;
+  });
+}
+
 /** The levels of an object: what it is made of, plus every object of another table that is made only of those parts
  *  (e.g. for a candidate, the tracksters and linked tracksters whose layer clusters all belong to it, though no
- *  relation names them), plus the linked objects (e.g. its truth particle). A containment test, no physics metric. `parts`:
+ *  relation names them; through every relation it has: for a vertex, not a candidate whose track is inside but whose
+ *  clusters are not), plus the linked objects (e.g. its truth particle). A containment test, no physics metric. `parts`:
  *  relatedParts of `sel`, if already known. */
 export function levelsOf(ev: EventData, header: Header, sel: Ref, parts = relatedParts(ev, header, sel)): Related {
-  const { madeOf, linked } = parts;
+  const { madeOf, linked } = parts, back = backPointers(ev, header);
   // Only objects below the selection: not made of objects of its own table, and of an earlier reconstruction stage
-  // when both have one (a trackster's candidate is made only of it, but contains it).
+  // than the selection's. A reconstruction stage is built on top of the objects without one, so it is never inside an
+  // object without a stage (a candidate made only of a vertex's track is not part of the vertex).
   const stage = (table: string) => header.display?.find((l) => l.table === table && l.stage !== undefined)?.stage;
-  const below = (table: string) => { const a = stage(table), b = stage(sel.table); return a === undefined || b === undefined || a < b; };
+  const own = stage(sel.table), below = (table: string) => { const a = stage(table); return a === undefined || (own !== undefined && a < own); };
+  const usable = Object.entries(header.relations).filter(([name, info]) => ev.relations[name] && !info.association && !back.has(name) &&
+    info.from !== info.to && info.from !== sel.table && info.to !== sel.table && !madeOf.has(info.from) && below(info.from));
+  // Only tables with a relation into the parts can have objects inside: the others are not looked at.
+  const reaching = new Set(usable.filter(([, info]) => madeOf.get(info.to)?.size).map(([, info]) => info.from));
   const extra: Related = new Map();
-  for (const [name, info] of Object.entries(header.relations)) {
-    const rel = ev.relations[name], parts = madeOf.get(info.to);
-    if (!rel || !parts || info.association || info.from === info.to || info.from === sel.table || info.to === sel.table ||
-        madeOf.has(info.from) || !below(info.from)) continue;
-    for (let i = 0; i + 1 < rel.offsets.length; i++) {
+  // Per candidate table, per object: 1 while everything it points to so far is inside, 0 once something is not.
+  const inside = new Map<string, Uint8Array>();
+  for (const [name, info] of usable) {
+    if (!reaching.has(info.from)) continue;
+    const rel = ev.relations[name], parts = madeOf.get(info.to), n = rel.offsets.length - 1;
+    let flags = inside.get(info.from);
+    if (!flags) inside.set(info.from, (flags = new Uint8Array(n).fill(2))); // 2: nothing seen yet
+    for (let i = 0; i < n; i++) {
       const lo = rel.offsets[i], hi = rel.offsets[i + 1];
-      if (hi === lo) continue;
-      let inside = true;
-      for (let k = lo; k < hi && inside; k++) inside = parts.has(rel.indices[k]);
-      if (inside) { if (!extra.has(info.from)) extra.set(info.from, new Set()); extra.get(info.from)!.add(i); }
+      if (hi === lo || !flags[i]) continue;
+      let all = !!parts;
+      for (let k = lo; k < hi && all; k++) all = parts!.has(rel.indices[k]);
+      flags[i] = all ? 1 : 0; // e.g. a candidate with its track inside a vertex, but its clusters outside: not inside
     }
   }
+  for (const [table, flags] of inside)
+    for (let i = 0; i < flags.length; i++) if (flags[i] === 1) { if (!extra.has(table)) extra.set(table, new Set()); extra.get(table)!.add(i); }
   return union(madeOf, extra, linked);
 }
 

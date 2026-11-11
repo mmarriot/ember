@@ -1,13 +1,13 @@
 // Application state. Components and the renderer react to these signals.
 import { computed, effect, signal } from "@preact/signals";
-import { Bundle, type DisplayLayer, type EventData, httpSource, kindName, type Table, unitOf } from "../io/bundle";
+import { Bundle, type DisplayLayer, type EventData, httpSource, kindName, REPRS, type Table, unitOf } from "../io/bundle";
 import type { Legend, ThemeName } from "../render/colour";
 import type { Caption } from "../render/replay";
 import type { Hit, ViewName } from "../render/engine";
 import { colourBy, type ColourMode, customColumns, loadCustom, withColour, withCustomColumns } from "./custom";
 import { focusLevels, levelLayers, stepLevel } from "./levels";
 import { modeColouring, modeRoots } from "./modes";
-import { PAIR, type Pair, pairFor } from "./pair";
+import { PAIR, type Pair, pairFor, pairShows } from "./pair";
 import { levelsOf, type Related, relatedParts, sameRef, type Ref } from "./relations";
 
 /** One entry of the site's index.json (written by `evdtools sync`; hand-written ones need only file and title). */
@@ -22,7 +22,18 @@ export const rawEvent = signal<EventData | null>(null); // as read from the file
 export const event = computed(() => (rawEvent.value ? withCustomColumns(rawEvent.value, customColumns.value) : null));
 export const loading = signal(false);
 export const loadMs = signal(0);
-export const visible = signal<Record<string, boolean>>({}); // display layer key -> shown
+export const visible = signal<Record<string, boolean>>({}); // display layer key -> ticked by the user
+/** The domain looked at (header `domains`), null for all: a view, it leaves the user's ticks alone. */
+export const domain = signal<string | null>(null);
+/** The side-panel tab to open: a domain's, when it is chosen (a new object each time, so choosing it again reopens it). */
+export const openTab = signal<{ name: string } | null>(null);
+/** Whether a layer belongs in the current domain's view: its own domain's layers and those without a domain. */
+export const inDomain = (d: DisplayLayer, current = domain.value) => !current || !d.domain || d.domain === current;
+/** The layers drawn: ticked and in the domain's view (display layer key -> drawn). */
+export const drawnLayers = computed(() => {
+  const vis = visible.value, d = domain.value;
+  return Object.fromEntries((bundle.value?.header.display ?? []).map((l) => [layerKey(l), !!vis[layerKey(l)] && inDomain(l, d)]));
+});
 export const legends = signal<Record<string, Legend>>({}); // display layer key -> legend of the drawn layer
 export const shown = signal<Record<string, number>>({}); // display layer key -> objects passing the cuts
 export const cuts = signal<Record<string, number>>({}); // cut group -> minimum
@@ -74,26 +85,32 @@ export const modes = computed(() => {
   };
   return { roots, colouring };
 });
-/** The colour mode: "pid" when the bundle has a reconstruction root (candidates), else "layers". */
-export const activeMode = computed<ColourMode>(() => (modes.value.roots.reco ? "pid" : "layers"));
+/** The colour mode: "pid" when the bundle has a reconstruction root (candidates), else "layers"; also "layers" while a
+ *  domain that asks for it (its `colourMode`) is looked at, e.g. the tracker, whose tracks keep their pT colours. */
+export const activeMode = computed<ColourMode>(() => {
+  const d = bundle.value?.header.domains?.find((x) => x.name === domain.value);
+  return modes.value.roots.reco && d?.colourMode !== "layers" ? "pid" : "layers";
+});
 
 /** A layer's display hint as drawn. In the "pid" mode, the reconstruction root (candidates) keeps its own colouring
  *  (particle type) and every reco layer it reaches takes its candidate's colour; a categorical reco layer it cannot
- *  reach is drawn by its colour column; truth layers keep their own colouring (a particle is not a candidate). Then
- *  the user's choice for that layer. */
+ *  reach is drawn by its colour column if it has one (else it keeps its own colouring, e.g. one colour per vertex);
+ *  truth layers keep their own colouring (a particle is not a candidate). Then the user's choice for that layer. */
 export function shownLayer(d: DisplayLayer, mode = activeMode.peek(), by = colourBy.peek()): DisplayLayer {
   const { colouring, roots } = modes.peek(), pid = mode === "pid" && !d.context && !d.truth;
   const c = pid && d.table !== roots.reco ? colouring.reco?.[d.table] : undefined;
-  const plain = pid && !c && d.table !== roots.reco && d.colourBy;
+  const plain = pid && !c && d.table !== roots.reco && d.colourBy && d.colour;
   return withColour(c ? { ...d, colourBy: c } : plain ? { ...d, colourBy: undefined } : d, by[layerKey(d)]);
 }
 
-/** In the "pid" mode with something selected: its truth <-> reco pair, which colours every layer (Viewport). */
+/** In the "pid" mode with something selected: its truth <-> reco pair, which colours every layer (Viewport); null when
+ *  the pair has nothing to show (no candidate, and no hits of its particle). */
 export const pairView = computed<Pair | null>(() => {
   const f = focus.value, b = bundle.value, ev = event.value, { roots, colouring } = modes.value;
   if (activeMode.value !== "pid" || !f || !b || !ev || !roots.reco || !colouring.reco || f.row >= (ev.tables[f.table]?.n ?? 0)) return null;
   const truthLayer = roots.truth ? b.header.display.find((d) => d.table === roots.truth) : undefined;
-  return pairFor(ev, b.header, f, { truth: roots.truth, reco: roots.reco }, { truth: colouring.truth, reco: colouring.reco }, truthLayer);
+  const pair = pairFor(ev, b.header, f, { truth: roots.truth, reco: roots.reco }, { truth: colouring.truth, reco: colouring.reco }, truthLayer);
+  return pairShows(pair) ? pair : null;
 });
 
 /** A number in a few significant figures, for names, legends and charts. */
@@ -159,6 +176,8 @@ export const highlight = computed(() => {
       for (let i = 0; i < cls.length; i++) if (cls[i] !== PAIR.other && cls[i] !== skip) rows.add(i);
       if (rows.size) hl.set(t, rows);
     }
+    // ... and the reco objects linked to the focus (e.g. a track's vertex), which the pair may not classify.
+    for (const [t, rows] of parts?.linked ?? []) if (!layerOf(t)?.truth) hl.set(t, new Set([...(hl.get(t) ?? []), ...rows]));
     return hl;
   }
   return b && ev && f && parts ? levelsOf(ev, b.header, f, parts) : null;
@@ -205,28 +224,33 @@ export const levelTop = computed<Ref | null>(() => {
 const topParts = computed(() => (sameRef(levelTop.value, focus.value) ? focusParts.value : partsOf(levelTop.value)));
 /** The kinds of object the focus is made of, top first (see model/levels.ts); its own kind and truth are not levels. */
 export const levels = computed(() => {
-  const b = bundle.value, top = levelTop.value, hl = highlight.value, parts = topParts.value;
+  const b = bundle.value, top = levelTop.value, hl = highlight.value, parts = topParts.value, pair = pairView.value;
   if (!b || !top || !hl || !parts) return [];
-  return focusLevels(b.header.display, top.table, hl, (t) => parts.madeOf.has(t) || !parts.linked.has(t));
+  // Not levels: what is only linked to the top, and in the pair view what the pair does not classify but is linked to
+  // the focus (a track's vertex is not a part of its candidate, and stays drawn).
+  const linked = pair ? focusParts.value?.linked : undefined;
+  const unclassified = (t: string) => { const cls = pair!.classes.get(t); return [...linked!.get(t)!].every((r) => !cls || cls[r] === PAIR.other); };
+  const own = (t: string) => parts.madeOf.has(t) || (!parts.linked.has(t) && !(linked?.has(t) && unclassified(t)));
+  return focusLevels(b.header.display, top.table, hl, own, b.header.relations);
 });
-/** The chosen level, if the focus has it and it is not the bottom one (drawn anyway); else null. */
+/** The chosen level, if the focus has it and it is not one drawn anyway (the bottom ones, lines); else null. */
 export const shownLevel = computed(() => {
   const c = focusLevel.value;
-  return levels.value.slice(0, -1).some((l) => l.name === c) ? c : null;
+  return levels.value.some((l) => !l.always && l.name === c) ? c : null;
 });
 /** Step the shown level down (+1) or up (-1); false (and nothing changes) if the focus has no levels to step through. */
 export function stepFocusLevel(by: number) {
-  if (levels.peek().length < 2) return false;
+  if (!levels.peek().some((l) => !l.always)) return false;
   focusLevel.value = stepLevel(levels.peek(), focusLevel.peek(), by);
   return true;
 }
 
-// While a focus lasts, what is drawn differs from the ticks in the side panel: the focus's layer, its stage (e.g. a candidate's
-// track) and what is linked to it (its truth) are drawn even from hidden layers; of its levels, only the bottom one
+// While a focus lasts, what is drawn differs from the ticks in the side panel (and the domain's view): the focus's layer, its stage (e.g. a candidate's
+// track) and what is linked to it (its truth) are drawn even from hidden layers; of its levels, only the bottom ones
 // and the chosen one are, even if others are ticked. The keys are joined into strings first, so the layers are only
 // rebuilt when these sets change, not on every focus.
 const focusKeys = computed(() => {
-  const b = bundle.value, hl = highlight.value, vis = visible.value, lv = levels.value, f = focus.value;
+  const b = bundle.value, hl = highlight.value, vis = drawnLayers.value, lv = levels.value, f = focus.value;
   if (!b || !hl) return { shown: "", hidden: "" };
   // The focus's own layer is always drawn, also when its kind is a level (the pair view's levels are its candidate's).
   const ticked = (d: DisplayLayer) => !!vis[layerKey(d)], own = (d: DisplayLayer) => d.table === f?.table;
@@ -262,6 +286,12 @@ export async function refreshCatalogue() {
 export async function openBundle(name: string, open = () => httpSource(name), start = 0) {
   try {
     const b = await Bundle.open(await open());
+    // A layer drawn in a way this viewer does not know (a newer bundle): left out, the rest is drawn.
+    const unknown = b.header.display.filter((d) => !(REPRS as readonly string[]).includes(d.repr));
+    if (unknown.length) {
+      console.warn(`Not drawn, unknown representation: ${unknown.map((d) => `${d.label} (${d.table}: ${d.repr})`).join(", ")}`);
+      b.header.display = b.header.display.filter((d) => !unknown.includes(d));
+    }
     // A layer whose position columns are missing would be drawn at the origin: leave it out and say so.
     const placed = (d: DisplayLayer) => d.position.every((c) => c in (b.header.tables[d.table]?.columns ?? {}));
     const unplaced = b.header.display.filter((d) => !placed(d));
@@ -274,6 +304,7 @@ export async function openBundle(name: string, open = () => httpSource(name), st
     view.value = b.header.view?.start ?? "3d";
     loadCustom(b.header.profile, Object.fromEntries(b.header.display.filter((d) => d.filter).map((d) => [d.table, d.filter!])));
     visible.value = Object.fromEntries(b.header.display.map((d) => [layerKey(d), d.visible]));
+    domain.value = null;
     cuts.value = Object.fromEntries([...cutGroups.value].map(([g, info]) => [g, info.default]));
     await showEvent(start);
   } catch (e) {

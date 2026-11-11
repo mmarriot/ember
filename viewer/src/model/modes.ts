@@ -38,14 +38,21 @@ export function modeColouring(header: Header, root: string): Record<string, Colo
       if (other !== undefined && d < (dist.get(other) ?? Infinity)) { dist.set(other, d); todo.push(other); }
     }
   }
+  // A table takes a colour from what contains it, or across an association; from what it contains (upwards) only if it
+  // is a reconstruction stage (a vote: a trackster by the candidate holding most of its clusters), and never across a
+  // pair of relations that are each other's inverse (a vertex and its tracks): a vertex is not part of a candidate.
+  const staged = (table: string) => header.display.some((d) => d.table === table && d.stage !== undefined);
+  const inverse = (r: Header["relations"][string]) => rels.some(([, o]) => !o.association && o.from === r.to && o.to === r.from);
   for (const { table } of header.display) {
     if (table in out || !dist.has(table)) continue;
-    const direct = rels.filter(([, r]) => (r.from === table && r.to === root) || (r.to === table && r.from === root));
-    const content = !direct.length && rels.some(([, p]) => !p.association && p.from === table &&
-      rels.some(([, a]) => a.from === root && a.to === p.to));
+    const usable = (r: Header["relations"][string]) => r.association || staged(table) || (r.to === table && !inverse(r));
+    const direct = rels.filter(([, r]) => usable(r) && ((r.from === table && r.to === root) || (r.to === table && r.from === root)));
+    const content = !direct.length && rels.some(([, p]) => !p.association && p.from === table && !inverse(p) &&
+      rels.some(([, a]) => a.from === root && a.to === p.to && (a.association || staged(table))));
     if (content) { out[table] = { content: root }; continue; }
     // The step towards the root; of several, the one from this table (it points at its own match), with a `best`.
     const steps = rels.filter(([, r]) => {
+      if (!usable(r)) return false;
       const other = r.from === table ? r.to : r.to === table ? r.from : undefined;
       return other !== undefined && dist.has(other) && dist.get(other)! + cost(r.association) === dist.get(table);
     }).sort(([, a], [, b]) => Number(b.from === table) - Number(a.from === table) || Number(!!b.best) - Number(!!a.best));

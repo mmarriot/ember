@@ -1,7 +1,7 @@
 // Floating card for the selected object: summary, all columns with documentation, related objects.
 import { colourBy, customColumns, customDoc } from "../model/custom";
 import { unitOf } from "../io/bundle";
-import { bundle, describe, event, full, highlight, isHitLayer, kindOf, labelOf, layerKey, layerOf, relatives, selection, sizeColumn, visible } from "../model/store";
+import { bundle, describe, event, full, highlight, isHitLayer, kindOf, labelOf, layerKey, layerOf, relatives, selection, sizeColumn, drawnLayers } from "../model/store";
 import { bestFirst, type Related } from "../model/relations";
 import { engine } from "./Viewport";
 import { jump } from "./navigate";
@@ -29,7 +29,8 @@ export function Inspector() {
   );
   const parts = relatives.value;
   const without = (r: Related | undefined) => [...(r ?? [])].map(([t, set]) => [t, t === sel.table ? new Set([...set].filter((x) => x !== sel.row)) : set] as const).filter(([, set]) => set.size);
-  const linked = without(parts?.linked);
+  // Linked, but not what contains it (e.g. a track's vertex: highlighted with it, listed under "Part of").
+  const linked = without(parts?.linked).map(([t, set]) => [t, new Set([...set].filter((r) => !parts?.partOf.get(t)?.has(r)))] as const).filter(([, set]) => set.size);
   const sections: [string, string, (readonly [string, Set<number>])[]][] = [
     ["Made of", "what it is built from; highlighted in the view", without(parts?.madeOf)],
     ["Part of", "the objects that contain it (not highlighted, so they do not cover it)", without(parts?.partOf)],
@@ -161,7 +162,7 @@ function truthInHits(objects: Related) {
 
 function drawn(table: string) {
   const b = bundle.value;
-  return !!b?.header.display.some((l) => l.table === table && visible.value[layerKey(l)]);
+  return !!b?.header.display.some((l) => l.table === table && drawnLayers.value[layerKey(l)]);
 }
 
 const isTruth = (table: string) => !!layerOf(table)?.truth;

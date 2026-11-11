@@ -4,7 +4,7 @@
 import type { ComponentChildren } from "preact";
 import { activePreset } from "../model/custom";
 import { applyPreset } from "../model/presets";
-import { bundle, bundleName } from "../model/store";
+import { bundle, bundleName, openTab } from "../model/store";
 import { EventInfo } from "./EventInfo";
 import { ColourKey } from "./Key";
 import { Collections, tabOf } from "./Layers";
@@ -14,7 +14,10 @@ import { Tabs } from "./widgets";
 export function Sidebar() {
   const b = bundle.value, display = b?.header.display ?? [], presets = b?.header.presets ?? [];
   const reco = display.filter((d) => !d.truth), truth = display.some((d) => d.truth);
-  const tabs: [string, () => ComponentChildren][] = [...new Set(reco.map(tabOf))].map((name) => [name, () => <Collections key={`${bundleName.value}|${name}`} layers={reco.filter((d) => tabOf(d) === name)} />]);
+  // One tab per part, in the order of the header's `domains` (as the top bar's buttons), then the others in display order.
+  const order = (b?.header.domains ?? []).map((d) => d.name), rank = (name: string) => (order.includes(name) ? order.indexOf(name) : order.length);
+  const names = [...new Set(reco.map(tabOf))].sort((x, y) => rank(x) - rank(y)); // a stable sort: ties keep display order
+  const tabs: [string, () => ComponentChildren][] = names.map((name) => [name, () => <Collections key={`${bundleName.value}|${name}`} layers={reco.filter((d) => tabOf(d) === name)} />]);
   if (truth || treeRelations().length) tabs.push([truth ? "Truth" : "Tree", Truth]);
   tabs.push(["Event", EventInfo]);
   return (
@@ -25,7 +28,7 @@ export function Sidebar() {
             {presets.map((p, i) => <button class={activePreset.value === i ? "on" : ""} onClick={() => applyPreset(i)}>{p.name}</button>)}
           </div>
         )}
-        <Tabs tabs={tabs} />
+        <Tabs tabs={tabs} open={openTab.value} />
         <ColourKey />
       </aside>
       <div class="resizer" title="Drag to resize, double-click to reset" onPointerDown={startResize} onDblClick={() => setWidth(DEFAULT_WIDTH)} />

@@ -1,0 +1,13 @@
+{
+  "name": "cms",
+  "note": "CMS Phase-2 step3 with HGCal/TICL and the tracker: hgcal.json and tracker.json joined. HGCalNanoAOD's GeneralTrack has the rows of Tracks (both are generalTracks in order): it is checked and folded into Tracks, which takes over its HGCal entry point (used where a TICL candidate has no trackster), so candidate -> track and track <-> truth relations reach Tracks. Truth particles are drawn as helices; only in-time pile-up is kept (cuts from hgcal.json): particles of bunch crossing 0 and the vertices they are produced in or decay at (at PU200: 105k of 720k particles, 63k of 425k vertices per event). Domains: Tracker (with the field, from tracker.json), then HGCal, its region from the hits of the ttbar samples (r <= 257 cm, 322 <= |z| <= 513 cm).",
+  "include": ["hgcal", "tracker"],
+  "sameRows": [
+    {"keep": "Tracks", "drop": "GeneralTrack", "columns": [["pt", "pt"], ["eta", "eta"], ["vz", "vz"]],
+     "copy": ["hgcal_x", "hgcal_y", "hgcal_z"]}
+  ],
+  "kinds": {
+    "truthParticle": {"repr": "helix", "momentum": ["px", "py", "pz"], "charge": "charge"}
+  },
+  "domains": [{"name": "HGCal", "region": {"rMax": 260, "zMax": 515}, "view": "3d"}]
+}

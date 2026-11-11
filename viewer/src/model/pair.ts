@@ -123,3 +123,8 @@ export function pairFor(ev: EventData, header: Header, focus: Ref, roots: { trut
   }
   return { particle, matched: raw, candidate, truth, reco, classes, efficiency, purity };
 }
+
+/** Whether the pair has anything to show: a candidate, or a particle that left hits (which then show as missed or in
+ *  other candidates). Not, e.g., for a particle or track that never reached the calorimeter: the selection is then
+ *  shown on its own (its parts and links), not as a pair. */
+export const pairShows = (p: Pair) => p.candidate >= 0 || (!!p.efficiency && p.efficiency.candidate + p.efficiency.others + p.efficiency.missed > 0);

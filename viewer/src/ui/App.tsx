@@ -3,11 +3,12 @@ import { effect } from "@preact/signals";
 import { useEffect } from "preact/hooks";
 import { blobSource } from "../io/bundle";
 import type { ViewName } from "../render/engine";
-import { bundleName, catalogue, dialog, event, eventIndex, highlight, openBundle, refreshCatalogue, selection, showEvent, stepFocusLevel, view } from "../model/store";
+import { bundleName, catalogue, dialog, domain, event, eventIndex, highlight, openBundle, refreshCatalogue, selection, showEvent, stepFocusLevel, view } from "../model/store";
 import { SYNTAX } from "./ExprForm";
 import { Header } from "./Header";
 import { Inspector } from "./Inspector";
 import { Sidebar } from "./Sidebar";
+import { chooseDomain, nextDomain, showWhole } from "./navigate";
 import { stopTour, toggleTour } from "./tour";
 import { engine, replayEvent, Viewport } from "./Viewport";
 import { Modal, Toasts } from "./widgets";
@@ -22,6 +23,8 @@ export function App() {
       const name = url.get("b") ?? catalogue.value.bundles[0]?.file;
       if (!name) return;
       await openBundle(name, undefined, Number(url.get("e") ?? 0));
+      const d = url.get("d");
+      if (d) chooseDomain(d, false);
       const v = url.get("v") as ViewName | null;
       if (v && Object.values(VIEW_KEYS).includes(v)) view.value = v;
       const [table, row] = (url.get("s") ?? "").split(":");
@@ -31,8 +34,8 @@ export function App() {
     const poll = setInterval(() => document.visibilityState === "visible" && void refreshCatalogue(), POLL);
 
     const stopUrl = effect(() => {
-      const s = selection.value;
-      const p = new URLSearchParams({ b: bundleName.value, e: String(eventIndex.value), v: view.value, ...(s ? { s: `${s.table}:${s.row}` } : {}) });
+      const s = selection.value, d = domain.value;
+      const p = new URLSearchParams({ b: bundleName.value, e: String(eventIndex.value), v: view.value, ...(d ? { d } : {}), ...(s ? { s: `${s.table}:${s.row}` } : {}) });
       if (bundleName.value) history.replaceState(null, "", `#${p}`);
     });
 
@@ -42,15 +45,16 @@ export function App() {
       stopTour(); // any other key takes over from the tour
       if (e.key === "Escape") { // close a dialog; else back to the normal view: no selection, the whole event
         if (dialog.value) dialog.value = null;
-        else { selection.value = null; engine?.home(); }
+        else { selection.value = null; showWhole(true); }
       }
       else if (e.key === "?") dialog.value = dialog.value ? null : "help";
       else if (e.key === "ArrowRight") showEvent(eventIndex.value + 1);
       else if (e.key === "ArrowLeft") showEvent(eventIndex.value - 1);
       else if ((e.key === "ArrowDown" || e.key === "ArrowUp") && stepFocusLevel(e.key === "ArrowDown" ? 1 : -1)) e.preventDefault();
       else if (VIEW_KEYS[e.key]) view.value = VIEW_KEYS[e.key];
+      else if (e.key === "d" || e.key === "D") nextDomain();
       else if (e.key === "f" || e.key === "F") engine?.frame(highlight.value ?? undefined, true);
-      else if (e.key === "Home") engine?.frame(undefined, true);
+      else if (e.key === "Home") showWhole();
       else if (e.key === "r" || e.key === "R") void replayEvent();
     };
     const onDrop = (e: DragEvent) => {
@@ -87,6 +91,7 @@ function HelpDialog() {
     ["Zoom to the selection", "double-click it, or F"], ["Show the whole event", "Home, or the reset button"],
     ["Leave the object", "click on empty space; Esc also shows the whole event (and closes this dialog)"],
     ["Previous / next event", "← / →, or the arrows at the top"], ["Views: 3D, front, side, ρ–z", "1, 2, 3, 4"],
+    ["One part of the detector (e.g. the tracker), or all", "D, or the All · … buttons at the top (when the data has several parts)"],
     ["Replay: how the event builds up, step by step", "R"],
     ["Tour: replay, then visit the main showers, event after event", "P, or the play button; any key or touch stops it"],
     ["Live: play new data as it arrives", "the Live button"],

@@ -8,26 +8,36 @@ const TYPES = {
 export type TypeCode = keyof typeof TYPES;
 export type Column = InstanceType<(typeof TYPES)[TypeCode]>;
 
+/** How layers can be drawn (render/layers.ts `builders`); a bundle may name others, from a newer format. */
+export const REPRS = ["cells", "markers", "ellipsoids", "segments", "helix"] as const;
 export interface DisplayLayer {
   table: string;
-  repr: "cells" | "markers" | "ellipsoids" | "segments";
+  repr: (typeof REPRS)[number];
   group: string;
   label: string;
   kind?: string; // object type from the profile (e.g. "trackster"); `group` is then its label
   source?: string; // which reconstruction path produced it, e.g. "SoA" or "legacy"
-  /** The part of the detector it belongs to (e.g. "HGCal"): its tab in the side panel. Truth layers have none. */
+  /** The part of the detector it belongs to (e.g. "HGCal"): its tab in the side panel, and with a header `domains`
+   *  entry of that name, the view that draws it (none: drawn in every domain's view). Truth layers have none. */
   domain?: string;
   position: [string, string, string];
-  end?: [string, string, string]; // segments: where the line ends (it starts at `position`)
+  end?: [string, string, string]; // segments: where the line ends (it starts at `position`); helix: where the path stops
+  momentum?: [string, string, string]; // helix: px, py, pz at the start [GeV]
+  charge?: string; // helix: charge column [e]; 0 (or none) draws a straight line
   colour?: string | null;
   palette?: "heat" | "cool";
   /** Categorical colouring: one colour per object ("row"); one colour each for the largest objects ("identity",
    *  the others share one); the colour of the partner across a relation; the colour of the `content` table's object
    *  with the most weight in its hits; or one colour per value of a column (`abs`: of its absolute value; `names`:
-   *  legend names per value). */
-  colourBy?: "row" | "identity" | { relation: string } | { content: string } | { category: string; abs?: boolean; names?: Record<string, string> };
+   *  legend names per value, as {value: name} or, to keep the order of integer values, [value, name] pairs). */
+  colourBy?: "row" | "identity" | { relation: string } | { content: string }
+    | { category: string; abs?: boolean; names?: Record<string, string> | [string | number, string][] };
   stage?: number; // reconstruction step (0, 1, ...) of the replay; the default view shows the last one
-  size?: string | null;
+  /** `helix`: the replay builds each path along its length, after the hits arrive and before the clustering and the
+   *  stages: its first `seed` parts (the `to` objects of relation `parts`, stored in order along the path) light up,
+   *  then the path grows out from its start, lighting each part as it reaches it. */
+  grow?: { parts: string; seed?: number };
+  size?: string | null; // cells: half-width column [cm]; markers: a column whose larger values draw larger discs
   time?: string | null; // column with the arrival time in ns (missing: <= -50), for the replay
   axis?: [string, string, string];
   extent?: [string, string, string];
@@ -64,8 +74,10 @@ export interface Header {
   /** `scope: "run"`: written once per run (see RunEntry) and added to every event of that run. */
   tables: Record<string, { doc: string; scope?: "run"; columns: Record<string, { type: TypeCode; doc: string }> }>;
   /** `association`: links two kinds of object (e.g. reco <-> truth); selections cross it once, without following the
-   *  other side's own relations. `best`: the weight that picks one partner where only one can be shown (colours). */
-  relations: Record<string, { from: string; to: string; weights: string[]; association?: boolean; best?: { weight: string; order: "min" | "max" } }>;
+   *  other side's own relations. `best`: the weight that picks one partner where only one can be shown (colours).
+   *  `inverseOf`: the relation points from a part back up to its container, the inverse of the named relation (a
+   *  track's vertex, next to the vertex's tracks). */
+  relations: Record<string, { from: string; to: string; weights: string[]; association?: boolean; best?: { weight: string; order: "min" | "max" }; inverseOf?: string }>;
   display: DisplayLayer[];
   /** How particles move through the detector, for the reconstruction replay: away from a point (default: the
    *  origin, i.e. collisions), along a direction (e.g. [0, -1, 0] for cosmics), or in a fixed random order (hits
@@ -80,6 +92,19 @@ export interface Header {
   runTitle?: string;
   runFields?: string[]; // which run information to show, in this order (default: all)
   presets?: Preset[];
+  /** Parts of the detector, each with its region (cm; z is |z|) and the view that suits it: choosing one draws only
+   *  its layers and those without a domain, framed on the region. */
+  domains?: Domain[];
+  /** Solenoid field for `helix` layers: Bz (T), uniform inside the cylinder r < rMax, |z| < zMax (cm), none outside. */
+  field?: { bz: number; rMax: number; zMax: number };
+}
+export interface Domain {
+  name: string; region: { rMax: number; zMax: number }; view?: "3d" | "front" | "side" | "rz";
+  /** A colour mode id: "layers": while this domain is looked at, each layer takes its own colours, also in a bundle
+   *  with candidates; "pid" (the default with candidates): particle types. */
+  colourMode?: "pid" | "layers";
+  /** Smallest radius (cm) framed around its objects (a vertex, a pixel hit), instead of `view.minRadius`. */
+  minRadius?: number;
 }
 /** The unit in a column's documentation, written as "[GeV]". */
 export const unitOf = (doc = "") => doc.match(/\[([^\]]+)\]/)?.[1] ?? "";

@@ -27,6 +27,9 @@ for uproot's many ranged reads.
 
 | profile | data |
 |---|---|
+| `cms` | `hgcal` and `tracker` together: the header `domains` `Tracker` (from `tracker`) then `HGCal` (its region and view), truth particles as helices and only in-time pile-up kept; HGCalNanoAOD's `GeneralTrack` folded into `Tracks` |
+| `tracker` | CMS Phase-2 tracker (Fireworks/EventExport preset `tracker`): tracks as helices in the solenoid field (`field`; high purity, pT slider at 1 GeV, filtered to the primary vertex; preset "All vertices" coloured by vertex), primary vertices, the hits on each track shown for a selection, the beam spot; all in the `Tracker` domain, coloured by layer when it is chosen. It reads every table of the file: for a tracker bundle use `tracker_only` |
+| `tracker_only` | `cms` without the calorimeters (excluded, so not read): the `tracker` layers with the truth graph and the track-truth associations |
 | `hgcal` | CMSSW step3 HGCal/TICL reconstruction (SoA and/or legacy): rechits, layer clusters, tracksters through candidates, tracks, the truth graph (particles, vertices, hits) with reco-truth associations, kept to in-time pile-up (bunch crossing 0); see [truth-graph.md](truth-graph.md) |
 | `mct` | multi-cassette test at P5, cosmic muons: hits and layer clusters, events with a hit above 6 sigma in two layers; the readout channels (per-run table) as background |
 | `mct_diagnostics` | the same data without event selection, for unusual events (e.g. splats), picked with `--events`; digi quantities on every hit, per-module charts |
@@ -41,7 +44,7 @@ Tables of the `Runs` tree are per-run tables (e.g. hgcal-comm's `HGCChannel`: po
 address of every channel): written once per run (`"scope": "run"`), available to lookups, cuts and display layers.
 
 Profile entries that name a table the file lacks are dropped, so one profile serves SoA-only, legacy-only and mixed
-files. If an entry's tables are present, every column it names must exist, or the conversion stops and lists the
+files; so are the `domains` that none of the written layers is in. If an entry's tables are present, every column it names must exist, or the conversion stops and lists the
 table's columns.
 
 Per event: read tables, derive columns, build relations (all normalised to CSR), cut rows, apply the event
@@ -57,9 +60,10 @@ selected entries.
 |---|---|
 | `name` | profile name written to the bundle (default: the `--profile` argument) |
 | `note` | free text for readers of the profile; not written |
+| `include` | profiles this one builds on, by name or path (looked up next to this profile first, then among the built-in ones). They are merged in order, then this profile's own keys over them: dicts merge key by key (recursively), lists concatenate, any other value is replaced; an included profile's `name` is not inherited. E.g. `cms.json` is `"include": ["hgcal", "tracker"]` plus the keys that join them; `"kinds": {"truthParticle": {"repr": "helix", "momentum": [...], "charge": "charge"}}` there changes one key of the `truthParticle` kind of `hgcal.json` and adds two. A list cannot be shortened this way |
 | `exclude` | table name patterns (`fnmatch`) not read at all |
 | `internal` | tables read for relations, derives or cuts but not written (e.g. link or lookup tables) |
-| `sameRows` | `[{"keep", "drop", "columns": [[keepCol, dropCol], ...]}]`: `drop` has the rows of `keep` in the same order (e.g. legacy objects converted 1:1 from SoA). Checked on every event with the listed column pairs (the conversion stops if they differ); `drop` is not written and relations to or from it are redirected to `keep` |
+| `sameRows` | `[{"keep", "drop", "columns": [[keepCol, dropCol], ...], "copy": [col, ...]}]`: `drop` has the rows of `keep` in the same order (e.g. legacy objects converted 1:1 from SoA, or two producers' tables of one track collection). Checked on every event with the listed column pairs (the conversion stops if they differ); `drop` is not written and relations to or from it are redirected to `keep`. `copy`: columns of `drop` that `keep` takes over (they must not exist in `keep`), e.g. the HGCal entry point of tracks |
 
 ### `derive`: new columns
 
@@ -85,8 +89,10 @@ A list, applied in order (so a later derive can override an earlier estimate). E
 | `key` | `"fromKey"`, `"toKey"` columns: the `to` row with the same key (e.g. the same DetId in two hit tables); the first if several |
 | `compose` | `"via": [r1, r2]`: earlier relations chained; each row reaches the union of what its `r1` rows reach through `r2`. `from` and `to` are those of the chain |
 
-Optional: `"weights": ["T.col", ...]` (one per link, stored as f32), and the viewer hints `association` and `best`
-([format.md](format.md#relations)), copied to the header.
+Optional: `"weights": ["T.col", ...]` (one per link, stored as f32), and the viewer hints `association`, `best` and
+`inverseOf` ([format.md](format.md#relations)), copied to the header. `"inverseOf": r` says that this relation points
+from a part back up to its container, the reverse of relation `r` (e.g. `trackVertex`, the inverse of `vertexTracks`):
+the conversion stops if `r` does not have the opposite ends, and the hint is dropped when `r` is not written.
 
 ### `cuts` and `select`
 
@@ -115,13 +121,14 @@ of layers 25 and 26.
 ### `display`, `kinds`, `prefer`, `stages`: layers
 
 `display` is a list of layers. Their keys are the display hints of [format.md](format.md#display-hints) (`table`,
-`repr`, `position`, `end`, `axis`, `extent`, `size`, `colour`, `palette`, `colourBy`, `time`, `group`, `label`, `domain`,
-`visible`, `kind`, `source`, `cut`, `filter`, `context`, `dim`, `shape`, `truth`, `onSelection`, `describe`), copied
-to the bundle for the layers whose table is written. The converter also reads:
+`repr`, `position`, `end`, `momentum`, `charge`, `axis`, `extent`, `size`, `colour`, `palette`, `colourBy`, `time`,
+`group`, `label`, `visible`, `kind`, `source`, `domain`, `cut`, `filter`, `context`, `dim`, `shape`, `truth`,
+`onSelection`, `describe`), copied to the bundle for the layers whose table is written; every column a layer names
+must exist. The converter also reads:
 
 | key | meaning |
 |---|---|
-| `kinds` | `{kind: {"label", style keys...}}`: shared style per object type. A layer with `"kind"` takes that kind's keys (its own keys win; `cut` is merged key by key) and `label` as its `group`; layers are ordered by kind as listed here. `hgcal.json` uses it so SoA and legacy objects of one kind look the same |
+| `kinds` | `{kind: {"label", style keys...}}`: shared style per object type. A layer with `"kind"` takes that kind's keys (its own keys win; `cut` is merged key by key) and `label` as its `group`; layers are ordered by kind as listed here. `hgcal.json` uses it so SoA and legacy objects of one kind look the same; `cms.json` uses it to give every HGCal kind its `domain` and to draw truth particles as helices |
 | `prefer` | sources in order of preference, e.g. `["SoA", "legacy"]`: within a kind, layers from a lower-ranked `source` than the best one present start hidden and are marked `alternative` |
 | `stages` | kinds in reconstruction order, e.g. `["trackster", "linkedTrackster", "interpretation", "candidate"]`. The preferred layers of the kinds present get `stage` 0, 1, ...; all but the last start hidden, so the default view shows the final objects |
 | layer `"stageOf": kind` | the layer joins that kind's stage (e.g. tracks with the candidates that use them) |
@@ -129,7 +136,8 @@ to the bundle for the layers whose table is written. The converter also reads:
 
 ### Viewer settings
 
-`replay`, `view`, `summaries`, `presets`, `runTitle` and `runFields` are copied to the bundle header unchanged; their
-meaning is in [format.md](format.md#viewer-settings). Values used by the built-in profiles: `view.minRadius` 90 cm
+Every top-level key not described above (e.g. `replay`, `view`, `summaries`, `presets`, `runTitle`, `runFields`,
+`domains`, `field`) is a viewer setting, copied to the bundle header unchanged; their meaning is in
+[format.md](format.md#viewer-settings). A new viewer setting therefore needs no converter change. Values used by the built-in profiles: `view.minRadius` 90 cm
 (`hgcal`), 25 (`mct`), 12 (`testbeam`); `view.tour` `beam` for `hgcal`; `replay` `direction` `[0, -1, 0]` for
 cosmics and `[0, 0, -1]` for the test beam, `order` `random` for `mct_diagnostics`.

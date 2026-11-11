@@ -76,7 +76,8 @@ export function valueRange(values: ArrayLike<number>): Range {
   return hi > lo ? { scale: log ? "log" : "linear", lo, hi } : { scale: log ? "log" : "linear", lo: lo - 0.5, hi: lo + 0.5 };
 }
 
-const position = (r: Range, v: number) => ((r.scale === "log" ? Math.log10(Math.max(v, 1e-12)) : v) - r.lo) / (r.hi - r.lo);
+/** Where a value lies on a range (0 at lo, 1 at hi; beyond them outside 0..1). */
+export const position = (r: Range, v: number) => ((r.scale === "log" ? Math.log10(Math.max(v, 1e-12)) : v) - r.lo) / (r.hi - r.lo);
 
 /** A table's name in colour descriptions: "tracksters (SoA)", or with its layer's label when its kind has several
  *  layers, "trackster links (linked tracksters, legacy)", "particles (truth graph)". */
@@ -133,13 +134,15 @@ export function colours(d: DisplayLayer, t: Table, ev: EventData, header: Header
       emphasis[i] = used[key[i]];
     }
     const items = top.map((row, j) => ({ label: `#${row}`, colour: pal.identity[j], ref: { table: d.table, row } }));
-    return { rgb: out, emphasis, legend: { kind: "category", text: `one colour each for the ${top.length} largest`, items,
+    return { rgb: out, emphasis, legend: { kind: "category", text: top.length === 1 ? "one colour for the largest" : `one colour each for the ${top.length} largest`, items,
       ...(others ? { note: `grey: the other ${others}` } : {}) } };
   }
   if (typeof d.colourBy === "object" && "category" in d.colourBy) {
-    // Colours follow the order of `names`, so a value keeps its colour from event to event.
-    const { category: column, abs = false, names = {} } = d.colourBy, col = t.columns[column];
-    const order = Object.keys(names), used = new Map<number, number>(); // value -> colour index
+    // Colours follow the order of `names`, so a value keeps its colour from event to event. As an object, its integer
+    // keys come in increasing order (JavaScript orders them so, whatever the file says); as [value, name] pairs, as given.
+    const { category: column, abs = false } = d.colourBy, col = t.columns[column];
+    const list = Array.isArray(d.colourBy.names) ? d.colourBy.names : Object.entries(d.colourBy.names ?? {}), names = Object.fromEntries(list);
+    const order = list.map(([v]) => String(v)), used = new Map<number, number>(); // value -> colour index
     for (let i = 0; i < t.n; i++) {
       const raw = col ? Number(col[i]) : 0, v = abs ? Math.abs(raw) : raw;
       let k = used.get(v);

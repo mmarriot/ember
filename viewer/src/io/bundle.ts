@@ -15,6 +15,8 @@ export interface DisplayLayer {
   label: string;
   kind?: string; // object type from the profile (e.g. "trackster"); `group` is then its label
   source?: string; // which reconstruction path produced it, e.g. "SoA" or "legacy"
+  /** The part of the detector it belongs to (e.g. "HGCal"): its tab in the side panel. Truth layers have none. */
+  domain?: string;
   position: [string, string, string];
   end?: [string, string, string]; // segments: where the line ends (it starts at `position`)
   colour?: string | null;

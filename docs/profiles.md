@@ -113,7 +113,7 @@ of layers 25 and 26.
 ### `display`, `kinds`, `prefer`, `stages`: layers
 
 `display` is a list of layers. Their keys are the display hints of [format.md](format.md#display-hints) (`table`,
-`repr`, `position`, `end`, `axis`, `extent`, `size`, `colour`, `palette`, `colourBy`, `time`, `group`, `label`,
+`repr`, `position`, `end`, `axis`, `extent`, `size`, `colour`, `palette`, `colourBy`, `time`, `group`, `label`, `domain`,
 `visible`, `kind`, `source`, `cut`, `filter`, `context`, `dim`, `shape`, `truth`, `onSelection`, `describe`), copied
 to the bundle for the layers whose table is written. The converter also reads:
 

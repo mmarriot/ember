@@ -1,6 +1,6 @@
 // The 3D view. Layers are rebuilt when the event, visibility, theme, colour choices or filters change; a cut only
 // sets a uniform per layer, and the focus a byte per object (plus a rebuild of the small onSelection layers, and
-// building or freeing the hidden layers it has objects in).
+// building or freeing the layers its levels show or hide).
 // Hover shows a tooltip, click selects, double-click zooms to the selection.
 import { effect, signal } from "@preact/signals";
 import { useEffect, useRef } from "preact/hooks";
@@ -15,8 +15,7 @@ import { back, jump } from "./navigate";
 import {
   activeMode, bundle, cuts, describe, event, focus, focusHidden, focusHistory, focusIsTruth, focusLayers, focusLevel, focusLinked, following,
   highlight, hover, inFocus, isHitLayer, kindOf, labelOf, layerKey, layerOf, legends, levels, pairView, rawEvent, replayCaption, selection, short,
-  showAll, shown, shownLayer,
-  theme, touring, view, visible,
+  showAll, shown, shownLayer, shownLevel, theme, touring, view, visible,
 } from "../model/store";
 import { PAIR } from "../model/pair";
 import { relationInto, type Ref } from "../model/relations";
@@ -162,7 +161,7 @@ export function Viewport() {
       for (const { layer } of fresh) {
         eng.addLayer(layer);
         layer.setHighlight(hl ? hl.get(layer.table) ?? new Set() : null);
-        layer.setOutline?.(outline);
+        layer.setOutline?.(outline, isEnvelope(layer));
         layer.setHighlightMix(1);
       }
       entries = [...entries, ...fresh];
@@ -199,6 +198,13 @@ export function Viewport() {
       applyCuts(false);
       showFocus(touring.peek() ? 900 : 250);
     });
+    // A level shown inside the focus turns the focus into an outline around it (see isEnvelope).
+    const stopEnvelope = effect(() => {
+      shownLevel.value;
+      const outline = focusIsTruth.peek();
+      for (const { layer } of entries) layer.setOutline?.(outline, isEnvelope(layer));
+      eng.requestRender();
+    });
     const stopView = effect(() => eng.setView(view.value, highlight.peek() ?? undefined));
     // The inspector covers the right of the view while something is selected: framing leaves that part free.
     const stopInset = effect(() => {
@@ -206,7 +212,7 @@ export function Viewport() {
       const panel = document.querySelector(".inspector") as HTMLElement | null, box = canvas.current!.getBoundingClientRect();
       eng.insetRight = selection.peek() ? Math.max(0, box.right - (panel?.getBoundingClientRect().left ?? box.right - 372)) : 0;
     });
-    return () => { cancelAnimationFrame(recolourFrame); stopLayers(); stopForced(); stopCuts(); stopFocus(); stopView(); stopInset(); };
+    return () => { cancelAnimationFrame(recolourFrame); stopLayers(); stopForced(); stopCuts(); stopFocus(); stopEnvelope(); stopView(); stopInset(); };
   }, []);
 
   // A press that moves more than a few pixels is a rotate/pan, not a click: it must not change the selection.
@@ -369,14 +375,18 @@ function pairColours(cls: Uint8Array, classRgb: number[][]) {
 }
 const hexRgb = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
 
+/** While a level is shown inside the focus (e.g. a candidate's tracksters), the focus's layer draws it as a
+ *  full-size outline around them: the largest object, without covering what is inside. */
+const isEnvelope = (layer: Layer) => !!shownLevel.peek() && layer.table === focus.peek()?.table;
+
 /** Highlight the focus and what belongs to it on every layer (outlines for reco objects when the focus is a
- *  truth particle, except in the pair view, which looks the same from either side), faded in over `ms` (0: at once,
- *  e.g. for freshly built layers). */
+ *  truth particle, except in the pair view, which looks the same from either side; the focus as an envelope, see
+ *  isEnvelope), faded in over `ms` (0: at once, e.g. for freshly built layers). */
 function showFocus(ms: number) {
   const hl = highlight.peek(), outline = focusIsTruth.peek() && !pairView.peek();
   for (const { layer } of entries) {
     layer.setHighlight(hl ? hl.get(layer.table) ?? new Set() : null);
-    layer.setOutline?.(outline);
+    layer.setOutline?.(outline, isEnvelope(layer));
   }
   if (ms > 0) engine?.fadeHighlight(ms);
   else for (const { layer } of entries) layer.setHighlightMix(1);

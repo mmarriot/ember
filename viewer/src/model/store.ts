@@ -215,6 +215,11 @@ export const levels = computed(() => {
   if (!b || !f || !hl || !parts) return [];
   return focusLevels(b.header.display, f.table, hl, (t) => parts.madeOf.has(t) || !parts.linked.has(t));
 });
+/** The chosen level, if the focus has it and it is not the bottom one (drawn anyway); else null. */
+export const shownLevel = computed(() => {
+  const c = focusLevel.value;
+  return levels.value.slice(0, -1).some((l) => l.name === c) ? c : null;
+});
 export const stepFocusLevel = (by: number) => { focusLevel.value = stepLevel(levels.peek(), focusLevel.peek(), by); };
 
 // While a focus lasts, what is drawn differs from the Layers tab: the focus's layer, its stage (e.g. a candidate's

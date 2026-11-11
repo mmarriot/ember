@@ -31,7 +31,9 @@ export interface Layer {
   setRetire(t: number): void; // replay: when the layer gives way to the next reconstruction stage (s); REPLAY_OFF: never
   setFade?(from: number, to: number, amount: number): void; // replay: fade towards the background between these times
   setColourStages?(stages: ColourStage[]): void; // replay: colours (and emphasis) from time t on, e.g. per stage
-  setOutline?(on: boolean): void; // shower objects: draw as outlines (e.g. the reco objects matched to a truth particle)
+  /** Shower objects: draw as outlines (e.g. the reco objects matched to a truth particle); `envelope`: as a
+   *  full-size outline, also for compact cores (the focus around the level shown inside it). */
+  setOutline?(on: boolean, envelope?: boolean): void;
   dispose(): void;
 }
 export interface ColourStage { t: number; rgb: Float32Array; emphasis?: Uint8Array }
@@ -299,7 +301,7 @@ export function ellipsoids(input: LayerInput): Layer {
     vertexShader: SHOWER_VERTEX, fragmentShader: SHOWER_FRAGMENT, uniforms: { uStyle: { value: style } },
     transparent: shape !== "core", depthWrite: shape === "core", side: shape === "shell" || shape === "cage" ? THREE.DoubleSide : THREE.FrontSide,
   });
-  const core = shape === "core" ? 0.55 : 1; // a candidate is a compact core inside the shower it stands for
+  let core = shape === "core" ? 0.55 : 1; // a candidate is a compact core inside the shower it stands for
   const mesh = new THREE.InstancedMesh(geometry, material, Math.max(t.n, 1));
   mesh.count = t.n;
   mesh.frustumCulled = false;
@@ -313,7 +315,7 @@ export function ellipsoids(input: LayerInput): Layer {
   const drawAxis = shape === "solid" || shape === "core"; // shells and cages stay uncluttered
   const pickA = [new Float32Array(t.n), new Float32Array(t.n), new Float32Array(t.n)] as const;
   const pickB = [new Float32Array(t.n), new Float32Array(t.n), new Float32Array(t.n)] as const;
-  let rz = false, highlighted: Set<number> | null = null, previous: Set<number> | null = null, hlMix = 1;
+  let rz = false, highlighted: Set<number> | null = null, previous: Set<number> | null = null, hlMix = 1, enveloped = false;
   const shown = (set: Set<number> | null, i: number) => (set === null || set.has(i) ? 1 : 0);
   let appear: Float32Array | null = null, clock = REPLAY_OFF, settled = Infinity; // replay: all grown once clock >= settled
   let retire = REPLAY_OFF; // replay: shrink away from this time
@@ -363,7 +365,19 @@ export function ellipsoids(input: LayerInput): Layer {
     ...identity(input, 14), object: group, x, y, z, segment: { a: pickA, b: pickB }, pickBias: shape === "core" ? 0.3 : 0.45,
     passes: (i) => cut.passes(i) && shown(highlighted, i) === 1, // showers hidden by a selection cannot be picked
     setCut: cut.setCut, setColours(c) { rgb = c; update(); },
-    setOutline(on) { material.uniforms.uStyle.value = on ? SHOWER_STYLES.shell : style; material.side = on ? THREE.DoubleSide : material.side; },
+    setOutline(on, envelope = false) {
+      material.uniforms.uStyle.value = on || envelope ? SHOWER_STYLES.shell : style;
+      material.side = on || envelope ? THREE.DoubleSide : material.side;
+      if (envelope === enveloped) return;
+      // An envelope is see-through and full size; without one, the shape's own settings come back.
+      enveloped = envelope;
+      material.transparent = envelope || shape !== "core";
+      material.depthWrite = !envelope && shape === "core";
+      if (!envelope && !on) material.side = shape === "shell" || shape === "cage" ? THREE.DoubleSide : THREE.FrontSide;
+      material.needsUpdate = true; // transparency and depth writes are compiled into the shader program's state
+      core = envelope || shape !== "core" ? 1 : 0.55;
+      update();
+    },
     setHighlight(rows) { previous = highlighted; highlighted = rows; hlMix = 0; update(); },
     setHighlightMix(k) { if (k !== hlMix) { hlMix = k; update(); } },
     setProjection(v) { rz = v; update(); },

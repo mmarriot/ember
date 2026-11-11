@@ -12,7 +12,8 @@ The same list is in the viewer's help (`?`).
 | action | how |
 |---|---|
 | rotate, pan, zoom | drag; right-drag or shift + drag; scroll (zooms towards the cursor) |
-| inspect an object | click it: it and its parts are shown, related objects highlighted; further clicks pick among its parts |
+| inspect an object | click it: it is shown with its smallest parts (e.g. a candidate with its hits), related objects highlighted; further clicks pick among its parts |
+| see what it is made of, level by level | ↓ / ↑, or click a level in the bar at the top left: one level at a time between the object and its smallest parts (e.g. a candidate's interpretations, linked tracksters, tracksters, layer clusters), with the object drawn as an outline around it |
 | objects on top of each other | click again on the same spot for the next one |
 | zoom to an object | double-click it, or F |
 | show everything | Home, or Reset |

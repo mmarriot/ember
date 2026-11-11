@@ -812,7 +812,8 @@ export function cones(input: LayerInput): Layer {
     vertexShader: /* glsl */ `
       attribute float ilen, isel, ipsel, icut, iT, cap;
       attribute vec3 icol, istart, icone; // icone: eta, phi, radius
-      varying vec3 vCol, vN, vV;
+      varying vec3 vCol, vN, vV, vA;
+      varying float vEdge;
       ${GLSL}
       vec3 dirOf(float eta, float phi) { return vec3(cos(phi) / cosh(eta), sin(phi) / cosh(eta), tanh(eta)); }
       void main() {
@@ -826,16 +827,22 @@ export function cones(input: LayerInput): Layer {
         if (uProj > 0.5) c = projectRZ(c, s * 2.0, istart.y + ilen * axis.y >= 0.0 ? 1.0 : -1.0); // the side of its end, as picked
         vec4 mv = modelViewMatrix * vec4(c, 1.0);
         gl_Position = projectionMatrix * mv;
-        vN = uProj > 0.5 ? vec3(0.0) : normalMatrix * nrm; vV = -mv.xyz;
+        vN = uProj > 0.5 ? vec3(0.0) : normalMatrix * nrm; vV = -mv.xyz; vA = normalMatrix * axis;
+        vEdge = cap > 0.5 ? dot(position.xy, position.xy) : position.z; // 1 on the base's circle
         vCol = fade(mix(icol, vec3(1.0), 0.3 * s * selActive()), s) * remaining() + uBg * (1.0 - remaining());
       }`,
-    // Translucent, more opaque towards the rim; in rho-z (no normal) evenly. Outline: the rim only.
+    // Translucent, more opaque towards the rim; in rho-z (no normal) evenly. Outline: the base's circle (about 1.5 px)
+    // and the sides' silhouette, which fades as the cone is seen along its axis (then the circle is the outline).
     fragmentShader: /* glsl */ `
       uniform float uOutline;
-      varying vec3 vCol, vN, vV;
+      varying vec3 vCol, vN, vV, vA;
+      varying float vEdge;
       void main() {
-        float rim = dot(vN, vN) < 1e-6 ? 0.55 : 1.0 - abs(dot(normalize(vN), normalize(vV)));
-        float a = uOutline > 0.5 ? 0.9 * pow(rim, 5.0) : 0.12 + 0.55 * pow(rim, 2.0);
+        bool flat2d = dot(vN, vN) < 1e-6;
+        float rim = flat2d ? 0.55 : 1.0 - abs(dot(normalize(vN), normalize(vV)));
+        float ring = smoothstep(1.0 - 1.5 * fwidth(vEdge), 1.0, vEdge);
+        float side = flat2d ? 0.0 : pow(rim, 6.0) * (1.0 - abs(dot(normalize(vA), normalize(vV))));
+        float a = uOutline > 0.5 ? max(0.9 * ring, 0.8 * side) : 0.12 + 0.55 * pow(rim, 2.0);
         gl_FragColor = vec4(vCol * (0.8 + 0.4 * rim), a);
       }`,
   });

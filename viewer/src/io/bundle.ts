@@ -67,8 +67,10 @@ export interface Header {
   /** `scope: "run"`: written once per run (see RunEntry) and added to every event of that run. */
   tables: Record<string, { doc: string; scope?: "run"; columns: Record<string, { type: TypeCode; doc: string }> }>;
   /** `association`: links two kinds of object (e.g. reco <-> truth); selections cross it once, without following the
-   *  other side's own relations. `best`: the weight that picks one partner where only one can be shown (colours). */
-  relations: Record<string, { from: string; to: string; weights: string[]; association?: boolean; best?: { weight: string; order: "min" | "max" } }>;
+   *  other side's own relations. `best`: the weight that picks one partner where only one can be shown (colours).
+   *  `inverseOf`: the relation points from a part back up to its container, the inverse of the named relation (a
+   *  track's vertex, next to the vertex's tracks). */
+  relations: Record<string, { from: string; to: string; weights: string[]; association?: boolean; best?: { weight: string; order: "min" | "max" }; inverseOf?: string }>;
   display: DisplayLayer[];
   /** How particles move through the detector, for the reconstruction replay: away from a point (default: the
    *  origin, i.e. collisions), along a direction (e.g. [0, -1, 0] for cosmics), or in a fixed random order (hits

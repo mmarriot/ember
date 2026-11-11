@@ -56,10 +56,15 @@ Optional hints:
 - `best: {"weight", "order": "min"|"max"}`: the weight that picks one partner where only one can be shown, e.g. the
   colour of a trackster by its best-matched particle.
 
-Two plain relations may be each other's inverse, e.g. `vertexTracks` (vertex -> its tracks) and `trackVertex` (track ->
-its vertex). The viewer takes the one with at most one link per object, where the other has more, as a pointer back
-up: a selected track links its vertex (highlighted, listed under "Part of"), but does not reach the vertex's other
-tracks. The colour modes do not colour such a container (the vertex) from its parts (the candidates of its tracks).
+- `inverseOf: <relation>`: the relation points from a part back up to its container, the inverse of the named
+  relation, e.g. `trackVertex` (track -> its vertex) with `"inverseOf": "vertexTracks"` (vertex -> its tracks). The
+  viewer treats it as a pointer back up: a selected track links its vertex (highlighted, listed under "Part of"), but
+  does not reach the vertex's other tracks.
+
+Two plain relations may be each other's inverse without the hint; the viewer then takes the one with at most one link
+per object in the event, where the other has more, as the pointer back up (a guess: with one vertex of one track, it
+cannot tell). The colour modes do not colour such a container (the vertex) from its parts (the candidates of its
+tracks).
 
 ### Display hints
 

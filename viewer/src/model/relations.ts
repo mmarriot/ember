@@ -47,16 +47,18 @@ export function relatedParts(ev: EventData, header: Header, sel: Ref): { madeOf:
 }
 
 /** Plain relations that point back up a containment that their inverse gives, e.g. track -> its vertex next to
- *  vertex -> its tracks: at most one link per object, where the inverse has more. Navigation treats them as an
- *  association (crossed once, the partner linked), so a track's relatives are its vertex, not every track of the
- *  vertex and their hits. Once per event (which way is "up" shows in the data). */
+ *  vertex -> its tracks. Navigation treats them as an association (crossed once, the partner linked), so a track's
+ *  relatives are its vertex, not every track of the vertex and their hits. A relation says so with its `inverseOf`
+ *  hint; for a pair of inverse relations without one, the one with at most one link per object, where the other has
+ *  more, is taken (which way is "up" then shows in the data). Once per event. */
 export function backPointers(ev: EventData, header: Header): Set<string> {
   return cached(ev, "backPointers", () => {
     const out = new Set<string>(), plain = Object.entries(header.relations).filter(([name, r]) => !r.association && ev.relations[name] && r.from !== r.to);
     const most = (name: string) => { const o = ev.relations[name].offsets; let m = 0; for (let i = 0; i + 1 < o.length; i++) m = Math.max(m, o[i + 1] - o[i]); return m; };
     for (const [name, r] of plain) {
+      if (r.inverseOf) { out.add(name); continue; }
       const inverse = plain.find(([, o]) => o.from === r.to && o.to === r.from);
-      if (inverse && most(name) <= 1 && most(inverse[0]) > 1) out.add(name);
+      if (inverse && !inverse[1].inverseOf && most(name) <= 1 && most(inverse[0]) > 1) out.add(name);
     }
     return out;
   });
@@ -70,17 +72,20 @@ export function backPointers(ev: EventData, header: Header): Set<string> {
 export function levelsOf(ev: EventData, header: Header, sel: Ref, parts = relatedParts(ev, header, sel)): Related {
   const { madeOf, linked } = parts, back = backPointers(ev, header);
   // Only objects below the selection: not made of objects of its own table, and of an earlier reconstruction stage
-  // when both have one (a trackster's candidate is made only of it, but contains it).
+  // than the selection's. A reconstruction stage is built on top of the objects without one, so it is never inside an
+  // object without a stage (a candidate made only of a vertex's track is not part of the vertex).
   const stage = (table: string) => header.display?.find((l) => l.table === table && l.stage !== undefined)?.stage;
-  const below = (table: string) => { const a = stage(table), b = stage(sel.table); return a === undefined || b === undefined || a < b; };
+  const own = stage(sel.table), below = (table: string) => { const a = stage(table); return a === undefined || (own !== undefined && a < own); };
+  const usable = Object.entries(header.relations).filter(([name, info]) => ev.relations[name] && !info.association && !back.has(name) &&
+    info.from !== info.to && info.from !== sel.table && info.to !== sel.table && !madeOf.has(info.from) && below(info.from));
+  // Only tables with a relation into the parts can have objects inside: the others are not looked at.
+  const reaching = new Set(usable.filter(([, info]) => madeOf.get(info.to)?.size).map(([, info]) => info.from));
   const extra: Related = new Map();
   // Per candidate table, per object: 1 while everything it points to so far is inside, 0 once something is not.
   const inside = new Map<string, Uint8Array>();
-  for (const [name, info] of Object.entries(header.relations)) {
-    const rel = ev.relations[name];
-    if (!rel || info.association || back.has(name) || info.from === info.to || info.from === sel.table || info.to === sel.table ||
-        madeOf.has(info.from) || !below(info.from)) continue;
-    const parts = madeOf.get(info.to), n = rel.offsets.length - 1;
+  for (const [name, info] of usable) {
+    if (!reaching.has(info.from)) continue;
+    const rel = ev.relations[name], parts = madeOf.get(info.to), n = rel.offsets.length - 1;
     let flags = inside.get(info.from);
     if (!flags) inside.set(info.from, (flags = new Uint8Array(n).fill(2))); // 2: nothing seen yet
     for (let i = 0; i < n; i++) {

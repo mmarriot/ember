@@ -70,6 +70,20 @@ describe("related", () => {
     const vh = { relations: { vtxTracks: { from: "Vtx", to: "Trk", weights: [] }, trackVtx: { from: "Trk", to: "Vtx", weights: [] },
       candTrack: { from: "Cand", to: "Trk", weights: [] }, candLCs: { from: "Cand", to: "LC", weights: [] } } } as unknown as Header;
     expect(rows(levelsOf(vev, vh, { table: "Vtx", row: 0 }))).toEqual({ Vtx: [0], Trk: [0, 1], Cand: [0] }); // not candidate 1
+    // A reconstruction stage (the candidates) is built on top of the objects without one: never inside a vertex.
+    const staged = { ...vh, display: [{ table: "Cand", stage: 3 }] } as unknown as Header;
+    expect(rows(levelsOf(vev, staged, { table: "Vtx", row: 0 }))).toEqual({ Vtx: [0], Trk: [0, 1] });
+  });
+  it("takes the pointer back up from the inverseOf hint, whatever the link counts", () => {
+    // One vertex with one track: the counts cannot tell which way is up.
+    const vev = { id: [1, 1, 1], tables: {}, relations: { vtxTracks: csr([[0]]), trackVtx: csr([[0]]), trackHits: csr([[0]]) } } as unknown as EventData;
+    const vh = { relations: { vtxTracks: { from: "Vtx", to: "Trk", weights: [] }, trackVtx: { from: "Trk", to: "Vtx", weights: [], inverseOf: "vtxTracks" },
+      trackHits: { from: "Trk", to: "Hit", weights: [] } } } as unknown as Header;
+    expect(rows(relatedParts(vev, vh, { table: "Trk", row: 0 }).madeOf)).toEqual({ Trk: [0], Hit: [0] });
+    expect(rows(relatedParts(vev, vh, { table: "Vtx", row: 0 }).madeOf)).toEqual({ Vtx: [0], Trk: [0], Hit: [0] });
+    // Without the hint, both are plain: the track reaches its vertex as a part.
+    const plain = { relations: { ...vh.relations, trackVtx: { from: "Trk", to: "Vtx", weights: [] } } } as unknown as Header;
+    expect(rows(relatedParts({ ...vev } as EventData, plain, { table: "Trk", row: 0 }).madeOf)).toEqual({ Trk: [0], Hit: [0], Vtx: [0] });
   });
   it("finds what a track belongs to", () => {
     expect(rows(related(ev, header, { table: "Track", row: 1 }))).toEqual({ Track: [1], Cand: [0] });

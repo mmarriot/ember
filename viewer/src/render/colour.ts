@@ -103,6 +103,12 @@ export function relatedColourText(header: Header, table: string, relation?: stri
   return `colour of its ${info?.association ? "matched " : ""}${tableName(header, table)}${info?.association && info.best ? `, best by ${info.best.weight}` : ""}`;
 }
 
+/** The words under a layer drawn in one neutral colour (`colourBy: "none"`: nothing to take a colour from in this
+ *  mode). A hook: the truth mode words it from the layer's truth status (e.g. "no truth for jets: no associator in
+ *  CMSSW") with `describeNoLink`. */
+let noLinkText = (_d: DisplayLayer) => "one colour: no link to the colour's source";
+export const describeNoLink = (text: (d: DisplayLayer) => string) => { noLinkText = text; };
+
 /** The display hint that colours a table's layer, with the user's colour choice applied. */
 export type LayerFor = (table: string) => DisplayLayer | undefined;
 /** `emphasis`: 0 for objects with nothing to take a colour from (drawn small and grey). Category legend `items` may
@@ -140,7 +146,7 @@ export function colours(d: DisplayLayer, t: Table, ev: EventData, header: Header
   if (d.colourBy === "none") { // a layer with nothing to take a colour from in this mode (e.g. vertices, by truth)
     const c = rgb(pal.unassigned);
     for (let i = 0; i < t.n; i++) set(i, c);
-    return { rgb: out, legend: { kind: "category", text: "one colour: no link to the colour's source" } };
+    return { rgb: out, legend: { kind: "category", text: noLinkText(d) } };
   }
   if (d.colourBy === "identity") {
     const { key, used, top, others } = identities(d, t, ev, header, pal.identity.length);

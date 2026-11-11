@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { drawsLayer, ownDomains, sharedDomains, startDomain, stepDomain } from "./domains";
+import { drawsLayer, ownDomains, rowsInDomain, sharedDomains, startDomain, stepDomain, withFocus } from "./domains";
 
 const header = {
   domains: [
@@ -44,5 +44,24 @@ describe("domains", () => {
 
   it("names the parts of the detector a set of layers lies in", () => {
     expect(ownDomains([{ domain: "Physics" }, { domain: "Calo" }, {}, { domain: "Calo" }], sharedDomains(header))).toEqual(new Set(["Calo"]));
+  });
+});
+
+describe("a focus seen from a domain", () => {
+  const shared = sharedDomains(header);
+  const display = [{ table: "Jets", domain: "Physics" }, { table: "Tracks", domain: "Tracker" }, { table: "Hits", domain: "Calo" }, { table: "Truth" }];
+  const hl = new Map([["Jets", new Set([0])], ["Tracks", new Set([3, 4])], ["Hits", new Set<number>()], ["Truth", new Set([7])]]);
+  it("keeps the rows a domain draws as its own; all of them in All or a shared domain; none if it has none", () => {
+    expect(rowsInDomain(hl, display, "Tracker", shared)).toEqual(new Map([["Tracks", new Set([3, 4])]]));
+    expect(rowsInDomain(hl, display, "Calo", shared)).toBe(null); // its hit set is empty
+    expect(rowsInDomain(hl, display, null, shared)).toBe(hl);
+    expect(rowsInDomain(hl, display, "Physics", shared)).toBe(hl);
+    expect(rowsInDomain(new Map(), display, null, shared)).toBe(null);
+  });
+  it("frames the focus with its part there (a jet from its vertex to its tracks), without changing the part", () => {
+    const part = rowsInDomain(hl, display, "Tracker", shared)!;
+    expect(withFocus(part, { table: "Jets", row: 0 })).toEqual(new Map([["Tracks", new Set([3, 4])], ["Jets", new Set([0])]]));
+    expect(withFocus(part, { table: "Tracks", row: 9 }).get("Tracks")).toEqual(new Set([3, 4, 9]));
+    expect(part.get("Tracks")).toEqual(new Set([3, 4]));
   });
 });

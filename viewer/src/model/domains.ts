@@ -35,3 +35,20 @@ export function stepDomain(names: string[], current: string | null, by: number, 
 /** The domains of a set of layers that are not shared (where they are drawn as one part of the detector). */
 export const ownDomains = (layers: Pick<DisplayLayer, "domain">[], shared: Set<string>) =>
   new Set(layers.flatMap((l) => (l.domain && !shared.has(l.domain) ? [l.domain] : [])));
+
+type Rows = Map<string, Set<number>>;
+/** The rows of `hl` (e.g. a focus's highlight) that domain `name` draws as its own: those of its layers (not of shared
+ *  domains or of none, which every domain draws); with `name` null (All) or a shared domain, all of them. Null when it
+ *  has none. */
+export function rowsInDomain(hl: Rows, display: Pick<DisplayLayer, "table" | "domain">[], name: string | null, shared: Set<string>): Rows | null {
+  if (!name || shared.has(name)) return [...hl.values()].some((s) => s.size) ? hl : null;
+  const tables = new Set(display.filter((l) => l.domain === name).map((l) => l.table));
+  const rows = new Map([...hl].filter(([t, set]) => tables.has(t) && set.size));
+  return rows.size ? rows : null;
+}
+
+/** `part` with the focus itself added: what to frame when a domain is chosen with a focus (a jet from its vertex to
+ *  its clusters there, not only the clusters, which in a 2D view would fill the screen). */
+export function withFocus(part: Rows, focus: { table: string; row: number }): Rows {
+  return new Map([...part, [focus.table, new Set([...(part.get(focus.table) ?? []), focus.row])]]);
+}

@@ -22,3 +22,11 @@ export function passes(d: Pick<DisplayLayer, "cut">, t: Table, min: number, keep
 /** Readable names of common physics columns in the object rows' heading; others keep their own name. */
 const NAMES: Record<string, string> = { pt: "pT", eta: "η", phi: "φ", energy: "E", mass: "m" };
 export const columnName = (c: string) => NAMES[c] ?? c;
+
+/** The row after (`by` 1) or before (-1) `current` in `rows`, cycling; from outside them (or none), the first (or the
+ *  last going back). Undefined for no rows. */
+export function stepRow(rows: number[], current: number | undefined, by: number): number | undefined {
+  if (!rows.length) return undefined;
+  const at = current === undefined ? -1 : rows.indexOf(current);
+  return rows[at < 0 ? (by > 0 ? 0 : rows.length - 1) : (at + by + rows.length) % rows.length];
+}

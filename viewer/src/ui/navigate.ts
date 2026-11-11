@@ -2,11 +2,11 @@
 // the camera glides to the new focus, conservatively. Moving between the parts of the detector (domains), keeping the
 // focus.
 import { batch } from "@preact/signals";
-import type { DisplayLayer } from "../io/bundle";
+import { type DisplayLayer, kindName } from "../io/bundle";
 import { filterMask, filters } from "../model/custom";
-import { stepDomain } from "../model/domains";
-import { passes, topRows } from "../model/objects";
-import { bundle, cuts, domain, drawnLayers, event, focus, focusBack, focusOn, highlight, layerKey, layerOf, openTab, selection, shared, sizeColumn, tabOfDomain, view } from "../model/store";
+import { rowsInDomain, stepDomain, withFocus } from "../model/domains";
+import { passes, stepRow, topRows } from "../model/objects";
+import { bundle, cuts, domain, drawnLayers, event, focus, focusBack, focusOn, highlight, layerKey, layerOf, openTab, selection, shared, sizeColumn, tabOfDomain, toast, view } from "../model/store";
 import type { Ref } from "../model/relations";
 import { engine } from "./Viewport";
 
@@ -36,23 +36,15 @@ export function chooseDomain(name: string | null, animate = true) {
     view.value = d?.view ?? h.view?.start ?? "3d";
   });
   const part = focusIn(d?.name ?? null), f = focus.peek();
-  // The focus with its part there: a jet from its vertex to its clusters, not only the clusters (which, in a 2D view,
-  // would fill the screen).
-  if (part && f) engine?.frame(new Map([...part, [f.table, new Set([...(part.get(f.table) ?? []), f.row])]]), animate, 700);
+  if (part && f) engine?.frame(withFocus(part, f), animate, 700);
   else if (d) engine?.frameRegion(d.region.rMax, d.region.zMax, animate);
   else engine?.frame(undefined, animate);
 }
 
-/** The focus's objects (its highlight) that domain `name` draws as its own (not those of shared domains or without a
- *  domain, which every domain draws); with `name` a shared domain or null (All), all of them. Null without a focus or
- *  when the domain has none of them. */
-function focusIn(name: string | null): Map<string, Set<number>> | null {
+/** The focus's objects that domain `name` draws as its own (model/domains.ts rowsInDomain); null without a focus. */
+function focusIn(name: string | null) {
   const h = bundle.peek()?.header, hl = highlight.peek();
-  if (!h || !hl || !focus.peek()) return null;
-  if (!name || shared.peek().has(name)) return hl.size ? hl : null;
-  const tables = new Set(h.display.filter((l) => l.domain === name).map((l) => l.table));
-  const rows = new Map([...hl].filter(([t, set]) => tables.has(t) && set.size));
-  return rows.size ? rows : null;
+  return h && hl && focus.peek() ? rowsInDomain(hl, h.display, name, shared.peek()) : null;
 }
 
 /** The next (`by` 1) or previous (-1) domain, All after the last (keyboard: D, Shift+D). With a selection, the domains
@@ -83,16 +75,16 @@ export function ranked(d: DisplayLayer, max = Infinity): number[] {
 }
 
 /** Select the next (`by` 1) or previous (-1) object of the selected one's kind, largest first (keyboard: N, Shift+N);
- *  without a selection, the leading object of the first drawn layer with labels (or object rows). */
+ *  without a selection, the leading object of the first drawn layer with labels (or object rows). Only kinds with
+ *  object rows (`list`: jets, leptons, vertices...): stepping through a hit table (400k HGCal cells at PU200) costs
+ *  ~70 ms a press (measured) and leads nowhere. */
 export function nextObject(by = 1) {
   const b = bundle.peek(), sel = selection.peek();
   if (!b) return;
   const drawn = drawnLayers.peek(), d = sel ? layerOf(sel.table)
     : b.header.display.find((l) => l.labels && drawn[layerKey(l)]) ?? b.header.display.find((l) => l.list && drawn[layerKey(l)]);
   if (!d) return;
-  const rows = ranked(d);
-  if (!rows.length) return;
-  const at = sel ? rows.indexOf(sel.row) : -1;
-  const i = at < 0 ? (by > 0 ? 0 : rows.length - 1) : (at + by + rows.length) % rows.length;
-  jump({ table: d.table, row: rows[i] });
+  if (!d.list) return toast(`N steps through objects listed in the side panel (e.g. jets); ${kindName(d).toLowerCase()} are not`);
+  const row = stepRow(ranked(d), sel?.table === d.table ? sel.row : undefined, by);
+  if (row !== undefined) jump({ table: d.table, row });
 }

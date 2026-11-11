@@ -6,8 +6,8 @@ import { applyPreset } from "../model/presets";
 import { PAIR, type PairClass } from "../model/pair";
 import { PALETTES, relatedColourText, type Legend } from "../render/colour";
 import {
-  activeMode, bundle, describe, event, focusLayers, layerKey, layerOf, legends, modes, pairView, setMode, short, showAll, shown, shownLayer,
-  theme, visible,
+  activeMode, bundle, describe, event, focusHidden, focusLayers, focusLevel, layerKey, layerOf, legends, levels, modes, pairView, setMode, short,
+  showAll, shown, shownLayer, theme, visible,
 } from "../model/store";
 import { jump } from "./navigate";
 
@@ -56,15 +56,20 @@ const glyph = (d: DisplayLayer) =>
 function LayerRow({ d, label }: { d: DisplayLayer; label: string }) {
   const b = bundle.value!, key = layerKey(d), n = event.value?.tables[d.table]?.n ?? 0, legend = legends.value[key];
   const on = !!visible.value[key], s = shown.value[key];
+  // A layer of one of the focus's levels: ticking it (or the link under it) shows that level.
+  const level = levels.value.find((l) => l.layers.includes(d))?.name, showLevel = () => level && (focusLevel.value = level);
   return (
     <div class={on ? "layer" : "layer off"}>
       <label title={b.header.tables[d.table]?.doc ?? d.table}>
-        <input type="checkbox" checked={on} disabled={!n} onChange={() => (visible.value = { ...visible.value, [key]: !on })} />
+        <input type="checkbox" checked={on} disabled={!n} onChange={() => { visible.value = { ...visible.value, [key]: !on }; if (!on) showLevel(); }} />
         <span class="glyph" aria-hidden="true">{glyph(d)}</span>
         <span class="name">{label}{d.source && <span class="tag" title="Reconstruction path">{d.source}</span>}</span>
         <span class="count">{on && s !== undefined && s !== n ? `${s.toLocaleString()} / ` : ""}{n.toLocaleString()}</span>
       </label>
       {!on && focusLayers.value.has(key) && <div class="sub muted">shown for the focus</div>}
+      {on && focusHidden.value.has(key) && (
+        <div class="sub muted wrap" title="A focus shows one of its levels at a time">hidden for the focus · <button class="link" onClick={showLevel}>show {level}</button></div>
+      )}
       {on && legend && <LegendRow d={d} legend={legend} />}
       {on && d.onSelection && (
         <label class="sub" title="Ticked: only the objects related to what you click; unticked: all of them">

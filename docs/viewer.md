@@ -12,7 +12,8 @@ The same list is in the viewer's help (`?`).
 | action | how |
 |---|---|
 | rotate, pan, zoom | drag; right-drag or shift + drag; scroll (zooms towards the cursor) |
-| inspect an object | click it: it and its parts are shown, related objects highlighted; further clicks pick among its parts |
+| inspect an object | click it: it is shown with its smallest parts (e.g. a candidate with its hits), related objects highlighted; further clicks pick among its parts |
+| see what it is made of, level by level | ↓ / ↑, or click a level in the bar at the top left: one level at a time between the object and its smallest parts (e.g. a candidate's interpretations, linked tracksters, tracksters, layer clusters), with the object drawn as an outline around it; a level with several layers (e.g. two linking algorithms) draws those ticked in Layers, or all of them if none is |
 | objects on top of each other | click again on the same spot for the next one |
 | zoom to an object | double-click it, or F |
 | show everything | Home, or Reset |
@@ -55,7 +56,9 @@ highest ancestor that owns hits or is matched; a reco object takes its best trut
 the most simulated energy in it), then that particle's best candidate. So the particle, its candidate and anything
 inside them give the same pair and the same picture; a selected candidate that is not its particle's best (a
 fragment) shows as split. Without a particle (no truth in the file, or none matched) the pair is the selection's
-candidate alone, and its objects show as "in the candidate". Every layer is coloured by where its objects ended up:
+candidate alone, and its objects show as "in the candidate". The levels in the focus bar are then the pair
+candidate's kinds, whichever of its objects is selected, and count the pair's objects (also the particle's in other
+candidates or in none); the selected object itself is always drawn. Every layer is coloured by where its objects ended up:
 
 | class | meaning |
 |---|---|

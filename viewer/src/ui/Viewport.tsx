@@ -1,6 +1,6 @@
 // The 3D view. Layers are rebuilt when the event, visibility, theme, colour choices or filters change; a cut only
 // sets a uniform per layer, and the focus a byte per object (plus a rebuild of the small onSelection layers, and
-// building or freeing the hidden layers it has objects in).
+// building or freeing the layers its levels show or hide).
 // Hover shows a tooltip, click selects, double-click zooms to the selection.
 import { effect, signal } from "@preact/signals";
 import { useEffect, useRef } from "preact/hooks";
@@ -13,10 +13,9 @@ import { builders, type ColourStage, type Layer } from "../render/layers";
 import { planReplay, type Plan } from "../render/replay";
 import { back, jump } from "./navigate";
 import {
-  activeMode, bundle, cuts, describe, event, focus, focusHistory, focusIsTruth, focusLayers, focusLinked, following, highlight, hover,
-  inFocus, isHitLayer, kindOf, labelOf, layerKey, layerOf, legends, pairView, rawEvent, replayCaption, selection, short, showAll, shown,
-  shownLayer,
-  theme, touring, view, visible,
+  activeMode, bundle, cuts, describe, event, focus, focusHidden, focusHistory, focusIsTruth, focusLayers, focusLevel, focusLinked, following,
+  highlight, hover, inFocus, isHitLayer, kindOf, labelOf, layerKey, layerOf, legends, levels, levelTop, pairView, rawEvent, replayCaption, selection, short,
+  showAll, shown, shownLayer, shownLevel, theme, touring, view, visible,
 } from "../model/store";
 import { PAIR } from "../model/pair";
 import { relationInto, type Ref } from "../model/relations";
@@ -103,11 +102,12 @@ export function Viewport() {
       recolourFrame ||= requestAnimationFrame(() => { recolourFrame = 0; applyCuts(true); });
     });
 
-    // The layers to draw: the visible ones, the hidden ones the focus has objects in, and in a replay every
-    // reconstruction stage.
+    // The layers to draw: the visible ones but the levels a focus hides, the hidden ones it shows, and in a replay
+    // every visible layer and reconstruction stage.
     const wanted = (header: Header, ev: EventData) => {
-      const vis = visible.peek(), forced = focusLayers.peek(), all = replaying.peek();
-      return header.display.filter((d) => (vis[layerKey(d)] || forced.has(layerKey(d)) || (all && d.stage !== undefined)) && ev.tables[d.table]?.n);
+      const vis = visible.peek(), forced = focusLayers.peek(), hidden = focusHidden.peek(), all = replaying.peek();
+      const draw = (k: string, d: DisplayLayer) => (vis[k] && (all || !hidden.has(k))) || forced.has(k) || (all && d.stage !== undefined);
+      return header.display.filter((d) => draw(layerKey(d), d) && ev.tables[d.table]?.n);
     };
     // Builds the given layers, adding their legends to `drawn`; colour scales are shared with the layers in `pool`.
     const build = (layers: DisplayLayer[], header: Header, ev: EventData, drawn: Record<string, Legend>, pool: Entry[] = []): Entry[] => {
@@ -145,10 +145,10 @@ export function Viewport() {
       showFocus(0);
     });
 
-    // A focus draws the hidden layers it has objects in (e.g. a candidate's tracksters): only those are built, or
-    // freed when it ends; the other layers keep their buffers.
+    // A focus draws some hidden layers (e.g. a candidate's tracksters, when that level is chosen) and hides some
+    // ticked ones (e.g. its layer clusters, until chosen): only those are built or freed; the others keep their buffers.
     const stopForced = effect(() => {
-      focusLayers.value;
+      focusLayers.value; focusHidden.value;
       const b = bundle.peek(), ev = event.peek();
       if (!b || !ev || ev !== builtFor) return; // a new event: stopLayers builds everything
       const keep = new Set(wanted(b.header, ev).map(layerKey)), have = new Set(entries.map((e) => e.key));
@@ -157,11 +157,11 @@ export function Viewport() {
       const drawn = { ...legends.peek() };
       for (const e of gone) { eng.removeLayer(e.layer); delete drawn[e.key]; }
       entries = entries.filter((e) => keep.has(e.key));
-      const fresh = build(added, b.header, ev, drawn, entries), hl = highlight.peek(), outline = focusIsTruth.peek();
+      const fresh = build(added, b.header, ev, drawn, entries), hl = highlight.peek(), outline = truthOutline();
       for (const { layer } of fresh) {
         eng.addLayer(layer);
         layer.setHighlight(hl ? hl.get(layer.table) ?? new Set() : null);
-        layer.setOutline?.(outline);
+        layer.setOutline?.(outline, isEnvelope(layer));
         layer.setHighlightMix(1);
       }
       entries = [...entries, ...fresh];
@@ -198,6 +198,13 @@ export function Viewport() {
       applyCuts(false);
       showFocus(touring.peek() ? 900 : 250);
     });
+    // A level shown inside the focus turns the focus into an outline around it (see isEnvelope).
+    const stopEnvelope = effect(() => {
+      shownLevel.value;
+      const outline = truthOutline();
+      for (const { layer } of entries) layer.setOutline?.(outline, isEnvelope(layer));
+      eng.requestRender();
+    });
     const stopView = effect(() => eng.setView(view.value, highlight.peek() ?? undefined));
     // The inspector covers the right of the view while something is selected: framing leaves that part free.
     const stopInset = effect(() => {
@@ -205,7 +212,7 @@ export function Viewport() {
       const panel = document.querySelector(".inspector") as HTMLElement | null, box = canvas.current!.getBoundingClientRect();
       eng.insetRight = selection.peek() ? Math.max(0, box.right - (panel?.getBoundingClientRect().left ?? box.right - 372)) : 0;
     });
-    return () => { cancelAnimationFrame(recolourFrame); stopLayers(); stopForced(); stopCuts(); stopFocus(); stopView(); stopInset(); };
+    return () => { cancelAnimationFrame(recolourFrame); stopLayers(); stopForced(); stopCuts(); stopFocus(); stopEnvelope(); stopView(); stopInset(); };
   }, []);
 
   // A press that moves more than a few pixels is a rotate/pan, not a click: it must not change the selection.
@@ -273,10 +280,35 @@ function FocusBar() {
     return `${kindOf(r.table)}${n ? ` · ${n}` : ` #${r.row}`}`;
   };
   return (
-    <div class="focusbar" role="status" title="All its parts are shown, and only they can be clicked">
-      {prev && <button class="link" onClick={back} title={`Back to ${name(prev)}`}>← {name(prev)}</button>}
-      <span class="muted">Focus</span> <b>{name(f)}</b>
-      <button class="link" onClick={() => (selection.value = null)}>leave (Esc)</button>
+    <div class="focusbar" role="status">
+      <div class="row" title="It is shown with its smallest parts; only its parts can be clicked">
+        {prev && <button class="link" onClick={back} title={`Back to ${name(prev)}`}>← {name(prev)}</button>}
+        <span class="muted">Focus</span> <b>{name(f)}</b>
+        <button class="link" onClick={() => (selection.value = null)}>leave (Esc)</button>
+      </div>
+      <Levels />
+    </div>
+  );
+}
+
+/** The kinds of object the focus is made of, top first: the last one (e.g. hits) is always shown, one of the others
+ *  on request (a click, or ↓ ↑), so they do not cover each other. */
+function Levels() {
+  const lv = levels.value, chosen = focusLevel.value;
+  if (lv.length < 2) return null;
+  return (
+    <div class="row levels" title="What it is made of, from the largest objects down: click one to show it as well (↓ ↑)">
+      {pairView.value && <span class="muted" title="Counts: the pair's objects (its candidate's, and its particle's in other candidates or none)">truth ↔ reco pair:</span>}
+      {lv.map((l, i) => {
+        const last = i === lv.length - 1, on = last || l.name === chosen;
+        return (
+          <>
+            {i > 0 && <span class="muted" aria-hidden="true">›</span>}
+            <button class={on ? "level on" : "level"} disabled={last} aria-pressed={on}
+              onClick={() => (focusLevel.value = on ? null : l.name)}>{l.name} <span class="count">{l.count.toLocaleString()}</span></button>
+          </>
+        );
+      })}
     </div>
   );
 }
@@ -344,14 +376,21 @@ function pairColours(cls: Uint8Array, classRgb: number[][]) {
 }
 const hexRgb = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
 
-/** Highlight the focus and what belongs to it on every layer (outlines for reco objects when the focus is a
- *  truth particle, except in the pair view, which looks the same from either side), faded in over `ms` (0: at once,
- *  e.g. for freshly built layers). */
+/** Reco objects drawn as outlines: when the focus is a truth particle, except in the pair view, which looks the same
+ *  from either side. */
+const truthOutline = () => focusIsTruth.peek() && !pairView.peek();
+
+/** While a level is shown inside the focus (e.g. a candidate's tracksters), the focus's layer draws it as a
+ *  full-size outline around them: the largest object, without covering what is inside. */
+const isEnvelope = (layer: Layer) => !!shownLevel.peek() && layer.table === levelTop.peek()?.table;
+
+/** Highlight the focus and what belongs to it on every layer (outlines: see truthOutline and isEnvelope), faded in
+ *  over `ms` (0: at once, e.g. for freshly built layers). */
 function showFocus(ms: number) {
-  const hl = highlight.peek(), outline = focusIsTruth.peek() && !pairView.peek();
+  const hl = highlight.peek(), outline = truthOutline();
   for (const { layer } of entries) {
     layer.setHighlight(hl ? hl.get(layer.table) ?? new Set() : null);
-    layer.setOutline?.(outline);
+    layer.setOutline?.(outline, isEnvelope(layer));
   }
   if (ms > 0) engine?.fadeHighlight(ms);
   else for (const { layer } of entries) layer.setHighlightMix(1);

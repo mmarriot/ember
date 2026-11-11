@@ -3,7 +3,7 @@ import { effect } from "@preact/signals";
 import { useEffect } from "preact/hooks";
 import { blobSource } from "../io/bundle";
 import type { ViewName } from "../render/engine";
-import { bundleName, catalogue, dialog, event, eventIndex, highlight, openBundle, refreshCatalogue, selection, showEvent, view } from "../model/store";
+import { bundleName, catalogue, dialog, event, eventIndex, highlight, openBundle, refreshCatalogue, selection, showEvent, stepFocusLevel, view } from "../model/store";
 import { Header } from "./Header";
 import { Inspector } from "./Inspector";
 import { Sidebar } from "./Sidebar";
@@ -46,6 +46,7 @@ export function App() {
       else if (e.key === "?") dialog.value = dialog.value ? null : "help";
       else if (e.key === "ArrowRight") showEvent(eventIndex.value + 1);
       else if (e.key === "ArrowLeft") showEvent(eventIndex.value - 1);
+      else if ((e.key === "ArrowDown" || e.key === "ArrowUp") && stepFocusLevel(e.key === "ArrowDown" ? 1 : -1)) e.preventDefault();
       else if (VIEW_KEYS[e.key]) view.value = VIEW_KEYS[e.key];
       else if (e.key === "f" || e.key === "F") engine?.frame(highlight.value ?? undefined, true);
       else if (e.key === "Home") engine?.frame(undefined, true);
@@ -77,7 +78,8 @@ export function App() {
 function HelpDialog() {
   const rows: [string, string][] = [
     ["Rotate", "drag"], ["Pan", "right-drag (or shift + drag)"], ["Zoom", "scroll, towards the cursor"],
-    ["Inspect an object", "click it: it and all its parts are shown, and further clicks pick among its parts"],
+    ["Inspect an object", "click it: it is shown with its smallest parts (e.g. hits), and further clicks pick among its parts"],
+    ["See what it is made of, level by level", "↓ / ↑, or click a level in the bar at the top left of the view (e.g. its tracksters, then their layer clusters)"],
     ["Objects on top of each other", "click again on the same spot for the next one"],
     ["Go to a related object", "click it in the inspector or the tree, or click an object linked to the one shown (e.g. its truth-graph particle)"],
     ["Back to the previous object", "← in the bar at the top left of the view"],

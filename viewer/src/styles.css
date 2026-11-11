@@ -201,6 +201,7 @@ ul.matches li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 
 .card.truth { border-style: dashed; }
 .card.truth h3 .badge { margin-left: 6px; }
 .layer .sub { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); margin: 2px 0 4px 24px; }
+.layer .sub.wrap { flex-wrap: wrap; gap: 0 4px; }
 .relsection h4 { margin: 10px 0 2px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
 .truthline, .chainline { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px; margin: 0 0 6px; font-size: 12px; }
 .inspector .kind.truth { color: #d7a6ff; }
@@ -213,7 +214,8 @@ details.card > summary { cursor: pointer; font-weight: 600; font-size: 13px; }
 table.outcome td { padding: 2px 4px 2px 0; font-size: 12px; vertical-align: middle; }
 table.outcome tr.missed td:first-child .chip { border-color: #e5534b; }
 .sidebar .tablist { background: var(--surface-2); z-index: 2; }
-.focusbar { position: absolute; top: 10px; left: 12px; max-width: 46%; background: var(--surface); border: 1px solid var(--accent); border-radius: 16px; padding: 3px 12px; font-size: 12px; display: flex; gap: 8px; align-items: baseline; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; box-shadow: 0 2px 10px rgba(0,0,0,0.25); z-index: 3; }
+.focusbar { position: absolute; top: 10px; left: 12px; max-width: max(46%, calc(100% - 420px)); background: var(--surface); border: 1px solid var(--accent); border-radius: 14px; padding: 3px 12px; font-size: 12px; display: flex; flex-direction: column; gap: 4px; box-shadow: 0 2px 10px rgba(0,0,0,0.25); z-index: 3; }
+.focusbar .row { display: flex; gap: 8px; align-items: baseline; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .focusbar .link { white-space: nowrap; }
 /* Colour mode switch and its key: which object each identity colour stands for. */
 .colourmode .segmented.presets { margin-bottom: 4px; }
@@ -227,3 +229,10 @@ table.outcome tr.missed td:first-child .chip { border-color: #e5534b; }
 .how ul { margin: 4px 0 0; padding-left: 16px; }
 .pairline { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 2px 0 6px; font-size: 12px; }
 .key li b { font-weight: 600; color: var(--text, inherit); }
+/* The focus's levels: pills from the largest objects down; the chosen one and the bottom one (always shown) are lit. */
+.focusbar .levels { flex-wrap: wrap; gap: 3px 4px; align-items: center; padding-bottom: 2px; }
+.level { padding: 0 8px; font-size: 11px; border-radius: 10px; }
+.level.on, .level.on:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
+.level.on .count { color: inherit; opacity: 0.85; }
+.level:disabled { cursor: default; }
+.level .count { font-size: 11px; }

@@ -5,6 +5,7 @@ import type { Legend, ThemeName } from "../render/colour";
 import type { Caption } from "../render/replay";
 import type { Hit, ViewName } from "../render/engine";
 import { colourBy, colourMode, type ColourMode, customColumns, loadCustom, withColour, withCustomColumns } from "./custom";
+import { focusLevels, levelLayers, stepLevel } from "./levels";
 import { modeColouring, modeRoots } from "./modes";
 import { PAIR, type Pair, pairFor } from "./pair";
 import { levelsOf, type Related, relatedParts, sameRef, type Ref } from "./relations";
@@ -139,12 +140,16 @@ export const cutGroups = computed(() => {
 });
 
 // Selection and focus. The selection is what the inspector describes. The focus is the object clicked from outside
-// any focus (e.g. a candidate): while it lasts, everything it is made of is drawn (all levels, even hidden layers)
-// and only those objects can be picked. Selecting one of them keeps the focus; selecting anything else focuses on it
-// (the old focus is kept for "back"); clearing the selection (a click on nothing, Esc) ends it.
+// any focus (e.g. a candidate): while it lasts, it is drawn with its smallest parts (e.g. hits) and, on request, one
+// level in between (see `levels`), and only its objects can be picked. Selecting one of them keeps the focus;
+// selecting anything else focuses on it (the old focus is kept for "back"); clearing the selection (a click on
+// nothing, Esc) ends it.
 export const selection = signal<Ref | null>(null);
 export const focus = signal<Ref | null>(null);
 export const focusHistory = signal<Ref[]>([]); // earlier focuses, oldest first
+/** The level shown between the focus and its bottom level (e.g. a candidate's tracksters), by name; null: none. It
+ *  is kept while the focus moves (e.g. from one candidate to the next), and forgotten when the focus ends. */
+export const focusLevel = signal<string | null>(null);
 
 const partsOf = (ref: Ref | null) => {
   const b = bundle.value, ev = event.value;
@@ -201,17 +206,55 @@ export function focusBack(): Ref | null {
 effect(() => {
   const sel = selection.value;
   if (sel && !highlight.peek()?.get(sel.table)?.has(sel.row)) focusOn(sel);
-  else if (!sel) { focus.value = null; if (focusHistory.peek().length) focusHistory.value = []; }
+  else if (!sel) { focus.value = null; focusLevel.value = null; if (focusHistory.peek().length) focusHistory.value = []; }
 });
 
-// Hidden layers the focus has objects in (e.g. a candidate's tracksters) are drawn while it lasts. The keys are
-// joined into a string first, so the layers are only rebuilt when the set changes, not on every focus.
-const focusLayerKeys = computed(() => {
-  const b = bundle.value, hl = highlight.value, vis = visible.value;
-  if (!b || !hl) return "";
-  return b.header.display.filter((d) => !d.alternative && !vis[layerKey(d)] && hl.get(d.table)?.size).map(layerKey).sort().join("|");
+/** The object whose levels are shown: in the pair view, the pair's candidate, so that its particle, the candidate and
+ *  anything inside them give the same picture; else the focus. */
+export const levelTop = computed<Ref | null>(() => {
+  const pair = pairView.value;
+  return pair && pair.candidate >= 0 ? { table: pair.reco, row: pair.candidate } : focus.value;
 });
-export const focusLayers = computed(() => new Set(focusLayerKeys.value ? focusLayerKeys.value.split("|") : []));
+const topParts = computed(() => (sameRef(levelTop.value, focus.value) ? focusParts.value : partsOf(levelTop.value)));
+/** The kinds of object the focus is made of, top first (see model/levels.ts); its own kind and truth are not levels. */
+export const levels = computed(() => {
+  const b = bundle.value, top = levelTop.value, hl = highlight.value, parts = topParts.value;
+  if (!b || !top || !hl || !parts) return [];
+  return focusLevels(b.header.display, top.table, hl, (t) => parts.madeOf.has(t) || !parts.linked.has(t));
+});
+/** The chosen level, if the focus has it and it is not the bottom one (drawn anyway); else null. */
+export const shownLevel = computed(() => {
+  const c = focusLevel.value;
+  return levels.value.slice(0, -1).some((l) => l.name === c) ? c : null;
+});
+/** Step the shown level down (+1) or up (-1); false (and nothing changes) if the focus has no levels to step through. */
+export function stepFocusLevel(by: number) {
+  if (levels.peek().length < 2) return false;
+  focusLevel.value = stepLevel(levels.peek(), focusLevel.peek(), by);
+  return true;
+}
+
+// While a focus lasts, what is drawn differs from the Layers tab: the focus's layer, its stage (e.g. a candidate's
+// track) and what is linked to it (its truth) are drawn even from hidden layers; of its levels, only the bottom one
+// and the chosen one are, even if others are ticked. The keys are joined into strings first, so the layers are only
+// rebuilt when these sets change, not on every focus.
+const focusKeys = computed(() => {
+  const b = bundle.value, hl = highlight.value, vis = visible.value, lv = levels.value, f = focus.value;
+  if (!b || !hl) return { shown: "", hidden: "" };
+  // The focus's own layer is always drawn, also when its kind is a level (the pair view's levels are its candidate's).
+  const ticked = (d: DisplayLayer) => !!vis[layerKey(d)], own = (d: DisplayLayer) => d.table === f?.table;
+  const inLevels = new Set(lv.flatMap((l) => l.layers).filter((d) => !own(d)));
+  const { draw, hide: levelHide } = levelLayers(lv, focusLevel.value, ticked), hide = levelHide.filter((d) => !own(d));
+  const others = b.header.display.filter((d) => !inLevels.has(d) && !d.alternative && hl.get(d.table)?.size);
+  const keys = (ds: DisplayLayer[]) => ds.map(layerKey).sort().join("|");
+  return { shown: keys([...others, ...draw].filter((d) => !ticked(d))), hidden: keys(hide.filter(ticked)) };
+});
+const shownKeys = computed(() => focusKeys.value.shown), hiddenKeys = computed(() => focusKeys.value.hidden);
+const keySet = (keys: string) => new Set(keys ? keys.split("|") : []);
+/** Hidden layers drawn for the focus. */
+export const focusLayers = computed(() => keySet(shownKeys.value));
+/** Ticked layers not drawn while the focus lasts (levels other than the bottom and the chosen one). */
+export const focusHidden = computed(() => keySet(hiddenKeys.value));
 
 let toastId = 0;
 export function toast(text: string, kind: "info" | "error" = "info") {

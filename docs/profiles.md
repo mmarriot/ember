@@ -27,9 +27,11 @@ for uproot's many ranged reads.
 
 | profile | data |
 |---|---|
-| `cms` | `hgcal`, `tracker` and `calo` together: the header `domains` `Tracker` (from `tracker`), `Calo` (from `calo`) then `HGCal` (its region and view), the detector `outlines` of every module, truth particles as helices and only in-time pile-up kept; HGCalNanoAOD's `GeneralTrack` folded into `Tracks` |
+| `cms` | `physics`, `hgcal`, `tracker`, `calo` and `pf` together: the header `domains` `Physics` (shared, the start domain, with the primary vertices), `Tracker` (from `tracker`), `Calo` (from `calo`) then `HGCal` (its region and view), the detector `outlines` of every module, truth particles as helices and only in-time pile-up kept; HGCalNanoAOD's `GeneralTrack` folded into `Tracks` |
 | `tracker` | CMS Phase-2 tracker (Fireworks/EventExport preset `tracker`): tracks as helices in the solenoid field (`field`; high purity, pT slider at 1 GeV, filtered to the primary vertex; preset "All vertices" coloured by vertex), primary vertices, the hits on each track shown for a selection, the beam spot; all in the `Tracker` domain, coloured by layer when it is chosen. It reads every table of the file: for a tracker bundle use `tracker_only` |
 | `calo` | CMS Phase-2 barrel and forward calorimeters (EventExport preset `calo`): ECAL barrel, HB, HO and HF rechits as η–φ towers (`cell` hint) in the `Calo` domain, one energy cut per subdetector, HO and HF hidden, HF not in the front view; used through `cms` |
+| `physics` | CMS Phase-2 physics objects (EventExport preset `pf`): AK4 Puppi jets as `cones` and Puppi/PF MET as arrows from the leading primary vertex, the jets' constituents; the shared `Physics` domain the event opens in (`view.domain`). Used through `cms` |
+| `pf` | CMS Phase-2 particle flow (preset `pf`): PF candidates (unticked, filtered to `puppiWeight > 0`, preset "What PUPPI removed") with their track, TICL candidate and PF clusters; PF clusters of ECAL, HB, HF, HO with their hits and the ECAL/HCAL truth associations; simulated energy in the barrel and forward calorimeter hits as facts. Used through `cms` |
 | `tracker_only` | `cms` without the calorimeters (excluded, so not read): the `tracker` layers with the truth graph and the track-truth associations |
 | `hgcal` | CMSSW step3 HGCal/TICL reconstruction (SoA and/or legacy): rechits, layer clusters, tracksters through candidates, tracks, the truth graph (particles, vertices, hits) with reco-truth associations, kept to in-time pile-up (bunch crossing 0); see [truth-graph.md](truth-graph.md) |
 | `mct` | multi-cassette test at P5, cosmic muons: hits and layer clusters, events with a hit above 6 sigma in two layers; the readout channels (per-run table) as background |
@@ -126,8 +128,12 @@ of layers 25 and 26.
 `display` is a list of layers. Their keys are the display hints of [format.md](format.md#display-hints) (`table`,
 `repr`, `position`, `end`, `momentum`, `charge`, `axis`, `extent`, `size`, `colour`, `palette`, `colourBy`, `time`,
 `group`, `label`, `visible`, `kind`, `source`, `domain`, `cut`, `filter`, `context`, `dim`, `shape`, `truth`,
-`particle`, `onSelection`, `describe`), copied to the bundle for the layers whose table is written; every column a layer names
-must exist. The converter also reads:
+`particle`, `onSelection`, `describe`, and the all-detectors additions `cell`, `direction`, `radius`, `length`, `arrow`,
+`width`, `views`, `labels`, `list`, `inspect`, `fractions`, `truthGap`), copied to the bundle for the layers whose table is
+written; every column a layer names must exist (also those named inside `cell`, `list`, `inspect`, `fractions`, and a
+`length` or `radius` given as a column). `truthGap: {"reason", "gap", "derived"?}` on a kind says why the kind has no
+truth association (the gap number in [truth-graph.md](truth-graph.md)); a relation with a `match` hint from the kind
+supersedes it. The converter also reads:
 
 | key | meaning |
 |---|---|

@@ -1,7 +1,7 @@
 // Floating card for the selected object: summary, all columns with documentation, related objects.
 import { colourBy, customColumns, customDoc } from "../model/custom";
 import { unitOf } from "../io/bundle";
-import { bundle, describe, event, full, highlight, kindOf, labelOf, layerKey, layerOf, modes, relatives, selection, sizeColumn, drawnLayers, truthStatuses } from "../model/store";
+import { bundle, describe, event, full, highlight, short, kindOf, labelOf, layerKey, layerOf, modes, relatives, selection, sizeColumn, drawnLayers, truthStatuses } from "../model/store";
 import { simEnergyByParticle } from "../model/match";
 import { facts, unitOf as factUnit } from "../model/facts";
 import { bestFirst, type Related } from "../model/relations";
@@ -77,7 +77,7 @@ export function Inspector() {
             {chain.length > 0 && <p class="chainline" title="The objects that contain it, one per kind (Related tab: all of them)">
               Part of {chain.map(([t, r]) => <><span class="muted"> {kindOf(t)}</span> {chip(t, r)}</>)}</p>}
             {sel.table === modes.value.roots.truth ? <Lineage row={sel.row} /> : !truth && <TruthCard table={sel.table} row={sel.row} />}
-            {!truth && best && !hasCard && (status?.kind === "fact" ? <FactLine table={sel.table} row={sel.row} chip={chip(truthMatch!.table, best.row)} weights={weightsText(best.weights)} />
+            {!truth && best && !hasCard && (status?.kind === "fact" ? <FactLine table={sel.table} row={sel.row} chip={chip(truthMatch!.table, best.row)} weights={Object.entries(best.weights).map(([k, v]) => `${k} ${short(v)}`).join(" · ")} />
               : <p class="truthline" title="The truth-graph particle the association picked for it (best by its score); shared energy and score from CMSSW">
               <span class="badge truth">truth</span> associator's best match {chip(truthMatch!.table, best.row)}
               <span class="muted">{weightsText(best.weights)}</span></p>)}

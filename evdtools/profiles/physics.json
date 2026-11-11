@@ -78,5 +78,5 @@
   "sameRows": [
     {"keep": "GsfTracks", "drop": "GSFTrack", "columns": [["pt", "pt"], ["eta", "eta"]]}
   ],
-  "prefer": ["CHS"]
+  "prefer": ["Puppi", "PF", "CHS"]
 }

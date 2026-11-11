@@ -382,6 +382,7 @@ def test_physics_and_pf_in_cms():
     d = {x["table"]: x for x in conv.display}
     assert (d["Jets"]["repr"], d["Jets"]["domain"], d["Jets"]["cut"]["default"], d["Jets"]["labels"]) == ("cones", "Physics", 30, 4)
     assert d["PuppiMET"]["visible"] and not d["PFMET"]["visible"] and d["PFMET"]["alternative"]
+    assert load_profile("cms")["prefer"].index("Puppi") < load_profile("cms")["prefer"].index("CHS")  # Puppi jets shown, CHS hidden
     assert not d["PFCandidates"]["visible"] and d["PFCandidates"]["filter"] == "puppiWeight > 0"
     assert d["Vertices"]["domain"] == "Physics" and d["PFClustersECAL"]["domain"] == "Calo"
     assert d["Jets"]["truthGap"]["gap"] == 21 and d["PFCandidates"]["truthGap"]["gap"] == 20

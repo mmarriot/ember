@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { describe, expect, it } from "vitest";
 import type { DisplayLayer, Table } from "../io/bundle";
 import { PALETTES } from "./colour";
-import { builders, type Layer, segmentEnds, unitCone } from "./layers";
+import { builders, type Layer, polylinePoints, segmentEnds, unitCone } from "./layers";
 
 const col = (...v: number[]) => Float32Array.from(v);
 const table = (columns: Record<string, Float32Array>): Table => ({ n: Object.values(columns)[0].length, columns });
@@ -119,5 +119,51 @@ describe("views", () => {
   it("come from the display hint", () => {
     expect(build(hint({ repr: "cells", views: ["3d", "rz"] }), crystals()).views).toEqual(["3d", "rz"]);
     expect(build(hint({ repr: "cells" }), crystals()).views).toBeUndefined();
+  });
+});
+
+describe("wide helices", () => {
+  it("draw each path as a strip of quads: two vertices per point, two triangles per step", () => {
+    const t = table({ x: col(0), y: col(0), z: col(0), px: col(3), py: col(4), pz: col(1), q: col(1), ex: col(NaN), ey: col(NaN), ez: col(NaN) });
+    const d = hint({ repr: "helix", momentum: ["px", "py", "pz"], charge: "q", end: ["ex", "ey", "ez"], length: { to: { r: 129, z: 320 } }, width: 3 });
+    const l = builders.helix({ key: "k", d, t, pal: PALETTES.dark, rgb: new Float32Array(3), field: { bz: 3.8, rMax: 295, zMax: 320 } });
+    const { o, g, m } = parts(l);
+    expect(o).toBeInstanceOf(THREE.Mesh);
+    expect(g.getAttribute("position").count).toBe(2 * 48);
+    expect(g.index!.count).toBe(6 * 47);
+    expect(m.defines.WIDE).toBe(1);
+    expect(attributesRead(l)).toBeLessThanOrEqual(15);
+    const thin = builders.helix({ key: "k", d: { ...d, width: undefined }, t, pal: PALETTES.dark, rgb: new Float32Array(3), field: { bz: 3.8, rMax: 295, zMax: 320 } });
+    expect(parts(thin).o).toBeInstanceOf(THREE.Line);
+  });
+});
+
+describe("polylines", () => {
+  // Two tracks: #0 through hits 2, 0, 1 (in that order), #1 through hit 3 only (nothing to draw).
+  const hits = table({ x: col(10, 20, 0, 99), y: col(0, 0, 0, 99), z: col(1, 2, 0, 99) });
+  const relation = (name: string) => (name === "trackHits" ? { offsets: Uint32Array.from([0, 3, 4]), indices: Uint32Array.from([2, 0, 1, 3]), to: hits } : undefined);
+  const tracks = () => table({ pt: col(5, 7) });
+  const d = (width?: number) => hint({ repr: "polyline", points: { relation: "trackHits" }, position: ["pt", "pt", "pt"], width });
+  it("join each row's points in the relation's order, one piece per pair", () => {
+    const { offsets, xyz, pieces } = polylinePoints(d(), 2, relation);
+    expect([...offsets]).toEqual([0, 3, 4]);
+    expect([...xyz.subarray(0, 9)]).toEqual([0, 0, 0, 10, 0, 1, 20, 0, 2]);
+    expect([...pieces]).toEqual([2, 1]);
+  });
+  it("give each instance its piece's ends, and pick along the points", () => {
+    for (const width of [undefined, 3]) {
+      const l = builders.polyline({ key: "k", d: d(width), t: tracks(), pal: PALETTES.dark, rgb: new Float32Array(6), relation });
+      const g = parts(l).g, a = g.getAttribute("ia").array, b = g.getAttribute("ib").array;
+      expect([...a]).toEqual([0, 0, 0, 10, 0, 1, 99, 99, 99]); // track 0: two pieces; track 1: one empty piece
+      expect([...b]).toEqual([10, 0, 1, 20, 0, 2, 99, 99, 99]);
+      expect([l.x[0], l.y[0], l.z[0]]).toEqual([20, 0, 2]); // ends at its last point
+      expect(l.path!.points).toBe(3);
+      expect([...l.path!.x.subarray(0, 3)]).toEqual([0, 10, 20]);
+      expect(attributesRead(l)).toBeLessThanOrEqual(15);
+    }
+  });
+  it("draw nothing without the relation", () => {
+    const l = builders.polyline({ key: "k", d: d(), t: tracks(), pal: PALETTES.dark, rgb: new Float32Array(6) });
+    expect(Number.isNaN(l.x[0])).toBe(true);
   });
 });

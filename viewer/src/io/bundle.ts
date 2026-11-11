@@ -9,7 +9,7 @@ export type TypeCode = keyof typeof TYPES;
 export type Column = InstanceType<(typeof TYPES)[TypeCode]>;
 
 /** How layers can be drawn (render/layers.ts `builders`); a bundle may name others, from a newer format. */
-export const REPRS = ["cells", "markers", "ellipsoids", "segments", "helix", "cones"] as const;
+export const REPRS = ["cells", "markers", "ellipsoids", "segments", "helix", "cones", "polyline"] as const;
 /** A value per row from a column, scaled and clamped (cm per unit; `log`: cm per decade of 1 + |value|). */
 export interface Scaled { column: string; scale: number; min?: number; max?: number; log?: boolean }
 /** A length to a cylinder around the beam (cm): from the object's start along its direction until it leaves it. */
@@ -90,7 +90,10 @@ export interface DisplayLayer {
   length?: PerRow | ToCylinder;
   centred?: boolean; // segments with `direction`: `length` split evenly around `position`
   arrow?: boolean; // segments: an arrow head at the end
-  width?: number; // segments: line width in px (default 1)
+  width?: number; // segments, helix, polyline: line width in px (default 1)
+  /** `polyline`: the path of each row through the rows of a relation's `to` table (their `position` columns, default
+   *  x, y, z), in stored order, e.g. a muon track through its hits. */
+  points?: { relation: string; position?: [string, string, string] };
   radius?: number | string; // cones: half-opening in eta-phi
   /** The views that draw the layer (default: all). */
   views?: ViewName[];

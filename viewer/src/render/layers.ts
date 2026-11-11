@@ -43,7 +43,11 @@ export interface Layer {
   setOutline?(on: boolean, envelope?: boolean): void;
   dispose(): void;
 }
-export interface LayerInput { key: string; d: DisplayLayer; t: Table; pal: Pal; rgb: Float32Array; emphasis?: Uint8Array; cut?: Float32Array; field?: Field }
+export interface LayerInput {
+  key: string; d: DisplayLayer; t: Table; pal: Pal; rgb: Float32Array; emphasis?: Uint8Array; cut?: Float32Array; field?: Field;
+  /** A relation of the event, with its `to` table (`polyline` reads its points through it). */
+  relation?: (name: string) => { offsets: Uint32Array; indices: Uint32Array; to: Table } | undefined;
+}
 
 const GLSL = /* glsl */ `
 uniform float uProj, uAct0, uAct1, uMix, uCut, uClock, uFlash, uRetire, uPin0, uPin1;
@@ -714,12 +718,18 @@ export function helices(input: LayerInput): Layer {
     byHint.set(key, (cached = { paths, pieces, ends: [interleave(start), interleave(paths.end)], pick: polylines(paths, start, PICK_POINTS) }));
   }
   const { paths, pieces, ends: [istart, iend], pick } = cached, [x, y, z] = paths.end;
-  const g = new THREE.InstancedBufferGeometry();
-  // x: 0 to 1 along the arc of the piece; 2 for the last point, the end point (on the last piece).
-  g.setAttribute("position", new THREE.Float32BufferAttribute(Array.from({ length: 3 * HELIX_POINTS }, (_, i) =>
-    (i % 3 ? 0 : i / 3 === HELIX_POINTS - 1 ? 2 : i / 3 / (HELIX_POINTS - 2))), 3));
+  const g = new THREE.InstancedBufferGeometry(), wide = (d.width ?? 1) > 1;
+  // x: 0 to 1 along the arc of the piece; 2 for the last point, the end point (on the last piece). Wide paths: each
+  // point twice, y = -1 and +1 for the two sides of a strip of quads.
+  const along = (k: number) => (k === HELIX_POINTS - 1 ? 2 : k / (HELIX_POINTS - 2));
+  if (!wide) g.setAttribute("position", new THREE.Float32BufferAttribute(Array.from({ length: HELIX_POINTS }, (_, k) => [along(k), 0, 0]).flat(), 3));
+  else {
+    g.setAttribute("position", new THREE.Float32BufferAttribute(Array.from({ length: HELIX_POINTS }, (_, k) => [along(k), -1, 0, along(k), 1, 0]).flat(), 3));
+    g.setIndex(Array.from({ length: HELIX_POINTS - 1 }, (_, k) => [2 * k, 2 * k + 2, 2 * k + 1, 2 * k + 2, 2 * k + 3, 2 * k + 1]).flat());
+  }
   const material = new THREE.ShaderMaterial({
-    uniforms: { ...baseUniforms(input.pal), uDash: { value: d.truth ? 1 : 0 } },
+    uniforms: { ...baseUniforms(input.pal), uDash: { value: d.truth ? 1 : 0 }, uWidth: { value: (d.width ?? 1) * (globalThis.devicePixelRatio ?? 1) }, uRes: { value: new THREE.Vector2(1, 1) } },
+    defines: wide ? { WIDE: 1 } : {}, side: THREE.DoubleSide,
     vertexShader: /* glsl */ `
       attribute float isel, ipsel, icut, iT, iL, ipiece, ipieces;
       attribute vec3 istart, iend, icol, idir, ipath; // ipath: curvature (rad/cm), length in the field, length of the arc (cm)
@@ -735,18 +745,33 @@ export function helices(input: LayerInput): Layer {
                              lh * (idir.y * a + idir.x * b) + rest * (idir.x * sn + idir.y * c),
                              l * idir.z);
       }
+      uniform float uWidth;
+      uniform vec2 uRes; // drawing buffer size (px)
+      // The drawn point at px along the piece (0..1 on the arc, 2: the end point), on screen (clip space); its path
+      // length in len. Replay: the path grows from its start over 0.5 s once it appears, or until iL if later (a path
+      // being built). The last point of the last piece, once grown, is the end point, joined to the arc straight.
+      vec4 placed(float px, float grow, float depth, out float len) {
+        float full = grow * ipath.z, l0 = full * ipiece / ipieces, l1 = full * (ipiece + 1.0) / ipieces;
+        len = px > 1.5 ? l1 : mix(l0, l1, px);
+        vec3 c = pathAt(len);
+        if (px > 1.5 && ipiece + 1.0 >= ipieces && grow >= 1.0) { len += length(iend - c); c = iend; }
+        if (uProj > 0.5) c = projectRZ(c, depth, iend.y >= 0.0 ? 1.0 : -1.0);
+        return projectionMatrix * modelViewMatrix * vec4(c, 1.0);
+      }
       void main() {
         ${CULL()}
-        // Replay: the path grows from its start over 0.5 s once it appears, or until iL if later (a path being built).
-        float grow = uClock > 1e29 ? 1.0 : clamp((uClock - iT) / (iL > iT ? iL - iT : 0.5), 0.0, 1.0), len = grow * ipath.z;
-        float l0 = len * ipiece / ipieces, l1 = len * (ipiece + 1.0) / ipieces;
-        vec3 c = pathAt(position.x > 1.5 ? l1 : mix(l0, l1, position.x)), e = iend;
-        vS = position.x > 1.5 ? l1 : mix(l0, l1, position.x);
-        // The last point of the last piece, once grown: the end point, joined to the arc by a straight piece.
-        if (position.x > 1.5 && ipiece + 1.0 >= ipieces && grow >= 1.0) { vS += length(e - c); c = e; }
+        float grow = uClock > 1e29 ? 1.0 : clamp((uClock - iT) / (iL > iT ? iL - iT : 0.5), 0.0, 1.0);
         float s = selected(ipsel, isel);
-        if (uProj > 0.5) c = projectRZ(c, s * 2.0, iend.y >= 0.0 ? 1.0 : -1.0);
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(c, 1.0);
+        gl_Position = placed(position.x, grow, s * 2.0, vS);
+        #ifdef WIDE
+        // A strip of quads: each point moved across the line on screen by half the width, the line's direction from
+        // the next point along the piece (from the previous one at its end).
+        float step = 1.0 / ${HELIX_POINTS - 2}.0, back = position.x > 1.0 - 0.5 * step ? 1.0 : 0.0, ignored;
+        vec4 nb = placed(back > 0.5 ? min(position.x, 1.0) - step : position.x + step, grow, s * 2.0, ignored);
+        vec2 dir = (nb.xy / nb.w - gl_Position.xy / gl_Position.w) * uRes * (back > 0.5 ? -1.0 : 1.0);
+        vec2 across = length(dir) > 1e-6 ? normalize(vec2(-dir.y, dir.x)) : vec2(0.0, 1.0);
+        gl_Position.xy += across * position.y * uWidth * (1.0 + 0.5 * s * selActive()) / uRes * gl_Position.w;
+        #endif
         // A selected line is lifted towards white: a thin line in a dark colour (a low-pT track) would be hard to see.
         // It flashes as it appears and, when built, as it is complete.
         float p = max(pop(iT), iL > iT && grow >= 1.0 ? pop(iL) : 0.0);
@@ -759,9 +784,11 @@ export function helices(input: LayerInput): Layer {
       }`,
   });
   const common = shaderLayer(input, g, material, true, {}, { istart, iend, idir: paths.dir, ipath: paths.path }, pieces);
-  const lines = new THREE.Line(g, material);
+  const lines = wide ? new THREE.Mesh(g, material) : new THREE.Line(g, material);
   lines.frustumCulled = false;
   lines.renderOrder = 1;
+  const res = new THREE.Vector2();
+  if (wide) lines.onBeforeRender = (r) => material.uniforms.uRes.value.copy(r.getDrawingBufferSize(res));
   return {
     ...identity(input, 8), object: lines, x, y, z, path: pick, pickBias: 0.8, line: true,
     ...common,
@@ -858,4 +885,104 @@ export function cones(input: LayerInput): Layer {
   };
 }
 
-export const builders = { cells, markers, ellipsoids, segments, helix: helices, cones } as const;
+
+/** Each row's points for `polyline`: through relation `points.relation`, the `to` rows' positions in stored order.
+ *  Returns per row the number of pieces (point pairs, at least 1: a row with fewer than 2 points draws nothing) and a
+ *  flat point list with each row's first point index. */
+export function polylinePoints(d: DisplayLayer, n: number, relation: LayerInput["relation"]) {
+  const rel = d.points && relation?.(d.points.relation), cols = d.points?.position ?? ["x", "y", "z"];
+  const offsets = new Uint32Array(n + 1), xyz: number[] = [];
+  for (let i = 0; i < n; i++) {
+    if (rel && i + 1 < rel.offsets.length) {
+      const p = cols.map((c) => rel.to.columns[c]);
+      for (let k = rel.offsets[i]; k < rel.offsets[i + 1]; k++) {
+        const j = rel.indices[k], v = p.map((c) => (c ? Number(c[j]) : NaN));
+        if (v.every(Number.isFinite)) xyz.push(...v);
+      }
+    }
+    offsets[i + 1] = xyz.length / 3;
+  }
+  const pieces = new Uint16Array(n);
+  for (let i = 0; i < n; i++) pieces[i] = Math.min(65535, Math.max(1, offsets[i + 1] - offsets[i] - 1));
+  return { offsets, xyz: Float32Array.from(xyz), pieces };
+}
+
+const PICK_MAX = 64; // points per path kept for picking and framing
+
+/** Paths through measured points (e.g. a muon track through its hits and segments): one straight piece per pair of
+ *  consecutive points, an instance each, `width` px wide (quads across the line on screen) or 1 px lines. In a replay
+ *  each path grows piece by piece from its first point. Picked and framed along its points (up to 64 per path). */
+export function pointPaths(input: LayerInput): Layer {
+  const { d, t } = input, n = t.n, wide = (d.width ?? 1) > 1;
+  const { offsets, xyz, pieces } = polylinePoints(d, n, input.relation);
+  const g = new THREE.InstancedBufferGeometry();
+  if (wide) {
+    g.setAttribute("position", new THREE.Float32BufferAttribute([0, -1, 0, 0, 1, 0, 1, -1, 0, 1, 1, 0], 3)); // x: along, y: across
+    g.setIndex([0, 2, 1, 2, 3, 1]);
+  } else g.setAttribute("position", new THREE.Float32BufferAttribute([0, 0, 0, 1, 0, 0], 3));
+  const material = new THREE.ShaderMaterial({
+    uniforms: { ...baseUniforms(input.pal), uWidth: { value: (d.width ?? 1) * (globalThis.devicePixelRatio ?? 1) }, uRes: { value: new THREE.Vector2(1, 1) } },
+    defines: wide ? { WIDE: 1 } : {}, side: THREE.DoubleSide,
+    vertexShader: /* glsl */ `
+      attribute float isel, ipsel, icut, iT, ipiece, ipieces;
+      attribute vec3 icol, ia, ib; // this piece's ends
+      uniform float uWidth;
+      uniform vec2 uRes;
+      varying vec3 vCol;
+      ${GLSL}
+      void main() {
+        ${CULL()}
+        // Replay: the path grows over 0.5 s, piece after piece.
+        float f = uClock > 1e29 ? 1.0 : clamp(clamp((uClock - iT) / 0.5, 0.0, 1.0) * ipieces - ipiece, 0.0, 1.0), s = selected(ipsel, isel);
+        vec3 a = ia, b = mix(ia, ib, f);
+        if (uProj > 0.5) { float side = ib.y >= 0.0 ? 1.0 : -1.0; a = projectRZ(a, 2.0 + s, side); b = projectRZ(b, 2.0 + s, side); }
+        vec4 A = projectionMatrix * modelViewMatrix * vec4(a, 1.0), B = projectionMatrix * modelViewMatrix * vec4(b, 1.0);
+        gl_Position = mix(A, B, position.x);
+        #ifdef WIDE
+        vec2 along = (B.xy / B.w - A.xy / A.w) * uRes, across = length(along) > 1e-6 ? normalize(vec2(-along.y, along.x)) : vec2(0.0, 1.0);
+        gl_Position.xy += across * position.y * uWidth * (1.0 + 0.5 * s * selActive()) / uRes * gl_Position.w;
+        #endif
+        vCol = fade(mix(mix(icol, vec3(1.0), 0.3 * s * selActive()), vec3(1.0), uFlash * pop(iT)), s) * remaining() + uBg * (1.0 - remaining());
+      }`,
+    fragmentShader: `varying vec3 vCol; void main() { gl_FragColor = vec4(vCol, 1.0); }`,
+  });
+  const common = shaderLayer(input, g, material, true, {}, {}, pieces);
+  // The pieces' ends, in the instances' order (shaderLayer: each kept row's pieces in turn).
+  const rowOf = common.pick(Float32Array.from({ length: n }, (_, i) => i)), piece = g.getAttribute("ipiece").array as Float32Array;
+  const m = rowOf.length, a = new Float32Array(3 * m), b = new Float32Array(3 * m);
+  for (let k = 0; k < m; k++) {
+    const r = rowOf[k], first = offsets[r], count = offsets[r + 1] - first, j = first + Math.min(piece[k], Math.max(count - 2, 0));
+    for (let c = 0; c < 3; c++) {
+      a[3 * k + c] = count ? xyz[3 * j + c] : 0;
+      b[3 * k + c] = count > 1 ? xyz[3 * (j + 1) + c] : a[3 * k + c];
+    }
+  }
+  g.setAttribute("ia", new THREE.InstancedBufferAttribute(a, 3));
+  g.setAttribute("ib", new THREE.InstancedBufferAttribute(b, 3));
+  const mesh = wide ? new THREE.Mesh(g, material) : new THREE.LineSegments(g, material);
+  mesh.frustumCulled = false;
+  mesh.renderOrder = 1;
+  const res = new THREE.Vector2();
+  if (wide) mesh.onBeforeRender = (r) => material.uniforms.uRes.value.copy(r.getDrawingBufferSize(res));
+  // Picking and framing: each path's points, at most PICK_MAX (evenly chosen), padded with its last point; its last
+  // point is where it is (x, y, z), as for lines.
+  let most = 2;
+  for (let i = 0; i < n; i++) most = Math.max(most, Math.min(PICK_MAX, offsets[i + 1] - offsets[i]));
+  const px = new Float32Array(n * most), py = new Float32Array(n * most), pz = new Float32Array(n * most);
+  const x = new Float32Array(n), y = new Float32Array(n), z = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const first = offsets[i], count = offsets[i + 1] - first;
+    for (let j = 0; j < most; j++) {
+      const at = count ? first + Math.round((Math.min(j, Math.min(count, most) - 1) * (count - 1)) / Math.max(Math.min(count, most) - 1, 1)) : -1;
+      px[i * most + j] = at < 0 ? NaN : xyz[3 * at]; py[i * most + j] = at < 0 ? NaN : xyz[3 * at + 1]; pz[i * most + j] = at < 0 ? NaN : xyz[3 * at + 2];
+    }
+    x[i] = px[i * most + most - 1]; y[i] = py[i * most + most - 1]; z[i] = pz[i * most + most - 1];
+  }
+  return {
+    ...identity(input, 8), object: mesh, x, y, z, path: { points: most, x: px, y: py, z: pz, fill() {} }, pickBias: 0.8, line: true,
+    ...common,
+    dispose() { g.dispose(); material.dispose(); },
+  };
+}
+
+export const builders = { cells, markers, ellipsoids, segments, helix: helices, cones, polyline: pointPaths } as const;

@@ -147,3 +147,31 @@ def test_reached_by_any_of_several_relations():
     assert "reached by prod or dec" in conv.tables["V"]["doc"]
     conv = converter({"V": {"t": F4}, "P": {"bx": I4}}, {"cuts": {"V": [{"reachedBy": ["prod"]}]}})
     assert "V" not in conv.cuts
+
+
+def test_hgcal_keeps_in_time_truth_only():
+    """The hgcal profile keeps the truth particles of bunch crossing 0 and the vertices they are produced or decay at;
+    vertex indices and parent -> child links follow the renumbering."""
+    from evdtools.nano import load_profile
+    types = {"TruthParticles": {c: F4 for c in ("x", "y", "z", "endX", "endY", "endZ", "energy")} |
+             {c: I4 for c in ("bunchCrossing", "prodVertex", "decayVertex", "isSignal", "pdgId")},
+             "TruthVertices": {"x": F4, "y": F4, "z": F4, "reason": I4},
+             "TruthParticleChildren": {"parentIdx": I4, "childIdx": I4}}
+    zeros = lambda n: [0] * n
+    event = {  # P0 (bx 0) -> child P2 (bx 0); P1 (bx -1) -> child P3 (bx 2): only P0, P2 and their vertices stay
+        "TruthParticles": {**{c: zeros(4) for c in ("x", "y", "z", "endX", "endY", "endZ", "isSignal", "pdgId")},
+                           "energy": [10, 20, 5, 7], "bunchCrossing": [0, -1, 0, 2],
+                           "prodVertex": [0, 1, 2, 4], "decayVertex": [2, 3, 5, -1]},
+        "TruthVertices": {"x": [0, 1, 2, 3, 4, 5], "y": zeros(6), "z": zeros(6), "reason": [1, 1, 2, 2, 2, 2]},
+        "TruthParticleChildren": {"parentIdx": [0, 1], "childIdx": [2, 3]},
+    }
+    conv, [(_, tables, relations)] = convert(load_profile("hgcal"), event, types=types)
+    n, particles = tables["TruthParticles"]
+    assert n == 2 and particles["energy"].tolist() == [10, 5]
+    n, vertices = tables["TruthVertices"]
+    # V0 (production of P0), V2 (decay of P0, production of P2), V5 (decay of P2 only: kept through truthDecayVertex)
+    assert n == 3 and vertices["x"].tolist() == [0, 2, 5]
+    assert particles["prodVertex"].tolist() == [0, 1] and particles["decayVertex"].tolist() == [1, 2]
+    children = relations["truthChildren"]
+    assert children["offsets"].tolist() == [0, 1, 1] and children["indices"].tolist() == [1]
+    assert "bunchCrossing == 0" in conv.tables["TruthParticles"]["doc"]

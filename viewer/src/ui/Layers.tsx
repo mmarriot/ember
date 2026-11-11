@@ -3,6 +3,7 @@
 // only what is not said elsewhere: its filter, "only for the selection", and its colour scale when the colour key
 // does not explain it. Its ⋯ opens the colour choice, a filter and new columns for its table.
 import { computed } from "@preact/signals";
+import { Fragment } from "preact";
 import { useState } from "preact/hooks";
 import type { DisplayLayer } from "../io/bundle";
 import { colourBy, customColumns, filters, RELATION, removeFilter } from "../model/custom";
@@ -30,8 +31,8 @@ export function Collections({ layers }: { layers: DisplayLayer[] }) {
       {[...groups].map(([group, ls]) => (
         <section class="kind" key={group}>
           <h3>{group}</h3>
-          {cutsOf(ls).map((name) => <CutRow name={name} here={ls} />)}
-          {ls.map((d) => <LayerRow key={layerKey(d)} d={d} label={d.label} />)}
+          {/* each slider just before the first row it cuts (a kind can have several, e.g. one per calorimeter) */}
+          {ls.map((d) => <Fragment key={layerKey(d)}>{cutsOf([d]).map((name) => <CutRow name={name} here={ls} />)}<LayerRow d={d} label={d.label} /></Fragment>)}
         </section>
       ))}
       {alternatives.length > 0 && (

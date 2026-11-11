@@ -1,6 +1,7 @@
-// The 3D view. Layers are rebuilt when the event, visibility, theme, colour choices or filters change; a cut only
-// sets a uniform per layer, and the focus a byte per object (plus a rebuild of the small onSelection layers, and
-// building or freeing the layers its levels show or hide).
+// The 3D view. Layers are rebuilt when the event, theme, colour mode or choices, or filters change; ticking a layer or
+// choosing a domain builds or frees only the layers concerned; a cut only sets a uniform per layer, and the focus a
+// byte per object (plus a rebuild of the onSelection layers, which upload only the focus's rows, and building or
+// freeing the layers its levels show or hide).
 // Hover shows a tooltip, click selects, double-click zooms to the selection.
 import { effect, signal } from "@preact/signals";
 import { useEffect, useRef } from "preact/hooks";
@@ -111,9 +112,14 @@ export function Viewport() {
 
     let builtFor: EventData | null = null; // the event the layers were built for
     let lastPair = pairView.peek(); // the pair whose colours the layers have (recoloured when it changes)
+    // What every layer was built with: a change rebuilds them all. Which layers are drawn (ticks, domain, focus) is not
+    // in it: those changes only build or free the layers concerned (stopForced).
+    const settings = () => [bundle.peek(), event.peek(), theme.peek(), colourBy.peek(), activeMode.peek(), filters.peek(), replaying.peek()];
+    let builtWith: unknown[] = [];
     const stopLayers = effect(() => {
       const b = bundle.value, ev = event.value, pal = PALETTES[theme.value];
-      drawnLayers.value; colourBy.value; activeMode.value; filters.value; replaying.value; // any change rebuilds every layer
+      colourBy.value; activeMode.value; filters.value; replaying.value; // any change rebuilds every layer
+      builtWith = settings();
       if (!b || !ev) return;
       eng.setBackground(pal.background);
       eng.minRadius = b.header.view?.minRadius ?? MIN_RADIUS;
@@ -130,12 +136,15 @@ export function Viewport() {
       showFocus(0);
     });
 
-    // A focus draws some hidden layers (e.g. a candidate's tracksters, when that level is chosen) and hides some
-    // ticked ones (e.g. its layer clusters, until chosen): only those are built or freed; the others keep their buffers.
+    // Ticks, the domain and the focus change which layers are drawn: a focus draws some hidden layers (e.g. a
+    // candidate's tracksters, when that level is chosen) and hides some ticked ones (e.g. its layer clusters, until
+    // chosen); a domain hides the others' layers. Only those are built or freed; the others keep their buffers (going
+    // from the Tracker view back to All builds the calorimeter layers, not the tracker's again).
     const stopForced = effect(() => {
-      focusLayers.value; focusHidden.value;
+      focusLayers.value; focusHidden.value; drawnLayers.value;
       const b = bundle.peek(), ev = event.peek();
-      if (!b || !ev || ev !== builtFor) return; // a new event: stopLayers builds everything
+      // Something every layer depends on changed too (e.g. a domain with its own colour mode): stopLayers rebuilds them.
+      if (!b || !ev || ev !== builtFor || settings().some((v, i) => v !== builtWith[i])) return;
       const keep = new Set(wanted(b.header, ev).map(layerKey)), have = new Set(entries.map((e) => e.key));
       const gone = entries.filter((e) => !keep.has(e.key)), added = b.header.display.filter((d) => keep.has(layerKey(d)) && !have.has(layerKey(d)));
       if (!gone.length && !added.length) return;

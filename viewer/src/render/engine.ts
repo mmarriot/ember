@@ -281,6 +281,9 @@ export class Engine {
     this.requestRender();
   }
 
+  /** The layer drawn for a table, if any (e.g. for HTML labels: its objects' positions and ends). */
+  drawnLayer(table: string): Layer | undefined { return this.layers.find((l) => l.table === table); }
+
   setLayers(layers: Layer[]) {
     if (this.replayClock) { this.replayClock = null; this.onReplayTick(null); } // new layers start in their final state
     for (const l of this.layers) { this.scene.remove(l.object); l.dispose(); }

@@ -1,15 +1,19 @@
 // Guided tour: each event replays (render/replay.ts) while the camera follows it, then the most energetic showers
 // are visited one by one (selected, so the inspector describes them), then the next event; until any key or touch,
-// or the play button. Profile view.tour "beam" (collider data): the camera starts on the whole detector and never
+// or the play button. A bundle that opens on a shared domain (e.g. Physics) replays in All, then visits its leading
+// labelled objects (jets, leptons, MET) in that domain. Profile view.tour "beam" (collider data): the camera starts on the whole detector and never
 // enters it (Engine.tourCamera); "orbit" (default): it frames the objects at their own scale and orbits them.
 import { bundle, cuts, event, eventIndex, highlight, layerKey, selection, showAll, showEvent, sizeColumn, touring, view, drawnLayers } from "../model/store";
 import { related, type Ref } from "../model/relations";
 import { isShower } from "../render/replay";
+import { startDomain } from "../model/domains";
 import { stopLive } from "./live";
+import { chooseDomain, ranked } from "./navigate";
 import { engine, replayEvent } from "./Viewport";
 
 const ORBIT = 1.2; // turns per minute (orbit tours)
 const SHOWERS = 3; // visited per event
+const LEADING = 4; // physics objects visited per event (bundles that open on a shared domain)
 
 let generation = 0; // each tour has its own; a stopped tour's pending steps see a newer one and end
 
@@ -53,9 +57,14 @@ async function startTour() {
   savedShowAll = showAll.value;
   showAll.value = { ...showAll.value, ...Object.fromEntries((header?.display ?? []).filter((d) => d.onSelection && !d.truth).map((d) => [layerKey(d), true])) };
 
+  // A bundle that opens on a shared domain (e.g. Physics): the replay in All (hits arrive in every part of the
+  // detector), the visits in that domain, to its leading labelled objects.
+  const physics = startDomain(header);
   while (generation === me) {
     selection.value = null;
-    const targets = showers(SHOWERS), plan = replayEvent(), start = performance.now();
+    if (physics) chooseDomain(null, false);
+    const showersHere = showers(SHOWERS), plan = replayEvent(), start = performance.now();
+    let targets = showersHere;
     const until = (s: number) => wait(Math.max(0, start + s * 1000 - performance.now())); // s on the replay clock
     if (plan) {
       // Start wide (collider data: the whole detector, both endcaps) while the particles travel; orbit tours come
@@ -81,6 +90,12 @@ async function startTour() {
       }
       if (!(await until(plan.seconds + 0.4))) return;
     } else if (!(await wait(4000))) return;
+    if (physics) { // to the physics objects: the leading ones, by size, across the labelled layers
+      chooseDomain(physics, false);
+      const lead = leading(LEADING);
+      if (lead.length) targets = lead;
+      if (!(await fly(undefined, 1600, 0.3))) return;
+    }
     for (const [k, ref] of targets.entries()) { // the selection cross-fades while the camera glides over
       // To the next one: out towards the whole event and back in without stopping (the next goal arrives
       // mid-glide); the current one stays selected on the way out.
@@ -93,6 +108,19 @@ async function startTour() {
     if (!(await fly(undefined, 2600, -0.6))) return; // pull out wide, ready for the next event
     await showEvent(eventIndex.value + 1);
   }
+}
+
+/** The `k` largest objects (by their size column, e.g. pT) of the drawn layers with labels (layer hint `labels`), each
+ *  among its layer's labelled ones: e.g. the leading jets, the lepton, MET. */
+function leading(k: number): Ref[] {
+  const b = bundle.value, ev = event.value;
+  if (!b || !ev) return [];
+  const all: [Ref, number][] = [];
+  for (const d of b.header.display.filter((l) => l.labels && drawnLayers.value[layerKey(l)])) {
+    const t = ev.tables[d.table], c = t && sizeColumn(d.table, t);
+    for (const row of ranked(d, d.labels)) all.push([{ table: d.table, row }, c ? Number(t.columns[c][row]) : 0]);
+  }
+  return all.sort((a, c) => c[1] - a[1]).slice(0, k).map(([ref]) => ref);
 }
 
 /** All objects of the given tables, to frame the final reconstruction step. */

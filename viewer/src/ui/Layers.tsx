@@ -14,6 +14,7 @@ import {
   selection, short, showAll, shown, shownLayer, sizeColumn, theme, visible,
 } from "../model/store";
 import { ExprForm } from "./ExprForm";
+import { rowHover } from "./Labels";
 import { jump } from "./navigate";
 import { Icon } from "./widgets";
 
@@ -163,7 +164,8 @@ function Headline({ layers }: { layers: DisplayLayer[] }) {
   return parts.size ? <p class="headline">{[...parts].map(([label, value], i) => <>{i > 0 && " · "}{label} <b>{typeof value === "number" ? value.toLocaleString() : value}</b></>)}</p> : null;
 }
 
-/** The largest objects of a layer with a `list` hint, one row each with its columns; a click selects (and frames) it. */
+/** The largest objects of a layer with a `list` hint, one row each with its columns; a click selects (and frames) it,
+ *  the pointer over a row rings the object in the view. */
 function ObjectRows({ d }: { d: DisplayLayer }) {
   const p = passing(d), sel = selection.value, list = d.list!;
   if (!p) return null;
@@ -177,7 +179,8 @@ function ObjectRows({ d }: { d: DisplayLayer }) {
       <tbody>
         {rows.map((r, k) => (
           <tr class={sel?.table === d.table && sel.row === r ? "selected" : undefined} onClick={() => jump({ table: d.table, row: r })}
-            title={`${labelOf(d.table)} #${r}: select it`}>
+            onMouseEnter={() => (rowHover.value = { table: d.table, row: r })} onMouseLeave={() => (rowHover.value = null)}
+            title={`${labelOf(d.table)} #${r}: select it (pointed at in the view)`}>
             {/* its name without the columns shown next to it (a jet: none, so its rank; a PF candidate: its type) */}
             <td>{describe(d.table, r, cols) || `${k + 1}`}</td>
             {cols.map((c) => <td>{short(Number(p.t.columns[c][r]))}</td>)}

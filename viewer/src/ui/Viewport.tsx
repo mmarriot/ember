@@ -22,6 +22,7 @@ import {
 import { PAIR } from "../model/pair";
 import type { Ref } from "../model/relations";
 import { stopTour } from "./tour";
+import { Labels } from "./Labels";
 
 export let engine: Engine | null = null;
 
@@ -299,6 +300,7 @@ export function Viewport() {
   return (
     <div class="viewport">
       <canvas ref={canvas} onPointerDown={onDown} onPointerUp={onUp} onPointerMove={onMove} onPointerLeave={() => (hover.value = null)} onClick={onClick} onDblClick={onDoubleClick} />
+      <Labels />
       <Tooltip />
       <FocusBar />
       <ReplayCaption />

@@ -168,10 +168,11 @@ function ObjectRows({ d }: { d: DisplayLayer }) {
     <table class="objects">
       <thead><tr><th />{cols.map((c) => <th title={bundle.value!.header.tables[d.table]?.columns[c]?.doc}>{columnName(c)}</th>)}</tr></thead>
       <tbody>
-        {rows.map((r) => (
+        {rows.map((r, k) => (
           <tr class={sel?.table === d.table && sel.row === r ? "selected" : undefined} onClick={() => jump({ table: d.table, row: r })}
             title={`${labelOf(d.table)} #${r}: select it`}>
-            <td>{describe(d.table, r) || `#${r}`}</td>
+            {/* its name without the columns shown next to it (a jet: none, so its rank; a PF candidate: its type) */}
+            <td>{describe(d.table, r, cols) || `${k + 1}`}</td>
             {cols.map((c) => <td>{short(Number(p.t.columns[c][r]))}</td>)}
           </tr>
         ))}

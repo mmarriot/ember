@@ -143,11 +143,12 @@ export const short = (v: number) => (Number.isInteger(v) || Math.abs(v) >= 100 ?
 export const full = (v: number | bigint) =>
   typeof v === "bigint" ? v.toString() : Number.isInteger(v) ? v.toLocaleString() : Math.abs(v) >= 1e4 || (v !== 0 && Math.abs(v) < 1e-3) ? v.toExponential(3) : v.toFixed(3);
 
-/** A short name for one object, from its layer's `describe` hint (e.g. "π+ · 88.9 GeV"), or "" without one. */
-export function describe(table: string, row: number): string {
+/** A short name for one object, from its layer's `describe` hint (e.g. "π+ · 88.9 GeV"), or "" without one. `skip`:
+ *  columns to leave out (shown next to it anyway, e.g. in object rows). */
+export function describe(table: string, row: number, skip: string[] = []): string {
   const b = bundle.value, t = event.value?.tables[table], hint = layerOf(table)?.describe;
   if (!b || !t || !hint || row >= t.n) return "";
-  return hint.columns.filter((c) => c in t.columns).map((c) => {
+  return hint.columns.filter((c) => c in t.columns && !skip.includes(c)).map((c) => {
     const v = Number(t.columns[c][row]), name = hint.names?.[c]?.[String(v)];
     if (name) return name;
     const unit = unitOf(b.header.tables[table]?.columns[c]?.doc);

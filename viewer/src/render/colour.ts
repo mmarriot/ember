@@ -76,7 +76,8 @@ export function valueRange(values: ArrayLike<number>): Range {
   return hi > lo ? { scale: log ? "log" : "linear", lo, hi } : { scale: log ? "log" : "linear", lo: lo - 0.5, hi: lo + 0.5 };
 }
 
-const position = (r: Range, v: number) => ((r.scale === "log" ? Math.log10(Math.max(v, 1e-12)) : v) - r.lo) / (r.hi - r.lo);
+/** Where a value lies on a range (0 at lo, 1 at hi; beyond them outside 0..1). */
+export const position = (r: Range, v: number) => ((r.scale === "log" ? Math.log10(Math.max(v, 1e-12)) : v) - r.lo) / (r.hi - r.lo);
 
 /** A table's name in colour descriptions: "tracksters (SoA)", or with its layer's label when its kind has several
  *  layers, "trackster links (linked tracksters, legacy)", "particles (truth graph)". */

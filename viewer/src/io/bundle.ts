@@ -30,7 +30,7 @@ export interface DisplayLayer {
    *  legend names per value). */
   colourBy?: "row" | "identity" | { relation: string } | { content: string } | { category: string; abs?: boolean; names?: Record<string, string> };
   stage?: number; // reconstruction step (0, 1, ...) of the replay; the default view shows the last one
-  size?: string | null;
+  size?: string | null; // cells: half-width column [cm]; markers: a column whose larger values draw larger discs
   time?: string | null; // column with the arrival time in ns (missing: <= -50), for the replay
   axis?: [string, string, string];
   extent?: [string, string, string];

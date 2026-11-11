@@ -3,7 +3,7 @@
 // most and are updated on the CPU.
 import * as THREE from "three";
 import type { DisplayLayer, Table } from "../io/bundle";
-import { toF32, type Pal } from "./colour";
+import { position, toF32, type Pal, valueRange } from "./colour";
 import { type Field, helixPaths, type Paths, polylines } from "./helix";
 import { REPLAY_OFF } from "./replay";
 
@@ -171,19 +171,26 @@ export function cells(input: LayerInput): Layer {
 }
 
 /** Objects as discs of constant pixel size with a dark rim, drawn on top of cells. Objects without emphasis
- *  (e.g. layer clusters in no trackster) are small, rimless and faded, so they stay in the background. */
+ *  (e.g. layer clusters in no trackster) are small, rimless and faded, so they stay in the background. With a `size`
+ *  column, larger values give larger discs (5 to 14 px over the bulk of the values, as the colour scale), e.g. the
+ *  primary vertex (largest sum of pT^2) stands out among the pile-up vertices. */
 export function markers(input: LayerInput): Layer {
-  const { t } = input;
+  const { d, t } = input;
   const [x, y, z] = positions(input);
+  const sizeCol = d.size ? t.columns[d.size] : undefined, sized = new Float32Array(t.n);
+  if (sizeCol) {
+    const v = toF32(sizeCol, t.n), r = valueRange(v);
+    for (let i = 0; i < t.n; i++) { const p = position(r, v[i]); sized[i] = p > 0 ? (p < 1 ? p : 1) : 0; } // NaN -> 0
+  }
   const g = new THREE.BufferGeometry();
   g.setAttribute("position", new THREE.BufferAttribute(new Float32Array(3 * t.n), 3)); // unused, required by three
   const material = new THREE.ShaderMaterial({
-    uniforms: { ...baseUniforms(input.pal), uPx: { value: window.devicePixelRatio } },
+    uniforms: { ...baseUniforms(input.pal), uPx: { value: window.devicePixelRatio }, uSized: { value: sizeCol ? 1 : 0 } },
     depthTest: false,
     vertexShader: /* glsl */ `
-      attribute float ix, iy, iz, isel, ipsel, iemph, icut, iT, iL;
+      attribute float ix, iy, iz, isel, ipsel, iemph, icut, iT, iL, isize;
       attribute vec3 icol;
-      uniform float uPx;
+      uniform float uPx, uSized;
       varying vec3 vCol;
       varying float vRim;
       ${GLSL}
@@ -195,7 +202,8 @@ export function markers(input: LayerInput): Layer {
         bool linked = iL <= uClock; // replay: grey and small until linked
         float s = selected(ipsel, isel), chosen = selActive() * s; // 0..1 while a selection fades in or out
         float emph = linked ? iemph : 0.0, p = max(pop(iT), linked ? pop(iL) : 0.0);
-        gl_PointSize = mix(emph > 0.5 ? 7.0 : 4.0, 10.0, chosen) * (1.0 + 1.2 * p) * uPx * remaining();
+        float big = uSized > 0.5 ? mix(5.0, 14.0, isize) : 7.0;
+        gl_PointSize = mix(emph > 0.5 ? big : 4.0, max(10.0, big), chosen) * (1.0 + 1.2 * p) * uPx * remaining();
         vec3 col = linked ? icol : uGrey;
         col = mix(col, uBg, 0.45 * (1.0 - chosen) * (1.0 - emph)); // objects in no group are background
         vCol = fade(mix(col, vec3(1.0), uFlash * p), s);
@@ -211,7 +219,7 @@ export function markers(input: LayerInput): Layer {
         gl_FragColor = vec4(r > 0.5 ? mix(vCol, uRim, 0.55 * vRim) : vCol, 1.0);
       }`,
   });
-  const common = shaderLayer(input, g, material, false, { ix: x, iy: y, iz: z });
+  const common = shaderLayer(input, g, material, false, { ix: x, iy: y, iz: z, isize: sized });
   const emph = new THREE.BufferAttribute(input.emphasis ?? new Uint8Array(t.n).fill(1), 1); // 0 or 1, not normalised
   g.setAttribute("iemph", emph);
   const points = new THREE.Points(g, material);

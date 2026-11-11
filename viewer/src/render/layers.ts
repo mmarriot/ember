@@ -46,6 +46,8 @@ const GLSL = /* glsl */ `
 uniform float uProj, uAct0, uAct1, uMix, uCut, uClock, uFlash, uRetire;
 uniform vec3 uBg, uRim, uGrey, uFade;
 vec3 projectRZ(vec3 c, float depth) { return vec3(c.z, length(c.xy) * (c.y >= 0.0 ? 1.0 : -1.0), depth); }
+// A line keeps one side of the axis (the side of its end, \`side\`), so a line crossing y = 0 does not jump across it.
+vec3 projectRZ(vec3 c, float depth, float side) { return vec3(c.z, length(c.xy) * side, depth); }
 // Selection, cross-faded between the previous and the current one: selActive = something selected, s = this one is.
 float selActive() { return mix(uAct0, uAct1, uMix); }
 float selected(float before, float now) { return mix(before, now, uMix); }
@@ -83,33 +85,42 @@ function cutter(n: number, values: Float32Array | undefined, onChange: (min: num
 /** What the shader-drawn layers (cells, markers, segments, helices) share. Per object: the given float attributes (`vec3`:
  *  three floats each), the cut value, the colour, the selection as two byte masks (previous and current, cross-faded
  *  by a uniform) and the replay times. A cut or a replay frame is one uniform; a selection change is one mask copy.
- *  Instanced layers (cells, segments, helices) whose cut values hide rows for good (a filter, or a layer that shows only
- *  the selection's objects) get instances for the other rows only: each instance runs the vertex shader for every
- *  vertex of every frame, even when its object is hidden, and 100k truth helices of 48 points each are 5M vertices. */
+ *  Layers whose cut values hide rows for good (a filter, or a layer that shows only the selection's objects) get
+ *  instances (markers: points) for the other rows only: each runs the vertex shader every frame, even when its object
+ *  is hidden (100k truth helices of 48 points each are 5M vertices), and a layer rebuilt on every click (the hits of the
+ *  selection's tracks) then uploads only the selection's rows. `pieces` (instanced): instances per row, for a row
+ *  drawn in several pieces (a helix of many turns), each with its piece number in the attribute `ipiece` and the
+ *  row's count in `ipieces`. */
 function shaderLayer(input: LayerInput, g: THREE.BufferGeometry, material: THREE.ShaderMaterial, instanced: boolean,
-  attributes: Record<string, Float32Array>, vec3: Record<string, Float32Array> = {}) {
+  attributes: Record<string, Float32Array>, vec3: Record<string, Float32Array> = {}, pieces?: Uint16Array) {
   const n = input.t.n, u = material.uniforms, Attr = instanced ? THREE.InstancedBufferAttribute : THREE.BufferAttribute;
   const cut = cutter(n, input.cut, (m) => (u.uCut.value = Math.max(m, -1e30)));
-  // Rows that can ever be drawn, if fewer than all (instanced only); `slot`: each row's instance, -1 for none.
-  let rows: Uint32Array | null = null, slot: Int32Array | null = null;
-  if (instanced && input.cut) {
-    const kept: number[] = [];
-    for (let i = 0; i < n; i++) if (input.cut[i] > HIDDEN) kept.push(i);
-    if (kept.length < n) {
-      rows = Uint32Array.from(kept);
-      slot = new Int32Array(n).fill(-1);
-      rows.forEach((r, k) => (slot![r] = k));
+  // The row of each instance, if not one instance per row; `slot`: each row's first instance, -1 for none.
+  let rows: Uint32Array | null = null, slot: Int32Array | null = null, piece: Float32Array | null = null;
+  const kept: number[] = [];
+  if (input.cut) for (let i = 0; i < n; i++) if (input.cut[i] > HIDDEN) kept.push(i);
+  if ((input.cut && kept.length < n) || pieces?.some((c) => c > 1)) {
+    const use = input.cut ? kept : Array.from({ length: n }, (_, i) => i), count = (r: number) => (pieces ? pieces[r] : 1);
+    rows = new Uint32Array(use.reduce((s, r) => s + count(r), 0));
+    slot = new Int32Array(n).fill(-1);
+    if (pieces) piece = new Float32Array(rows.length);
+    let k = 0;
+    for (const r of use) {
+      slot[r] = k;
+      for (let j = 0; j < count(r); j++, k++) { rows[k] = r; if (piece) piece[k] = j; }
     }
   }
   const m = rows ? rows.length : n;
-  const pick = (a: Float32Array, size = 1) => {
+  const pick = <T extends Float32Array | Uint8Array>(a: T, size = 1): T => {
     if (!rows) return a;
-    const out = new Float32Array(size * rows.length);
+    const out = new (a.constructor as new (n: number) => T)(size * rows.length);
     for (let k = 0; k < rows.length; k++) for (let c = 0; c < size; c++) out[size * k + c] = a[size * rows[k] + c];
     return out;
   };
   const now = new Uint8Array(m), before = new Uint8Array(m), appear = new Float32Array(m), link = new Float32Array(m);
-  for (const [name, a] of Object.entries({ ...attributes, icut: cut.values })) g.setAttribute(name, new Attr(pick(a), 1));
+  for (const [name, a] of Object.entries({ ...attributes, icut: cut.values, ...(pieces ? { ipieces: Float32Array.from(pieces) } : {}) }))
+    g.setAttribute(name, new Attr(pick(a), 1));
+  if (pieces) g.setAttribute("ipiece", new Attr(piece ?? new Float32Array(m), 1));
   for (const [name, a] of Object.entries({ iT: appear, iL: link })) g.setAttribute(name, new Attr(a, 1));
   for (const [name, a] of Object.entries(vec3)) g.setAttribute(name, new Attr(pick(a, 3), 3));
   g.setAttribute("icol", new Attr(pick(input.rgb, 3), 3));
@@ -118,13 +129,14 @@ function shaderLayer(input: LayerInput, g: THREE.BufferGeometry, material: THREE
   if (instanced) (g as THREE.InstancedBufferGeometry).instanceCount = m;
   const changed = (...names: string[]) => names.forEach((a) => (g.getAttribute(a).needsUpdate = true));
   return {
+    pick,
     passes: cut.passes,
     setCut: cut.setCut,
     setColours(rgb: Float32Array) { (g.getAttribute("icol").array as Float32Array).set(pick(rgb, 3)); changed("icol"); },
     setHighlight(sel: Set<number> | null) {
       before.set(now);
       now.fill(0);
-      sel?.forEach((r) => { const k = slot ? slot[r] : r; if (k >= 0) now[k] = 255; });
+      sel?.forEach((r) => { for (let k = slot ? slot[r] : r; k >= 0 && k < m && (rows ? rows[k] === r : k === r); k++) now[k] = 255; });
       changed("isel", "ipsel");
       u.uAct0.value = u.uAct1.value;
       u.uAct1.value = sel ? 1 : 0;
@@ -208,7 +220,6 @@ export function markers(input: LayerInput): Layer {
     for (let i = 0; i < t.n; i++) { const p = position(r, v[i]); sized[i] = p > 0 ? (p < 1 ? p : 1) : 0; } // NaN -> 0
   }
   const g = new THREE.BufferGeometry();
-  g.setAttribute("position", new THREE.BufferAttribute(new Float32Array(3 * t.n), 3)); // unused, required by three
   const material = new THREE.ShaderMaterial({
     uniforms: { ...baseUniforms(input.pal), uPx: { value: window.devicePixelRatio }, uSized: { value: sizeCol ? 1 : 0 } },
     depthTest: false,
@@ -244,8 +255,11 @@ export function markers(input: LayerInput): Layer {
         gl_FragColor = vec4(r > 0.5 ? mix(vCol, uRim, 0.55 * vRim) : vCol, 1.0);
       }`,
   });
-  const common = shaderLayer(input, g, material, false, { ix: x, iy: y, iz: z, isize: sized });
-  const emph = new THREE.BufferAttribute(input.emphasis ?? new Uint8Array(t.n).fill(1), 1); // 0 or 1, not normalised
+  const { pick, ...common } = shaderLayer(input, g, material, false, { ix: x, iy: y, iz: z, isize: sized });
+  // three draws as many points as `position` has entries; the shader does not read it, so it shares ix's buffer.
+  g.setAttribute("position", g.getAttribute("ix"));
+  g.boundingSphere = new THREE.Sphere(new THREE.Vector3(), Infinity); // not computed from it (three's depth sort asks)
+  const emph = new THREE.BufferAttribute(pick(input.emphasis ?? new Uint8Array(t.n).fill(1)), 1); // 0 or 1, not normalised
   g.setAttribute("iemph", emph);
   const points = new THREE.Points(g, material);
   points.frustumCulled = false;
@@ -426,7 +440,7 @@ export function segments(input: LayerInput): Layer {
         vec3 c = mix(vec3(ix, iy, iz), vec3(jx, jy, jz), position.x * grow);
         vS = position.x * grow * length(vec3(jx, jy, jz) - vec3(ix, iy, iz));
         float s = selected(ipsel, isel);
-        if (uProj > 0.5) c = projectRZ(c, s * 2.0);
+        if (uProj > 0.5) c = projectRZ(c, s * 2.0, jy >= 0.0 ? 1.0 : -1.0);
         gl_Position = projectionMatrix * modelViewMatrix * vec4(c, 1.0);
         vCol = fade(mix(icol, vec3(1.0), uFlash * pop(iT)), s) * remaining() + uBg * (1.0 - remaining());
       }`,
@@ -448,17 +462,24 @@ export function segments(input: LayerInput): Layer {
   };
 }
 
-/** Points per drawn helix (a line strip): enough for a smooth arc of a few turns. Each costs one vertex-shader run per
- *  frame (a few sin and cos), nothing on the CPU or in memory. */
-const HELIX_POINTS = 48, PICK_POINTS = 17; // PICK_POINTS: the CPU polyline used for picking and framing
+/** Points per drawn piece of helix (a line strip): HELIX_POINTS - 1 along the arc, then the end point. A path of many
+ *  turns (a looper) is drawn in several pieces, each at most TURNS_PER_PIECE turns (about 11 degrees per segment), so
+ *  it stays round. Each point costs one vertex-shader run per frame (a few sin and cos), nothing on the CPU. */
+const HELIX_POINTS = 48, TURNS_PER_PIECE = 1.5, MAX_PIECES = 256;
+const PICK_POINTS = 17; // the CPU polyline used for picking and framing
 // Paths per table and hint, kept while the event's table lives: a layer that shows only the selection's objects is
 // rebuilt on every click, and its paths do not change.
-const pathCache = new WeakMap<Table, Map<string, { paths: Paths; pick: NonNullable<Layer["path"]> }>>();
+const pathCache = new WeakMap<Table, Map<string, { paths: Paths; pieces: Uint16Array; ends: Float32Array[]; pick: NonNullable<Layer["path"]> }>>();
+/** Three columns as one array of 3 floats per row (a vec3 attribute: WebGL gives a shader at most 16 attributes). */
+const interleave = (a: readonly [Float32Array, Float32Array, Float32Array]) => {
+  const out = new Float32Array(3 * a[0].length);
+  for (let i = 0; i < a[0].length; i++) { out[3 * i] = a[0][i]; out[3 * i + 1] = a[1][i]; out[3 * i + 2] = a[2][i]; }
+  return out;
+};
 
 /** Charged particles' paths in the solenoid field (render/helix.ts), drawn and picked like segments (cuts, selection,
- *  replay, truth dashes). Per object the GPU gets the start, the unit direction, the curvature and two lengths; the
- *  vertex shader puts each of the HELIX_POINTS points of the strip on the path, so a path costs 24 bytes besides its
- *  start, not a polyline. Picking and framing use a coarser polyline computed on the CPU, per path when first needed. */
+ *  replay, truth dashes). Per object the GPU gets the start, the unit direction, the curvature, two lengths and the end
+ *  point; the vertex shader puts each point of the strip on the path, so a path costs 48 bytes, not a polyline. Picking and framing use a coarser polyline computed on the CPU, per path when first needed. */
 export function helices(input: LayerInput): Layer {
   const { d, t, field } = input;
   const start = positions(input), cols = (names?: readonly string[]) => (names ?? []).map((c) => toF32(t.columns[c], t.n)) as [Float32Array, Float32Array, Float32Array];
@@ -468,17 +489,23 @@ export function helices(input: LayerInput): Layer {
   let cached = byHint.get(key);
   if (!cached) {
     const momentum = d.momentum ? cols(d.momentum) : cols(["", "", ""]), charge = toF32(d.charge ? t.columns[d.charge] : undefined, t.n);
-    const paths = helixPaths(start, momentum, charge, cols(d.end ?? d.position), t.n, field);
-    byHint.set(key, (cached = { paths, pick: polylines(paths, start, PICK_POINTS) }));
+    const paths = helixPaths(start, momentum, charge, cols(d.end ?? d.position), t.n, field), pieces = new Uint16Array(t.n);
+    for (let i = 0; i < t.n; i++) { // turns in the field: |k| (rad/cm) times the arc's length there
+      const turns = (Math.abs(paths.path[3 * i]) * Math.min(paths.path[3 * i + 1], paths.path[3 * i + 2])) / (2 * Math.PI);
+      pieces[i] = Math.min(MAX_PIECES, Math.max(1, Math.ceil(turns / TURNS_PER_PIECE)));
+    }
+    byHint.set(key, (cached = { paths, pieces, ends: [interleave(start), interleave(paths.end)], pick: polylines(paths, start, PICK_POINTS) }));
   }
-  const { paths, pick } = cached;
+  const { paths, pieces, ends: [istart, iend], pick } = cached, [x, y, z] = paths.end;
   const g = new THREE.InstancedBufferGeometry();
-  g.setAttribute("position", new THREE.Float32BufferAttribute(Array.from({ length: 3 * HELIX_POINTS }, (_, i) => (i % 3 ? 0 : i / 3 / (HELIX_POINTS - 1))), 3));
+  // x: 0 to 1 along the arc of the piece; 2 for the last point, the end point (on the last piece).
+  g.setAttribute("position", new THREE.Float32BufferAttribute(Array.from({ length: 3 * HELIX_POINTS }, (_, i) =>
+    (i % 3 ? 0 : i / 3 === HELIX_POINTS - 1 ? 2 : i / 3 / (HELIX_POINTS - 2))), 3));
   const material = new THREE.ShaderMaterial({
     uniforms: { ...baseUniforms(input.pal), uDash: { value: d.truth ? 1 : 0 } },
     vertexShader: /* glsl */ `
-      attribute float ix, iy, iz, isel, ipsel, icut, iT;
-      attribute vec3 icol, idir, ipath; // ipath: curvature (rad/cm), length in the field, length (cm)
+      attribute float isel, ipsel, icut, iT, ipiece, ipieces;
+      attribute vec3 istart, iend, icol, idir, ipath; // ipath: curvature (rad/cm), length in the field, length of the arc (cm)
       varying vec3 vCol;
       varying float vS;
       ${GLSL}
@@ -487,17 +514,20 @@ export function helices(input: LayerInput): Layer {
         float lh = min(l, ipath.y), h = 0.5 * ipath.x * lh;
         float s = abs(h) < 1e-4 ? 1.0 - h * h / 6.0 : sin(h) / h, a = s * cos(h), b = s * sin(h);
         float c = cos(2.0 * h), sn = sin(2.0 * h), rest = max(l - lh, 0.0);
-        return vec3(ix + lh * (idir.x * a - idir.y * b) + rest * (idir.x * c - idir.y * sn),
-                    iy + lh * (idir.y * a + idir.x * b) + rest * (idir.x * sn + idir.y * c),
-                    iz + l * idir.z);
+        return istart + vec3(lh * (idir.x * a - idir.y * b) + rest * (idir.x * c - idir.y * sn),
+                             lh * (idir.y * a + idir.x * b) + rest * (idir.x * sn + idir.y * c),
+                             l * idir.z);
       }
       void main() {
         ${CULL}
-        float grow = uClock > 1e29 ? 1.0 : clamp((uClock - iT) / 0.5, 0.0, 1.0);
-        vS = position.x * grow * ipath.z;
-        vec3 c = pathAt(vS);
+        float grow = uClock > 1e29 ? 1.0 : clamp((uClock - iT) / 0.5, 0.0, 1.0), len = grow * ipath.z;
+        float l0 = len * ipiece / ipieces, l1 = len * (ipiece + 1.0) / ipieces;
+        vec3 c = pathAt(position.x > 1.5 ? l1 : mix(l0, l1, position.x)), e = iend;
+        vS = position.x > 1.5 ? l1 : mix(l0, l1, position.x);
+        // The last point of the last piece, once grown: the end point, joined to the arc by a straight piece.
+        if (position.x > 1.5 && ipiece + 1.0 >= ipieces && grow >= 1.0) { vS += length(e - c); c = e; }
         float s = selected(ipsel, isel);
-        if (uProj > 0.5) c = projectRZ(c, s * 2.0);
+        if (uProj > 0.5) c = projectRZ(c, s * 2.0, iend.y >= 0.0 ? 1.0 : -1.0);
         gl_Position = projectionMatrix * modelViewMatrix * vec4(c, 1.0);
         vCol = fade(mix(icol, vec3(1.0), uFlash * pop(iT)), s) * remaining() + uBg * (1.0 - remaining());
       }`,
@@ -507,11 +537,10 @@ export function helices(input: LayerInput): Layer {
         gl_FragColor = vec4(uDash > 0.5 ? mix(vCol, uBg, 0.35) : vCol, 1.0);
       }`,
   });
-  const common = shaderLayer(input, g, material, true, { ix: start[0], iy: start[1], iz: start[2] }, { idir: paths.dir, ipath: paths.path });
+  const common = shaderLayer(input, g, material, true, {}, { istart, iend, idir: paths.dir, ipath: paths.path }, pieces);
   const lines = new THREE.Line(g, material);
   lines.frustumCulled = false;
   lines.renderOrder = 1;
-  const [x, y, z] = paths.end;
   return {
     ...identity(input, 8), object: lines, x, y, z, path: pick, pickBias: 0.8, line: true,
     ...common,

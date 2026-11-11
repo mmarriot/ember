@@ -381,9 +381,10 @@ export class Engine {
     // projection writes to a typed array: a double stored in a captured variable would be boxed on the heap),
     // squared distances, and the cut test (a call) only for objects close enough to win.
     const out = new Float64Array(2); // screen offset from the cursor of the last point projected
-    const project = (X: Float32Array, Y: Float32Array, Z: Float32Array, i: number) => {
+    // ρ-z: `side` (±1) puts the point on one side of the axis (a line's, see toView); 0: the point's own side.
+    const project = (X: Float32Array, Y: Float32Array, Z: Float32Array, i: number, side = 0) => {
       let x = X[i], y = Y[i], z = Z[i];
-      if (rz) { y = Math.sqrt(x * x + y * y) * (y >= 0 ? 1 : -1); x = Z[i]; z = 0; }
+      if (rz) { y = Math.sqrt(x * x + y * y) * (side || (y >= 0 ? 1 : -1)); x = Z[i]; z = 0; }
       const w = m[3] * x + m[7] * y + m[11] * z + m[15];
       if (w <= 0) return false; // behind the camera
       out[0] = ((m[0] * x + m[4] * y + m[8] * z + m[12]) / w + 1) * hw - px;
@@ -392,10 +393,10 @@ export class Engine {
     };
     const found: { hit: Hit; score: number; context?: boolean }[] = [];
     // A polyline (helix): the closest point of its segments, squared, or Infinity when none is in front of the camera.
-    const alongPath = (path: NonNullable<Layer["path"]>, i: number) => {
+    const alongPath = (path: NonNullable<Layer["path"]>, i: number, side: number) => {
       let best = Infinity, ax = 0, ay = 0, prev = false;
       for (let j = i * path.points; j < (i + 1) * path.points; j++) {
-        const ok = project(path.x, path.y, path.z, j), bx = out[0], by = out[1];
+        const ok = project(path.x, path.y, path.z, j, side), bx = out[0], by = out[1];
         if (ok && prev) {
           const ex = bx - ax, ey = by - ay, len2 = ex * ex + ey * ey;
           const f = len2 > 0 ? Math.min(1, Math.max(0, -(ax * ex + ay * ey) / len2)) : 0, dx = ax + f * ex, dy = ay + f * ey;
@@ -410,16 +411,17 @@ export class Engine {
       const scale = (bias * bias) / (layer.pickRadius * layer.pickRadius);
       let best = -1, bestScore = 1;
       for (let i = 0; i < X.length; i++) {
+        const side = layer.line ? (Y[i] >= 0 ? 1 : -1) : 0; // a line: the side of its end
         if (path) { // the cut test first: a path's points are computed when it is first looked at
           if (!layer.passes(i)) continue;
           path.fill(i);
-          const score = scale * alongPath(path, i);
+          const score = scale * alongPath(path, i, side);
           if (score < bestScore && (!accept || accept(layer.table, i))) { bestScore = score; best = i; }
           continue;
         }
-        if (!(seg ? project(seg.b[0], seg.b[1], seg.b[2], i) : project(X, Y, Z, i))) continue;
+        if (!(seg ? project(seg.b[0], seg.b[1], seg.b[2], i, side) : project(X, Y, Z, i))) continue;
         let dx = out[0], dy = out[1];
-        if (seg && project(seg.a[0], seg.a[1], seg.a[2], i)) { // a line or a shower's axis: closest point of the segment
+        if (seg && project(seg.a[0], seg.a[1], seg.a[2], i, side)) { // a line or a shower's axis: closest point of the segment
           const ax = out[0], ay = out[1], ex = dx - ax, ey = dy - ay, len2 = ex * ex + ey * ey;
           const f = len2 > 0 ? Math.min(1, Math.max(0, -(ax * ex + ay * ey) / len2)) : 0;
           dx = ax + f * ex; dy = ay + f * ey;
@@ -465,18 +467,20 @@ export class Engine {
         for (const i of rows) {
           if (!l.passes(i)) continue;
           path.fill(i);
-          for (let j = i * path.points; j < (i + 1) * path.points; j++) { this.toView(path.x, path.y, path.z, j, p); lo.min(p); hi.max(p); }
+          for (let j = i * path.points; j < (i + 1) * path.points; j++) { this.toView(path.x, path.y, path.z, j, p, l.y[i]); lo.min(p); hi.max(p); }
         }
       } else if (l.segment) {
         const [X, Y, Z] = l.segment.a;
-        for (const i of rows) if (l.passes(i)) { this.toView(X, Y, Z, i, p); lo.min(p); hi.max(p); }
+        for (const i of rows) if (l.passes(i)) { this.toView(X, Y, Z, i, p, l.y[i]); lo.min(p); hi.max(p); }
       }
     }
     return [lo, hi];
   }
 
-  private toView(X: Float32Array, Y: Float32Array, Z: Float32Array, i: number, out: THREE.Vector3) {
-    return this.rz ? out.set(Z[i], Math.hypot(X[i], Y[i]) * (Y[i] >= 0 ? 1 : -1), 0) : out.set(X[i], Y[i], Z[i]);
+  /** A point in view coordinates. ρ-z: ρ signed by the side of y, or of `sideY` (a line's end, so a line crossing
+   *  y = 0 stays on one side, as drawn). */
+  private toView(X: Float32Array, Y: Float32Array, Z: Float32Array, i: number, out: THREE.Vector3, sideY = Y[i]) {
+    return this.rz ? out.set(Z[i], Math.hypot(X[i], Y[i]) * (sideY >= 0 ? 1 : -1), 0) : out.set(X[i], Y[i], Z[i]);
   }
 
   private go(to: Pose, animate: boolean, ms: number, swing: number) {

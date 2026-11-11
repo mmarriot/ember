@@ -134,18 +134,22 @@ All optional; the converter copies them from the profile.
 ### Helices
 
 A `helix` layer draws each object as the path of a charged particle (`viewer/src/render/helix.ts`): from `position`
-along `momentum`, curving in the header's `field` (radius pT / (0.3 B), clockwise seen from +z for positive charge)
-while inside its cylinder, then straight along the last direction. A neutral particle, an object starting outside the
-field, or a bundle without `field` goes straight from `position` to `end`, exactly as `segments`.
+along `momentum`, curving in the header's `field` (radius pT / (0.003 B) cm for pT in GeV and B in T, clockwise seen
+from +z for positive charge) while inside its cylinder, then straight along the last direction. A neutral particle, an
+object starting outside the field, or a bundle without `field` goes straight from `position` to `end`, exactly as
+`segments`.
 
 Where it stops: z changes linearly along the path, so a path moving mostly along the beam (|Δz| to the end point at
 least its transverse distance) stops level with the end point's z; one moving mostly outwards stops where its
 transverse distance from the start reaches the end point's. With a measured momentum the helix passes near the end
-point (a track's outermost hit, a particle's decay vertex or calorimeter entry), and the arc stops level with it. If
-the helix cannot get level with the end point (a looper that never gets that far out), or ends more than 2 cm + 5% of
-its length from it (energy lost on the way, a scatter, an end point extrapolated without the field), the object is
-drawn straight from start to end instead, so a particle always ends where its daughters start. Picking, colours,
-cuts, filters, truth dashes and `onSelection` are as for `segments`.
+point (a track's outermost state, a particle's decay vertex or calorimeter entry): the arc stops level with it, and a
+straight piece joins it to the end point, so a particle ends exactly where its daughters start. If the helix cannot
+get level with the end point (a looper that never gets that far out), or would end more than 2 cm + 5% of its length
+from it (energy lost on the way, a scatter, an end point extrapolated without the field), the object is drawn straight
+from start to end instead. A path of many turns (a looper) is drawn whole, in pieces of at most 1.5 turns, so it stays
+round. In the ρ-z view a line keeps the side of the axis of its end point (ρ < 0 below y = 0), so a track crossing
+y = 0 does not jump across the axis. Picking, colours, cuts, filters, truth dashes and `onSelection` are as for
+`segments`.
 
 ## Index JSON
 

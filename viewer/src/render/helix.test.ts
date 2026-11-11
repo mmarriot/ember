@@ -10,7 +10,7 @@ function one(start: number[], p: number[], q: number, end: number[], field?: Fie
     end.map((v) => col(v)) as [Float32Array, Float32Array, Float32Array], 1, field);
   const [k, lField, lEnd] = paths.path;
   const at = (l: number) => [...point(start[0], start[1], start[2], paths.dir[0], paths.dir[1], paths.dir[2], k, lField, l, new Float64Array(3))];
-  return { paths, k, lField, lEnd, at, end: paths.end.map((a) => a[0]) };
+  return { paths, k, lField, lEnd, at, end: paths.end.map((a) => a[0]), arc: at(lEnd) };
 }
 const radius = (pT: number, b: number) => pT / (CURVATURE * b); // cm
 /** The point at path length l on the helix in FIELD (never leaving it), plus `shift`. */
@@ -46,10 +46,10 @@ describe("helix paths", () => {
   it("stop level with the end point: its transverse distance for a central path, its z for a forward one", () => {
     const central = one([0, 0, 0], [3, 1, 0.5], 1, onHelix([0, 0, 0], [3, 1, 0.5], 1, 110, [1, 2, 0]), FIELD);
     expect(central.k).not.toBe(0);
-    expect(Math.hypot(central.end[0], central.end[1])).toBeCloseTo(Math.hypot(...onHelix([0, 0, 0], [3, 1, 0.5], 1, 110, [1, 2, 0]).slice(0, 2)), 3);
+    expect(Math.hypot(central.arc[0], central.arc[1])).toBeCloseTo(Math.hypot(...onHelix([0, 0, 0], [3, 1, 0.5], 1, 110, [1, 2, 0]).slice(0, 2)), 3);
     const forward = one([0, 0, 1], [1, 0.5, 4], -1, onHelix([0, 0, 1], [1, 0.5, 4], -1, 300, [0, 0, 3]), FIELD);
     expect(forward.k).not.toBe(0);
-    expect(forward.end[2]).toBeCloseTo(onHelix([0, 0, 1], [1, 0.5, 4], -1, 300)[2] + 3, 3);
+    expect(forward.arc[2]).toBeCloseTo(onHelix([0, 0, 1], [1, 0.5, 4], -1, 300)[2] + 3, 3);
   });
 
   it("recover the length to a point on the path itself, before and after it leaves the field", () => {
@@ -81,10 +81,10 @@ describe("helix paths", () => {
 
   it("stay accurate in float32 for a nearly straight (1 TeV) track", () => {
     const h = one([0, 0, 0], [1000, 0, 0], 1, [120, 0, 0], FIELD);
-    expect(Number.isFinite(h.end[1])).toBe(true);
+    expect(Number.isFinite(h.arc[1])).toBe(true);
     const sagitta = (120 * 120) / (8 * radius(1000, 3.8)); // ~0.016 cm, below the deflection over 120 cm
-    expect(Math.abs(h.end[1])).toBeGreaterThan(0.5 * 4 * sagitta);
-    expect(Math.abs(h.end[1])).toBeLessThan(2 * 4 * sagitta); // deflection at the end = 4 x the chord's sagitta
+    expect(Math.abs(h.arc[1])).toBeGreaterThan(0.5 * 4 * sagitta);
+    expect(Math.abs(h.arc[1])).toBeLessThan(2 * 4 * sagitta); // deflection at the end = 4 x the chord's sagitta
   });
 
   it("go straight from start to end when the helix cannot reach the end point, or misses it", () => {
@@ -96,6 +96,15 @@ describe("helix paths", () => {
     expect(wrong.end[1]).toBeCloseTo(100, 4);
     const [x, y] = onHelix([0, 0, 0], [1, 0, 0], 1, 100);
     expect(one([0, 0, 0], [1, 0, 0], 1, [x + 3, y, 0], FIELD).k).not.toBe(0); // 3 cm off the helix: within 2 cm + 5%
+  });
+
+  it("end at the end point, the arc joined to it by a straight piece, or where the arc ends if it is not finite", () => {
+    const [x, y] = onHelix([0, 0, 0], [1, 0, 0], 1, 100), h = one([0, 0, 0], [1, 0, 0], 1, [x + 1.5, y, 0], FIELD);
+    expect(h.k).not.toBe(0);
+    expect(h.end[0]).toBeCloseTo(x + 1.5, 4);
+    expect(Math.hypot(h.arc[0] - h.end[0], h.arc[1] - h.end[1])).toBeGreaterThan(0.5);
+    const nan = one([0, 0, 0], [1, 0, 0], 1, [NaN, NaN, NaN], FIELD);
+    expect(nan.end.every(Number.isFinite)).toBe(true);
   });
 
   it("give polylines from start to end", () => {

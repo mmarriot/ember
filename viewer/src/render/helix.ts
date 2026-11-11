@@ -11,11 +11,12 @@
 // Where a path stops: z is linear in l along the whole path (the field turns only the transverse direction), so a
 // path that moves mostly along the beam stops where it reaches the end point's z; one that moves mostly outwards stops
 // where its transverse distance from the start reaches the end point's. With a measured momentum the helix passes
-// near, not exactly through, the end point (a track's outermost hit, a particle's decay or the calorimeter front);
-// either way the arc stops level with it and never runs past it. A helix that cannot get level with the end point (a
-// looper that never gets as far out), or ends far from it (more than 2 cm + 5% of its length: e.g. an electron that
-// lost energy on the way, a particle that scattered, an end point extrapolated without the field), is drawn straight
-// from start to end instead, so paths always end at their end points.
+// near, not exactly through, the end point (a track's outermost state, a particle's decay or the calorimeter front);
+// either way the arc stops level with it and never runs past it, and a straight piece joins it to the end point (at
+// most 2 cm + 5% of the length, see below), so a particle ends exactly where its daughters start. A helix that cannot
+// get level with the end point (a looper that never gets as far out), or ends far from it (more than 2 cm + 5% of its
+// length: e.g. an electron that lost energy on the way, a particle that scattered, an end point extrapolated without
+// the field), is drawn straight from start to end instead.
 
 /** Uniform field along z (T) inside the cylinder r < rMax, |z| < zMax (cm); none outside. */
 export interface Field { bz: number; rMax: number; zMax: number }
@@ -28,7 +29,8 @@ const BIG = 1e9; // cm: "never" (a path that does not leave the field)
 const MISS = 2, MISS_FRACTION = 0.05; // a helix ending further than 2 cm + 5% of its length from the end point is not drawn
 
 /** Per object (n of them): the unit direction at the start (3n, interleaved), the path parameters (3n: k rad/cm,
- *  length in the field, total length; cm) and the end point of the drawn path. */
+ *  length in the field, length of the arc; cm) and the end point of the drawn path: the end point given, joined to
+ *  the arc's end by a straight piece (the arc's end when the end point is not finite). */
 export interface Paths {
   n: number;
   dir: Float32Array;
@@ -64,7 +66,8 @@ export function helixPaths(start: Columns3, p: Columns3, charge: ArrayLike<numbe
     dir[3 * i] = dx; dir[3 * i + 1] = dy; dir[3 * i + 2] = dz;
     path[3 * i] = k; path[3 * i + 1] = Math.min(lField, BIG); path[3 * i + 2] = lEnd;
     point(x0, y0, z0, dx, dy, dz, k, lField, lEnd, at);
-    out[0][i] = at[0]; out[1][i] = at[1]; out[2][i] = at[2];
+    const joined = Number.isFinite(ex) && Number.isFinite(ey) && Number.isFinite(ez);
+    out[0][i] = joined ? ex : at[0]; out[1][i] = joined ? ey : at[1]; out[2][i] = joined ? ez : at[2];
   }
   return { n, dir, path, end: out };
 }
@@ -136,8 +139,8 @@ function transverseLength(x0: number, y0: number, dx: number, dy: number, k: num
   return t >= 0 ? lField + t : NaN;
 }
 
-/** `points` points per path, evenly spaced in length from start to end (interleaved per path: path i is
- *  [i * points, (i + 1) * points)), for picking and framing on the CPU. Filled per path on first use (`fill(i)`):
+/** `points` points per path: `points - 1` evenly spaced in length along the arc, then the end point (interleaved per
+ *  path: path i is [i * points, (i + 1) * points)), for picking and framing on the CPU. Filled per path on first use (`fill(i)`):
  *  most paths of a big layer (e.g. 100k truth particles at PU200, drawn only for a selection) are never picked, and
  *  the pages of the arrays they would use are then never touched. */
 export function polylines(paths: Paths, start: Columns3, points: number) {
@@ -146,11 +149,13 @@ export function polylines(paths: Paths, start: Columns3, points: number) {
   const fill = (i: number) => {
     if (done[i]) return;
     done[i] = 1;
-    for (let j = 0; j < points; j++) {
+    for (let j = 0; j < points - 1; j++) {
       point(start[0][i], start[1][i], start[2][i], dir[3 * i], dir[3 * i + 1], dir[3 * i + 2], path[3 * i], path[3 * i + 1],
-        (path[3 * i + 2] * j) / (points - 1), at);
+        (path[3 * i + 2] * j) / (points - 2), at);
       x[i * points + j] = at[0]; y[i * points + j] = at[1]; z[i * points + j] = at[2];
     }
+    const last = (i + 1) * points - 1;
+    x[last] = paths.end[0][i]; y[last] = paths.end[1][i]; z[last] = paths.end[2][i];
   };
   return { points, x, y, z, fill };
 }

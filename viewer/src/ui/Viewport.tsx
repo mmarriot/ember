@@ -38,7 +38,11 @@ export function replayEvent(): Plan | null {
   replaying.value = true; // rebuilds the layers at once (an effect), including the hidden stages
   if (!entries.length) return null;
   hover.value = null;
-  plan = planReplay(entries.filter((e) => !e.d.context), bundle.peek()?.header.replay); // background stays as it is
+  // The phases follow the bundle's display hints, not the colours drawn: a colour mode or choice that colours hits
+  // through a relation (e.g. "Particle type") must not make them appear with the clusters.
+  const header = bundle.peek()?.header, hints = new Map(header?.display.map((d) => [layerKey(d), d]));
+  const items = entries.filter((e) => !e.d.context).map((e) => ({ ...e, d: hints.get(e.key) ?? e.d })); // background stays as it is
+  plan = planReplay(items, header?.replay);
   stageColours(plan);
   engine.replay(plan.seconds);
   return plan;

@@ -124,6 +124,21 @@ describe("truth identities", () => {
     expect(others).toBe(1); // particle 5
     expect([...identities(d, tev.tables.P, tev, th, 2).used]).toEqual([1, 0, 0, 1, 0, 1]); // keys in use: not the quark
   });
+  it("with a particle level, gives a particle the key of its generator particle, signal first", () => {
+    // 0 K*⁰ (not in the level) -> 1 π⁻ (level); 1 -> 2, a secondary that owns hits; 3 γ (level, pile-up) owns hits;
+    // 4 π⁰ (not in the level, decayed by the generator) is matched by a trackster -> 5, 6 γ (level) own hits
+    const lev = {
+      id: [1, 1, 1], tables: { P: { n: 7, columns: { energy: Float32Array.from([244, 67, 60, 50, 46, 30, 16]),
+        flags: Uint32Array.from([0, 4, 0, 4, 0, 4, 4]), signal: Uint8Array.from([1, 1, 1, 0, 1, 1, 1]) } }, Hit: { n: 4, columns: {} } },
+      relations: { kids: csr([[1], [2], [], [], [5, 6], [], []]), pHits: { ...csr([[], [], [0], [1], [], [2], [3]]), weights: { simE: Float32Array.from([1, 1, 1, 1]) } },
+        tTruth: csr([[4]]) },
+    } as unknown as EventData;
+    const ld = { ...d, particle: { flags: "flags", bit: 2, first: "signal" } } as DisplayLayer;
+    const { key, used, top } = identities(ld, lev.tables.P, lev, th, 4);
+    expect([...key]).toEqual([0, 1, 1, 3, 4, 5, 6]); // the secondary takes its generator particle; the π⁰'s photons their own
+    expect([...used]).toEqual([0, 1, 0, 1, 1, 1, 1]); // the K*⁰ owns nothing and is matched by nothing
+    expect(top).toEqual([1, 5, 6, 4]); // signal generator particles, then the matched π⁰ above the level, then pile-up
+  });
   it("keeps every reconstructed object its own key", () => {
     const { key, top } = identities({ ...d, truth: false }, tev.tables.P, tev, th, 10);
     expect([...key]).toEqual([0, 1, 2, 3, 4, 5]);

@@ -173,12 +173,14 @@ const isHitTable = (header: Header, table: string) => header.display?.some((l) =
  *  children relation (truth particles), where colours follow truth branches:
  *  - anchors are the particles something points at: those that own hits (an association into a hit layer; the
  *    particles that entered the calorimeter) and those a reco object is matched to (an association into the table);
- *  - a particle takes the key of its highest anchor ancestor (or itself): a π⁺ that interacted before the calorimeter
- *    and was matched as a whole shares its colour with the hits of its daughters, and a shower secondary matched to
- *    a trackster shares the colour of the shower's hits;
- *  - only anchors' keys use colours (`used`): a particle linked to nothing (e.g. a quark) takes none. */
+ *  - with a `particle` level (docs/truth.md: e.g. generator-level stable particles), a particle takes the key of its
+ *    highest ancestor in the level (or itself without one): the electrons of a converted photon, the daughters of a
+ *    π⁺ that interacted in the tracker and a shower's secondaries all share their generator particle's colour, in
+ *    every part of the detector. Without a level, the key is its highest anchor ancestor (or itself);
+ *  - only anchors' keys use colours (`used`): a particle linked to nothing (e.g. a quark) takes none;
+ *  - colours go first to keys with the level's `first` column set (e.g. signal before pile-up), then by size. */
 export function identities(d: DisplayLayer, t: Table, ev: EventData, header: Header, slots: number) {
-  const { key, used, bySize, parent } = cached(ev, `identities|${d.table}|${d.truth}|${d.colour}`, () => identityKeys(d, t, ev, header));
+  const { key, used, bySize, parent } = cached(ev, `identities|${d.table}|${d.truth}|${d.colour}|${d.particle?.bit}`, () => identityKeys(d, t, ev, header));
   return { key, used, parent, top: bySize.slice(0, slots), others: Math.max(0, bySize.length - slots) };
 }
 
@@ -200,14 +202,20 @@ function identityKeys(d: DisplayLayer, t: Table, ev: EventData, header: Header) 
           for (let k = rel.offsets[f]; k < rel.offsets[f + 1]; k++) if (parent[rel.indices[k]] < 0) parent[rel.indices[k]] = f;
       }
     }
-    for (let i = 0; i < n; i++) // walk up to the root, keeping the highest anchor seen (bounded: no loop on bad data)
-      for (let j = i, steps = 0; j >= 0 && steps < n; j = parent[j], steps++) if (anchor[j]) key[i] = j;
+    const flags = d.particle ? t.columns[d.particle.flags] : undefined, bit = d.particle?.bit ?? 0;
+    const member = flags ? (j: number) => (Number(flags[j]) >>> bit) & 1 : (j: number) => anchor[j];
+    for (let i = 0; i < n; i++) // walk up to the root, keeping the highest member seen (bounded: no loop on bad data)
+      for (let j = i, steps = 0; j >= 0 && steps < n; j = parent[j], steps++) if (member(j)) key[i] = j;
   }
   const used = new Uint8Array(n);
   for (let i = 0; i < n; i++) if (!d.truth || anchor[i]) used[key[i]] = 1;
-  const col = d.colour ? t.columns[d.colour] : undefined, bySize: number[] = [];
+  const col = d.colour ? t.columns[d.colour] : undefined, first = d.particle?.first ? t.columns[d.particle.first] : undefined, bySize: number[] = [];
   for (let i = 0; i < n; i++) if (used[i]) bySize.push(i);
-  if (col) bySize.sort((a, b) => Number(col[b]) - Number(col[a]) || a - b);
+  // Signal first, then particles of the level before keys above it (e.g. a K*0 an object is matched to as a whole:
+  // its energy counts all its daughters', and it would take the colours of the particles that own the hits).
+  const flags = d.particle ? t.columns[d.particle.flags] : undefined, bit = d.particle?.bit ?? 0;
+  const rank = (i: number) => (first && Number(first[i]) ? 2 : 0) + (flags && (Number(flags[i]) >>> bit) & 1 ? 1 : 0);
+  if (col || first || flags) bySize.sort((a, b) => rank(b) - rank(a) || (col ? Number(col[b]) - Number(col[a]) : 0) || a - b);
   return { key, used, bySize, parent }; // parent: each object's first parent (-1 none), truth tables only
 }
 

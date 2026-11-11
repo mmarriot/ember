@@ -85,9 +85,14 @@ export const modes = computed(() => {
   };
   return { roots, colouring };
 });
-/** The colour mode: "pid" when the bundle has a reconstruction root (candidates), else "layers"; also "layers" while a
- *  domain that asks for it (its `colourMode`) is looked at, e.g. the tracker, whose tracks keep their pT colours. */
+/** What the colours show, chosen by the user (key T, or the switch in the colour key): the reconstruction, or the
+ *  truth (where the bundle has truth particles). Not remembered: a bundle opens on the reconstruction. */
+export const colourChoice = signal<"reco" | "truth">("reco");
+/** The colour mode: "truth" when chosen and the bundle has truth particles; otherwise "pid" when the bundle has a
+ *  reconstruction root (candidates), else "layers"; also "layers" while a domain that asks for it (its `colourMode`) is
+ *  looked at, e.g. the tracker, whose tracks keep their pT colours. */
 export const activeMode = computed<ColourMode>(() => {
+  if (colourChoice.value === "truth" && modes.value.roots.truth) return "truth";
   const d = bundle.value?.header.domains?.find((x) => x.name === domain.value);
   return modes.value.roots.reco && d?.colourMode !== "layers" ? "pid" : "layers";
 });
@@ -97,17 +102,22 @@ export const activeMode = computed<ColourMode>(() => {
  *  reach is drawn by its colour column if it has one (else it keeps its own colouring, e.g. one colour per vertex);
  *  truth layers keep their own colouring (a particle is not a candidate). Then the user's choice for that layer. */
 export function shownLayer(d: DisplayLayer, mode = activeMode.peek(), by = colourBy.peek()): DisplayLayer {
-  const { colouring, roots } = modes.peek(), pid = mode === "pid" && !d.context && !d.truth;
+  const { colouring, roots } = modes.peek();
+  if (mode === "truth" && !d.context && !d.truth) { // by truth: the chain to the truth particles, else one neutral colour
+    const c = colouring.truth?.[d.table];
+    return withColour({ ...d, colourBy: c ?? "none" }, by[layerKey(d)]);
+  }
+  const pid = mode === "pid" && !d.context && !d.truth;
   const c = pid && d.table !== roots.reco ? colouring.reco?.[d.table] : undefined;
   const plain = pid && !c && d.table !== roots.reco && d.colourBy && d.colour;
   return withColour(c ? { ...d, colourBy: c } : plain ? { ...d, colourBy: undefined } : d, by[layerKey(d)]);
 }
 
-/** In the "pid" mode with something selected: its truth <-> reco pair, which colours every layer (Viewport); null when
- *  the pair has nothing to show (no candidate, and no hits of its particle). */
+/** In the "pid" and "truth" modes with something selected: its truth <-> reco pair, which colours every layer
+ *  (Viewport); null when the pair has nothing to show (no candidate, and no hits of its particle). */
 export const pairView = computed<Pair | null>(() => {
   const f = focus.value, b = bundle.value, ev = event.value, { roots, colouring } = modes.value;
-  if (activeMode.value !== "pid" || !f || !b || !ev || !roots.reco || !colouring.reco || f.row >= (ev.tables[f.table]?.n ?? 0)) return null;
+  if (activeMode.value === "layers" || !f || !b || !ev || !roots.reco || !colouring.reco || f.row >= (ev.tables[f.table]?.n ?? 0)) return null;
   const truthLayer = roots.truth ? b.header.display.find((d) => d.table === roots.truth) : undefined;
   const pair = pairFor(ev, b.header, f, { truth: roots.truth, reco: roots.reco }, { truth: colouring.truth, reco: colouring.reco }, truthLayer);
   return pairShows(pair) ? pair : null;

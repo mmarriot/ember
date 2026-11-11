@@ -178,10 +178,13 @@ const isHitTable = (header: Header, table: string) => header.display?.some((l) =
  *    π⁺ that interacted in the tracker and a shower's secondaries all share their generator particle's colour, in
  *    every part of the detector. Without a level, the key is its highest anchor ancestor (or itself);
  *  - only anchors' keys use colours (`used`): a particle linked to nothing (e.g. a quark) takes none;
- *  - colours go first to keys with the level's `first` column set (e.g. signal before pile-up), then by size. */
+ *  - with the level's `first` column (e.g. isSignal), only its keys take colours: signal, never pile-up; then keys in
+ *    the level before those above it, then by size. */
 export function identities(d: DisplayLayer, t: Table, ev: EventData, header: Header, slots: number) {
   const { key, used, bySize, parent } = cached(ev, `identities|${d.table}|${d.truth}|${d.colour}|${d.particle?.bit}`, () => identityKeys(d, t, ev, header));
-  return { key, used, parent, top: bySize.slice(0, slots), others: Math.max(0, bySize.length - slots) };
+  // With a `first` column, only its keys take colours (pile-up never looks like a signal particle).
+  const first = d.particle?.first ? t.columns[d.particle.first] : undefined, eligible = first ? bySize.filter((k) => Number(first[k])) : bySize;
+  return { key, used, parent, top: eligible.slice(0, slots), others: Math.max(0, eligible.length - slots) };
 }
 
 /** The part of `identities` that does not depend on the selection, once per event: keys, which keys are in use, and

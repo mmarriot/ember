@@ -142,8 +142,9 @@ export function colours(d: DisplayLayer, t: Table, ev: EventData, header: Header
     const emphasis = new Uint8Array(t.n); // linked to nothing (e.g. a quark): small and grey, like any object without a partner
     for (let i = 0; i < t.n; i++) {
       const j = slot.get(key[i]);
-      set(i, !used[key[i]] ? none : j !== undefined ? ids[j] : first && !Number(first[key[i]]) ? pileup : other);
-      emphasis[i] = used[key[i]];
+      const background = first && !Number(first[key[i]]); // pile-up: its own grey, drawn small so the signal shows
+      set(i, !used[key[i]] ? none : j !== undefined ? ids[j] : background ? pileup : other);
+      emphasis[i] = used[key[i]] && !background ? 1 : 0;
     }
     const items = top.map((row, j) => ({ label: `#${row}`, colour: pal.identity[j], ref: { table: d.table, row } }));
     return { rgb: out, emphasis, legend: { kind: "category", text: top.length === 1 ? "one colour for the largest" : `one colour each for the ${top.length} largest`, items,
@@ -173,11 +174,12 @@ export function colours(d: DisplayLayer, t: Table, ev: EventData, header: Header
     const from = od && ot && od.colourBy && !next.has(otherTable) ? colours(od, ot, ev, header, pal, { layerFor }, next) : null;
     const grey = rgb(pal.unassigned), emphasis = new Uint8Array(t.n);
     for (let i = 0; i < t.n; i++) {
-      const o = partner[i], none = o < 0 || (from?.emphasis !== undefined && !from.emphasis[o]);
-      if (none) set(i, grey);
+      // A partner drawn small passes that on with its colour (grey for one linked to nothing, pile-up's own grey).
+      const o = partner[i];
+      if (o < 0) set(i, grey);
       else if (from) set(i, from.rgb, 3 * o);
       else setCategory(i, o);
-      emphasis[i] = none ? 0 : 1;
+      emphasis[i] = o < 0 || (from?.emphasis !== undefined && !from.emphasis[o]) ? 0 : 1;
     }
     // A chain is named to its end: "colour of its layer clusters (SoA): colour of its candidates (legacy)".
     const via = from?.legend.kind === "category" && from.legend.text.startsWith("colour of") ? `: ${from.legend.text}` : "";

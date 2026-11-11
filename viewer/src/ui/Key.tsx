@@ -90,7 +90,7 @@ function TruthKey() {
         {legend?.kind === "category" && legend.items?.map((it) => (
           <li><i style={{ background: it.colour }} />{it.ref ? <button class="chip" onClick={() => jump(it.ref!)}>{describe(it.ref.table, it.ref.row) || it.label}</button> : it.label}</li>))}
         <li><i style={{ background: pal.other }} />other signal</li>
-        <li><i style={{ background: pal.pileup }} />pile-up</li>
+        <li><i class="small" style={{ background: pal.pileup }} />pile-up</li>
         <li><i class="small" style={{ background: pal.unassigned }} />no truth</li>
       </ul>
       <p class="hint" title="Hits take the particle that left the most simulated energy in them. No truth: noise, out-of-time pile-up, or a particle the export left out.">

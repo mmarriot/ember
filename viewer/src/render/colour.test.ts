@@ -34,6 +34,27 @@ describe("relation colouring", () => {
     const c = colours(header.display[2], ev.tables.Hit, ev, header, pal, { layerFor });
     expect([0, 2, 3].map((i) => hex(c.rgb, i))).toEqual([pal.categories[0], pal.categories[1], pal.categories[2]]);
   });
+  it("in truth colours, draws pile-up small in its own grey, also along a chain, and a match below `good` grey", () => {
+    // particles 0 (signal) and 1 (pile-up), both generator particles; hits 0, 1 from particle 0, hit 2 from 1; trackster
+    // 0 is 80% from particle 0, trackster 1 30% from particle 1
+    const tev = {
+      id: [1, 1, 1], tables: { P: table(2, { energy: Float32Array.from([10, 50]), flags: Uint32Array.from([4, 4]), signal: Uint8Array.from([1, 0]) }),
+        Hit: table(3), T: table(2, { e: Float32Array.from([10, 10]) }) },
+      relations: { pHits: { ...csr([[0, 1], [2]]), weights: { simE: Float32Array.from([1, 1, 1]) } },
+        tTruth: { ...csr([[0], [1]]), weights: { shared: Float32Array.from([8, 3]) } } },
+    } as unknown as EventData;
+    const th = {
+      relations: { pHits: { from: "P", to: "Hit", weights: ["simE"], association: true, best: { weight: "simE", order: "max" } },
+        tTruth: { from: "T", to: "P", weights: ["shared"], association: true, match: { measure: "energy", in: "HGCal", shared: "shared", over: ["e"], good: 0.5 } } },
+      display: [{ ...layer("P", "identity"), truth: true, colour: "energy", particle: { flags: "flags", bit: 2, first: "signal" } },
+        layer("Hit", { relation: "pHits" }), layer("T", { relation: "tTruth" })],
+    } as unknown as Header;
+    const hits = colours(th.display[1], tev.tables.Hit, tev, th, pal);
+    expect([0, 1, 2].map((i) => hex(hits.rgb, i))).toEqual([pal.identity[0], pal.identity[0], pal.pileup].map((c) => c.toLowerCase()));
+    expect([...hits.emphasis!]).toEqual([1, 1, 0]);
+    const ts = colours(th.display[2], tev.tables.T, tev, th, pal);
+    expect([hex(ts.rgb, 0), hex(ts.rgb, 1)]).toEqual([pal.identity[0].toLowerCase(), pal.unassigned]); // 30% is not a clean match
+  });
   it("stops at a loop", () => {
     const loop = { ...header, display: [layer("LC", { relation: "lcHits" }), layer("Hit", { relation: "lcHits" })] } as unknown as Header;
     expect(() => colours(loop.display[1], ev.tables.Hit, ev, loop, pal)).not.toThrow();

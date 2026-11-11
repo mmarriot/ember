@@ -137,7 +137,7 @@ describe("truth identities", () => {
     const { key, used, top } = identities(ld, lev.tables.P, lev, th, 4);
     expect([...key]).toEqual([0, 1, 1, 3, 4, 5, 6]); // the secondary takes its generator particle; the π⁰'s photons their own
     expect([...used]).toEqual([0, 1, 0, 1, 1, 1, 1]); // the K*⁰ owns nothing and is matched by nothing
-    expect(top).toEqual([1, 5, 6, 4]); // signal generator particles, then the matched π⁰ above the level, then pile-up
+    expect(top).toEqual([1, 5, 6, 4]); // signal generator particles, then the matched π⁰ above the level; pile-up takes none
   });
   it("keeps every reconstructed object its own key", () => {
     const { key, top } = identities({ ...d, truth: false }, tev.tables.P, tev, th, 10);

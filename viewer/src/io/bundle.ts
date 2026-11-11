@@ -27,8 +27,9 @@ export interface DisplayLayer {
   /** Categorical colouring: one colour per object ("row"); one colour each for the largest objects ("identity",
    *  the others share one); the colour of the partner across a relation; the colour of the `content` table's object
    *  with the most weight in its hits; or one colour per value of a column (`abs`: of its absolute value; `names`:
-   *  legend names per value). */
-  colourBy?: "row" | "identity" | { relation: string } | { content: string } | { category: string; abs?: boolean; names?: Record<string, string> };
+   *  legend names per value, as {value: name} or, to keep the order of integer values, [value, name] pairs). */
+  colourBy?: "row" | "identity" | { relation: string } | { content: string }
+    | { category: string; abs?: boolean; names?: Record<string, string> | [string | number, string][] };
   stage?: number; // reconstruction step (0, 1, ...) of the replay; the default view shows the last one
   size?: string | null; // cells: half-width column [cm]; markers: a column whose larger values draw larger discs
   time?: string | null; // column with the arrival time in ns (missing: <= -50), for the replay

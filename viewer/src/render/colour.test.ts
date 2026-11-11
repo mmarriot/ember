@@ -64,3 +64,14 @@ describe("identity colouring", () => {
     expect(c.legend.kind === "category" && c.legend.text).toContain("derived in evd");
   });
 });
+
+describe("category colouring", () => {
+  it("follows the order of names given as pairs, which an object with integer keys loses", () => {
+    const t = table(4, { subdet: Int32Array.from([5, 4, 1, 2]) });
+    const names: [string, string][] = [["1", "pixel barrel"], ["2", "pixel endcap"], ["5", "outer barrel"], ["4", "outer endcap"]];
+    const c = colours(layer("H", { category: "subdet", names }), t, ev, header, pal);
+    expect(c.legend.kind === "category" && c.legend.items?.map((it) => it.label)).toEqual(names.map(([, n]) => n));
+    const asObject = colours(layer("H", { category: "subdet", names: Object.fromEntries(names) }), t, ev, header, pal);
+    expect(asObject.legend.kind === "category" && asObject.legend.items?.map((it) => it.label)).toEqual(["pixel barrel", "pixel endcap", "outer endcap", "outer barrel"]);
+  });
+});

@@ -138,9 +138,11 @@ export function colours(d: DisplayLayer, t: Table, ev: EventData, header: Header
       ...(others ? { note: `grey: the other ${others}` } : {}) } };
   }
   if (typeof d.colourBy === "object" && "category" in d.colourBy) {
-    // Colours follow the order of `names`, so a value keeps its colour from event to event.
-    const { category: column, abs = false, names = {} } = d.colourBy, col = t.columns[column];
-    const order = Object.keys(names), used = new Map<number, number>(); // value -> colour index
+    // Colours follow the order of `names`, so a value keeps its colour from event to event. As an object, its integer
+    // keys come in increasing order (JavaScript orders them so, whatever the file says); as [value, name] pairs, as given.
+    const { category: column, abs = false } = d.colourBy, col = t.columns[column];
+    const list = Array.isArray(d.colourBy.names) ? d.colourBy.names : Object.entries(d.colourBy.names ?? {}), names = Object.fromEntries(list);
+    const order = list.map(([v]) => String(v)), used = new Map<number, number>(); // value -> colour index
     for (let i = 0; i < t.n; i++) {
       const raw = col ? Number(col[i]) : 0, v = abs ? Math.abs(raw) : raw;
       let k = used.get(v);

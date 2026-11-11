@@ -110,6 +110,14 @@ code { font: 11.5px ui-monospace, SFMono-Regular, Menlo, monospace; }
 .tabpanel section > h3 { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin-bottom: 2px; }
 .tabpanel section > h3 .count { text-transform: none; letter-spacing: 0; font-weight: 400; }
 details.others > summary { font-weight: 600; }
+/* Detector tab: one folded section per part of the detector. */
+details.part + details.part { border-top: 1px solid var(--line); margin-top: 6px; padding-top: 6px; }
+details.part > summary { display: flex; align-items: baseline; gap: 6px; cursor: pointer; padding: 2px 0 6px; font-size: 13px; color: inherit; }
+details.part > summary::before { content: "▸"; color: var(--muted); }
+details.part[open] > summary::before { content: "▾"; }
+details.part > summary::-webkit-details-marker { display: none; }
+details.part > summary .muted { font-size: 11px; }
+details.part > summary .link { margin-left: auto; }
 table.kv { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
 table.kv td { padding: 3px 4px; border-bottom: 1px solid var(--line); vertical-align: top; overflow-wrap: anywhere; }
 table.kv tr:last-child td { border-bottom: none; }

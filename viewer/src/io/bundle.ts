@@ -94,6 +94,11 @@ export interface DisplayLayer {
   /** The views that draw the layer (default: all). */
   views?: ViewName[];
   visible: boolean;
+  /** Object rows under the layer in its side-panel tab (the Physics tab's event summary): the `max` largest by `sort`
+   *  (default: the layer's size column) that pass its cut and filter, with these columns. */
+  list?: { columns: string[]; sort?: string; max?: number };
+  /** The columns the inspector's summary shows first (e.g. pt, eta, phi for a jet, instead of its position). */
+  inspect?: string[];
 }
 /** A per-event chart: `table` rows grouped by the integer column `groupBy`, counted or summed over `value`. */
 /** `where`: an expression (as for filters) choosing the rows that count, e.g. "time > 0". */
@@ -119,7 +124,7 @@ export interface Header {
   replay?: { from?: [number, number, number]; direction?: [number, number, number]; order?: "random" };
   /** Camera hints: starting preset; smallest radius (cm) framed around objects, e.g. small for a test-beam stack;
    *  tour style, "beam" (collider: starts on the whole detector, never enters it) or "orbit" (default). */
-  view?: { start?: "3d" | "front" | "side" | "rz"; minRadius?: number; tour?: "beam" | "orbit" };
+  view?: { start?: "3d" | "front" | "side" | "rz"; minRadius?: number; tour?: "beam" | "orbit"; domain?: string };
   summaries?: Summary[];
   /** Title of a run from its information (RunEntry.info), e.g. "{Beam} {Energy} GeV"; parts (between " · ") that
    *  name a field the run lacks are left out. */

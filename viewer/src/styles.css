@@ -149,7 +149,7 @@ details { margin-top: 8px; } summary { cursor: pointer; color: var(--accent); fo
 @media (prefers-reduced-motion: reduce) { .inspector, .caption { animation: none; } }
 @keyframes fade-in { from { opacity: 0; } }
 .caption b { font-size: 14px; } .caption small { color: var(--muted); font-size: 11px; }
-.hintbar { position: absolute; bottom: 10px; left: 12px; font-size: 11px; color: var(--muted); background: var(--overlay); padding: 3px 8px; border-radius: 6px; }
+.hintbar { position: absolute; bottom: 10px; left: 12px; max-width: calc(100% - 330px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 11px; color: var(--muted); background: var(--overlay); padding: 3px 8px; border-radius: 6px; }
 
 /* inspector card */
 .inspector { position: absolute; top: 12px; right: 12px; width: 340px; max-height: calc(100% - 24px); overflow-y: auto; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
@@ -172,6 +172,16 @@ details { margin-top: 8px; } summary { cursor: pointer; color: var(--accent); fo
 .toasts { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 6px; z-index: 11; }
 .toast { background: #24292f; color: #fff; padding: 8px 14px; border-radius: 6px; box-shadow: var(--shadow); font-size: 12px; max-width: 70vw; }
 .toast.error { background: var(--error); }
+
+/* The parts of the detector: buttons, or a drop-down list below 1100 px; the views then sit on the canvas. */
+.domainlist { display: none; flex: none; }
+.viewport > .views { position: absolute; right: 76px; bottom: 10px; background: var(--overlay); z-index: 2; }
+.viewport > .views button { padding: 3px 9px; font-size: 12px; background: transparent; }
+.viewport > .views button.on { background: var(--accent); }
+@media (max-width: 1100px) {
+  .topbar.parts .domains { display: none; }
+  .topbar.parts .domainlist { display: inline-block; }
+}
 
 /* A bar with the domain buttons too (.parts): tighter before it wraps. */
 @media (max-width: 1300px) {

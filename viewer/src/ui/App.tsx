@@ -3,7 +3,8 @@ import { effect } from "@preact/signals";
 import { useEffect } from "preact/hooks";
 import { blobSource } from "../io/bundle";
 import type { ViewName } from "../render/engine";
-import { bundleName, catalogue, colourChoice, dialog, domain, event, eventIndex, highlight, openBundle, refreshCatalogue, selection, showEvent, stepFocusLevel, truthColours, view } from "../model/store";
+import { startDomain } from "../model/domains";
+import { bundle, bundleName, catalogue, colourChoice, dialog, domain, event, eventIndex, highlight, openBundle, refreshCatalogue, selection, showEvent, stepFocusLevel, truthColours, view } from "../model/store";
 import { SYNTAX } from "./ExprForm";
 import { Header } from "./Header";
 import { Inspector } from "./Inspector";
@@ -14,6 +15,7 @@ import { engine, replayEvent, Viewport } from "./Viewport";
 import { Modal, Toasts } from "./widgets";
 
 const VIEW_KEYS: Record<string, ViewName> = { "1": "3d", "2": "front", "3": "side", "4": "rz" };
+const ALL = "All"; // the URL's name for everything (domain null) in a bundle that opens on a domain
 const POLL = 30_000; // ms between index.json checks (keeps the data set list current): one small request per page
 
 export function App() {
@@ -23,8 +25,8 @@ export function App() {
       const name = url.get("b") ?? catalogue.value.bundles[0]?.file;
       if (!name) return;
       await openBundle(name, undefined, Number(url.get("e") ?? 0));
-      const d = url.get("d");
-      if (d) chooseDomain(d, false);
+      const d = url.get("d"); // "All": everything, in a bundle that opens on a domain
+      if (d) chooseDomain(d === ALL ? null : d, false);
       const v = url.get("v") as ViewName | null;
       if (v && Object.values(VIEW_KEYS).includes(v)) view.value = v;
       const [table, row] = (url.get("s") ?? "").split(":");
@@ -34,7 +36,7 @@ export function App() {
     const poll = setInterval(() => document.visibilityState === "visible" && void refreshCatalogue(), POLL);
 
     const stopUrl = effect(() => {
-      const s = selection.value, d = domain.value;
+      const s = selection.value, d = domain.value ?? (startDomain(bundle.value?.header) ? ALL : null);
       const p = new URLSearchParams({ b: bundleName.value, e: String(eventIndex.value), v: view.value, ...(d ? { d } : {}), ...(s ? { s: `${s.table}:${s.row}` } : {}) });
       if (bundleName.value) history.replaceState(null, "", `#${p}`);
     });
@@ -52,7 +54,7 @@ export function App() {
       else if (e.key === "ArrowLeft") showEvent(eventIndex.value - 1);
       else if ((e.key === "ArrowDown" || e.key === "ArrowUp") && stepFocusLevel(e.key === "ArrowDown" ? 1 : -1)) e.preventDefault();
       else if (VIEW_KEYS[e.key]) view.value = VIEW_KEYS[e.key];
-      else if (e.key === "d" || e.key === "D") nextDomain();
+      else if (e.key === "d" || e.key === "D") nextDomain(e.shiftKey ? -1 : 1);
       else if ((e.key === "t" || e.key === "T") && truthColours.value) colourChoice.value = colourChoice.value === "truth" ? "reco" : "truth";
       else if (e.key === "f" || e.key === "F") engine?.frame(highlight.value ?? undefined, true);
       else if (e.key === "Home") showWhole();
@@ -92,7 +94,7 @@ function HelpDialog() {
     ["Zoom to the selection", "double-click it, or F"], ["Show the whole event", "Home, or the reset button"],
     ["Leave the object", "click on empty space; Esc also shows the whole event (and closes this dialog)"],
     ["Previous / next event", "← / →, or the arrows at the top"], ["Views: 3D, front, side, ρ–z", "1, 2, 3, 4"],
-    ["One part of the detector (e.g. the tracker), or all", "D, or the All · … buttons at the top (when the data has several parts)"],
+    ["One part of the detector (e.g. the tracker), or all", "D (Shift+D backwards), or the … · All buttons at the top (when the data has several parts); a selection stays selected, and D skips the parts it has nothing in"],
     ["Colours: what the reconstruction made, or what was really there", "T, or Reco · Truth in the colour key"],
     ["Replay: how the event builds up, step by step", "R"],
     ["Tour: replay, then visit the main showers, event after event", "P, or the play button; any key or touch stops it"],

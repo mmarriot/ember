@@ -10,7 +10,7 @@ import { type DisplayLayer, type EventData, type Header, type Table, unitOf } fr
 import { colourBy, filterMask, filters } from "../model/custom";
 import { cutMin, cutValues, rescued } from "../model/cuts";
 import { colours, type LayerFor, type Legend, PALETTES, valueRange, type Pal, type Range } from "../render/colour";
-import { Engine, MIN_RADIUS } from "../render/engine";
+import { Engine, MIN_RADIUS, type ViewName } from "../render/engine";
 import { builders, type Layer } from "../render/layers";
 import { planReplay, type Parts, type Plan } from "../render/replay";
 import { back, jump } from "./navigate";
@@ -291,7 +291,21 @@ export function Viewport() {
       <Tooltip />
       <FocusBar />
       <ReplayCaption />
+      {(bundle.value?.header.domains?.length ?? 0) >= 2 && <Views />}
       <div class="hintbar">Drag to rotate · right-drag to pan · scroll to zoom · click to inspect · double-click to zoom in · <kbd>?</kbd> help</div>
+    </div>
+  );
+}
+
+const VIEWS: [ViewName, string, string][] = [["3d", "3D", "1"], ["front", "Front", "2"], ["side", "Side", "3"], ["rz", "ρ–z", "4"]];
+/** The views (3D, front, side, ρ–z): on the canvas for a bundle with a domain bar (which takes their place in the top
+ *  bar), else in the top bar. */
+export function Views() {
+  return (
+    <div class="segmented views" role="group" aria-label="View">
+      {VIEWS.map(([v, name, key]) => (
+        <button class={view.value === v ? "on" : ""} title={`${name} view (${key})`} onClick={() => (view.value = v)}>{name}</button>
+      ))}
     </div>
   );
 }

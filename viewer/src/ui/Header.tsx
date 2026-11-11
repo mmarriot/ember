@@ -1,13 +1,13 @@
-// Top bar: data set, event navigation (with jump-to), view switcher, share and help.
+// Top bar: data set, event navigation (with jump-to), the parts of the detector (or the view switcher), share and help.
 import logo from "../../logo.svg";
-import type { ViewName } from "../render/engine";
-import { bundle, bundleName, catalogue, dialog, domain, eventIndex, following, loading, openBundle, showEvent, theme, toast, toggleTheme, touring, view, type Listed } from "../model/store";
+import type { Domain } from "../io/bundle";
+import { bundle, bundleName, catalogue, dialog, domain, eventIndex, following, loading, openBundle, showEvent, theme, toast, toggleTheme, touring, type Listed } from "../model/store";
 import { toggleLive } from "./live";
 import { chooseDomain, showWhole } from "./navigate";
 import { toggleTour } from "./tour";
+import { Views } from "./Viewport";
 import { Icon } from "./widgets";
 
-const VIEWS: [ViewName, string, string][] = [["3d", "3D", "1"], ["front", "Front", "2"], ["side", "Side", "3"], ["rz", "ρ–z", "4"]];
 
 export function Header() {
   const b = bundle.value, e = b?.events[eventIndex.value], bundles = catalogue.value.bundles;
@@ -24,8 +24,10 @@ export function Header() {
     catch { toast("Copy the address bar to share this view"); }
   };
 
+  const parts = (b?.header.domains?.length ?? 0) >= 2; // the domain bar takes the views' place, which go on the canvas
+
   return (
-    <header class={(b?.header.domains?.length ?? 0) >= 2 ? "topbar parts" : "topbar"}>
+    <header class={parts ? "topbar parts" : "topbar"}>
       <div class="brand"><img src={logo} alt="" width={22} height={22} />Event display</div>
       <select class="dataset" value={bundleName.value} title="Data set" onChange={(ev) => openBundle((ev.target as HTMLSelectElement).value)}>
         {[...campaigns].map(([c, list]) => (c ? <optgroup label={c}>{list.map((x) => <option value={x.file}>{x.title}</option>)}</optgroup>
@@ -45,11 +47,7 @@ export function Header() {
           if (ev.key === "Enter") { jump((ev.target as HTMLInputElement).value.trim()); (ev.target as HTMLInputElement).blur(); }
         }} />
       </nav>
-      <div class="segmented" role="group" aria-label="View">
-        {VIEWS.map(([v, name, key]) => (
-          <button class={view.value === v ? "on" : ""} title={`${name} view (${key})`} onClick={() => (view.value = v)}>{name}</button>
-        ))}
-      </div>
+      {!parts && <Views />}
       <Domains />
       <button class={following.value ? "live on" : "live"} aria-pressed={following.value} onClick={toggleLive}
         title={`Live: play new data as it arrives, event by event${catalogue.value.updated ? `; index updated ${new Date(catalogue.value.updated).toLocaleString()}` : ""}`}>
@@ -66,18 +64,27 @@ export function Header() {
   );
 }
 
-/** All · <domain> · <domain>: look at one part of the detector (its layers, region and view), or at everything. */
+/** <domain> · <domain> · All: look at one part of the detector (its layers, region and view), or at everything. Below
+ *  1100 px wide, a drop-down list instead (CSS shows one of the two). */
 function Domains() {
   const list = bundle.value?.header.domains ?? [];
   if (list.length < 2) return null;
-  const current = domain.value;
+  const current = domain.value, ALL = "";
+  const tip = (d: Domain) => d.shared ? `${d.name}: its layers only, which every part of the detector also draws (D)`
+    : `${d.name}: its layers and those shared by every part, in its region and view (D)`;
   return (
-    <div class="segmented" role="group" aria-label="Detector part">
-      <button class={current ? "" : "on"} title="Everything (D cycles through the parts)" onClick={() => chooseDomain(null)}>All</button>
-      {list.map((d) => (
-        <button class={current === d.name ? "on" : ""} title={`${d.name}: its layers and those shared by every part, in its region and view (D)`}
-          onClick={() => chooseDomain(d.name)}>{d.name}</button>
-      ))}
-    </div>
+    <>
+      <div class="segmented domains" role="group" aria-label="Detector part">
+        {list.map((d) => (
+          <button class={current === d.name ? "on" : ""} title={tip(d)} onClick={() => chooseDomain(d.name)}>{d.name}</button>
+        ))}
+        <button class={current ? "" : "on"} title="Everything (D cycles through the parts, Shift+D backwards)" onClick={() => chooseDomain(null)}>All</button>
+      </div>
+      <select class="domainlist" aria-label="Detector part" title="Part of the detector (D, Shift+D)" value={current ?? ALL}
+        onChange={(e) => chooseDomain((e.target as HTMLSelectElement).value || null)}>
+        {list.map((d) => <option value={d.name}>{d.name}</option>)}
+        <option value={ALL}>All</option>
+      </select>
+    </>
   );
 }

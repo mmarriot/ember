@@ -1,9 +1,10 @@
 // Application state. Components and the renderer react to these signals.
 import { computed, effect, signal } from "@preact/signals";
-import { Bundle, type DisplayLayer, type EventData, httpSource, kindName, REPRS, type Table, unitOf } from "../io/bundle";
+import { Bundle, type DisplayLayer, type EventData, type Header, httpSource, kindName, REPRS, type Table, unitOf } from "../io/bundle";
 import type { Legend, ThemeName } from "../render/colour";
 import type { Caption } from "../render/replay";
 import type { Hit, ViewName } from "../render/engine";
+import { drawsLayer, sharedDomains, startDomain } from "./domains";
 import { colourBy, type ColourMode, customColumns, loadCustom, withColour, withCustomColumns } from "./custom";
 import { focusLevels, levelLayers, stepLevel } from "./levels";
 import { modeColouring, modeRoots } from "./modes";
@@ -27,8 +28,15 @@ export const visible = signal<Record<string, boolean>>({}); // display layer key
 export const domain = signal<string | null>(null);
 /** The side-panel tab to open: a domain's, when it is chosen (a new object each time, so choosing it again reopens it). */
 export const openTab = signal<{ name: string } | null>(null);
-/** Whether a layer belongs in the current domain's view: its own domain's layers and those without a domain. */
-export const inDomain = (d: DisplayLayer, current = domain.value) => !current || !d.domain || d.domain === current;
+/** The domains whose layers every domain draws (header `domains[].shared`, e.g. the physics objects). */
+export const shared = computed(() => sharedDomains(bundle.value?.header));
+/** The side-panel tab that lists a domain's layers: its own for a shared domain, else Detector (bundles with domains:
+ *  the Detector tab follows the domain bar). */
+export const tabOfDomain = (h: Pick<Header, "domains">, name: string) => (h.domains?.find((d) => d.name === name)?.shared ? name : DETECTOR);
+export const DETECTOR = "Detector";
+/** Whether a layer belongs in the current domain's view: its own domain's layers, those without a domain and those of
+ *  a shared domain. */
+export const inDomain = (d: DisplayLayer, current = domain.value) => drawsLayer(d, current, shared.value);
 /** The layers drawn: ticked and in the domain's view (display layer key -> drawn). */
 export const drawnLayers = computed(() => {
   const vis = visible.value, d = domain.value;
@@ -318,10 +326,12 @@ export async function openBundle(name: string, open = () => httpSource(name), st
     bundle.value = b;
     colourChoice.value = "reco";
     bundleName.value = name;
-    view.value = b.header.view?.start ?? "3d";
+    const first = startDomain(b.header); // the domain it opens on (e.g. the physics objects), in its view
+    view.value = b.header.domains?.find((d) => d.name === first)?.view ?? b.header.view?.start ?? "3d";
     loadCustom(b.header.profile, Object.fromEntries(b.header.display.filter((d) => d.filter).map((d) => [d.table, d.filter!])));
     visible.value = Object.fromEntries(b.header.display.map((d) => [layerKey(d), d.visible]));
-    domain.value = null;
+    domain.value = first;
+    if (first) openTab.value = { name: tabOfDomain(b.header, first) };
     cuts.value = Object.fromEntries([...cutGroups.value].map(([g, info]) => [g, info.default]));
     await showEvent(start);
   } catch (e) {

@@ -27,7 +27,7 @@ for uproot's many ranged reads.
 
 | profile | data |
 |---|---|
-| `cms` | `hgcal` and `tracker` together: HGCal kinds in the `HGCal` domain (after `tracker`'s `Tracker` domain, header `domains`), truth particles as helices and only in-time pile-up kept; HGCalNanoAOD's `GeneralTrack` folded into `Tracks` |
+| `cms` | `hgcal` and `tracker` together: the header `domains` `Tracker` (from `tracker`) then `HGCal` (its region and view), truth particles as helices and only in-time pile-up kept; HGCalNanoAOD's `GeneralTrack` folded into `Tracks` |
 | `tracker` | CMS Phase-2 tracker (Fireworks/EventExport preset `tracker`): tracks as helices in the solenoid field (`field`; high purity, pT slider at 1 GeV, filtered to the primary vertex; preset "All vertices" coloured by vertex), primary vertices, the hits on each track shown for a selection, the beam spot; all in the `Tracker` domain, coloured by layer when it is chosen. It reads every table of the file: for a tracker bundle use `tracker_only` |
 | `tracker_only` | `cms` without the calorimeters (excluded, so not read): the `tracker` layers with the truth graph and the track-truth associations |
 | `hgcal` | CMSSW step3 HGCal/TICL reconstruction (SoA and/or legacy): rechits, layer clusters, tracksters through candidates, tracks, the truth graph (particles, vertices, hits) with reco-truth associations, kept to in-time pile-up (bunch crossing 0); see [truth-graph.md](truth-graph.md) |
@@ -60,7 +60,7 @@ selected entries.
 |---|---|
 | `name` | profile name written to the bundle (default: the `--profile` argument) |
 | `note` | free text for readers of the profile; not written |
-| `include` | profiles this one builds on, by name or path (looked up next to this profile first, then among the built-in ones). They are merged in order, then this profile's own keys over them: dicts merge key by key (recursively), lists concatenate, any other value is replaced; an included profile's `name` is not inherited. E.g. `cms.json` is `"include": ["hgcal", "tracker"]` plus the keys that join them; `"kinds": {"rechit": {"domain": "HGCal"}}` there adds one key to the `rechit` kind of `hgcal.json`. A list cannot be shortened this way |
+| `include` | profiles this one builds on, by name or path (looked up next to this profile first, then among the built-in ones). They are merged in order, then this profile's own keys over them: dicts merge key by key (recursively), lists concatenate, any other value is replaced; an included profile's `name` is not inherited. E.g. `cms.json` is `"include": ["hgcal", "tracker"]` plus the keys that join them; `"kinds": {"truthParticle": {"repr": "helix", "momentum": [...], "charge": "charge"}}` there changes one key of the `truthParticle` kind of `hgcal.json` and adds two. A list cannot be shortened this way |
 | `exclude` | table name patterns (`fnmatch`) not read at all |
 | `internal` | tables read for relations, derives or cuts but not written (e.g. link or lookup tables) |
 | `sameRows` | `[{"keep", "drop", "columns": [[keepCol, dropCol], ...], "copy": [col, ...]}]`: `drop` has the rows of `keep` in the same order (e.g. legacy objects converted 1:1 from SoA, or two producers' tables of one track collection). Checked on every event with the listed column pairs (the conversion stops if they differ); `drop` is not written and relations to or from it are redirected to `keep`. `copy`: columns of `drop` that `keep` takes over (they must not exist in `keep`), e.g. the HGCal entry point of tracks |

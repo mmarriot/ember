@@ -270,14 +270,14 @@ def test_helix_columns_are_checked():
 
 
 def test_cms_profile_joins_hgcal_and_tracker():
-    """cms = hgcal + tracker: HGCal kinds in the HGCal domain, truth particles as helices, the tracker's tracks with
+    """cms = hgcal + tracker: HGCal kinds in the HGCal domain (from hgcal.json), truth particles as helices, the tracker's tracks with
     HGCalNanoAOD's GeneralTrack folded in (its HGCal entry taken over, its relations redirected); hgcal.json alone is
     unchanged."""
     p = load_profile("cms")
     assert p["name"] == "cms" and [d["name"] for d in p["domains"]] == ["Tracker", "HGCal"] and p["field"]["bz"] == 3.8
     assert p["kinds"]["rechit"]["domain"] == "HGCal" and p["kinds"]["rechit"]["repr"] == "cells"
     assert p["kinds"]["truthParticle"]["repr"] == "helix" and "domain" not in p["kinds"]["truthParticle"]
-    assert "domain" not in load_profile("hgcal")["kinds"]["rechit"]
+    assert load_profile("hgcal")["kinds"]["rechit"] == p["kinds"]["rechit"]
     types = {"Tracks": dict.fromkeys(("vx", "vy", "vz", "px", "py", "pz", "outerX", "outerY", "outerZ", "pt", "eta"), F4)
              | {"charge": np.dtype("i2"), "highPurity": np.dtype("u1"), "vertexIdx": I4},
              "GeneralTrack": dict.fromkeys(("pt", "eta", "vz", "hgcal_x", "hgcal_y", "hgcal_z"), F4),

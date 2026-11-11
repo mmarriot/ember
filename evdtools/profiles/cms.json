@@ -12,12 +12,6 @@
   "cuts": {"TruthParticles": [["bunchCrossing", "==", 0]],
            "TruthVertices": [{"reachedBy": ["truthProdVertex", "truthDecayVertex"]}]},
   "kinds": {
-    "rechit": {"domain": "HGCal"},
-    "layerCluster": {"domain": "HGCal"},
-    "trackster": {"domain": "HGCal"},
-    "linkedTrackster": {"domain": "HGCal"},
-    "interpretation": {"domain": "HGCal"},
-    "candidate": {"domain": "HGCal"},
     "truthParticle": {"repr": "helix", "momentum": ["px", "py", "pz"], "charge": "charge"}
   },
   "domains": [{"name": "HGCal", "region": {"rMax": 260, "zMax": 515}, "view": "3d"}]

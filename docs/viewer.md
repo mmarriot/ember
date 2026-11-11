@@ -50,24 +50,26 @@ settings; a bundle without reconstruction stages offers only "Per layer".
 - **Per layer**: each layer's own colouring from the profile (energies, particle types).
 
 **The pair view.** In the Particle type mode, selecting anything shows its truth ↔ reco pair
-(`viewer/src/model/pair.ts`): a truth particle (with its whole shower: a particle stands for its highest ancestor that
-owns hits or is matched) and the candidate that best reconstructs it. A candidate pairs with its best truth match, a
-truth particle with its best candidate, and any other object with the candidate that contains it (or, in none, with
-its own truth match). Selecting the particle, the candidate or anything inside them gives the same pair and the same
-picture. Every layer is coloured by where its objects ended up:
+(`viewer/src/model/pair.ts`): first the selection's particle (a truth particle stands for its whole shower: its
+highest ancestor that owns hits or is matched; a reco object takes its best truth match; a hit, the particle that left
+the most simulated energy in it), then that particle's best candidate. So the particle, its candidate and anything
+inside them give the same pair and the same picture; a selected candidate that is not its particle's best (a
+fragment) shows as split. Without a particle (no truth in the file, or none matched) the pair is the selection's
+candidate alone, and its objects show as "in the candidate". Every layer is coloured by where its objects ended up:
 
 | class | meaning |
 |---|---|
-| matched | the particle's hits (and clusters, tracksters...) in its candidate; the particle and the candidate |
+| matched | the particle's hits (and clusters, tracksters...) in its candidate (what the candidate is made of, even if it shares it with another candidate); the particle and the candidate |
 | contamination | in the candidate, but from other particles or from none |
-| split | the particle's hits in other candidates, and those candidates |
+| split | the particle's hits in other candidates, and those candidates (and candidates matched to the particle that are not its best) |
 | missed | the particle's hits, and reco objects matched to it, in no candidate |
 
 Everything else fades. A hit belongs to the particle that left the most simulated energy in it (a layer cluster: the
 particle with the most simulated energy in its hits). Missed layer clusters stay in the background, as their hits
 show the same and a shower's many one-hit halo clusters would cover the used ones. The key gives the particle's
 simulated energy in its candidate, in other candidates and in none (efficiency), and the share of the candidate's hit
-energy from the particle (purity).
+energy from the particle (purity). Efficiency counts each hit once per shower and any share of it; the colours use
+each hit's dominant particle. Truth layers keep their own colours in the Particle type mode.
 
 Colours are Okabe-Ito and Tol hues, checked for protan, deutan and tritan vision. Choosing a colour for one layer
 overrides the mode and the pair view for that layer; switching mode clears those choices. The replay keeps each

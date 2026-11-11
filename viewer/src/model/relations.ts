@@ -143,7 +143,7 @@ const isHitTable = (header: Header, table: string) => header.display?.some((l) =
 
 /** Identity colouring of a table (render/colour.ts): per object, the key whose colour it takes, and the keys that get
  *  a colour of their own (`top`, at most `slots`), largest first by the layer's colour column (else in row order).
- *  `others`: keys in use beyond `top`.
+ *  `others`: keys in use beyond `top`; `parent`: each object's first parent, -1 for none (truth tables only).
  *  Every object is its own key, except in a truth table (`truth`) with a parent ->
  *  children relation (truth particles), where colours follow truth branches:
  *  - anchors are the particles something points at: those that own hits (an association into a hit layer; the
@@ -153,8 +153,8 @@ const isHitTable = (header: Header, table: string) => header.display?.some((l) =
  *    a trackster shares the colour of the shower's hits;
  *  - only anchors' keys use colours (`used`): a particle linked to nothing (e.g. a quark) takes none. */
 export function identities(d: DisplayLayer, t: Table, ev: EventData, header: Header, slots: number) {
-  const { key, used, bySize } = cached(ev, `identities|${d.table}|${d.truth}|${d.colour}`, () => identityKeys(d, t, ev, header));
-  return { key, used, top: bySize.slice(0, slots), others: Math.max(0, bySize.length - slots) };
+  const { key, used, bySize, parent } = cached(ev, `identities|${d.table}|${d.truth}|${d.colour}`, () => identityKeys(d, t, ev, header));
+  return { key, used, parent, top: bySize.slice(0, slots), others: Math.max(0, bySize.length - slots) };
 }
 
 /** The part of `identities` that does not depend on the selection, once per event: keys, which keys are in use, and
@@ -183,7 +183,7 @@ function identityKeys(d: DisplayLayer, t: Table, ev: EventData, header: Header) 
   const col = d.colour ? t.columns[d.colour] : undefined, bySize: number[] = [];
   for (let i = 0; i < n; i++) if (used[i]) bySize.push(i);
   if (col) bySize.sort((a, b) => Number(col[b]) - Number(col[a]) || a - b);
-  return { key, used, bySize };
+  return { key, used, bySize, parent }; // parent: each object's first parent (-1 none), truth tables only
 }
 
 /** Per-event results that do not depend on the selection (identity keys, content partners), so a click that only

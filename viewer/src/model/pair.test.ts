@@ -65,4 +65,28 @@ describe("truth <-> reco pair", () => {
     expect([p.particle, p.candidate]).toEqual([1, 1]);
     expect(cls(p, "Hit")).toEqual([other, other, split, contamination, other, missed]);
   });
+  it("gives a fragment candidate its particle's pair, and shows it as split", () => {
+    // candidate 2 holds cluster 0 too (shared with candidate 0) and is matched to particle 0, whose best is candidate 0
+    const fev = { ...ev, tables: { ...ev.tables, Cand: { n: 3, columns: {} } },
+      relations: { ...ev.relations, candLCs: csr([[0, 1], [2], [0]]), candTruth: csr([[0], [1], [0]], { score: [0, 0, 0.5] }) } } as unknown as EventData;
+    const p = pairFor(fev, header, { table: "Cand", row: 2 }, roots, colourings, header.display[3]);
+    expect([p.particle, p.candidate]).toEqual([0, 0]);
+    expect([...p.classes.get("Cand")!]).toEqual([matched, split, split]);
+  });
+  it("counts what a candidate shares with a lower-row candidate as in it", () => {
+    // candidate 2 is a duplicate of candidate 1 (cluster 2) and particle 1's best candidate
+    const dev = { ...ev, tables: { ...ev.tables, Cand: { n: 3, columns: {} } },
+      relations: { ...ev.relations, candLCs: csr([[0, 1], [2], [2]]), candTruth: csr([[0], [1], [1]], { score: [0, 0, 0] }),
+        truthCand: csr([[0, 1], [1, 2]], { sharedFraction: [0.5, 0.25, 0.9, 0.95] }) } } as unknown as EventData;
+    const p = pairFor(dev, header, { table: "Cand", row: 2 }, roots, colourings, header.display[3]);
+    expect([p.particle, p.candidate]).toEqual([1, 2]);
+    expect(cls(p, "Hit")).toEqual([other, other, split, contamination, other, missed]); // hit 3: in candidate 2, from particle 0
+  });
+  it("without truth, shows the candidate's own objects as in it", () => {
+    const h = { ...header, display: header.display.slice(0, 3) } as unknown as Header;
+    const p = pairFor(ev, h, { table: "Cand", row: 0 }, { reco: "Cand" }, { reco: modeColouring(h, "Cand") });
+    expect([p.particle, p.candidate]).toEqual([-1, 0]);
+    expect(cls(p, "Hit")).toEqual([matched, matched, matched, other, other, other]);
+    expect(p.purity).toBeUndefined();
+  });
 });

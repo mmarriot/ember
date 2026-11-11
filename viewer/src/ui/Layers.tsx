@@ -113,8 +113,10 @@ function ColourModes() {
         <>
           <p class="pairline"><span class="badge truth">truth graph</span> {chip(pair.truth, pair.particle) ?? <span class="muted">no particle</span>}
             <span aria-hidden="true">↔</span> {chip(pair.reco, pair.candidate) ?? <span class="muted">no candidate</span>}</p>
+          {pair.particle < 0 && <p class="hint">{pair.truth ? "No truth particle matched" : "No truth in this file"}: the candidate's own objects are shown as matched.</p>}
           <ul class="key">
-            {CLASSES.map(([c, name, what]) => <li><i style={{ background: pal.pair[c] }} /><b>{name}</b> <span>{what}</span></li>)}
+            {CLASSES.filter(([c]) => pair.particle >= 0 || c === PAIR.matched)
+              .map(([c, name, what]) => <li><i style={{ background: pal.pair[c] }} /><b>{pair.particle < 0 ? "in the candidate" : name}</b> {pair.particle >= 0 && <span>{what}</span>}</li>)}
             <li><i class="small" style={{ background: pal.unassigned }} />everything else</li>
           </ul>
           {eff && effTotal > 0 && <p class="hint" title="The particle's simulated energy over its whole shower, in exported hits">

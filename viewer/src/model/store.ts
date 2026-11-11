@@ -81,10 +81,11 @@ export const activeMode = computed<ColourMode>(() => {
 });
 
 /** A layer's display hint as drawn. In the "pid" mode, the reconstruction root (candidates) keeps its own colouring
- *  (particle type) and everything it reaches takes its candidate's colour; a categorical layer it cannot reach is
- *  drawn by its colour column. Then the user's choice for that layer. */
+ *  (particle type) and every reco layer it reaches takes its candidate's colour; a categorical reco layer it cannot
+ *  reach is drawn by its colour column; truth layers keep their own colouring (a particle is not a candidate). Then
+ *  the user's choice for that layer. */
 export function shownLayer(d: DisplayLayer, mode = activeMode.peek(), by = colourBy.peek()): DisplayLayer {
-  const { colouring, roots } = modes.peek(), pid = mode === "pid" && !d.context;
+  const { colouring, roots } = modes.peek(), pid = mode === "pid" && !d.context && !d.truth;
   const c = pid && d.table !== roots.reco ? colouring.reco?.[d.table] : undefined;
   const plain = pid && !c && d.table !== roots.reco && d.colourBy;
   return withColour(c ? { ...d, colourBy: c } : plain ? { ...d, colourBy: undefined } : d, by[layerKey(d)]);

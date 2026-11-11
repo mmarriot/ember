@@ -176,7 +176,7 @@ export function Viewport() {
       showAll.value; pairView.value;
       // A new truth <-> reco pair (or none any more): every layer is recoloured in place (a buffer upload each, no
       // rebuild).
-      const pair = pairView.peek(), changed = pair !== lastPair;
+      const pair = pairView.peek(), changed = pair?.particle !== lastPair?.particle || pair?.candidate !== lastPair?.candidate;
       lastPair = pair;
       if (changed && b && ev && ev === builtFor) {
         const recolour = entries.filter((e) => !e.d.context), drawn = { ...legends.peek() };

@@ -1,5 +1,6 @@
 // Browser check (headless Chromium, software WebGL) of every bundle in the site's index.json, or of those named.
-// Each: layers draw (helices end at finite points), domains draw only their layers, presets apply, a bundle with candidates has a colour key, T colours by generator particle where there is truth, summary charts show where the profile defines them,
+// Each: layers draw (helices end at finite points), a start domain opens, domains draw only their layers (and shared
+// ones) and open their tab, object rows select, D and the focus bar's chips keep the selection, presets apply, a bundle with candidates has a colour key, T colours by generator particle where there is truth, summary charts show where the profile defines them,
 // a selection draws its objects that a layer's filter hides and its levels of lines (a vertex's tracks),
 // selecting an object shows what is related and only its bottom level (↓ ↑ step through the others), a related
 // object can be jumped to and back, Esc leaves. One bundle (`--deep`, default the smallest with reconstruction
@@ -57,6 +58,7 @@ async function checkBundle(file, tag, state) {
   };
 
   await open(`b=${file}&e=1`);
+  await checkStart(page, h, fail, tag);
   const [drawn, objects] = await page.evaluate(() => [window.evdEngine.layers.length, window.evdEngine.layers.reduce((s, l) => s + l.x.length, 0)]);
   const rows = await page.$$eval(".layer:not(.off) label", (r) => r.map((x) => x.innerText.replace(/\s+/g, " ").trim()));
   log(`${tag}: ${drawn} layers, ${objects} objects drawn: ${rows.join(" | ")}`);
@@ -65,6 +67,7 @@ async function checkBundle(file, tag, state) {
   await shot("1_layers");
   await checkHelices(page, fail, tag);
   await checkDomains(page, h, fail, shot, tag);
+  await checkObjectRows(page, h, fail, shot, tag);
 
   for (const name of await page.$$eval(".segmented.presets button", (b) => b.map((x) => x.textContent))) {
     const button = page.locator(".segmented.presets button", { hasText: name });
@@ -105,7 +108,8 @@ async function checkBundle(file, tag, state) {
     .reduce((s, r) => Math.max(s, (drawnTables.has(r.to) ? 100 : 1) + (d.stage ?? 0)), 0);
   const target = h.display.filter((d) => d.visible && !d.context).sort((a, c) => score(c) - score(a))[0];
   if (!target || !score(target)) return log(`${tag}: nothing made of other objects to select`);
-  await open(`b=${file}&e=1&s=${target.table}:0`);
+  const all = (h.domains?.length ?? 0) >= 2 ? "&d=All" : ""; // every level in the focus bar, as without domains
+  await open(`b=${file}&e=1${all}&s=${target.table}:0`);
   const related = await page.locator(".inspector [role=tab]", { hasText: "Related" }).innerText().catch(() => "");
   if (!/Related · [1-9]/.test(related)) fail(`selecting ${target.table} #0 shows nothing related (${related})`);
   // In the "Particle type" mode a selection shows its truth <-> reco pair (a candidate, and its particle with truth).
@@ -118,9 +122,10 @@ async function checkBundle(file, tag, state) {
   // The levels need an object made of several kinds (row 0 may be e.g. a track-only candidate): the first such row.
   const pills = () => page.locator(".focusbar .level").count();
   let row = 0;
-  if (target.stage !== undefined) for (let r = 1; r < 6 && (await pills()) < 2; r++) await open(`b=${file}&e=1&s=${target.table}:${(row = r)}`);
-  if (row && (await pills()) < 2) await open(`b=${file}&e=1&s=${target.table}:${(row = 0)}`);
+  if (target.stage !== undefined) for (let r = 1; r < 6 && (await pills()) < 2; r++) await open(`b=${file}&e=1${all}&s=${target.table}:${(row = r)}`);
+  if (row && (await pills()) < 2) await open(`b=${file}&e=1${all}&s=${target.table}:${(row = 0)}`);
   await checkLevels(page, h, target, fail, shot, tag);
+  await checkDomainFocus(page, h, fail, shot, tag);
   const focused = async () => `${await page.locator(".focusbar b").innerText().catch(() => "")} (${decodeURIComponent(new URL(page.url()).hash.match(/s=([^&]+)/)?.[1] ?? "")})`;
   const first = await focused();
   await page.locator(".inspector [role=tab]", { hasText: "Related" }).click();
@@ -136,7 +141,7 @@ async function checkBundle(file, tag, state) {
   if (await page.locator(".inspector, .focusbar").count()) fail("Esc did not leave the selection");
   if (file === deep && small) log(`${tag}: too big for the interaction checks with software WebGL`);
   else if (file === deep) {
-    await open(`b=${file}&e=1&s=${target.table}:0`);
+    await open(`b=${file}&e=1${all}&s=${target.table}:0`);
     await deepChecks(page, h, fail, shot);
   } else if (h.display.some((d) => d.grow) && !small) await checkReplay(page, h, fail); // the path building, also when not deep
 }
@@ -154,35 +159,113 @@ async function checkHelices(page, fail, tag) {
   }
 }
 
-/** With two or more domains: each one draws only its layers and those without a domain, puts itself in the URL, and
- *  hides the particle-type colour key if it colours layer by layer (`colourMode`), and opens its side-panel tab (another tab
- *  leaves the view as it is); All brings every layer back. */
+/** A bundle that names a start domain (`view.domain`) opens on it: in the URL, drawing only its layers and those of
+ *  shared domains or none. */
+async function checkStart(page, h, fail, tag) {
+  const start = h.view?.domain, names = (h.domains ?? []).map((d) => d.name);
+  if (!start || names.length < 2 || !names.includes(start)) return;
+  const shared = new Set(h.domains.filter((d) => d.shared).map((d) => d.name));
+  const url = decodeURIComponent(new URL(page.url()).hash.match(/[#&]d=([^&]+)/)?.[1] ?? "");
+  const tables = await page.evaluate(() => window.evdEngine.layers.map((l) => l.table));
+  const other = tables.filter((t) => h.display.some((d) => d.table === t && d.domain && d.domain !== start && !shared.has(d.domain)));
+  log(`${tag}: opens on ${url || "All"} (start domain ${start}), drawing ${tables.join(", ")}`);
+  if (url !== start) fail(`did not open on its start domain ${start} (URL d=${url})`);
+  if (other.length) fail(`the start domain ${start} draws layers of other domains: ${other.join(", ")}`);
+}
+
+/** With two or more domains: each one draws only its layers, those of shared domains and those without a domain,
+ *  puts itself in the URL, hides the particle-type colour key if it colours layer by layer (`colourMode`), and opens
+ *  its layers' tab (a shared domain its own tab; the parts of the detector the Detector tab, with its section open);
+ *  another tab leaves the view as it is; All brings every layer back. */
 async function checkDomains(page, h, fail, shot, tag) {
   const names = (h.domains ?? []).map((d) => d.name);
   if (names.length < 2) return;
+  const shared = new Set(h.domains.filter((d) => d.shared).map((d) => d.name));
   const tables = () => page.evaluate(() => window.evdEngine.layers.map((l) => l.table));
-  const bar = page.getByRole("group", { name: "Detector part" }), before = await tables();
+  const before = await chooseDomain(page, "All").then(tables);
   for (const name of names) {
-    await bar.getByRole("button", { name, exact: true }).click({ timeout: 120000 });
+    await chooseDomain(page, name);
     await page.waitForTimeout(800);
     const drawn = await tables(), url = decodeURIComponent(new URL(page.url()).hash.match(/[#&]d=([^&]+)/)?.[1] ?? "");
-    const other = drawn.filter((t) => h.display.some((d) => d.table === t && d.domain && d.domain !== name));
+    const other = drawn.filter((t) => h.display.some((d) => d.table === t && d.domain && d.domain !== name && !shared.has(d.domain)));
     const key = await page.locator(".colourkey .key li").count(), own = h.domains.find((d) => d.name === name).colourMode === "layers";
     log(`${tag}: domain ${name}: ${drawn.length} layers drawn (${before.length} in All), URL d=${url}, colour key ${key ? "shown" : "none"}`);
     if (other.length) fail(`domain ${name} draws layers of other domains: ${other.join(", ")}`);
     if (url !== name) fail(`domain ${name} is not in the URL`);
     if (own && key) fail(`domain ${name} colours layer by layer, but the particle-type colour key is shown`);
-    const tabs = page.locator(".sidebar .tablist [role=tab]"), tab = await page.locator(".sidebar .tablist [aria-selected=true]").innerText();
-    if ((await tabs.allInnerTexts()).includes(name) && tab !== name) fail(`domain ${name} did not open its tab (open: ${tab})`);
+    const tabs = page.locator(".sidebar .tablist [role=tab]"), tabNames = await tabs.allInnerTexts();
+    const tab = await page.locator(".sidebar .tablist [aria-selected=true]").innerText();
+    const expected = shared.has(name) || !tabNames.includes("Detector") ? name : "Detector";
+    if (tabNames.includes(expected) && tab !== expected) fail(`domain ${name} did not open its tab ${expected} (open: ${tab})`);
+    if (expected === "Detector") {
+      const open = await page.locator(".tabpanel details.part[open] > summary b").allInnerTexts();
+      if (open.join() !== name) fail(`the Detector tab does not follow the bar to ${name} (open: ${open.join() || "none"})`);
+    }
     await tabs.last().click();
     if (!new URL(page.url()).hash.includes(`d=${encodeURIComponent(name)}`)) fail(`the ${await tabs.last().innerText()} tab changed the view from ${name}`);
     await tabs.getByText(tab, { exact: true }).click();
     await shot(`1_domain_${name}`);
   }
-  await bar.getByRole("button", { name: "All", exact: true }).click({ timeout: 120000 });
-  await page.waitForTimeout(800);
+  await chooseDomain(page, "All");
   if ((await tables()).length !== before.length) fail("All did not bring every layer back");
   if (h.display.some((d) => d.stage !== undefined) && !(await page.locator(".colourkey").count())) fail("All did not bring the colour key back");
+}
+
+/** Layers with object rows (`list`): the ticked ones list their objects; a click on a row selects that object (URL,
+ *  inspector, the row marked). */
+async function checkObjectRows(page, h, fail, shot, tag) {
+  const listed = [];  // the ticked layers with object rows that this viewer draws (it leaves out reprs it does not know)
+  for (const d of h.display.filter((x) => x.list && x.visible)) if (await page.locator(".layer", { hasText: d.label }).count()) listed.push(d);
+  if (!listed.length) return;
+  const d = listed[0], tab = (h.domains ?? []).find((x) => x.name === d.domain)?.shared || (h.domains?.length ?? 0) < 2 ? d.domain ?? "Objects" : "Detector";
+  await page.getByRole("tab", { name: tab, exact: true }).click().catch(() => {});
+  const rows = page.locator(".layer", { hasText: d.label }).locator("table.objects tbody tr:not(.more)");
+  const n = await rows.count(), headline = await page.locator(".tabpanel .headline").innerText().catch(() => "");
+  log(`${tag}: ${d.label}: ${n} object rows; headline "${headline}"`);
+  if (!n) return fail(`${d.label} lists no objects (display hint list)`);
+  if (!headline) fail("no headline above the object rows");
+  await rows.first().click();
+  await page.waitForTimeout(900);
+  const s = decodeURIComponent(new URL(page.url()).hash.match(/s=([^&]+)/)?.[1] ?? "");
+  const marked = await rows.first().getAttribute("class");
+  log(`${tag}: a click on the first ${d.label} row selected ${s}`);
+  if (!s.startsWith(`${d.table}:`) || !(await page.locator(".inspector").count())) fail(`a click on a ${d.label} row did not select it (s=${s})`);
+  if (!marked?.includes("selected")) fail("the selected object's row is not marked");
+  await shot("1_rows");
+  await page.keyboard.press("Escape");
+}
+
+/** With a domain bar: D keeps the selection and moves to the next domain it has objects in; a chip of the focus bar
+ *  looks at its part of the detector, keeping the focus. */
+async function checkDomainFocus(page, h, fail, shot, tag) {
+  if ((h.domains?.length ?? 0) < 2 || !(await page.locator(".focusbar").count())) return;
+  const state = () => { const p = new URLSearchParams(new URL(page.url()).hash.slice(1)); return [p.get("d"), p.get("s")]; };
+  const [d0, s0] = state();
+  await page.keyboard.press("d");
+  await page.waitForTimeout(1200);
+  const [d1, s1] = state();
+  log(`${tag}: D with ${s0} selected: ${d0} -> ${d1}, selection ${s1}`);
+  if (d1 === d0) fail("D did not change the domain with a selection");
+  if (s1 !== s0) fail(`D did not keep the selection (${s0} -> ${s1})`);
+  const chip = page.locator(".focusbar .level.part").first();
+  if (await chip.count()) {
+    const name = (await chip.innerText()).split(/\s/)[0];
+    await chip.click();
+    await page.waitForTimeout(1200);
+    const [d2, s2] = state();
+    log(`${tag}: chip ${name}: ${d1} -> ${d2}, selection ${s2}`);
+    if (d2 !== name || s2 !== s0) fail(`the ${name} chip did not look at ${name} keeping the selection (d=${d2}, s=${s2})`);
+    await shot("3c_chip");
+  }
+  await chooseDomain(page, "All");
+}
+
+/** Choose a domain (or All) in the domain bar: its buttons, or below 1100 px its drop-down list. */
+async function chooseDomain(page, name) {
+  const buttons = page.getByRole("group", { name: "Detector part" });
+  if (await buttons.isVisible()) await buttons.getByRole("button", { name, exact: true }).click({ timeout: 120000 });
+  else await page.locator("select.domainlist").selectOption(name === "All" ? "" : name, { timeout: 120000 });
+  await page.waitForTimeout(800);
 }
 
 /** A selection draws its objects that a layer's filter hides (cuts still apply), and its levels drawn as lines (e.g. a

@@ -76,7 +76,7 @@ tracks).
 ### Display hints
 
 `display` lists drawable layers, in display order. `repr` is one of `cells`, `markers`, `ellipsoids`, `segments`,
-`helix`, `cones`. A viewer leaves out a layer whose `repr` it does not know (from a newer bundle), with a console warning, and
+`helix`, `cones`, `polyline`. A viewer leaves out a layer whose `repr` it does not know (from a newer bundle), with a console warning, and
 draws the others.
 
 | key | meaning |
@@ -85,7 +85,8 @@ draws the others.
 | `position` | three columns: x, y, z in cm |
 | `end` | `segments`: three columns for the end point (lines run from `position` to `end`); `helix`: where the path stops (see [Helices](#helices)) |
 | `direction`, `length`, `centred` | `segments`: instead of `end`, three columns giving a direction (any length) and the line's `length` in cm from `position` (`centred`: half on each side of it), e.g. MET from the beam line, a muon segment through its chamber. `cones`: the axis's [eta, phi] columns and the cone's length. A length (also `cell.depth`, `cell.dEta`, `cell.dPhi`, `radius`) is a number, a column, or `{"column", "scale", "min", "max", "log"}`: the column's absolute value times `scale` (cm per unit; with `log: true`, cm per decade of 1 + value), clamped to [`min`, `max`]. `cones` and `helix` also take `{"to": {"r", "z"}}`: to where the line from its start leaves the cylinder ρ < r, \|z\| < z (cm). For `helix` it is the fallback for rows whose `end` is not finite |
-| `arrow`, `width` | `segments`: an arrow head at the end; the line's width in px (default 1). Wide lines are quads drawn across the line on screen, so they keep their width at any zoom; arrow heads are placed on the CPU (meant for a few objects, e.g. MET) |
+| `points` | `polyline`: `{"relation": name, "position": [x, y, z]}`: each row's path joins, in stored order, the rows of the relation's `to` table that it points to (their `position` columns, default `x`, `y`, `z`), e.g. a muon track through its hits and segments |
+| `arrow`, `width` | `segments`: an arrow head at the end; `segments`, `helix`, `polyline`: the line's width in px (default 1). Wide lines are quads drawn across the line on screen, so they keep their width at any zoom; arrow heads are placed on the CPU (meant for a few objects, e.g. MET) |
 | `cell` | `cells`: the cell's shape. Default a hexagon in the z plane (`size`). `{"shape": "tower", "face": "cylinder"\|"disc", "dEta", "dPhi", "depth"}`: an η-φ bin seen from the origin, `position` its front-face centre, from that face (a cylinder ρ = const, or a disc \|z\| = const) outwards by `depth` cm (at least 0.3), e.g. a calorimeter crystal, or its energy as length; defaults 0.087, 0.087, 10 cm. `{"shape": "box", "u": [3 columns], "v": [3 columns], "size": [halfWidthBottom, halfWidthTop, halfLength, halfThickness]}`: an oriented box (a trapezoid when the half widths differ) around `position`, `u` along its width and `v` along its length (unit vectors), its normal u × v. Towers are picked along their axis, boxes at their centre |
 | `radius` | `cones`: the half-opening in η-φ (number or column; default 0.4) |
 | `views` | the views that draw the layer: any of `"3d"`, `"front"`, `"side"`, `"rz"` (default: all), e.g. a forward detector left out of the front view, where it would lie on top of the barrel, or MET out of the side and ρ-z views. Its objects can still be selected from lists, just not seen or picked there |
@@ -190,6 +191,13 @@ surface). Each vertex is placed in the shader at start + L · dir(η + R cos t, 
 domain than its own shared one (header `domains[i].shared`), or when the viewer asks for outlines, only its rim is
 drawn. Picked along its axis; colours, cuts, filters, selection and the replay (it grows from its start) as for
 `segments`.
+
+### Polylines
+
+A `polyline` layer draws each row as straight pieces between consecutive points of its `points` relation (a row with
+fewer than two points draws nothing): measured points, so the path is right where no field model is (a muon outside
+the solenoid). Picked and framed along its points (at most 64 per path, evenly chosen); in a replay each path grows
+piece after piece; colours, cuts, filters and selection as for `segments`. The layer's own `position` is not drawn.
 
 ## Index JSON
 

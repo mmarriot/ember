@@ -98,8 +98,11 @@ describe("truth <-> reco pair", () => {
     const lh = { ...header, relations: { ...header.relations, kids: rel("P", "P") },
       display: [...header.display.slice(0, 3), { ...header.display[3], particle: { flags: "flags", bit: 2 } }] } as unknown as Header;
     const p = pairFor(lev, lh, { table: "Cand", row: 0 }, roots, { truth: modeColouring(lh, "P"), reco: modeColouring(lh, "Cand") }, lh.display[3]);
-    expect([p.particle, p.candidate, p.keys.sort()]).toEqual([2, 0, [0, 1, 2]]);
+    expect([p.particle, p.candidate, p.merged.sort()]).toEqual([2, 0, [0, 1]]);
     expect(cls(p, "Hit")).toEqual([matched, matched, matched, split, missed, missed]); // hit 2 is photon 1's: in the pair too
+    // selecting the π⁰ itself gives the same pair: its generator particles, not the π⁰ and its intermediates
+    const q = pairFor(lev, lh, { table: "P", row: 2 }, roots, { truth: modeColouring(lh, "P"), reco: modeColouring(lh, "Cand") }, lh.display[3]);
+    expect([q.particle, q.merged.sort()]).toEqual([2, [0, 1]]);
   });
   it("has nothing to show for a particle without hits or candidate (e.g. one that never reached the calorimeter)", () => {
     const tev = { ...ev, tables: { ...ev.tables, P: { n: 3, columns: { energy: Float32Array.from([50, 20, 5]) } } },

@@ -97,7 +97,7 @@
      "association": true, "best": {"weight": "sharedFraction", "order": "max"}, "match": {"measure": "energy", "in": "HGCal", "completeness": {"weight": "sharedFraction"}}},
     {"name": "trackTruth", "kind": "links", "from": "GeneralTrack", "to": "TruthParticles", "table": "generalTracksToTruth",
      "fromIndex": "generalTracksToTruth.recoIdx", "toIndex": "generalTracksToTruth.truthIdx", "weights": ["generalTracksToTruth.sharedEnergy", "generalTracksToTruth.score"],
-     "association": true, "best": {"weight": "score", "order": "min"}, "match": {"measure": "hits", "in": "tracker", "target": "trackerHits", "shared": "sharedEnergy", "over": ["nPixelHits + nOTHits"], "good": 0.75}},
+     "association": true, "best": {"weight": "score", "order": "min"}, "match": {"measure": "hits", "in": "tracker", "target": "trackerHits", "shared": "sharedEnergy", "over": ["nPixelHits + nOTHits", "nhits"], "good": 0.75}},
     {"name": "truthTracks", "kind": "links", "from": "TruthParticles", "to": "GeneralTrack", "table": "generalTracksFromTruth",
      "fromIndex": "generalTracksFromTruth.truthIdx", "toIndex": "generalTracksFromTruth.recoIdx", "weights": ["generalTracksFromTruth.sharedFraction", "generalTracksFromTruth.score"],
      "association": true, "best": {"weight": "sharedFraction", "order": "max"}, "match": {"measure": "hits", "in": "tracker", "completeness": {"weight": "score", "complement": true}}},

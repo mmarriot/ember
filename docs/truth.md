@@ -65,10 +65,10 @@ For a reco object R and its matched truth branch B (a particle and everything be
 
 | | definition | tracks (`measure: "hits"`) | calorimeter objects (`measure: "energy"`) |
 |---|---|---|---|
-| **purity** | the share of R from B | shared hits / track hits (nPixel + nOT); equals 1 − score exactly | shared energy / raw energy, both on the rechit scale (measured ≤ 1) |
-| **completeness** | the share of B in R | 1 − TruthToReco score = shared hits / all hits of B's branch (its secondaries' included, so it dilutes) | TruthToReco `sharedFraction`: of B's energy in HGCal only |
+| **purity** | the share of R from B | shared hits / track hits (nPixel + nOT, or nhits); equals 1 − score (all but 1 of 7744 PU200 tracks) | shared energy / raw energy, both on the rechit scale (measured ≤ 1) |
+| **completeness** | the share of B in R | 1 − TruthToReco score = shared cells / all tracker cells of B's branch (its secondaries' included, so it dilutes) | TruthToReco `sharedFraction`: of B's energy in HGCal only |
 | **score** | the associator's ranking, 0 best | linear (1 − purity) | squared and energy weighted: not 1 − purity |
-| **clean** | purity ≥ `good` | 0.75 (CMS tracking validation: MultiTrackValidator) | 0.5 (the dominant particle) |
+| **clean** | purity ≥ `good` | 0.75 (CMS tracking validation: MultiTrackValidator) | 0.5 (the dominant particle); layer clusters, whose particle evd derives, the same 0.5 of their simulated energy |
 
 Where these numbers appear: the inspector's truth card (per object), truth mode (the clean test decides the colour) and
 the pair view (purity and completeness of the pair, from the hits).
@@ -129,7 +129,8 @@ Thresholds follow each domain's reference validation, so evd agrees with DQM.
 ## Pitfalls
 
 - **Pile-up**: in-time only. Out-of-time particles are dropped by the profile; their energy shows as "no truth",
-  never as fake. Pile-up particles are truth like any other: their own grey in truth mode, signal first for colours.
+  never as fake. Pile-up particles are truth like any other, but in truth mode they are drawn small in their own grey
+  and never take a colour, so the signal shows at PU200.
 - **No truth** (small, faint grey) is noise, out-of-time pile-up, or a particle the export left out; the export cannot
   yet tell which (truth-graph.md gap 3).
 - **Simulated energy** is energy deposited in the sensors (sampling): a 67 GeV pion leaves about 0.2 GeV. Use it only

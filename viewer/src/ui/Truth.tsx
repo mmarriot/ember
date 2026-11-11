@@ -55,6 +55,8 @@ export function TruthCard({ table, row }: { table: string; row: number }) {
               <b>score {short(q.score)}</b> <span class="muted">the associator's ranking, 0 best; not a fraction</span></li>}
           </ul>
           {generator >= 0 && generator !== p && <p class="hint">The match is part of the generator particle {chip(truth, generator)}, whose colour it takes.</p>}
+          {generator === p && aboveLevel(truth, p) && <p class="hint">The match is above the generator particles (it decayed in the generator, e.g. a π⁰):
+            this object merges the particles it decayed to.</p>}
           <Lineage row={p} compact />
         </>
       )}
@@ -84,6 +86,12 @@ function NoMatch({ table, row, truth }: { table: string; row: number; truth: str
       {parts.map(([t, part, p]) => <p class="hint">Its {kindOf(t).toLowerCase().replace(/s$/, "")} {chip(t, part)} is matched to {chip(truth, p)} (the associator's answer for that part, not for this object).</p>)}
     </>
   );
+}
+
+/** Whether truth row `row` is outside the particle level (e.g. a π⁰ or a B decayed by the generator). */
+function aboveLevel(truth: string, row: number) {
+  const d = layerOf(truth), flags = d?.particle ? event.value?.tables[truth]?.columns[d.particle.flags] : undefined;
+  return !!flags && !((Number(flags[row]) >>> d!.particle!.bit) & 1);
 }
 
 /** The generator particle a truth row belongs to (its colour key; docs/truth.md), -1 without truth. */

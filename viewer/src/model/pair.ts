@@ -32,9 +32,9 @@ export function rootRows(ev: EventData, header: Header, colouring: Record<string
 
 export interface Pair {
   particle: number; // truth key (the shower) of the pair, -1 for none
-  /** For a particle above the truth level (e.g. a π⁰ a candidate is matched to as a whole, whose photons are
-   *  generator particles of their own): the keys below it that the pair stands for; else just the particle. */
-  keys: number[];
+  /** When the pair's particle is above the truth level (e.g. a π⁰ a candidate is matched to as a whole, whose photons
+   *  are generator particles of their own): the level's particles below it, which the pair also stands for. */
+  merged: number[];
   matched: number; // the particle the selection points at (e.g. a candidate's best match), -1 for none
   candidate: number; // reco root row, -1 for none
   truth?: string; reco: string; // the two root tables
@@ -69,12 +69,27 @@ export function pairFor(ev: EventData, header: Header, focus: Ref, roots: { trut
   };
   const raw = rawTruthOf(focus.table)?.[focus.row] ?? -1;
   let particle = raw >= 0 && key ? key[raw] : -1, candidate = -1;
-  // The keys the pair stands for: the particle's own, or, above the level, those of every row below it.
-  const inPair = new Set<number>(particle >= 0 ? [particle] : []), flags = truthLayer?.particle && truth ? ev.tables[truth]?.columns[truthLayer.particle.flags] : undefined;
-  if (particle >= 0 && ids && key && flags && !((Number(flags[particle]) >>> truthLayer!.particle!.bit) & 1)) {
-    for (let r = 0; r < key.length; r++)
-      for (let a = r, steps = 0; a >= 0 && steps < key.length; a = ids.parent[a], steps++) if (a === particle) { inPair.add(key[r]); break; }
+  // The keys the pair stands for (a byte per truth row: one load per object below): the particle's own; for one above
+  // the level (e.g. a π⁰ a candidate is matched to, or a top quark selected in the truth), also the level's particles
+  // below it, found down its children.
+  const nTruth = key?.length ?? 0, inPair = new Uint8Array(nTruth), merged: number[] = [];
+  if (particle >= 0) inPair[particle] = 1;
+  const flags = truthLayer?.particle && truth ? ev.tables[truth]?.columns[truthLayer.particle.flags] : undefined;
+  const member = (r: number) => !!flags && ((Number(flags[r]) >>> truthLayer!.particle!.bit) & 1) === 1;
+  const kids = Object.entries(header.relations).find(([name, r]) => !r.association && r.from === truth && r.to === truth && ev.relations[name]);
+  if (particle >= 0 && flags && kids && !member(particle)) {
+    const rel = ev.relations[kids[0]], todo = [particle], seen = new Uint8Array(nTruth);
+    while (todo.length) {
+      const p = todo.pop()!;
+      for (let k = rel.offsets[p]; k < rel.offsets[p + 1]; k++) {
+        const c = rel.indices[k];
+        if (seen[c]) continue;
+        seen[c] = 1;
+        if (member(c)) { inPair[c] = 1; merged.push(c); } else todo.push(c); // below a member, everything has its key
+      }
+    }
   }
+  const has = (k: number) => k >= 0 && inPair[k] === 1;
   if (particle >= 0) candidate = bestCand(particle) >= 0 ? bestCand(particle) : bestCand(raw);
   else candidate = recoOf(focus.table)?.[focus.row] ?? -1;
 
@@ -89,7 +104,7 @@ export function pairFor(ev: EventData, header: Header, focus: Ref, roots: { trut
   for (const t of tables) {
     const n = ev.tables[t]?.n ?? 0, cand = recoOf(t), tr = truthOf(t), inSet = members.get(t), out = new Uint8Array(n);
     for (let i = 0; i < n; i++) {
-      const c = cand ? cand[i] : -1, fromP = anyParticle && !!tr && inPair.has(tr[i]), inC = !!inSet?.has(i);
+      const c = cand ? cand[i] : -1, fromP = anyParticle && !!tr && has(tr[i]), inC = !!inSet?.has(i);
       // Candidates: the pair's; split if they hold the particle's objects or are matched to it (a fragment).
       out[i] = t === reco ? (i === candidate ? (anyParticle ? PAIR.matched : PAIR.reco) : splitCands.has(i) || fromP ? PAIR.split : PAIR.other)
         // Truth layers: only the pair's particle and the one the selection points at (its whole shower, hundreds of
@@ -110,11 +125,11 @@ export function pairFor(ev: EventData, header: Header, focus: Ref, roots: { trut
     const owns = new Uint8Array(key.length), hitRels = Object.entries(header.relations).filter(([name, info]) =>
       ev.relations[name] && info.association && info.from === truth && hitTables.has(info.to) && !header.display.find((d) => d.table === info.to)?.alternative);
     for (const [name] of hitRels) { const o = ev.relations[name].offsets; for (let p = 0; p + 1 < o.length; p++) if (o[p + 1] > o[p]) owns[p] = 1; }
-    const top = (p: number) => { for (let a = ids.parent[p], steps = 0; a >= 0 && steps < key.length; a = ids.parent[a], steps++) { if (owns[a] && inPair.has(key[a])) return false; } return true; };
+    const top = (p: number) => { for (let a = ids.parent[p], steps = 0; a >= 0 && steps < key.length; a = ids.parent[a], steps++) { if (owns[a] && has(key[a])) return false; } return true; };
     for (const [name, info] of hitRels) {
       const rel = ev.relations[name], cand = recoOf(info.to), inSet = members.get(info.to), w = rel.weights[info.best?.weight ?? info.weights[0]];
       for (let p = 0; p + 1 < rel.offsets.length; p++) {
-        if (!inPair.has(key[p]) || !top(p)) continue;
+        if (!has(key[p]) || !top(p)) continue;
         for (let k = rel.offsets[p]; k < rel.offsets[p + 1]; k++) {
           const h = rel.indices[k], e = w ? w[k] : 1;
           if (inSet?.has(h)) efficiency.candidate += e; else if (cand && cand[h] >= 0) efficiency.others += e; else efficiency.missed += e;
@@ -131,7 +146,7 @@ export function pairFor(ev: EventData, header: Header, focus: Ref, roots: { trut
         if (cls[i] === PAIR.matched) purity.particle += Number(energy[i]); else if (cls[i] === PAIR.contamination) purity.other += Number(energy[i]);
     }
   }
-  return { particle, keys: [...inPair], matched: raw, candidate, truth, reco, classes, efficiency, purity };
+  return { particle, merged, matched: raw, candidate, truth, reco, classes, efficiency, purity };
 }
 
 /** Whether the pair has anything to show: a candidate, or a particle that left hits (which then show as missed or in

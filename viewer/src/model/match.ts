@@ -38,7 +38,7 @@ export interface Quality {
 export function quality(ev: EventData, header: Header, name: string, k: number, row: number): Quality | undefined {
   const info = header.relations[name], rel = ev.relations[name], match = info?.match;
   if (!match || !rel || !match.shared) return undefined;
-  const shared = rel.weights[match.shared]?.[k], own = ownAmount(ev, info.from, match)?.[row], score = rel.weights.score?.[k];
+  const shared = rel.weights[match.shared]?.[k], own = ownAmount(ev, info.from, match)?.[row], score = info.best?.order === "min" ? rel.weights[info.best.weight]?.[k] : undefined;
   if (shared === undefined) return undefined;
   const purity = own && own > 0 ? Math.min(1, shared / own) : undefined;
   return { match, shared, over: own, purity, score, clean: purity !== undefined && match.good !== undefined ? purity >= match.good : undefined };

@@ -1,7 +1,7 @@
 // Floating card for the selected object: summary, all columns with documentation, related objects.
 import { colourBy, customColumns, customDoc } from "../model/custom";
 import { unitOf } from "../io/bundle";
-import { bundle, describe, event, full, highlight, isHitLayer, kindOf, labelOf, layerKey, layerOf, relatives, selection, sizeColumn, drawnLayers } from "../model/store";
+import { bundle, describe, event, full, highlight, isHitLayer, kindOf, labelOf, layerKey, layerOf, modes, relatives, selection, sizeColumn, drawnLayers } from "../model/store";
 import { bestFirst, type Related } from "../model/relations";
 import { engine } from "./Viewport";
 import { jump } from "./navigate";
@@ -41,7 +41,7 @@ export function Inspector() {
   const matches = associations(sel.table, sel.row);
   const truthMatch = truth ? undefined : matches.find((m) => isTruth(m.table)), best = truthMatch?.rows[0];
   // A kind whose association carries a `match` contract gets the truth card instead of the bare best-match line.
-  const hasCard = Object.entries(b.header.relations).some(([n, r]) => r.match?.shared && r.from === sel.table && ev.relations[n]);
+  const hasCard = Object.entries(b.header.relations).some(([n, r]) => r.match?.shared && r.from === sel.table && r.to === modes.value.roots.truth && ev.relations[n]);
   const content = !truth && parts ? truthInHits(parts.madeOf) : null;
   // What contains it, one object per kind, innermost first in display order: hit -> layer cluster -> trackster -> ...
   const order = (t: string) => b.header.display.findIndex((l) => l.table === t);
@@ -70,7 +70,7 @@ export function Inspector() {
           <div>
             {chain.length > 0 && <p class="chainline" title="The objects that contain it, one per kind (Related tab: all of them)">
               Part of {chain.map(([t, r]) => <><span class="muted"> {kindOf(t)}</span> {chip(t, r)}</>)}</p>}
-            {truth ? <Lineage row={sel.row} /> : <TruthCard table={sel.table} row={sel.row} />}
+            {sel.table === modes.value.roots.truth ? <Lineage row={sel.row} /> : !truth && <TruthCard table={sel.table} row={sel.row} />}
             {!truth && best && !hasCard && <p class="truthline" title="The truth-graph particle the association picked for it (best by its score); shared energy and score from CMSSW">
               <span class="badge truth">truth</span> {isHitLayer(d) ? "most simulated energy from" : "associator's best match"} {chip(truthMatch!.table, best.row)}
               <span class="muted">{weightsText(best.weights)}</span></p>}

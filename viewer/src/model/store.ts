@@ -86,13 +86,19 @@ export const modes = computed(() => {
   return { roots, colouring };
 });
 /** What the colours show, chosen by the user (key T, or the switch in the colour key): the reconstruction, or the
- *  truth (where the bundle has truth particles). Not remembered: a bundle opens on the reconstruction. */
+ *  truth. Not remembered: a bundle opens on the reconstruction. */
 export const colourChoice = signal<"reco" | "truth">("reco");
+/** Whether the bundle can colour by truth: its truth particles say which level is the particle (`particle`; bundles
+ *  made before it have none, and their truth colours would follow other rules than the key describes). */
+export const truthColours = computed(() => {
+  const t = modes.value.roots.truth;
+  return !!t && !!bundle.value?.header.display.some((d) => d.table === t && d.particle);
+});
 /** The colour mode: "truth" when chosen and the bundle has truth particles; otherwise "pid" when the bundle has a
  *  reconstruction root (candidates), else "layers"; also "layers" while a domain that asks for it (its `colourMode`) is
  *  looked at, e.g. the tracker, whose tracks keep their pT colours. */
 export const activeMode = computed<ColourMode>(() => {
-  if (colourChoice.value === "truth" && modes.value.roots.truth) return "truth";
+  if (colourChoice.value === "truth" && truthColours.value) return "truth";
   const d = bundle.value?.header.domains?.find((x) => x.name === domain.value);
   return modes.value.roots.reco && d?.colourMode !== "layers" ? "pid" : "layers";
 });
@@ -310,6 +316,7 @@ export async function openBundle(name: string, open = () => httpSource(name), st
       b.header.display = b.header.display.filter(placed);
     }
     bundle.value = b;
+    colourChoice.value = "reco";
     bundleName.value = name;
     view.value = b.header.view?.start ?? "3d";
     loadCustom(b.header.profile, Object.fromEntries(b.header.display.filter((d) => d.filter).map((d) => [d.table, d.filter!])));

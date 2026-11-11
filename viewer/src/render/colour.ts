@@ -18,7 +18,7 @@ export const PALETTES = {
     identity: ["#D55E00", "#2E8FCB", "#117733", "#CC6677", "#AA4499", "#332288", "#882255"], other: "#a3abb5",
     // Identity colouring with a `first` column (truth particles: signal first): keys without it (pile-up), lighter
     // than "other" and darker than "unassigned" (no truth).
-    pileup: "#c2c8cf",
+    pileup: "#b3bbc4",
     // The pair view (model/pair.ts), by class: other, matched, contamination, split, missed, and a candidate's objects
     // when it has no truth particle (neutral: nothing is confirmed). From the identity set.
     pair: ["#cdd2d8", "#117733", "#AA4499", "#2E8FCB", "#D55E00", "#4d5560"],
@@ -131,7 +131,7 @@ export function colours(d: DisplayLayer, t: Table, ev: EventData, header: Header
     return { rgb: out, legend: { kind: "category", text: "one colour per object" } };
   }
   if (d.colourBy === "none") { // a layer with nothing to take a colour from in this mode (e.g. vertices, by truth)
-    const c = rgb(pal.other);
+    const c = rgb(pal.unassigned);
     for (let i = 0; i < t.n; i++) set(i, c);
     return { rgb: out, legend: { kind: "category", text: "one colour: no link to the colour's source" } };
   }
@@ -148,7 +148,7 @@ export function colours(d: DisplayLayer, t: Table, ev: EventData, header: Header
     }
     const items = top.map((row, j) => ({ label: `#${row}`, colour: pal.identity[j], ref: { table: d.table, row } }));
     return { rgb: out, emphasis, legend: { kind: "category", text: top.length === 1 ? "one colour for the largest" : `one colour each for the ${top.length} largest`, items,
-      ...(others ? { note: first ? `grey: the other ${others} (darker: ${d.particle!.first} 0)` : `grey: the other ${others}` } : {}) } };
+      ...(others ? { note: first ? `grey: the other ${others}; pile-up small` : `grey: the other ${others}` } : {}) } };
   }
   if (typeof d.colourBy === "object" && "category" in d.colourBy) {
     // Colours follow the order of `names`, so a value keeps its colour from event to event. As an object, its integer
@@ -186,10 +186,12 @@ export function colours(d: DisplayLayer, t: Table, ev: EventData, header: Header
     return { rgb: out, emphasis, legend: { kind: "category", text: `${text}${via}`, note: "small grey: none" } };
   };
   if (typeof d.colourBy === "object" && "content" in d.colourBy && ev.tables[d.colourBy.content]) {
-    const { partner, weight, parts, derived } = contentPartners(d.table, d.colourBy.content, t.n, ev, header);
+    const { partner, share, weight, parts, derived } = contentPartners(d.table, d.colourBy.content, t.n, ev, header);
     const name = tableName(header, d.colourBy.content), of = parts ? tableName(header, parts) : "parts";
-    return partnerColours(d.colourBy.content, partner, weight
-      ? `colour of the ${name} with the most ${weight} in its ${of}${derived ? " (derived in evd)" : ""}`
+    // Derived truth (e.g. a layer cluster's particle) is held to a clean match too: at least half of the weight.
+    const gated = derived ? partner.map((p, i) => (share[i] >= 0.5 ? p : -1)) : partner;
+    return partnerColours(d.colourBy.content, gated, weight
+      ? `colour of the ${name} with the most ${weight} in its ${of}${derived ? " if at least half (derived in evd)" : ""}`
       : `colour of the ${name} holding most of its ${of}`);
   }
   const relName = typeof d.colourBy === "object" && "relation" in d.colourBy ? d.colourBy.relation : undefined;

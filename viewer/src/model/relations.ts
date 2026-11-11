@@ -181,7 +181,7 @@ const isHitTable = (header: Header, table: string) => header.display?.some((l) =
  *  - with the level's `first` column (e.g. isSignal), only its keys take colours: signal, never pile-up; then keys in
  *    the level before those above it, then by size. */
 export function identities(d: DisplayLayer, t: Table, ev: EventData, header: Header, slots: number) {
-  const { key, used, bySize, parent } = cached(ev, `identities|${d.table}|${d.truth}|${d.colour}|${d.particle?.bit}`, () => identityKeys(d, t, ev, header));
+  const { key, used, bySize, parent } = cached(ev, `identities|${d.table}|${d.truth}|${d.colour}|${d.particle?.flags}|${d.particle?.bit}|${d.particle?.first}`, () => identityKeys(d, t, ev, header));
   // With a `first` column, only its keys take colours (pile-up never looks like a signal particle).
   const first = d.particle?.first ? t.columns[d.particle.first] : undefined, eligible = first ? bySize.filter((k) => Number(first[k])) : bySize;
   return { key, used, parent, top: eligible.slice(0, slots), others: Math.max(0, eligible.length - slots) };
@@ -239,7 +239,8 @@ export function cached<T>(ev: EventData, what: string, make: () => T): T {
  *  path (`alternative`, e.g. legacy hits next to SoA ones) are skipped, so a part is not counted twice. Two uses:
  *  - through an association (`derived`): a stand-in for one the data lack, e.g. the truth particle of a layer cluster;
  *  - through containment: a vote, e.g. the candidate holding most of a trackster's layer clusters.
- *  `weight`: the root -> parts weight summed ("" for counts); `parts`: the parts table. Computed once per event. */
+ *  `weight`: the root -> parts weight summed ("" for counts); `parts`: the parts table; `share`: per object, the
+ *  partner's part of the total weight (0..1). Computed once per event. */
 export function contentPartners(table: string, root: string, n: number, ev: EventData, header: Header) {
   return cached(ev, `content|${table}|${root}`, () => content(table, root, n, ev, header));
 }
@@ -268,7 +269,7 @@ function content(table: string, root: string, n: number, ev: EventData, header: 
     }
   }
   // One accumulator for all objects, reset through the list of entries touched: no allocation per object.
-  const partner = new Int32Array(n).fill(-1), acc = new Float64Array(nRoot), touched: number[] = [];
+  const partner = new Int32Array(n).fill(-1), share = new Float32Array(n), acc = new Float64Array(nRoot), touched: number[] = [];
   for (let o = 0; o < n; o++) {
     for (const { parts, f, inv } of pairs)
       for (let k = parts.offsets[o]; k < (parts.offsets[o + 1] ?? k); k++) {
@@ -279,10 +280,11 @@ function content(table: string, root: string, n: number, ev: EventData, header: 
           acc[p] += frac * inv.w[j];
         }
       }
-    let best = -1, most = 0;
-    for (const p of touched) { if (acc[p] > most) { best = p; most = acc[p]; } acc[p] = 0; }
+    let best = -1, most = 0, total = 0;
+    for (const p of touched) { total += acc[p]; if (acc[p] > most) { best = p; most = acc[p]; } acc[p] = 0; }
     touched.length = 0;
     partner[o] = best;
+    share[o] = total > 0 ? most / total : 0;
   }
-  return { partner, weight, parts: partsTable, derived };
+  return { partner, share, weight, parts: partsTable, derived };
 }

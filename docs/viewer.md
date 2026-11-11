@@ -63,9 +63,11 @@ behind the truth colours and numbers, and what each kind of object is compared w
   the most simulated energy in them, truth lines by their generator particle (a conversion's electrons and an
   interacting pion's daughters take their particle's colour). A reco object takes its matched particle's colour only
   for a clean match (purity at least its kind's `match.good`: 75% of a track's hits, 50% of a trackster's energy),
-  else grey; layers with no link to the truth (vertices) one neutral colour. Colours go to signal generator particles
-  first, by energy; the other signal particles are mid grey, pile-up a darker grey, and hits no exported particle
-  left energy in small and faint (noise, out-of-time pile-up, or not exported).
+  else grey (layer clusters: at least half of their simulated energy); layers with no link to the truth (vertices) the
+  "no truth" grey. Colours go to signal generator particles only, by energy; the other signal particles are mid grey,
+  pile-up its own grey and drawn small, and hits no exported particle left energy in small and faint (noise,
+  out-of-time pile-up, or not exported). The Truth mode needs a bundle whose truth particles name their level
+  (`particle`); older bundles have only Reco.
 - A bundle without candidates or truth shows each layer's own colouring from the profile (energies, particle types),
   with its scale under the layer's row; so does a domain with `colourMode` `"layers"` (e.g. the Tracker, its tracks
   by pT) while it is looked at in the Reco mode.

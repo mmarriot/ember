@@ -3,7 +3,7 @@ import { effect } from "@preact/signals";
 import { useEffect } from "preact/hooks";
 import { blobSource } from "../io/bundle";
 import type { ViewName } from "../render/engine";
-import { bundleName, catalogue, colourChoice, dialog, domain, event, eventIndex, highlight, openBundle, refreshCatalogue, selection, showEvent, stepFocusLevel, view } from "../model/store";
+import { bundleName, catalogue, colourChoice, dialog, domain, event, eventIndex, highlight, openBundle, refreshCatalogue, selection, showEvent, stepFocusLevel, truthColours, view } from "../model/store";
 import { SYNTAX } from "./ExprForm";
 import { Header } from "./Header";
 import { Inspector } from "./Inspector";
@@ -53,7 +53,7 @@ export function App() {
       else if ((e.key === "ArrowDown" || e.key === "ArrowUp") && stepFocusLevel(e.key === "ArrowDown" ? 1 : -1)) e.preventDefault();
       else if (VIEW_KEYS[e.key]) view.value = VIEW_KEYS[e.key];
       else if (e.key === "d" || e.key === "D") nextDomain();
-      else if (e.key === "t" || e.key === "T") colourChoice.value = colourChoice.value === "truth" ? "reco" : "truth";
+      else if ((e.key === "t" || e.key === "T") && truthColours.value) colourChoice.value = colourChoice.value === "truth" ? "reco" : "truth";
       else if (e.key === "f" || e.key === "F") engine?.frame(highlight.value ?? undefined, true);
       else if (e.key === "Home") showWhole();
       else if (e.key === "r" || e.key === "R") void replayEvent();

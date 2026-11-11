@@ -57,7 +57,8 @@ export interface DisplayLayer {
   time?: string | null; // column with the arrival time in ns (missing: <= -50), for the replay
   axis?: [string, string, string];
   extent?: [string, string, string];
-  cut?: { group: string; column: string; unit?: string; default?: number };
+  /** A minimum on `column`, one slider per `group`; `label`: the slider's name (default: the column). */
+  cut?: { group: string; column: string; unit?: string; default?: number; label?: string };
   /** A background layer (e.g. the whole readout): not framed or replayed, drawn thin, picked only when nothing else
    *  is near. */
   context?: boolean;

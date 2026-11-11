@@ -45,7 +45,7 @@ export function Sidebar() {
 }
 
 /** The parts of the detector, one section each: the one looked at open and first, with the others folded; in a shared
- *  domain's view or All, all folded. */
+ *  domain's view all folded (it draws none of them), in All all open (it draws them all). */
 function Detector({ names, layers }: { names: string[]; layers: DisplayLayer[] }) {
   const current = domain.value, order = [...names.filter((n) => n === current), ...names.filter((n) => n !== current)];
   return (
@@ -53,7 +53,7 @@ function Detector({ names, layers }: { names: string[]; layers: DisplayLayer[] }
       {order.map((name) => {
         const here = name === current, drawn = here || !current;
         return (
-          <details class="part" open={here} key={`${bundleName.value}|${name}|${current}`}>
+          <details class="part" open={here || !current} key={`${bundleName.value}|${name}|${current}`}>
             <summary><b>{name}</b> <span class="muted">{drawn ? (here ? "drawn in this view" : "drawn in All") : "drawn in its view, and for a selection"}</span>
               {!here && <button class="link" title={`Look at ${name} (D)`} onClick={(e) => { e.preventDefault(); chooseDomain(name); }}>show</button>}</summary>
             <Collections key={`${bundleName.value}|${name}`} layers={layers.filter((d) => d.domain === name)} />

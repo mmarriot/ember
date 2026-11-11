@@ -65,21 +65,21 @@ const sliderRanges = computed(() => {
   return out;
 });
 
-/** A cut group's minimum: log slider and exact value, labelled by the column it cuts (the group's name is in its
- *  tooltip, and above it when its kind has several cuts, e.g. one per calorimeter: `named`). It applies to every layer
+/** A cut group's minimum: log slider and exact value, labelled by its `label` or the column it cuts (the group's name
+ *  is in its tooltip, and, without a label, above it when its kind has several cuts, e.g. one per calorimeter: `named`). It applies to every layer
  *  of the group, also those listed elsewhere (named under it). */
 function CutRow({ name, here, named = false }: { name: string; here: DisplayLayer[]; named?: boolean }) {
   const g = cutGroups.value.get(name);
   if (!g) return null;
-  const v = cuts.value[name] ?? g.default, [lo, hi] = sliderRanges.value.get(name) ?? [-4, 2];
+  const cut = g.layers[0].cut!, v = cuts.value[name] ?? g.default, [lo, hi] = sliderRanges.value.get(name) ?? [-4, 2];
   const set = (x: number) => (cuts.value = { ...cuts.value, [name]: Math.max(0, x) });
   const toSlider = (x: number) => (x > 0 ? Math.log10(x) : lo), fromSlider = (s: number) => (s <= lo ? 0 : 10 ** s);
   const elsewhere = g.layers.filter((d) => !here.includes(d));
   return (
     <div class="cut" title={`Minimum ${name.toLowerCase()} for ${g.layers.map(layerName).join(", ")}`}>
-      {named && <div class="cutgroup">{name}</div>}
+      {named && !cut.label && <div class="cutgroup">{name}</div>}
       <div class="cutrow">
-        <span class="cutname">{g.layers[0].cut!.column} ≥</span>
+        <span class="cutname">{cut.label ?? cut.column} ≥</span>
         <input type="range" aria-label={name} min={lo} max={hi} step={0.01} value={toSlider(v)} onInput={(e) => set(fromSlider(Number((e.target as HTMLInputElement).value)))} />
         <input type="number" class="cutvalue" min={0} step="any" value={short(v)} onChange={(e) => set(Number((e.target as HTMLInputElement).value))} />
         <span class="muted unit">{g.unit}</span>

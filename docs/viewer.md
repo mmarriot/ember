@@ -36,9 +36,10 @@ Preset buttons when the bundle has more than one preset; then tabs; then the col
   layers had one), in the order of the header's `domains`, as the top bar's buttons: its collections by kind of object.
   With two or more `domains`, a shared domain (e.g. **Physics**) keeps a tab of its own and the other parts share one,
   **Detector**, which follows the domain bar: a section per part, the one looked at open and first, the others folded
+  (in All all open, in a shared domain's view all folded)
   (their cuts still apply to a selection's objects there). Each kind lists its `cut` slider (log scale over the group's
   values in the shown event; the lowest position is no cut; it applies to every layer of the group, also those listed
-  elsewhere, which it names), just before the first row it cuts, and then one row per layer: visibility and count, the layer's filter, "only for the
+  elsewhere, which it names; it is named by the cut's `label`, else its column), just before the first row it cuts, and then one row per layer: visibility and count, the layer's filter, "only for the
   selection" for `onSelection` layers, and its colour scale when the colour key does not already explain it. Other
   reconstruction paths are folded at the end. **⋯** on a row: what colours the layer (any column, custom ones too,
   or a related object), an expression to filter its table or to add as a custom column (e.g. `snr = energy /

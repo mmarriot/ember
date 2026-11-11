@@ -45,8 +45,8 @@ def main(argv=None):
     p.add_argument("--max-events", type=int)
     p.add_argument("--events", help="only these event numbers, e.g. 416622,416630-416640 (the profile's selection "
                                     "still applies)")
-    p.add_argument("--sorted", action="store_true", help="write each file's events in (run, event) order, as a "
-                                                            "multi-threaded export does not (reads one entry at a time)")
+    p.add_argument("--sorted", action="store_true", help="list the events in (run, lumi, event) order, as a "
+                                                            "multi-threaded export does not write them (index only, no extra reading)")
     p.add_argument("--run-tables", help="NanoAOD file with the per-run tables (Runs tree, e.g. the channel table) of the "
                                         "same runs, for inputs made without them")
     p.add_argument("--run-info", help="information about the runs: a JSON file, or registry:<database>.<table> "

@@ -17,7 +17,7 @@ python3 -m evdtools validate OUT.evdb     # structural checks of every record; e
 |---|---|
 | `--max-events N` | stop after N selected events |
 | `--events 416622,416619-416628` | only these event numbers, in event order (cuts and selection still apply) |
-| `--sorted` | each file's events in (run, event) order. A multi-threaded export writes events in the order they finish, so two exports of one sample (or the 0PU and PU200 versions of the same events) differ in order without it. Reads one entry at a time, as `--events` does |
+| `--sorted` | the bundle lists its events in (run, lumi, event) order, across all input files. A multi-threaded export writes events in the order they finish, so two exports of one sample (or the 0PU and PU200 versions of the same events) differ in order without it. Only the index is sorted (records are found by offset): no extra reading |
 | `--run-tables FILE` | take the per-run tables from another NanoAOD file of the same runs, for inputs made without them. It must use the same channel mapping |
 | `--run-info SPEC` | add run information to the bundle index: a JSON file (`{"<run>": {...}}`, or a list of rows with `Run`), or `registry:<database>.<table>` (HGCal DPG run registry, read-only guest account, needs `mysql-connector-python`), e.g. `registry:RunRegistryP5.RunTable` (P5) or `registry:RunRegistry.SepTB2025` (2025 test beam) |
 

@@ -77,12 +77,13 @@ def test_per_run_tables_from_another_file(files):
 
 
 def test_sorted_writes_events_in_event_order(tmp_path):
-    """--sorted: the events of a file come out in (run, event) order, whatever order the export wrote them in (a
-    multi-threaded export writes them as they finish), with the selection still applied."""
+    """--sorted: the bundle lists the events in (run, event) order, whatever order the export wrote them in (a
+    multi-threaded export writes them as they finish), with the selection still applied; only the index is sorted."""
     profile = tmp_path / "test.json"
     profile.write_text(json.dumps(PROFILE))
     write_nano(str(tmp_path / "shuffled.root"), EVENTS, event_numbers=[7, 3, 9, 5])
     b, log = run([str(tmp_path / "shuffled.root")], tmp_path / "a.evdb", str(profile))
     assert [e["event"] for e in b.events] == [7, 9, 5]  # file order; event 3 (the second) fails the selection
     b, log = run([str(tmp_path / "shuffled.root")], tmp_path / "b.evdb", str(profile), sort=True)
-    assert [e["event"] for e in b.events] == [5, 7, 9] and "4 events, in event order" in log
+    assert [e["event"] for e in b.events] == [5, 7, 9]
+    assert [int(b.event(i)["event"][2]) for i in range(len(b))] == [5, 7, 9]  # each index entry finds its own record

@@ -40,7 +40,9 @@ Sources: CMSSW_20_1_0_pre5 with the truth-graph and EventExport developments; CM
    holds, for every graph particle, its own calorimeter `PCaloHit` energy per DetId ("direct") and the
    descendant-inclusive set ("subgraph"). Calo channel = HGCal EE/HEF/HEB, ECAL barrel, HCAL
    (`SimDataFormats/TruthInfo/interface/LogicalGraphHitIndex.h:20-25`). Pile-up is in the graph for **in-time
-   bunch crossings only** (`truthGraphMixedDigi_cff.py:49`, `pileupBunchCrossings=[0]`).
+   bunch crossings only** by default (`truthGraphMixedDigi_cff.py:49`, `pileupBunchCrossings=[0]`); a step2
+   customisation can add out-of-time crossings (the evd reference samples have -3..+3), and the `hgcal` profile then
+   keeps crossing 0 only.
 2. **Associators** (`SimGeneral/TruthGraphAssociatorProducers/python/truthGraphAssociators_cff.py`), scheduled
    by `customiseTruthGraphAssociators`. Each one writes a `RecoToTruth<WP>` map per working point (Fixed,
    AdaptiveTight, AdaptiveNominal) and one `TruthToReco` map. The reco types covered are listed in the
@@ -84,7 +86,7 @@ information. Priority is for the event display.
 | 2 | Hits of the particle a reco object is matched to, when that particle is not the one entering the calorimeter | X | `TruthHitTableProducer` exports subgraph hits only for particles with `LevelFlag::CaloBoundary` (`TruthTableProducers.cc:398`, default `:435`) | high |
 | 3 | Total simulated energy per hit (all particles), so a grey hit can be told apart as noise or as an un-exported particle | X (data in index, not exported) | `TruthTableProducers.cc:385-424` writes only (exported particle, hit) rows | high |
 | 4 | Particles that deposit energy but are neither signal nor matched by a calorimeter object are not exported, so their hits stay unattributed (**fixed in evd's exporter**: `keepLevelMask`, see the section "3–5. Unattributed energy") | X | selection `TruthTableProducers.cc:105-130`; `keepMatchedBy` excludes tracks (`eventExport_cff.py:114-115`); pairs to un-exported particles dropped (`TruthTableProducers.cc:328-330`) | high at PU |
-| 5 | Out-of-time pile-up has no particles at all | G | `truthGraphMixedDigi_cff.py:49` (`pileupBunchCrossings=[0]`) | medium |
+| 5 | Out-of-time pile-up has no particles at all (default configuration; where a sample has them, the `hgcal` profile drops them) | G | `truthGraphMixedDigi_cff.py:49` (`pileupBunchCrossings=[0]`) | medium |
 | 6 | First-stage tracksters of a non-v6 (CLUE3D) reconstruction | X | the associator follows the scheduled labels (`truthGraphAssociationLabels_cff.py:170-189`), but EventExport hard-codes v6 labels (`eventExport_cff.py:105-112`); the profile has `clue3dLCs` but no CLUE3D truth relation (`hgcal.json:40-42`) | medium |
 | 7 | Candidate truth is calorimeter-only; a track-only candidate has no candidate match | A (by design) | `RecoHitAdapters.h:148-161`, traits `AllRecoToTruthBranchAssociatorsProducer.cc:217-224` | medium |
 | 8 | Runner-up matches per reco object (Fixed WP: every branch sharing energy) | X | only `RecoToTruthAdaptiveNominal` is exported (`eventExport_cff.py:119`) | low |
@@ -164,7 +166,7 @@ particles".
   are disjoint branches. This is not guaranteed in general: nothing stops two nested particles from both carrying
   CaloBoundary.
 - **Pile-up:** in-time PU particles appear only when matched, or as ancestors of matched particles. `isSignal`
-  separates them. Out-of-time PU is absent (gap 5).
+  separates them. Out-of-time PU is absent by default (gap 5), and dropped by the `hgcal` profile where present.
 
 ### 6–11. Smaller gaps, briefly
 

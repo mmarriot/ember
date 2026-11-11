@@ -131,3 +131,47 @@ def test_unsigned_index_column_of_a_cut_table_is_rejected():
 
 def test_event_lists():
     assert parse_events("5, 7-9,12") == {5, 7, 8, 9, 12}
+
+
+def test_reached_by_any_of_several_relations():
+    """A list of relations keeps the rows reached through any of them (e.g. the production or the decay vertex of a
+    kept particle); relations absent from the file are left out, and with none the condition is dropped."""
+    profile = {"relations": [{"name": "prod", "kind": "index", "from": "P", "to": "V", "index": "P.prod"},
+                             {"name": "dec", "kind": "index", "from": "P", "to": "V", "index": "P.dec"}],
+               "cuts": {"P": [["bx", "==", 0]], "V": [{"reachedBy": ["prod", "dec", "absent"]}]}}
+    types = {"P": {"bx": I4, "prod": I4, "dec": I4}, "V": {"t": F4}}
+    conv, [(_, tables, _)] = convert(profile, {"P": {"bx": [0, 1, 0], "prod": [0, 1, 0], "dec": [2, 3, -1]},
+                                               "V": {"t": [0, 25, 1, 26]}}, types=types)
+    assert tables["V"][1]["t"].tolist() == [0, 1]  # vertices 0 (prod of P0, P2) and 2 (dec of P0)
+    assert tables["P"][1]["prod"].tolist() == [0, 0] and tables["P"][1]["dec"].tolist() == [1, -1]  # renumbered
+    assert "reached by prod or dec" in conv.tables["V"]["doc"]
+    conv = converter({"V": {"t": F4}, "P": {"bx": I4}}, {"cuts": {"V": [{"reachedBy": ["prod"]}]}})
+    assert "V" not in conv.cuts
+
+
+def test_hgcal_keeps_in_time_truth_only():
+    """The hgcal profile keeps the truth particles of bunch crossing 0 and the vertices they are produced or decay at;
+    vertex indices and parent -> child links follow the renumbering."""
+    from evdtools.nano import load_profile
+    types = {"TruthParticles": {c: F4 for c in ("x", "y", "z", "endX", "endY", "endZ", "energy")} |
+             {c: I4 for c in ("bunchCrossing", "prodVertex", "decayVertex", "isSignal", "pdgId")},
+             "TruthVertices": {"x": F4, "y": F4, "z": F4, "reason": I4},
+             "TruthParticleChildren": {"parentIdx": I4, "childIdx": I4}}
+    zeros = lambda n: [0] * n
+    event = {  # P0 (bx 0) -> child P2 (bx 0); P1 (bx -1) -> child P3 (bx 2): only P0, P2 and their vertices stay
+        "TruthParticles": {**{c: zeros(4) for c in ("x", "y", "z", "endX", "endY", "endZ", "isSignal", "pdgId")},
+                           "energy": [10, 20, 5, 7], "bunchCrossing": [0, -1, 0, 2],
+                           "prodVertex": [0, 1, 2, 4], "decayVertex": [2, 3, 5, -1]},
+        "TruthVertices": {"x": [0, 1, 2, 3, 4, 5], "y": zeros(6), "z": zeros(6), "reason": [1, 1, 2, 2, 2, 2]},
+        "TruthParticleChildren": {"parentIdx": [0, 1], "childIdx": [2, 3]},
+    }
+    conv, [(_, tables, relations)] = convert(load_profile("hgcal"), event, types=types)
+    n, particles = tables["TruthParticles"]
+    assert n == 2 and particles["energy"].tolist() == [10, 5]
+    n, vertices = tables["TruthVertices"]
+    # V0 (production of P0), V2 (decay of P0, production of P2), V5 (decay of P2 only: kept through truthDecayVertex)
+    assert n == 3 and vertices["x"].tolist() == [0, 2, 5]
+    assert particles["prodVertex"].tolist() == [0, 1] and particles["decayVertex"].tolist() == [1, 2]
+    children = relations["truthChildren"]
+    assert children["offsets"].tolist() == [0, 1, 1] and children["indices"].tolist() == [1]
+    assert "bunchCrossing == 0" in conv.tables["TruthParticles"]["doc"]

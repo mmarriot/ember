@@ -1,6 +1,6 @@
 {
   "name": "hgcal",
-  "note": "HGCal/TICL reconstruction: NanoAOD tables of CMSSW step3 (Fireworks/EventExport, DPGAnalysis/HGCalNanoAOD), SoA and/or legacy collections, with truth from truth::Graph when present (particles, vertices, reco <-> truth associations of the TruthGraphAssociatorProducers: AdaptiveNominal, TruthToReco). Caveats: SoA objects are preferred and legacy ones start hidden; legacy layer clusters and CLUEstering tracksters that copy SoA ones are checked and dropped (sameRows); legacy trackster axes are read as (x, z, y) because HGCalNanoAOD swaps eVector0_y/z; tracks are drawn straight to their HGCal entry; above the 0.035 GeV rechit cut SoA and legacy rechits agree.",
+  "note": "HGCal/TICL reconstruction: NanoAOD tables of CMSSW step3 (Fireworks/EventExport, DPGAnalysis/HGCalNanoAOD), SoA and/or legacy collections, with truth from truth::Graph when present (particles, vertices, reco <-> truth associations of the TruthGraphAssociatorProducers: AdaptiveNominal, TruthToReco), kept to in-time pile-up: particles of bunch crossing 0 and their production and decay vertices (reco objects whose best match is out-of-time are left unmatched, and hit energy from other crossings is unattributed). Caveats: SoA objects are preferred and legacy ones start hidden; legacy layer clusters and CLUEstering tracksters that copy SoA ones are checked and dropped (sameRows); legacy trackster axes are read as (x, z, y) because HGCalNanoAOD swaps eVector0_y/z; tracks are drawn straight to their HGCal entry; above the 0.035 GeV rechit cut SoA and legacy rechits agree.",
   "exclude": ["Sim*", "Reco*2Sim*", "ticlSim*", "HGCalGenPart", "TICLCandidatesTrackIdxs", "TICLCandidatesGsfTrackIdxs"],
   "internal": ["HGCalLayerClusterHits", "HGCalLayerClusterSoAHitsEE", "HGCalLayerClusterSoAHitsHSi", "HGCalLayerClusterSoAHitsHSci",
                "TICLSoATrackstersLCOffsets", "TICLSoATrackstersLCs", "ticlTrackstersCLUE3DHighvertices", "ticlTrackstersCLUEsteringvertices",
@@ -64,6 +64,7 @@
     {"name": "truthChildren", "kind": "links", "from": "TruthParticles", "to": "TruthParticles", "table": "TruthParticleChildren",
      "fromIndex": "TruthParticleChildren.parentIdx", "toIndex": "TruthParticleChildren.childIdx"},
     {"name": "truthDecayVertex", "kind": "index", "from": "TruthParticles", "to": "TruthVertices", "index": "TruthParticles.decayVertex"},
+    {"name": "truthProdVertex", "kind": "index", "from": "TruthParticles", "to": "TruthVertices", "index": "TruthParticles.prodVertex"},
     {"name": "clusteringTruth", "kind": "links", "from": "ticlTrackstersCLUEstering", "to": "TruthParticles", "table": "ticlTrackstersCLUEsteringToTruth",
      "fromIndex": "ticlTrackstersCLUEsteringToTruth.recoIdx", "toIndex": "ticlTrackstersCLUEsteringToTruth.truthIdx", "weights": ["ticlTrackstersCLUEsteringToTruth.sharedEnergy", "ticlTrackstersCLUEsteringToTruth.score"],
      "association": true, "best": {"weight": "score", "order": "min"}},
@@ -115,7 +116,8 @@
     {"name": "candidateLCs", "kind": "compose", "from": "TICLCandidates", "to": "HGCalLayerClusters",
      "via": ["candidateTrackster", "interpretationLCs"]}
   ],
-  "cuts": {"TICLCandidates": [{"defined": "x"}], "GeneralTrack": [{"reachedBy": "candidateTrack"}]},
+  "cuts": {"TICLCandidates": [{"defined": "x"}], "GeneralTrack": [{"reachedBy": "candidateTrack"}],
+           "TruthParticles": [["bunchCrossing", "==", 0]], "TruthVertices": [{"reachedBy": ["truthProdVertex", "truthDecayVertex"]}]},
   "prefer": ["SoA", "legacy"],
   "stages": ["trackster", "linkedTrackster", "interpretation", "candidate"],
   "kinds": {

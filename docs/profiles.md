@@ -27,7 +27,7 @@ for uproot's many ranged reads.
 
 | profile | data |
 |---|---|
-| `hgcal` | CMSSW step3 HGCal/TICL reconstruction (SoA and/or legacy): rechits, layer clusters, tracksters through candidates, tracks, the truth graph (particles, vertices, hits) with reco-truth associations; see [truth-graph.md](truth-graph.md) |
+| `hgcal` | CMSSW step3 HGCal/TICL reconstruction (SoA and/or legacy): rechits, layer clusters, tracksters through candidates, tracks, the truth graph (particles, vertices, hits) with reco-truth associations, kept to in-time pile-up (bunch crossing 0); see [truth-graph.md](truth-graph.md) |
 | `mct` | multi-cassette test at P5, cosmic muons: hits and layer clusters, events with a hit above 6 sigma in two layers; the readout channels (per-run table) as background |
 | `mct_diagnostics` | the same data without event selection, for unusual events (e.g. splats), picked with `--events`; digi quantities on every hit, per-module charts |
 | `testbeam` | test-beam layer stacks: hits and layer clusters of beam showers, readout channels as background, energy and timing presets, run information from the run registry |
@@ -94,7 +94,9 @@ Optional: `"weights": ["T.col", ...]` (one per link, stored as f32), and the vie
 
 - `[expr, op, number]`: `expr` a column or a ratio `"a/b"`, `op` one of `< <= > >= == !=`;
 - `{"defined": column}`: the value is not NaN (e.g. a gathered column);
-- `{"reachedBy": relation}`: rows of the relation's `to` table that a kept `from` row points to.
+- `{"reachedBy": relation}`: rows of the relation's `to` table that a kept `from` row points to; with a list of
+  relations, rows reached through any of them (e.g. truth vertices that are the production or decay vertex of a kept
+  particle).
 
 Per-run tables take plain conditions only; lookups always see the uncut per-run table.
 

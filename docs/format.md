@@ -118,7 +118,7 @@ All optional; the converter copies them from the profile.
   `{"Tracks": "rel:trackVertex"}`: each track in its vertex's colour). Applying one first resets every table any preset touches to its
   default colour and `filter` hint. The first preset is active on opening, unless the viewer remembers another one
   chosen for the same profile.
-- `domains`: `[{"name", "region": {"rMax", "zMax"}, "view", "colourMode"}]`: the parts of the detector, in order (cm; z
+- `domains`: `[{"name", "region": {"rMax", "zMax"}, "view", "colourMode", "minRadius"}]`: the parts of the detector, in order (cm; z
   is |z|, so a region covers both ends). With two or more, the viewer offers All · <name> · <name>: a domain's view
   draws its layers (display hint `domain`) and those without a domain, frames the cylinder `rMax`, `zMax` (in the
   front and side views, its section through the beam line, which then fills the view), and switches to `view` (`3d`,
@@ -126,7 +126,9 @@ All optional; the converter copies them from the profile.
   calorimeter candidate). `colourMode`, a colour mode id of the viewer: `"layers"`: while the domain is looked at,
   each layer shows its own colours (`colour`, `colourBy`), as in a bundle without candidates, instead of its
   candidate's particle type and the truth ↔ reco pair (e.g. the tracker's tracks by pT); `"pid"` (the default with
-  candidates): particle types. All goes back to the bundle's colours.
+  candidates): particle types. All goes back to the bundle's colours. `minRadius` (cm): the smallest radius framed
+  around a selection of the domain's objects (e.g. small for a vertex or a pixel hit), in any view, and around
+  objects while the domain is looked at, instead of `view.minRadius`.
 - `field`: `{"bz", "rMax", "zMax"}`: a uniform solenoid field along z (T), inside the cylinder r < `rMax`, |z| < `zMax`
   (cm), none outside; used by `helix` layers.
 - `runTitle`: a template naming a run from its `info`, e.g. `"{Beam} {Energy} GeV · {Type}"`; parts separated by

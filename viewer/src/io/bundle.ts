@@ -99,6 +99,8 @@ export interface Domain {
   /** A colour mode id: "layers": while this domain is looked at, each layer takes its own colours, also in a bundle
    *  with candidates; "pid" (the default with candidates): particle types. */
   colourMode?: "pid" | "layers";
+  /** Smallest radius (cm) framed around its objects (a vertex, a pixel hit), instead of `view.minRadius`. */
+  minRadius?: number;
 }
 /** The unit in a column's documentation, written as "[GeV]". */
 export const unitOf = (doc = "") => doc.match(/\[([^\]]+)\]/)?.[1] ?? "";

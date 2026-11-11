@@ -14,7 +14,7 @@ import { builders, type Layer } from "../render/layers";
 import { planReplay, type Plan } from "../render/replay";
 import { back, jump } from "./navigate";
 import {
-  activeMode, bundle, cuts, describe, drawnLayers, event, focus, focusHidden, focusHistory, focusIsTruth, focusLayers, focusLevel, focusLinked, following,
+  activeMode, bundle, cuts, describe, domain, drawnLayers, event, focus, focusHidden, focusHistory, focusIsTruth, focusLayers, focusLevel, focusLinked, following,
   highlight, hover, inDomain, inFocus, isHitLayer, kindOf, labelOf, layerKey, layerOf, legends, levels, levelTop, pairView, rawEvent, replayCaption, selection, short,
   showAll, shown, shownLayer, shownLevel, theme, touring, view,
 } from "../model/store";
@@ -107,6 +107,12 @@ export function Viewport() {
       applyCuts(false);
       recolourFrame ||= requestAnimationFrame(() => { recolourFrame = 0; if (highlight.peek()) rebuildForFocus(true); applyCuts(true); });
     });
+    // The smallest radius framed: that of the focus's domain (a vertex in the tracker), else of the domain looked at,
+    // else the bundle's.
+    const stopRadius = effect(() => {
+      const h = bundle.value?.header, f = focus.value, at = (name?: string | null) => h?.domains?.find((d) => d.name === name)?.minRadius;
+      eng.minRadius = at(f && layerOf(f.table)?.domain) ?? at(domain.value) ?? h?.view?.minRadius ?? MIN_RADIUS;
+    });
     // The selected object is drawn whatever the cut (e.g. a track below the pT cut, picked in the inspector).
     const stopPin = effect(() => { selection.value; pinSelection(); applyCuts(false); });
 
@@ -144,7 +150,6 @@ export function Viewport() {
       builtWith = settings();
       if (!b || !ev) return;
       eng.setBackground(pal.background);
-      eng.minRadius = b.header.view?.minRadius ?? MIN_RADIUS;
       const drawn: Record<string, Legend> = {};
       entries = build(wanted(b.header, ev), b.header, ev, drawn);
       builtFor = ev;
@@ -223,7 +228,7 @@ export function Viewport() {
       const panel = document.querySelector(".inspector") as HTMLElement | null, box = canvas.current!.getBoundingClientRect();
       eng.insetRight = selection.peek() ? Math.max(0, box.right - (panel?.getBoundingClientRect().left ?? box.right - 372)) : 0;
     });
-    return () => { cancelAnimationFrame(recolourFrame); stopPin(); stopLayers(); stopForced(); stopCuts(); stopFocus(); stopEnvelope(); stopView(); stopInset(); };
+    return () => { cancelAnimationFrame(recolourFrame); stopRadius(); stopPin(); stopLayers(); stopForced(); stopCuts(); stopFocus(); stopEnvelope(); stopView(); stopInset(); };
   }, []);
 
   // A press that moves more than a few pixels is a rotate/pan, not a click: it must not change the selection.

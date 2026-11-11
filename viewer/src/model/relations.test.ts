@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { DisplayLayer, EventData, Header } from "../io/bundle";
-import { bestPartners, contentPartners, identities, levelsOf, related, relatedParts, relationInto } from "./relations";
+import { bestPartners, contentPartners, identities, levelsOf, related, relatedParts } from "./relations";
 
 // candidate 0 -> trackster 1 -> clusters 0, 2 -> hits; candidate 0 -> track 1; trackster 0 -> cluster 1 (no candidate)
 const csr = (rows: number[][]) => ({
@@ -68,11 +68,6 @@ describe("best partners", () => {
     const fwd = bestPartners(rel, info("max"), true, 2);
     expect([...fwd.partner]).toEqual([1, 1]);
     expect([...fwd.entry]).toEqual([1, 2]);
-  });
-  it("finds a relation into a table from any of several", () => {
-    expect(relationInto(header, ["T", "Cand"], "LC")).toBe("tLCs");
-    expect(relationInto(header, ["Hit"], "Other")).toBe("missing");
-    expect(relationInto(header, ["Hit"], "Other", ev)).toBeUndefined(); // not in this event
   });
 });
 

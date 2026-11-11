@@ -1,5 +1,5 @@
 // Browser check (headless Chromium, software WebGL) of every bundle in the site's index.json, or of those named.
-// Each: layers draw, presets and colour modes apply (with a key), summary charts show where the profile defines them,
+// Each: layers draw, presets apply, a bundle with candidates has a colour key, summary charts show where the profile defines them,
 // selecting an object shows what is related and only its bottom level (↓ ↑ step through the others), a related
 // object can be jumped to and back, Esc leaves. One bundle (`--deep`, default the smallest with reconstruction
 // stages) also gets: themes, help, a rotate drag keeping the selection, a custom column used for colour and a filter,
@@ -68,21 +68,14 @@ async function checkBundle(file, tag, state) {
     if (!(await button.getAttribute("class"))?.includes("on")) fail(`preset ${name} did not apply`);
   }
 
-  // Colour modes: each applies; "Particle type" shows a key naming its colours. The last mode clicked is "Per layer", so
-  // the default mode is selected again first.
-  for (const name of await page.$$eval(".colourmode .segmented button", (b) => b.map((x) => x.textContent))) {
-    const button = page.locator(".colourmode .segmented button", { hasText: name });
-    await button.click();
-    if (!(await button.getAttribute("class"))?.includes("on")) fail(`colour mode ${name} did not apply`);
-    const keys = await page.locator(".colourmode .key li").count();
-    log(`${tag}: colour mode ${name}: ${keys} key entries`);
-    if (name !== "Per layer" && !keys) fail(`colour mode ${name}: no key`);
-    await shot(`1_mode_${name.replace(/\W+/g, "_")}`);
-  }
-  await page.locator(".colourmode .segmented button").first().click().catch(() => {});
+  // With reconstruction stages (so candidates), the colour key under the tabs names the particle types.
+  const tabs = await page.$$eval(".sidebar .tablist [role=tab]", (t) => t.map((x) => x.textContent));
+  const keys = await page.locator(".colourkey .key li").count();
+  log(`${tag}: tabs ${tabs.join(" | ")}; colour key: ${keys} entries`);
+  if (h.display.some((d) => d.stage !== undefined) && keys < 2) fail("no colour key for the candidates");
 
   await page.getByRole("tab", { name: "Event", exact: true }).click();
-  const charts = await page.locator(".bars").count(), run = await page.locator(".card h3", { hasText: /^Run \d+/ }).count();
+  const charts = await page.locator(".bars").count(), run = await page.locator(".tabpanel section h3", { hasText: /^Run \d+/, hasNotText: "Lumi" }).count();
   log(`${tag}: ${charts} summary charts (profile defines ${h.summaries?.length ?? 0}), run information ${run ? "shown" : "none"}`);
   if (h.summaries?.length && !charts) fail("no summary charts");
   await shot("2_event");
@@ -97,8 +90,8 @@ async function checkBundle(file, tag, state) {
   const related = await page.locator(".inspector [role=tab]", { hasText: "Related" }).innerText().catch(() => "");
   if (!/Related · [1-9]/.test(related)) fail(`selecting ${target.table} #0 shows nothing related (${related})`);
   // In the "Particle type" mode a selection shows its truth <-> reco pair (a candidate, and its particle with truth).
-  if (await page.locator(".colourmode").count()) {
-    const pair = await page.locator(".colourmode .pairline").innerText().catch(() => "");
+  if (await page.locator(".colourkey").count()) {
+    const pair = await page.locator(".colourkey .pairline").innerText().catch(() => "");
     log(`${tag}: pair ${pair.replace(/\s+/g, " ")}`);
     if (!pair) fail("no truth <-> reco pair for the selection");
   }
@@ -192,22 +185,21 @@ async function deepChecks(page, fail, shot) {
   await shot("6_help");
   await page.keyboard.press("Escape");
 
-  // Custom column r = hypot(x, y) on the first table; colour its layer by it; then a filter hiding every row.
+  // From the first layer's ⋯: custom column r = hypot(x, y) on its table; colour the layer by it; then a filter hiding
+  // every row, shown on the layer's row.
   const firstLayer = page.locator(".layer").first(), count = async () => (await firstLayer.locator(".count").innerText()).replace(/,/g, "");
-  await page.getByRole("tab", { name: "Columns", exact: true }).click();
-  await page.locator(".exprform .name").fill("r");
-  await page.locator(".exprform .expr").fill("hypot(x, y)");
-  log(`  expression preview: ${await page.locator(".exprform .feedback").innerText()}`);
-  await page.getByRole("button", { name: "Add column" }).click();
-  await page.getByRole("tab", { name: "Layers", exact: true }).click();
+  await firstLayer.locator(".more").click();
+  await firstLayer.locator(".exprform .expr").fill("hypot(x, y)");
+  await firstLayer.locator(".exprform .name").fill("r");
+  log(`  expression preview: ${await firstLayer.locator(".exprform .feedback").innerText()}`);
+  await firstLayer.getByRole("button", { name: "Add column" }).click();
   await firstLayer.locator(".colourby").selectOption("r");
   await page.waitForTimeout(500);
-  log(`  legend coloured by r: ${await firstLayer.locator(".legend").innerText()}`);
+  log(`  legend coloured by r: ${await firstLayer.locator(".options .legend > span").last().innerText()}`);
   const before = await count();
-  await page.getByRole("tab", { name: "Cuts", exact: true }).click();
-  await page.locator(".exprform .expr").fill("r < 0");
-  await page.getByRole("button", { name: "Apply filter" }).click();
-  await page.getByRole("tab", { name: "Layers", exact: true }).click();
+  await firstLayer.locator(".exprform .expr").fill("r < 0");
+  await firstLayer.getByRole("button", { name: "Filter", exact: true }).click();
+  if (!(await firstLayer.locator(".sub.filter").count())) fail("the filter is not shown on the layer's row");
   const after = await count();
   log(`  first layer: ${before} without the filter, ${after} with r < 0`);
   if (!after.startsWith("0 /")) fail("the filter did not hide the rows");

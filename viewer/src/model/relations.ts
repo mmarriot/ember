@@ -133,12 +133,6 @@ function partnersOnce(rel: Relation, info: RelationInfo, forward: boolean, n: nu
   return { partner, entry };
 }
 
-/** The first relation from one of the tables `from` into the table `to` (present in `ev`, if given): its name. */
-export function relationInto(header: Header, from: Iterable<string>, to: string, ev?: EventData) {
-  const tables = new Set(from);
-  return Object.entries(header.relations).find(([name, r]) => tables.has(r.from) && r.to === to && (!ev || ev.relations[name]))?.[0];
-}
-
 const isHitTable = (header: Header, table: string) => header.display?.some((l) => l.table === table && l.repr === "cells" && !l.context);
 
 /** Identity colouring of a table (render/colour.ts): per object, the key whose colour it takes, and the keys that get

@@ -88,7 +88,7 @@ export function Inspector() {
               <h4 title={hint}>{title}</h4>
               {groups.map(([t, set]) => (
                 <div class="related">
-                  <h3 class={drawn(t) ? undefined : "muted"} title={drawn(t) ? undefined : "this layer is hidden (Layers tab)"}>{labelOf(t)} <span class="count">{set.size}</span>{!drawn(t) && " · hidden layer"}</h3>
+                  <h3 class={drawn(t) ? undefined : "muted"} title={drawn(t) ? undefined : "this layer is hidden (its tab in the side panel)"}>{labelOf(t)} <span class="count">{set.size}</span>{!drawn(t) && " · hidden layer"}</h3>
                   <div>{[...set].slice(0, 30).map((r) => chip(t, r))}{set.size > 30 && " …"}</div>
                 </div>
               ))}

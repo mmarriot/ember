@@ -4,6 +4,7 @@ import { useEffect } from "preact/hooks";
 import { blobSource } from "../io/bundle";
 import type { ViewName } from "../render/engine";
 import { bundleName, catalogue, dialog, event, eventIndex, highlight, openBundle, refreshCatalogue, selection, showEvent, stepFocusLevel, view } from "../model/store";
+import { SYNTAX } from "./ExprForm";
 import { Header } from "./Header";
 import { Inspector } from "./Inspector";
 import { Sidebar } from "./Sidebar";
@@ -89,21 +90,26 @@ function HelpDialog() {
     ["Replay: how the event builds up, step by step", "R"],
     ["Tour: replay, then visit the main showers, event after event", "P, or the play button; any key or touch stops it"],
     ["Live: play new data as it arrives", "the Live button"],
-    ["Your own columns and filters", "Columns tab and Cuts tab; colour by any column from the Layers tab"],
+    ["Colour, filter or a new column for a collection", "⋯ at the end of its row in the side panel"],
     ["Open a local .evdb file", "drop it on the page"], ["Resize the side panel", "drag its edge; double-click to reset"],
   ];
   return (
     <Modal title="How to use the event display">
       <table class="kv"><tbody>{rows.map(([what, how]) => <tr><td>{what}</td><td>{how}</td></tr>)}</tbody></table>
+      <h3>Side panel</h3>
+      <p class="hint">One tab per part of the detector with its collections, by kind of object; the truth (its collections, what became
+        of each particle, the history as a tree); the event. Each cut slider sits with the first kind it applies to and applies to
+        every layer of its group, so the same objects from different reconstruction paths always get the same selection.</p>
       <h3>Colours</h3>
-      <p class="hint">"Colour by" at the top of the Layers tab: Particle type colours candidates by particle type and everything they
-        are made of (tracksters, layer clusters, hits, tracks) in the same colour. Selecting anything then shows its truth ↔ reco pair:
-        a truth-graph particle and its best candidate, with every hit coloured matched, contamination, split or missed, and the
-        particle's efficiency and the candidate's purity in the key. Per layer colours each layer on its own (energies). Each layer's colouring is shown under it, where another column, or the colour of a related object, can be chosen.
+      <p class="hint">With candidates in the data, they are coloured by particle type and everything they are made of (tracksters, layer
+        clusters, hits, tracks) takes the same colour; the key is at the bottom of the side panel. Selecting anything then shows its
+        truth ↔ reco pair: a truth-graph particle and its best candidate, with every hit coloured matched, contamination, split or
+        missed, and the particle's efficiency and the candidate's purity in the key. Without candidates, each collection shows its own
+        colours under its row. ⋯ on a row colours it by any column, or by the colour of a related object, instead.
         With something selected, everything unrelated fades.</p>
-      <h3>Cuts</h3>
-      <p class="hint">The Cuts tab sets minimum values, e.g. energies. Each cut applies to every layer of its group, so the same objects
-        from different reconstruction paths are always compared with the same selection.</p>
+      <h3>Expressions</h3>
+      <p class="hint">A filter or a new column (⋯ on a row) is an expression of the table's columns: {SYNTAX}. A filter hides the rows where
+        it is 0; a new column is shown in the inspector and can colour or filter.</p>
       <h3>Sharing</h3>
       <p class="hint">The address bar keeps the data set, event, view and selection; the share button copies it.</p>
     </Modal>

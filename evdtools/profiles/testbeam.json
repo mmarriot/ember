@@ -22,12 +22,12 @@
   },
   "select": [{"table": "HGCHit", "where": [["energy/sigmaNoise", ">", 5]], "min": 20}],
   "display": [
-    {"table": "HGCHit", "repr": "cells", "group": "HGCal test beam", "label": "Rechits", "position": ["x", "y", "z"],
+    {"table": "HGCHit", "domain": "HGCal", "repr": "cells", "group": "HGCal test beam", "label": "Rechits", "position": ["x", "y", "z"],
      "colour": "nmips", "palette": "heat", "size": "cellSize", "visible": true,
      "cut": {"group": "Rechit energy", "column": "energy", "unit": "GeV", "default": 0.0}},
-    {"table": "HGCLayerClusters", "repr": "markers", "group": "HGCal test beam", "label": "Layer clusters",
+    {"table": "HGCLayerClusters", "domain": "HGCal", "repr": "markers", "group": "HGCal test beam", "label": "Layer clusters",
      "position": ["x", "y", "z"], "colour": "energy", "palette": "cool", "size": null, "visible": true},
-    {"table": "HGCChannel", "repr": "cells", "group": "Detector", "label": "Readout channels", "position": ["x", "y", "z"],
+    {"table": "HGCChannel", "domain": "HGCal", "repr": "cells", "group": "Detector", "label": "Readout channels", "position": ["x", "y", "z"],
      "size": "cellSize", "colourBy": {"category": "layer"}, "context": true, "dim": 0.8, "visible": true}
   ],
   "view": {"start": "3d", "minRadius": 12},

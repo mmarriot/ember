@@ -400,6 +400,9 @@ class Converter:
         self.viewer_hints = {k: v for k, v in profile.items() if k not in PROFILE_KEYS}
         if set(self.viewer_hints) & HEADER_KEYS:
             raise ValueError(f"profile keys {sorted(set(self.viewer_hints) & HEADER_KEYS)} are the bundle header's own")
+        if "domains" in self.viewer_hints:  # like entries for absent tables: a domain none of the layers is in
+            used = {layer.get("domain") for layer in self.display}
+            self.viewer_hints["domains"] = [d for d in self.viewer_hints["domains"] if d["name"] in used]
 
     def _available(self, rel):
         """A relation is kept if all its tables are in the file; then every column it names must exist."""

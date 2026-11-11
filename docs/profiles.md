@@ -43,7 +43,7 @@ Tables of the `Runs` tree are per-run tables (e.g. hgcal-comm's `HGCChannel`: po
 address of every channel): written once per run (`"scope": "run"`), available to lookups, cuts and display layers.
 
 Profile entries that name a table the file lacks are dropped, so one profile serves SoA-only, legacy-only and mixed
-files. If an entry's tables are present, every column it names must exist, or the conversion stops and lists the
+files; so are the `domains` that none of the written layers is in. If an entry's tables are present, every column it names must exist, or the conversion stops and lists the
 table's columns.
 
 Per event: read tables, derive columns, build relations (all normalised to CSR), cut rows, apply the event

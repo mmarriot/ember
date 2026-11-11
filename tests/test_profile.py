@@ -189,7 +189,7 @@ def test_viewer_hints_are_passed_to_the_header():
     """Every top-level key the converter does not act on is a viewer setting, copied verbatim."""
     hints = {"replay": {"direction": [0, -1, 0]}, "view": {"minRadius": 25}, "summaries": [],
              "presets": [{"name": "E"}], "runTitle": "{Beam}", "runFields": ["Beam"],
-             "domains": [{"name": "Tracker", "region": {"rMax": 125}}], "field": {"bz": 3.8, "rMax": 295, "zMax": 300}}
+             "field": {"bz": 3.8, "rMax": 295, "zMax": 300}}
     best = {"weight": "score", "order": "min"}
     relation = {"name": "r", "kind": "index", "from": "A", "to": "B", "index": "A.k", "association": True, "best": best}
     header = converter({"A": {"k": I4}, "B": {}}, {**hints, "relations": [relation]}).header([], "t")
@@ -199,6 +199,17 @@ def test_viewer_hints_are_passed_to_the_header():
     assert "note" not in converter({}, {"note": "for readers"}).header([], "t")  # a profile key, not a hint
     with pytest.raises(ValueError, match="header's own"):
         converter({}, {"tables": {}})
+
+
+def test_domains_without_layers_are_dropped():
+    """`domains` is copied to the header without the domains none of the written layers is in (e.g. HGCal in a
+    tracker-only bundle made from a profile that includes cms)."""
+    domains = [{"name": "Tracker", "region": {"rMax": 125}, "colourMode": "layer"}, {"name": "HGCal", "region": {}}]
+    kinds = {"hit": {"label": "Hits", "repr": "markers", "domain": "Tracker"}, "cell": {"label": "Cells", "repr": "cells", "domain": "HGCal"}}
+    display = [{"table": "T", "kind": "hit", "position": ["x", "y", "z"]}, {"table": "H", "kind": "cell", "position": ["x", "y", "z"]}]
+    profile = {"domains": domains, "kinds": kinds, "display": display}
+    assert converter({"T": XYZE, "H": XYZE}, profile).header([], "t")["domains"] == domains
+    assert converter({"T": XYZE}, profile).header([], "t")["domains"] == domains[:1]
 
 
 def test_inverse_of_is_checked_and_passed_when_both_relations_are_written():

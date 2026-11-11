@@ -72,19 +72,26 @@ export function planReplay(items: ReplayItem[], how: Header["replay"], parts?: P
     return out;
   });
 
-  // The window covers the bulk of the drawn hits (1st to 97th percentile); later arrivals come in just after it.
-  const sample: number[] = [], hitsOnly = items.some(({ d }) => isHit(d));
+  // The window covers the bulk of the drawn hits (1st to 97th percentile); later arrivals come in just after it. It
+  // ends with the other hits if the parts of built paths (e.g. tracker hits) arrive before them, so the later ones
+  // (e.g. a calorimeter's) still come in its last part.
+  const growing = items.filter(({ d, layer }) => isGrown(d) && layer.path);
+  const partTables = new Set(growing.map(({ d }) => parts?.(d.grow!.parts)?.to));
+  const sample: number[] = [], others: number[] = [], hitsOnly = items.some(({ d }) => isHit(d));
   for (const [k, a] of arrivals.entries()) {
-    const { layer: l, d } = items[k];
-    if (!hitsOnly || isHit(d)) for (let i = 0; i < a.length; i += Math.max(1, Math.floor(a.length / 5000))) if (l.passes(i)) sample.push(a[i]);
+    const { layer: l, d } = items[k], part = partTables.has(d.table);
+    if (!hitsOnly || isHit(d))
+      for (let i = 0; i < a.length; i += Math.max(1, Math.floor(a.length / 5000))) if (l.passes(i)) { sample.push(a[i]); if (!part) others.push(a[i]); }
   }
+  const pct = (v: number[], f: number) => v[Math.floor(f * (v.length - 1))];
   sample.sort((a, b) => a - b);
-  const t0 = sample[Math.floor(0.01 * (sample.length - 1))] ?? 0, t1 = sample[Math.floor(0.97 * (sample.length - 1))] ?? 1;
+  others.sort((a, b) => a - b);
+  const t0 = pct(sample, 0.01) ?? 0, t1 = Math.max(pct(sample, 0.97) ?? 1, pct(others, 0.97) ?? -Infinity);
   const progress = (v: number) => Math.min(LATE, Math.max(0, (v - t0) / (t1 - t0 || 1)));
 
   // Path building: when each path appears and is complete, and when each of their parts lights up. The later phases
   // wait for it (`shift`).
-  const growing = items.filter(({ d, layer }) => isGrown(d) && layer.path), built = growing.length ? buildPaths(items, growing, parts) : null;
+  const built = growing.length ? buildPaths(items, growing, parts) : null;
   const shift = built ? built.end - CLUSTER[0] : 0, cluster0 = CLUSTER[0] + shift, link0 = LINK[0] + shift;
 
   const grouped = items.find(({ d }) => isGrouped(d)), shower = items.find(({ d }) => isShower(d));
@@ -104,8 +111,9 @@ export function planReplay(items: ReplayItem[], how: Header["replay"], parts?: P
       if (showerLike) appear[i] = start + grow * q;
       else if (inGroup) {
         appear[i] = cluster0 + CLUSTER[1] * q;
-        // grey until grouped; with stages, every object waits for the first stage, whose colours then apply
-        if (emphasis?.[i] || stages.length) link[i] = link0 + LINK[1] * q;
+        // grey until grouped; with stages, every object waits for the first stage, whose colours then apply (not
+        // for paths: for them the second time is when a path being built is complete)
+        if ((emphasis?.[i] || stages.length) && !layer.path) link[i] = link0 + LINK[1] * q;
       } else appear[i] = TRAVEL * p;
     }
     layer.setTimeline(appear, link);

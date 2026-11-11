@@ -138,4 +138,18 @@ describe("replay timeline", () => {
     expect(plan.clusterStart).toBeGreaterThan(plan.growth!.end - 1e-6);
     expect(plan.linkStart - plan.clusterStart).toBeCloseTo(without.linkStart - without.clusterStart, 6);
   });
+  it("ends the physics window with the other hits when the parts of built paths arrive before them", () => {
+    // 200 parts (e.g. tracker hits) at 10 to 110 cm, 20 later hits (e.g. a calorimeter's) at 330 to 349 cm
+    const near = Array.from({ length: 200 }, (_, i) => 10 + i / 2), far = Array.from({ length: 20 }, (_, i) => 330 + i);
+    const partHits = hits(near, near.map(() => -99)), calo = hits(far, far.map(() => -99));
+    partHits.item.d = { ...partHits.item.d, table: "Parts" };
+    const path = { points: 3, x: Float32Array.of(0, 50, 100), y: new Float32Array(3), z: new Float32Array(3), fill: () => {} };
+    const tracks = { x: Float32Array.of(100), y: new Float32Array(1), z: new Float32Array(1), path, passes: () => true, setTimeline: () => {}, setRetire: () => {} } as unknown as Layer;
+    const d = { table: "Tracks", repr: "helix", group: "Tracks", label: "Tracks", grow: { parts: "rel" } } as DisplayLayer;
+    const parts: Parts = () => ({ to: "Parts", offsets: Uint32Array.of(0, 0), indices: new Uint32Array() });
+    const plan = planReplay([partHits.item, calo.item, { layer: tracks, d, t: { n: 1, columns: {} } }], undefined, parts);
+    const a = [...calo.appear()];
+    expect(a[a.length - 2]).toBeLessThanOrEqual(plan.travel + 1e-6); // the bulk of the later hits within the window
+    expect(partHits.appear()[0]).toBeLessThan(0.1 * plan.travel); // the parts arrive first
+  });
 });

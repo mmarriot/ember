@@ -8,6 +8,7 @@
   ],
   "kinds": {
     "truthParticle": {"repr": "helix", "momentum": ["px", "py", "pz"], "charge": "charge"},
+    "truthVertex": {"describe": {"columns": ["reason", "isSignal", "z"], "names": {"reason": {"1": "primary", "2": "decay", "3": "brem", "5": "conversion", "11": "hadronic interaction", "17": "hard scatter"}, "isSignal": {"1": "signal", "0": "pile-up"}}}},
     "vertex": {"domain": "Physics", "list": {"columns": ["z", "nTracks", "sumPt2"], "sort": "sumPt2", "max": 5}}
   },
   "view": {"domain": "Physics"},

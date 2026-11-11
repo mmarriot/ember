@@ -435,6 +435,9 @@ def test_muon_layers_in_cms():
     assert (d["Muons"]["domain"], d["Muons"]["repr"], d["MuonTracks"]["repr"], d["MuonTracks"]["points"]) == ("Physics", "helix", "polyline", {"relation": "muonTrackHits"})
     assert d["MuonChambers"]["cell"]["shape"] == "box" and not d["MuonChambers"].get("context") and d["MuonHits"]["filter"] == "subdet != 4 || station != 0" and d["MuonHits"]["onSelection"] and d["MuonChambers"]["onSelection"]
     assert d["MuonSegments"]["centred"] and d["Muons"]["truthGap"]["gap"] == 18 and d["MuonSegments"]["truthGap"]["gap"] == 17
+    assert {r["name"]: r for r in p["relations"]}["truthHitsMuon"]["fact"]["unit"]["names"]["2"] == "CSC layer"
+    assert d["MuonTrackHits"]["truthGap"]["gap"] == 18 and "reason" in d["MuonChambers"]["truthGap"]
+    assert p["kinds"]["truthVertex"]["describe"]["columns"] == ["reason", "isSignal", "z"]
     _, tables, rels = one_event(conv, {
         "Muons": {**{k: [1] for k in types["Muons"]}, "trackIdx": [0]}, "Tracks": {**{k: [1] for k in types["Tracks"]}, "outerX": [5], "outerY": [6], "outerZ": [7]},
         "MuonTracks": {**{k: [1, 1] for k in types["MuonTracks"]}, "muonIdx": [0, 0]},

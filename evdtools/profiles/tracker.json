@@ -1,9 +1,10 @@
 {
   "name": "tracker",
-  "note": "CMS Phase-2 tracker: tables of Fireworks/EventExport preset tracker. Tracks (generalTracks, in collection order) drawn as helices from their reference point to their outermost hit, high purity, pt >= 1 GeV and from the primary vertex (PV0) by default; offline primary vertices; the hits on each track (valid pixel and outer-tracker hits, positions from their clusters, mid-strip on the outer tracker), shown for a selection; the beam spot. Used alone, or with hgcal through cms.json.",
+  "note": "CMS Phase-2 tracker: tables of Fireworks/EventExport preset tracker. Tracks (generalTracks, in collection order) drawn as helices from their reference point to their outermost hit, high purity, pt >= 1 GeV and from the primary vertex (PV0) by default; offline primary vertices; the hits on each track (valid pixel and outer-tracker hits, positions from their clusters, mid-strip on the outer tracker), shown for a selection; the beam spot. Used alone (tracker_only.json writes only these tables), or with hgcal through cms.json. Domain Tracker: region from the hits of the ttbar samples (r <= 110 cm, |z| <= 268 cm), coloured by layer (pT) when chosen. Field: 3.8 T inside the coil (inner radius 295 cm) to |z| = 320 cm, where a helix from a track's reference point reaches HGCalNanoAOD's propagated HGCal entry within 0.23 cm (median; 1.3 cm for 90%) for high-purity tracks above 1 GeV.",
   "internal": ["VertexTracks"],
   "relations": [
-    {"name": "trackVertex", "kind": "index", "from": "Tracks", "to": "Vertices", "index": "Tracks.vertexIdx"},
+    {"name": "trackVertex", "kind": "index", "from": "Tracks", "to": "Vertices", "index": "Tracks.vertexIdx",
+     "inverseOf": "vertexTracks"},
     {"name": "vertexTracks", "kind": "links", "from": "Vertices", "to": "Tracks", "table": "VertexTracks",
      "fromIndex": "VertexTracks.vertexIdx", "toIndex": "VertexTracks.trackIdx", "weights": ["VertexTracks.weight"]},
     {"name": "trackHits", "kind": "index", "from": "Tracks", "to": "TrackHits", "index": "TrackHits.trackIdx"}
@@ -30,5 +31,7 @@
   "presets": [
     {"name": "Primary vertex", "filters": {"Tracks": "highPurity == 1 && vertexIdx == 0"}},
     {"name": "All vertices", "filters": {"Tracks": "highPurity == 1"}, "colour": {"Tracks": "rel:trackVertex"}}
-  ]
+  ],
+  "domains": [{"name": "Tracker", "region": {"rMax": 120, "zMax": 280}, "view": "front", "colourMode": "layer"}],
+  "field": {"bz": 3.8, "rMax": 295, "zMax": 320}
 }

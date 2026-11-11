@@ -168,7 +168,8 @@ def _neighbour_distance(d, cols):
 def _gather(d, tables, relations, profile_relations):
     """Columns copied from the first row each row of `table` points to through a relation; the sources are tried in
     order. A source that places a row sets the columns it does not name to 0; rows no source reaches get `fill`
-    (default NaN)."""
+    (default NaN). With `"missing": true`, a column the table already has keeps its finite values: only its NaN
+    values are filled (e.g. a PF candidate without an ECAL entrance point takes its track's outermost state)."""
     n, cols = tables[d["table"]]
     out = {c: np.full(n, d.get("fill", np.nan), np.float32) for c in _gathered(d)}
     placed = np.zeros(n, bool)
@@ -183,6 +184,8 @@ def _gather(d, tables, relations, profile_relations):
         for c in out:
             out[c][todo] = target[src["columns"][c]][rows] if c in src["columns"] else 0
         placed |= todo
+    if d.get("missing"):
+        out = {c: np.where(np.isnan(cols[c]), v, cols[c]).astype(np.float32) if c in cols else v for c, v in out.items()}
     cols.update(out)
 
 
@@ -356,6 +359,8 @@ class Converter:
                        if d["table"] in self.tables and d.get("lookup", d["table"]) in self.tables]
         for d in self.derive:
             for c, meta in _derived_columns(d, self.tables).items():
+                if d.get("missing") and c in self.tables[d["table"]]["columns"]:
+                    continue  # a gather that only fills a stored column's missing (NaN) values: it is still read
                 self.tables[d["table"]]["columns"][c] = meta
                 self.derived.add((d["table"], c))
 

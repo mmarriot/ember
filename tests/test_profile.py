@@ -298,6 +298,18 @@ def test_relation_not_written_still_gathers():
     assert tables["J"][1]["x"].tolist() == [3, 3] and "jetVertex" not in rels
 
 
+def test_gather_missing_fills_only_nan_values():
+    """`"missing": true`: a stored column keeps its finite values (and is still read from the file); only its NaN rows
+    take the gathered value, here a candidate's track's outermost state where it has no ECAL entrance point."""
+    profile = {"relations": [{"name": "candTrack", "kind": "index", "from": "C", "to": "T", "index": "C.t"}],
+               "derive": [{"table": "C", "missing": True, "gather": [{"relation": "candTrack", "columns": {"endX": "outerX"}}]}]}
+    conv = converter({"C": {"t": I4, "endX": F4}, "T": {"outerX": F4}}, profile)
+    assert "C_endX" in conv.branches()
+    _, tables, _ = one_event(conv, {"C": {"t": [0, 1, -1], "endX": [5, np.nan, np.nan]}, "T": {"outerX": [7, 8]}})
+    out = tables["C"][1]["endX"]
+    assert out[:2].tolist() == [5, 8] and np.isnan(out[2])  # kept, filled, no track: still NaN
+
+
 def test_relation_names_must_be_unique():
     """Two relations with one name (e.g. from two included profiles) are an error, not a silent replacement."""
     rel = {"name": "r", "kind": "index", "from": "A", "to": "B", "index": "A.k"}

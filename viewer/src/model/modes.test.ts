@@ -77,6 +77,11 @@ describe("colour modes", () => {
     const p = modeColouring(plain, "P", true);
     for (const t of ["Jet", "PFCand", "Muon"]) expect(p[t]).toBeUndefined();
   });
+  it("truth mode: a vertex matched to a truth vertex stays neutral (no colour from what decays there)", () => {
+    const h = { ...physics, relations: { ...physics.relations, decay: rel("P", "TV"), vtxTruth: assoc("Vtx", "TV", "score", "min") },
+      display: [...physics.display, { table: "Vtx", repr: "markers" }, { table: "TV", repr: "markers", truth: true }] } as unknown as Header;
+    expect(modeColouring(h, "P", true).Vtx).toBeUndefined();
+  });
   it("truth mode: a part of a matched container takes its colour; a part of an uncoloured composite does not", () => {
     const h = { ...physics, relations: { ...physics.relations, candHit: rel("PFCand", "CHit") }, display: [...physics.display, { table: "CHit", repr: "markers" }] } as unknown as Header;
     const c = modeColouring(h, "P", true);

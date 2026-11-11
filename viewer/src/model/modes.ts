@@ -61,7 +61,9 @@ export function modeColouring(header: Header, root: string, truthRoot = false): 
   for (const table of tables) {
     if (table in out || !dist.has(table)) continue;
     const gap = truthRoot ? header.display.find((d) => d.table === table)?.truthGap : undefined;
-    const usable = (r: Header["relations"][string]) => r.association || staged(table) || (r.to === table && !inverse(r));
+    // By truth, an association is crossed only to the root itself: a vertex matched to a truth vertex is not given the
+    // colour of whatever particle that vertex belongs to.
+    const usable = (r: Header["relations"][string]) => (r.association && (!truthRoot || r.from === root || r.to === root)) || staged(table) || (r.to === table && !inverse(r));
     const direct = rels.filter(([, r]) => usable(r) && ((r.from === table && r.to === root) || (r.to === table && r.from === root)));
     const vote = !truthRoot || gap?.derived === "content" || legacy;
     if (gap && !direct.length && !vote) continue;

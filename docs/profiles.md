@@ -94,7 +94,9 @@ Optional: `"weights": ["T.col", ...]` (one per link, stored as f32), and the vie
 
 - `[expr, op, number]`: `expr` a column or a ratio `"a/b"`, `op` one of `< <= > >= == !=`;
 - `{"defined": column}`: the value is not NaN (e.g. a gathered column);
-- `{"reachedBy": relation}`: rows of the relation's `to` table that a kept `from` row points to.
+- `{"reachedBy": relation}`: rows of the relation's `to` table that a kept `from` row points to; with a list of
+  relations, rows reached through any of them (e.g. truth vertices that are the production or decay vertex of a kept
+  particle).
 
 Per-run tables take plain conditions only; lookups always see the uncut per-run table.
 

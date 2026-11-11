@@ -50,7 +50,8 @@ def _column(spec):
     return table, column
 
 
-# Row conditions: [expr, op, number] with expr a column or a ratio "a/b"; {"defined": column}; {"reachedBy": relation}
+# Row conditions: [expr, op, number] with expr a column or a ratio "a/b"; {"defined": column};
+# {"reachedBy": relation or [relations]} (reached through any of them)
 def _operands(expr):
     return expr.split("/", 1)
 
@@ -66,7 +67,7 @@ def _condition(cond, cols):
 def _describe(cond):
     if not isinstance(cond, dict):
         return " ".join(map(str, cond))
-    return f"reached by {cond['reachedBy']}" if "reachedBy" in cond else f"{cond['defined']} defined"
+    return f"reached by {' or '.join(cond['reachedBy'])}" if "reachedBy" in cond else f"{cond['defined']} defined"
 
 
 # Derived columns
@@ -335,8 +336,14 @@ class Converter:
             if self._available(r):
                 self.relations[r["name"]] = r
 
-        usable = lambda c: not (isinstance(c, dict) and "reachedBy" in c and c["reachedBy"] not in self.relations)
-        cuts = {t: [c for c in conds if usable(c)] for t, conds in profile.get("cuts", {}).items() if t in self.tables}
+        def usable(c):  # a reachedBy condition keeps the relations present (as a list); none: the condition is dropped
+            if not (isinstance(c, dict) and "reachedBy" in c):
+                return c
+            names = [r for r in ([c["reachedBy"]] if isinstance(c["reachedBy"], str) else c["reachedBy"])
+                     if r in self.relations]
+            return {"reachedBy": names} if names else None
+        cuts = {t: [u for u in map(usable, conds) if u is not None] for t, conds in profile.get("cuts", {}).items()
+                if t in self.tables}
         self.cuts = {t: conds for t, conds in cuts.items() if conds}
         self.select = [s for s in profile.get("select", []) if s["table"] in self.tables]
         for t, conds in self.cuts.items():
@@ -457,12 +464,12 @@ class Converter:
                     keep &= _condition(cond, cols)
                 elif "defined" in cond:  # not NaN (e.g. a gathered column)
                     keep &= ~np.isnan(np.asarray(cols[cond["defined"]], np.float64))
-                else:  # rows of `to` that a kept `from` row points to
-                    name = cond["reachedBy"]
-                    rel, src = relations[name], masks.get(self.relations[name]["from"])
-                    owner = np.repeat(np.arange(len(rel["offsets"]) - 1), np.diff(rel["offsets"]))
+                else:  # rows of `to` that a kept `from` row points to, through any of the relations
                     reached = np.zeros(n, bool)
-                    reached[rel["indices"] if src is None else rel["indices"][src[owner]]] = True
+                    for name in cond["reachedBy"]:
+                        rel, src = relations[name], masks.get(self.relations[name]["from"])
+                        owner = np.repeat(np.arange(len(rel["offsets"]) - 1), np.diff(rel["offsets"]))
+                        reached[rel["indices"] if src is None else rel["indices"][src[owner]]] = True
                     keep &= reached
             masks[t] = keep
         return masks

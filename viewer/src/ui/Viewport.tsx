@@ -97,7 +97,7 @@ export function Viewport() {
         const only = onlyFor(e.d, e.key, hl), focusRows = bypassing(e.d, f, hl), again = rescued(e.keep, focusRows);
         if (cutsOnly ? !only : !only && again === e.rescued) continue;
         const cut = cutValues(e.d, e.t, f[e.d.table], only, focusRows);
-        const next = builders[e.d.repr]({ key: e.key, d: e.d, t: e.t, pal, rgb: e.rgb, emphasis: e.emphasis, cut, field: b?.header.field });
+        const next = builders[e.d.repr]({ key: e.key, d: e.d, t: e.t, pal, rgb: e.rgb, emphasis: e.emphasis, cut, field: b?.header.field, relation: relationOf(b?.header, event.peek()) });
         eng.replaceLayer(e.layer, next);
         next.setHighlight(hl ? hl.get(next.table) ?? new Set() : null);
         next.setHighlightMix(1);
@@ -142,7 +142,7 @@ export function Viewport() {
       return items.map((s, i) => {
         const { rgb, emphasis, legend } = coloured[i];
         drawn[s.key] = legend;
-        return { ...s, rgb, emphasis, layer: builders[s.d.repr]({ ...s, pal, rgb, emphasis, field: header.field }) };
+        return { ...s, rgb, emphasis, layer: builders[s.d.repr]({ ...s, pal, rgb, emphasis, field: header.field, relation: relationOf(header, ev) }) };
       });
     };
 
@@ -419,6 +419,12 @@ function belowCut(table: string, hl: Map<string, Set<number>>) {
   for (const r of kept) hidden.delete(r);
   return hidden;
 }
+
+/** An event's relation with its `to` table, for layers drawn through one (e.g. a polyline's points). */
+const relationOf = (header: Header | undefined, ev: EventData | null) => (name: string) => {
+  const info = header?.relations[name], rel = ev?.relations[name], to = info && ev?.tables[info.to];
+  return rel && to ? { offsets: rel.offsets, indices: rel.indices, to } : undefined;
+};
 
 /** Pin the selected object in its layer (drawn whatever the cut); unpin elsewhere. */
 function pinSelection() {

@@ -31,7 +31,7 @@ export function focusLevels(display: DisplayLayer[], focus: string, hl: Related,
     level.layers.push(d);
     if (!level.tables.has(d.table)) { level.tables.add(d.table); level.count += rows.size; }
   }
-  const lines = (l: { layers: DisplayLayer[] }) => l.layers.every((d) => d.repr === "helix" || d.repr === "segments");
+  const lines = (l: { layers: DisplayLayer[] }) => l.layers.every((d) => d.repr === "helix" || d.repr === "segments" || d.repr === "polyline");
   if (!relations) return levels.map(({ name, layers, count }, i) => ({ name, layers, count, leaf: i === levels.length - 1, always: i === levels.length - 1 || lines({ layers }), depth: i }));
   // What each level holds: the tables its objects lead to through plain relations, also through tables that are not
   // levels (a candidate's interpretations hold its hits through layer clusters missing from a pair view's levels). Not

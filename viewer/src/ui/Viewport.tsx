@@ -18,7 +18,7 @@ import {
   showAll, shown, shownLayer, shownLevel, theme, touring, view, visible,
 } from "../model/store";
 import { PAIR } from "../model/pair";
-import { relationInto, type Ref, sameRef } from "../model/relations";
+import { relationInto, type Ref } from "../model/relations";
 import { stopTour } from "./tour";
 
 export let engine: Engine | null = null;
@@ -157,7 +157,7 @@ export function Viewport() {
       const drawn = { ...legends.peek() };
       for (const e of gone) { eng.removeLayer(e.layer); delete drawn[e.key]; }
       entries = entries.filter((e) => keep.has(e.key));
-      const fresh = build(added, b.header, ev, drawn, entries), hl = highlight.peek(), outline = focusIsTruth.peek();
+      const fresh = build(added, b.header, ev, drawn, entries), hl = highlight.peek(), outline = truthOutline();
       for (const { layer } of fresh) {
         eng.addLayer(layer);
         layer.setHighlight(hl ? hl.get(layer.table) ?? new Set() : null);
@@ -201,7 +201,7 @@ export function Viewport() {
     // A level shown inside the focus turns the focus into an outline around it (see isEnvelope).
     const stopEnvelope = effect(() => {
       shownLevel.value;
-      const outline = focusIsTruth.peek() && !pairView.peek(); // as in showFocus
+      const outline = truthOutline();
       for (const { layer } of entries) layer.setOutline?.(outline, isEnvelope(layer));
       eng.requestRender();
     });
@@ -272,14 +272,13 @@ export function Viewport() {
 }
 
 /** What the view is focused on, the way back, and how to leave. */
-const refName = (r: Ref) => {
-  const n = describe(r.table, r.row);
-  return `${kindOf(r.table)}${n ? ` · ${n}` : ` #${r.row}`}`;
-};
-
 function FocusBar() {
-  const f = focus.value, prev = focusHistory.value.at(-1), name = refName;
+  const f = focus.value, prev = focusHistory.value.at(-1);
   if (!f) return null;
+  const name = (r: Ref) => {
+    const n = describe(r.table, r.row);
+    return `${kindOf(r.table)}${n ? ` · ${n}` : ` #${r.row}`}`;
+  };
   return (
     <div class="focusbar" role="status">
       <div class="row" title="It is shown with its smallest parts; only its parts can be clicked">
@@ -295,11 +294,11 @@ function FocusBar() {
 /** The kinds of object the focus is made of, top first: the last one (e.g. hits) is always shown, one of the others
  *  on request (a click, or ↓ ↑), so they do not cover each other. */
 function Levels() {
-  const lv = levels.value, chosen = focusLevel.value, top = levelTop.value;
+  const lv = levels.value, chosen = focusLevel.value;
   if (lv.length < 2) return null;
   return (
     <div class="row levels" title="What it is made of, from the largest objects down: click one to show it as well (↓ ↑)">
-      {top && !sameRef(top, focus.value) && <span class="muted">{refName(top)}:</span>}
+      {pairView.value && <span class="muted" title="Counts: the pair's objects (its candidate's, and its particle's in other candidates or none)">truth ↔ reco pair:</span>}
       {lv.map((l, i) => {
         const last = i === lv.length - 1, on = last || l.name === chosen;
         return (
@@ -377,15 +376,18 @@ function pairColours(cls: Uint8Array, classRgb: number[][]) {
 }
 const hexRgb = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
 
+/** Reco objects drawn as outlines: when the focus is a truth particle, except in the pair view, which looks the same
+ *  from either side. */
+const truthOutline = () => focusIsTruth.peek() && !pairView.peek();
+
 /** While a level is shown inside the focus (e.g. a candidate's tracksters), the focus's layer draws it as a
  *  full-size outline around them: the largest object, without covering what is inside. */
 const isEnvelope = (layer: Layer) => !!shownLevel.peek() && layer.table === levelTop.peek()?.table;
 
-/** Highlight the focus and what belongs to it on every layer (outlines for reco objects when the focus is a
- *  truth particle, except in the pair view, which looks the same from either side; the focus as an envelope, see
- *  isEnvelope), faded in over `ms` (0: at once, e.g. for freshly built layers). */
+/** Highlight the focus and what belongs to it on every layer (outlines: see truthOutline and isEnvelope), faded in
+ *  over `ms` (0: at once, e.g. for freshly built layers). */
 function showFocus(ms: number) {
-  const hl = highlight.peek(), outline = focusIsTruth.peek() && !pairView.peek();
+  const hl = highlight.peek(), outline = truthOutline();
   for (const { layer } of entries) {
     layer.setHighlight(hl ? hl.get(layer.table) ?? new Set() : null);
     layer.setOutline?.(outline, isEnvelope(layer));

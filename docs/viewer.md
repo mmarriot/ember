@@ -57,7 +57,8 @@ the most simulated energy in it), then that particle's best candidate. So the pa
 inside them give the same pair and the same picture; a selected candidate that is not its particle's best (a
 fragment) shows as split. Without a particle (no truth in the file, or none matched) the pair is the selection's
 candidate alone, and its objects show as "in the candidate". The levels in the focus bar are then the pair
-candidate's, whichever of its objects is selected. Every layer is coloured by where its objects ended up:
+candidate's kinds, whichever of its objects is selected, and count the pair's objects (also the particle's in other
+candidates or in none); the selected object itself is always drawn. Every layer is coloured by where its objects ended up:
 
 | class | meaning |
 |---|---|

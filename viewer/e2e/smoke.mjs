@@ -156,15 +156,28 @@ async function checkLevels(page, h, target, fail, shot, tag) {
   await page.waitForTimeout(600);
   if ((await drawn()) !== before) fail("↑ did not go back to the focus's default layers");
   if ((await style()) !== style0) fail("↑ did not give the focus its own surface back");
-  // In the truth <-> reco pair view, the pair's particle shows the same layers as its candidate.
+  // In the truth <-> reco pair view, the pair's particle shows the same picture as its candidate, with a level shown:
+  // the same layers, with the same surfaces.
   const particle = page.locator(".inspector .truthline .chip").first();
   if (!(await page.locator(".pairline").count()) || !(await particle.count())) return;
-  await particle.click();
+  const looks = () => page.evaluate(() => window.evdEngine.layers.map((l) => {
+    const m = l.object.children?.[0]?.material;
+    return `${l.table}${m?.uniforms?.uStyle ? `/${m.uniforms.uStyle.value}/${m.transparent}` : ""}`;
+  }).sort().join());
+  // The level is built after the jump, from the particle's side.
+  await page.keyboard.press("ArrowDown");
   await page.waitForTimeout(900);
-  const fromTruth = await drawn();
-  log(`${tag}: the pair from its particle: ${fromTruth === before ? "same layers" : `other layers (${fromTruth})`}`);
-  if (fromTruth !== before) fail("the pair's particle and candidate draw different layers");
+  const fromCandidate = await looks();
+  await page.keyboard.press("ArrowUp");
+  await particle.click();
+  await page.waitForTimeout(1200);
+  await page.keyboard.press("ArrowDown");
+  await page.waitForTimeout(900);
+  const fromTruth = await looks();
+  log(`${tag}: the pair from its particle, a level shown: ${fromTruth === fromCandidate ? "the same picture" : `differs: ${fromTruth} vs ${fromCandidate}`}`);
+  if (fromTruth !== fromCandidate) fail("the pair's particle and candidate draw different pictures");
   await page.locator(".focusbar button", { hasText: "←" }).click({ force: true, timeout: 30000 });
+  await page.keyboard.press("ArrowUp");
   await page.waitForTimeout(600);
 }
 

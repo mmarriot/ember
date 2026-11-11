@@ -239,10 +239,12 @@ export function stepFocusLevel(by: number) {
 // and the chosen one are, even if others are ticked. The keys are joined into strings first, so the layers are only
 // rebuilt when these sets change, not on every focus.
 const focusKeys = computed(() => {
-  const b = bundle.value, hl = highlight.value, vis = visible.value, lv = levels.value;
+  const b = bundle.value, hl = highlight.value, vis = visible.value, lv = levels.value, f = focus.value;
   if (!b || !hl) return { shown: "", hidden: "" };
-  const ticked = (d: DisplayLayer) => !!vis[layerKey(d)], inLevels = new Set(lv.flatMap((l) => l.layers));
-  const { draw, hide } = levelLayers(lv, focusLevel.value, ticked);
+  // The focus's own layer is always drawn, also when its kind is a level (the pair view's levels are its candidate's).
+  const ticked = (d: DisplayLayer) => !!vis[layerKey(d)], own = (d: DisplayLayer) => d.table === f?.table;
+  const inLevels = new Set(lv.flatMap((l) => l.layers).filter((d) => !own(d)));
+  const { draw, hide: levelHide } = levelLayers(lv, focusLevel.value, ticked), hide = levelHide.filter((d) => !own(d));
   const others = b.header.display.filter((d) => !inLevels.has(d) && !d.alternative && hl.get(d.table)?.size);
   const keys = (ds: DisplayLayer[]) => ds.map(layerKey).sort().join("|");
   return { shown: keys([...others, ...draw].filter((d) => !ticked(d))), hidden: keys(hide.filter(ticked)) };

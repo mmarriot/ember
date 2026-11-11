@@ -89,8 +89,9 @@ A list, applied in order (so a later derive can override an earlier estimate). E
 | `key` | `"fromKey"`, `"toKey"` columns: the `to` row with the same key (e.g. the same DetId in two hit tables); the first if several |
 | `compose` | `"via": [r1, r2]`: earlier relations chained; each row reaches the union of what its `r1` rows reach through `r2`. `from` and `to` are those of the chain |
 
-Optional: `"weights": ["T.col", ...]` (one per link, stored as f32), and the viewer hints `association`, `best` and
-`inverseOf` ([format.md](format.md#relations)), copied to the header. `"inverseOf": r` says that this relation points
+Optional: `"weights": ["T.col", ...]` (one per link, stored as f32), and the viewer hints `association`, `best`,
+`match` (how a reco <-> truth match is measured: [truth.md](truth.md#each-kinds-contract)) and `inverseOf`
+([format.md](format.md#relations)), copied to the header. `"inverseOf": r` says that this relation points
 from a part back up to its container, the reverse of relation `r` (e.g. `trackVertex`, the inverse of `vertexTracks`):
 the conversion stops if `r` does not have the opposite ends, and the hint is dropped when `r` is not written.
 
@@ -123,7 +124,7 @@ of layers 25 and 26.
 `display` is a list of layers. Their keys are the display hints of [format.md](format.md#display-hints) (`table`,
 `repr`, `position`, `end`, `momentum`, `charge`, `axis`, `extent`, `size`, `colour`, `palette`, `colourBy`, `time`,
 `group`, `label`, `visible`, `kind`, `source`, `domain`, `cut`, `filter`, `context`, `dim`, `shape`, `truth`,
-`onSelection`, `describe`), copied to the bundle for the layers whose table is written; every column a layer names
+`particle`, `onSelection`, `describe`), copied to the bundle for the layers whose table is written; every column a layer names
 must exist. The converter also reads:
 
 | key | meaning |

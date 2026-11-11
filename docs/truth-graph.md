@@ -6,7 +6,8 @@ SimGeneral/TruthGraphAssociatorProducers, as Fireworks/EventExport writes them t
 and SimTrackster are not used (the `hgcal` profile excludes their tables) and should not be.
 
 This page says what the viewer shows from the truth graph, what it works out itself where the graph has no answer,
-and what is missing, so each gap can be checked off as CMSSW adds it.
+and what is missing, so each gap can be checked off as CMSSW adds it. What a reco object is compared with, the
+measures (purity, completeness) and the colours are in [truth.md](truth.md).
 
 ## What the viewer shows
 
@@ -14,7 +15,9 @@ and what is missing, so each gap can be checked off as CMSSW adds it.
 |---|---|
 | Truth graph · Particles, Vertices; the Truth tab (parent -> children) | `TruthParticles`, `TruthVertices`, `TruthParticleChildren` |
 | a reco object's "best match"; the pair view's choice of particle for a candidate | `<collection>ToTruth`: the AdaptiveNominal working point, one particle per reco object, with `sharedEnergy` and `score` (0 is best) |
-| a truth particle's matched reco objects (Related, Matches) | `<collection>FromTruth` (TruthToReco), with `sharedFraction` and `score` |
+| a reco object's purity and whether its match is clean (inspector, truth mode) | `ToTruth.sharedEnergy` over the object's own amount, as the relation's `match` hint says ([truth.md](truth.md#measures)) |
+| a truth particle's matched reco objects (Related, Matches), a match's completeness | `<collection>FromTruth` (TruthToReco), with `sharedFraction` and `score` |
+| "the particle" that colours and groups everything below it; the lineage's levels | `TruthParticles.levelFlags` (truth::LevelFlag; bit 2 StableDecayProducts, bit 3 CaloBoundary) |
 | a hit's particle, "simulated energy in its hits, by particle" | `TruthHGCalHits`, `TruthSoAHits{EE,HSi,HSci}`: per (particle, hit) the simulated energy of the particle's subgraph |
 
 **Worked out in evd** (stand-ins, to be replaced when CMSSW provides the information):
@@ -22,10 +25,11 @@ and what is missing, so each gap can be checked off as CMSSW adds it.
 - **Layer cluster -> particle** (gap 1): the particle with the most simulated energy in the cluster's hits, each hit
   weighted by the cluster's fraction (`contentPartners` in `viewer/src/model/relations.ts`). Labelled "derived in
   evd" in the legend.
-- **One colour per truth shower** (gap 2): a particle takes the colour of its highest ancestor that owns hits or is
-  matched by a reco object (`identities` in the same file). So a π⁺ that interacted in the tracker and was matched as
-  a whole has the colour of its daughters' hits, and a shower secondary matched to a trackster has the colour of the
-  shower's hits. The inspector still names the particle actually matched.
+- **One colour per generator particle** (gap 2): a particle takes the colour of its highest ancestor in the profile's
+  `particle` level, the generator-level stable particles (`identities` in the same file; [truth.md](truth.md)). So a
+  π⁺ that interacted in the tracker, its daughters' hits and its track share a colour, and a shower secondary matched
+  to a trackster has the colour of the shower's hits. The inspector still names the particle actually matched, and
+  its lineage.
 - **Small, faint grey hits** mean no exported particle left energy in them: noise, or a particle that was not exported
   (gaps 3 to 5); the export cannot tell which. (The larger mid-grey is different: a particle beyond the seven that get
   a colour.)
@@ -162,9 +166,9 @@ particles".
   particles are meaningful, not a comparison with the rechit energy.
 - **Not** all particles: only exported ones (signal + matched + ancestors) that also have CaloBoundary.
 - **Overlap:** a hit can have several owners. *Measured:* up to 4 owners at PU200, 20 multi-owner hits in a gun
-  event. None of the sampled multi-owner hits had an owner that was an ancestor of another, so in this data the owners
-  are disjoint branches. This is not guaranteed in general: nothing stops two nested particles from both carrying
-  CaloBoundary.
+  event. The owners are always disjoint branches: every level is an antichain (`fillLevelFlags` keeps the earliest
+  member of each chain, `PhysicsTools/TruthInfo/interface/TruthLevels.h:688-795`), so no CaloBoundary particle is an
+  ancestor of another. Multi-owner hits are overlapping showers.
 - **Pile-up:** in-time PU particles appear only when matched, or as ancestors of matched particles. `isSignal`
   separates them. Out-of-time PU is absent by default (gap 5), and dropped by the `hgcal` profile where present.
 
@@ -187,6 +191,35 @@ Layer-cluster <-> truth (gap 1) and runner-up particles per object (gap 8, partl
 SimCluster/CaloParticle associations of HGCalNanoAOD (`DPGAnalysis/HGCalNanoAOD/python/hgcalTracksters_cfi.py:166,183`).
 The `hgcal.json` profile excludes those (`"exclude": ["Sim*", "Reco*2Sim*", "ticlSim*", ...]`), and should keep doing
 so.
+
+## Track association weights are hit counts
+
+The track associator (`AllRecoToTruthBranchAssociatorsProducer.cc:858-877`) is hit-based: its payload is a number of
+shared hits, and its score is 1 − shared hits / track hits (measured: exact for every track of the 0PU sample).
+EventExport writes the count under the calorimeter names (`generalTracksToTruth.sharedEnergy`,
+`generalTracksFromTruth.sharedFraction`, integers 1–33). The viewer names them "shared hits" from the relations'
+`match.measure`. The maps have no threshold: CMS tracking validation calls a track with < 75% shared hits a fake
+(*measured*, PU200: 11% of matched tracks are below 75%), which is why truth mode colours a track by its particle
+only from 75%. **Check:** EventExport names the column by the associator's metric.
+
+## What the bundles carry for truth, and what the viewer does not use
+
+*Measured* (zlib per event; 0PU 50 events, PU200 events 0–2, in-time cut applied): truth is 0.41 of 1.58 MB at 0PU
+(26%) and 13.6 of 31.0 MB at PU200 (44%): particles 5.2 MB (102k rows), truth hit relations 4.3 MB, TruthToReco 2.6 MB,
+vertices 1.0 MB. What no profile, converter or viewer code uses (the Inspector lists every column, so nothing is
+invisible), PU200:
+
+| what | MB / event | note |
+|---|---|---|
+| `TruthParticles` pt, eta, phi, mass, t | 1.5 | derivable from the momentum and the vertex |
+| `TruthParticles` x, y, z | 0.56 | the production vertex's position (used for drawing; could be read through `truthProdVertex`) |
+| legacy truth hits (`TruthHGCalHits`) | 2.1 | duplicate the SoA truth hits when SoA exists (legacy hits start hidden) |
+| TruthToReco entries with `sharedFraction` < 0.1 | ≈ 1.6 (62% of 2.6) | 56 particles per interpretation trackster |
+| particles with neither HGCal hits nor matches | ≈ 3.5 (estimate) | 73k of 108k rows: CaloBoundary particles in the barrel and forward, kept for barrel truth hits that are not exported yet |
+
+None of these is dropped yet: each is a choice to make when the bundle is split into parts. The leaner direction is
+to export what truth display needs (per-particle direct hits, a total simulated energy per hit, barrel hits) and drop
+what it does not.
 
 ## What to watch for in CMSSW
 

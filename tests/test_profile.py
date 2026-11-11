@@ -444,6 +444,8 @@ def test_tracker_profile_alone_and_tracker_only():
     declared the inverse of vertexTracks; tracker_only.json (cms without the calorimeters) reads only the tracker
     tables (and truth, absent here), and its header keeps the Tracker domain alone."""
     t = load_profile("tracker")
+    assert {"name": "Track time", "colour": {"Tracks": "t0", "Vertices": "t", "MTDHits": "time"}} in t["presets"]
+    assert t["kinds"]["mtdHit"]["visible"] is False and t["kinds"]["mtdHit"]["truthGap"]["gap"] == 19
     assert t["field"] == load_profile("cms")["field"] and t["domains"] == [load_profile("cms")["domains"][1]]
     assert t["domains"][0]["colourMode"] == "layers"
     types = {"Tracks": dict.fromkeys(("vx", "vy", "vz", "px", "py", "pz", "outerX", "outerY", "outerZ", "pt", "eta"), F4)

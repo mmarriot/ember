@@ -7,7 +7,7 @@ import type { Hit, ViewName } from "../render/engine";
 import { drawsLayer, sharedDomains, startDomain } from "./domains";
 import { colourBy, type ColourMode, customColumns, loadCustom, withColour, withCustomColumns } from "./custom";
 import { focusLevels, levelLayers, mergeAcrossDomains, scopeLevels, stepLevel } from "./levels";
-import { modeColouring, modeRoots } from "./modes";
+import { modeColouring, modeRoots, recoColourOf } from "./modes";
 import { opensPair, truthStatus, type TruthStatus } from "./match";
 import { PAIR, type Pair, pairFor, pairShows } from "./pair";
 import { levelsOf, type Related, relatedParts, sameRef, type Ref } from "./relations";
@@ -115,8 +115,9 @@ export const activeMode = computed<ColourMode>(() => {
 });
 
 /** A layer's display hint as drawn. In the "pid" mode, the reconstruction root (candidates) keeps its own colouring
- *  (particle type) and every reco layer it reaches takes its candidate's colour; a categorical reco layer it cannot
- *  reach is drawn by its colour column if it has one (else it keeps its own colouring, e.g. one colour per vertex);
+ *  (particle type) and every reco layer whose colouring chain reaches it takes its candidate's colour; a categorical reco
+ *  layer it cannot reach is drawn by its colour column if it has one and no colour of its kind (`fixedColour`), else it
+ *  keeps its own colouring (e.g. one colour per vertex, a muon's kind colour);
  *  truth layers keep their own colouring (a particle is not a candidate). Then the user's choice for that layer. */
 export function shownLayer(d: DisplayLayer, mode = activeMode.peek(), by = colourBy.peek()): DisplayLayer {
   const { colouring, roots } = modes.peek();
@@ -127,8 +128,10 @@ export function shownLayer(d: DisplayLayer, mode = activeMode.peek(), by = colou
     return withColour({ ...d, colourBy: c ?? "none", fixedColour: undefined, ...faint }, by[layerKey(d)]);
   }
   const pid = mode === "pid" && !d.context && !d.truth;
-  const c = pid && d.table !== roots.reco ? colouring.reco?.[d.table] : undefined;
-  const plain = pid && !c && d.table !== roots.reco && d.colourBy && d.colour;
+  // Only a chain that reaches the candidates: one that ends elsewhere (e.g. calorimeter hits through PF clusters to PF
+  // candidates) would show another table's categories under a key that describes candidate types.
+  const h = bundle.peek()?.header, c = pid && h && colouring.reco && roots.reco ? recoColourOf(h, colouring.reco, roots.reco, d.table) : undefined;
+  const plain = pid && !c && d.table !== roots.reco && d.colourBy && d.colour && !d.fixedColour; // a kind's own colour wins
   return withColour(c ? { ...d, colourBy: c } : plain ? { ...d, colourBy: undefined } : d, by[layerKey(d)]);
 }
 

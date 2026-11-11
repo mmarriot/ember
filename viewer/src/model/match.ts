@@ -119,9 +119,13 @@ export function truthStatus(header: Header, table: string, colouring?: Record<st
 }
 
 /** Whether a selection of `table` may open the truth <-> reco pair: not for a kind with no truth of its own (a jet
- *  never opens a pair; its constituents may). Bundles without truth keep their pair (the candidate alone). */
-export const opensPair = (header: Header, table: string, colouring?: Record<string, ColourBy>) =>
-  truthStatus(header, table, colouring)?.kind !== "none";
+ *  never opens a pair; its constituents may), and, given the reco mode's colouring (`reco`), not for a reco kind
+ *  outside the candidates' chain (an ECAL cluster: the pair is the HGCal candidates'). Truth particles and bundles
+ *  without truth keep their pair. */
+export function opensPair(header: Header, table: string, colouring?: Record<string, ColourBy>, reco?: Record<string, ColourBy>) {
+  const s = truthStatus(header, table, colouring);
+  return !s || (s.kind !== "none" && (!reco || table in reco));
+}
 
 /** What truth particles left in the given objects' hits, one group per detector (simulated energy is never summed
  *  across detectors: sampling and homogeneous calorimeters, photoelectrons in HF): per particle, the sum of the fact

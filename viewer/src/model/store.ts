@@ -8,7 +8,7 @@ import { drawsLayer, sharedDomains, startDomain } from "./domains";
 import { colourBy, type ColourMode, customColumns, loadCustom, withColour, withCustomColumns } from "./custom";
 import { focusLevels, levelLayers, mergeAcrossDomains, scopeLevels, stepLevel } from "./levels";
 import { modeColouring, modeRoots } from "./modes";
-import { truthStatus, type TruthStatus } from "./match";
+import { opensPair, truthStatus, type TruthStatus } from "./match";
 import { PAIR, type Pair, pairFor, pairShows } from "./pair";
 import { levelsOf, type Related, relatedParts, sameRef, type Ref } from "./relations";
 
@@ -142,6 +142,13 @@ export const truthStatuses = computed(() => {
   }
   return out;
 });
+/** The name truth statements use for `table`: its kind ("Jets"), or its layer's name where layers of one kind differ
+ *  in truth ("PF clusters · HCAL forward" has none, the ECAL ones are matched). */
+export function truthName(table: string) {
+  const d = layerOf(table), st = truthStatuses.peek(), kind = kindOf(table);
+  const same = (bundle.peek()?.header.display ?? []).filter((l) => kindOf(l.table) === kind).every((l) => st.get(l.table)?.kind === st.get(table)?.kind);
+  return d && !same ? labelOf(table) : kind;
+}
 /** Whether `table` is a kind with no truth of its own (status none). */
 export const noTruth = (table: string) => truthStatuses.peek().get(table)?.kind === "none";
 
@@ -151,7 +158,7 @@ export const noTruth = (table: string) => truthStatuses.peek().get(table)?.kind 
 export const pairView = computed<Pair | null>(() => {
   const f = focus.value, b = bundle.value, ev = event.value, { roots, colouring } = modes.value;
   if (activeMode.value === "layers" || !f || !b || !ev || !roots.reco || !colouring.reco || f.row >= (ev.tables[f.table]?.n ?? 0)) return null;
-  if (truthStatuses.value.get(f.table)?.kind === "none") return null;
+  if (!opensPair(b.header, f.table, colouring.truth, colouring.reco)) return null;
   const truthLayer = roots.truth ? b.header.display.find((d) => d.table === roots.truth) : undefined;
   const pair = pairFor(ev, b.header, f, { truth: roots.truth, reco: roots.reco }, { truth: colouring.truth, reco: colouring.reco }, truthLayer);
   return pairShows(pair) ? pair : null;

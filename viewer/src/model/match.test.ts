@@ -93,6 +93,9 @@ describe("truth status", () => {
     expect(opensPair(kinds, "THit")).toBe(true);
     const noTruth = { ...kinds, display: kinds.display.filter((d) => !d.truth) } as unknown as Header;
     expect(opensPair(noTruth, "Jet")).toBe(true);
+    // the pair is the candidates': a matched kind outside their chain (an ECAL cluster) does not open it
+    expect(opensPair(kinds, "Track", undefined, { Track: { relation: "candTrack" } })).toBe(true);
+    expect(opensPair(kinds, "Vtx", undefined, { Track: { relation: "candTrack" } })).toBe(false);
   });
   it("takes a vertex's purity from its weight", () => {
     const vev = { ...ev, tables: { Vtx: { n: 1, columns: {} } }, relations: { vtxTruth: csr([[0, 1]], { fraction: [0.8, 0.2], score: [0.2, 0.8] }) } } as unknown as EventData;

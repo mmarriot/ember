@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { describe, expect, it } from "vitest";
 import type { DisplayLayer, Table } from "../io/bundle";
 import { PALETTES } from "./colour";
-import { builders, type Layer, polylinePoints, segmentEnds, unitCone } from "./layers";
+import { builders, hexPrism, type Layer, polylinePoints, segmentEnds, unitCone } from "./layers";
 
 const col = (...v: number[]) => Float32Array.from(v);
 const table = (columns: Record<string, Float32Array>): Table => ({ n: Object.values(columns)[0].length, columns });
@@ -178,5 +178,25 @@ describe("helices with nothing to draw", () => {
     const one = builders.helix({ ...input, cut: col(1, -Infinity) });
     expect((parts(one).g as THREE.InstancedBufferGeometry).instanceCount).toBe(1);
     expect(one.x[0]).toBeCloseTo(50, 3);
+  });
+});
+
+describe("hexagonal prism", () => {
+  it("has the cylinder's 12 corners, shared by 20 outward triangles", () => {
+    const g = hexPrism(), p = g.getAttribute("position"), idx = g.index!.array;
+    expect(p.count).toBe(12);
+    expect(idx.length).toBe(60);
+    const cyl = new THREE.CylinderGeometry(1, 1, 1, 6).rotateX(Math.PI / 2), c = cyl.getAttribute("position");
+    for (let i = 0; i < c.count; i++) { // every rim point of the old cell is a corner of the new one
+      if (Math.hypot(c.getX(i), c.getY(i)) < 0.5) continue;
+      let found = false;
+      for (let j = 0; j < 12; j++) found ||= Math.abs(p.getX(j) - c.getX(i)) + Math.abs(p.getY(j) - c.getY(i)) + Math.abs(p.getZ(j) - c.getZ(i)) < 1e-6;
+      expect(found).toBe(true);
+    }
+    const v = (k: number) => new THREE.Vector3(p.getX(k), p.getY(k), p.getZ(k));
+    for (let t = 0; t < 60; t += 3) {
+      const [a, b, d] = [v(idx[t]), v(idx[t + 1]), v(idx[t + 2])], n = b.clone().sub(a).cross(d.clone().sub(a));
+      expect(n.dot(a.clone().add(b).add(d))).toBeGreaterThan(0); // facing away from the centre
+    }
   });
 });

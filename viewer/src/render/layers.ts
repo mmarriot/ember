@@ -181,11 +181,9 @@ export function cells(input: LayerInput): Layer {
   if (d.cell?.shape === "box") return boxes(input);
   const [x, y, z] = positions(input);
   const size = toF32(d.size ? t.columns[d.size] : undefined, t.n, 0.6);
-  const base = new THREE.CylinderGeometry(1, 1, 1, 6).rotateX(Math.PI / 2);
-  const g = new THREE.InstancedBufferGeometry();
+  const base = hexPrism(), g = new THREE.InstancedBufferGeometry();
   g.index = base.index;
   g.setAttribute("position", base.getAttribute("position"));
-  g.setAttribute("normal", base.getAttribute("normal"));
   const material = new THREE.ShaderMaterial({
     // A background layer is thinner, so cells drawn at the same place by another layer enclose it and show.
     uniforms: { ...baseUniforms(input.pal), uThick: { value: d.context ? 0.1 : 0.3 } },
@@ -193,7 +191,8 @@ export function cells(input: LayerInput): Layer {
       attribute float ix, iy, iz, isize, isel, ipsel, icut, iT;
       attribute vec3 icol;
       uniform float uThick;
-      varying vec3 vCol;
+      varying vec3 vCol, vB, vW;
+      varying float vA;
       ${GLSL}
       void main() {
         ${CULL()}
@@ -201,15 +200,28 @@ export function cells(input: LayerInput): Layer {
         float s = selected(ipsel, isel);
         if (uProj > 0.5) c = projectRZ(c, s * 2.0);
         float p = pop(iT), r = isize * (1.0 + 0.9 * p);
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(c + position * vec3(r, r, uThick), 1.0);
+        vW = c + position * vec3(r, r, uThick);
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(vW, 1.0);
         // Cells that overlap in one plane (e.g. partial cells at module edges) would z-fight: a tiny, fixed depth
         // offset per cell decides which is in front. 3 steps of 2e-7 in NDC stay below the depth gap between layers
         // 1 cm apart up to ~1000 cm away.
         gl_Position.z -= gl_Position.w * 2e-7 * float(gl_InstanceID % 4);
-        float light = uProj > 0.5 ? 1.0 : 0.75 + 0.25 * abs(dot(normalize(normal), normalize(vec3(0.4, 0.7, 0.6))));
-        vCol = mix(fade(mix(icol * light, vec3(1.0), uFlash * p), s), uBg, faded());
+        // The colour is A * light * icol + B: the light comes per face in the fragment shader (12 shared corners per
+        // cell, no normals), the flash, selection fade and replay fade here: mix(fade(mix(icol * light, 1, f), s), bg, g).
+        float f = uFlash * p, k = 0.85 * selActive() * (1.0 - s), g = faded();
+        vCol = icol;
+        vA = (1.0 - g) * (1.0 - k) * (1.0 - f);
+        vB = (1.0 - g) * ((1.0 - k) * vec3(f) + k * uBg) + g * uBg;
       }`,
-    fragmentShader: `varying vec3 vCol; void main() { gl_FragColor = vec4(vCol, 1.0); }`,
+    // The face's normal from the screen derivatives of the surface point: flat shading without per-face vertices.
+    fragmentShader: /* glsl */ `
+      uniform float uProj;
+      varying vec3 vCol, vB, vW;
+      varying float vA;
+      void main() {
+        float light = uProj > 0.5 ? 1.0 : 0.75 + 0.25 * abs(dot(normalize(cross(dFdx(vW), dFdy(vW))), normalize(vec3(0.4, 0.7, 0.6))));
+        gl_FragColor = vec4(vA * light * vCol + vB, 1.0);
+      }`,
   });
   const common = shaderLayer(input, g, material, true, { ix: x, iy: y, iz: z, isize: size });
   const mesh = new THREE.Mesh(g, material);
@@ -224,6 +236,34 @@ export function cells(input: LayerInput): Layer {
     setFade(from, to, amount) { material.uniforms.uFade.value.set(from, to, amount); },
     dispose() { g.dispose(); base.dispose(); material.dispose(); },
   };
+}
+
+/** Unit hexagonal prism for cells: corners at radius 1 in the z plane (as CylinderGeometry(1, 1, 1, 6) rotated onto
+ *  z, so cells tile as before), z = +-1/2; 12 shared corners and 20 outward triangles (the cylinder has 40 vertices),
+ *  so the vertex shader runs ~12 times per cell, not ~40: the cost of 400k HGCal cells at PU200. No normals: the
+ *  fragment shader lights each face from its derivatives. */
+export function hexPrism() {
+  const cyl = new THREE.CylinderGeometry(1, 1, 1, 6).rotateX(Math.PI / 2), p = cyl.getAttribute("position"), corners: number[][] = [];
+  for (let i = 0; i < p.count; i++) {
+    const v = [p.getX(i), p.getY(i), p.getZ(i)];
+    if (Math.hypot(v[0], v[1]) > 0.5 && !corners.some((c) => c.every((x, k) => Math.abs(x - v[k]) < 1e-6))) corners.push(v);
+  }
+  cyl.dispose();
+  const angle = (v: number[]) => Math.atan2(v[1], v[0]);
+  const top = corners.filter((v) => v[2] > 0).sort((a, b) => angle(a) - angle(b)), bottom = corners.filter((v) => v[2] < 0).sort((a, b) => angle(a) - angle(b));
+  const pos = [...top, ...bottom], tris: number[][] = [];
+  for (let k = 1; k < 5; k++) { tris.push([0, k, k + 1]); tris.push([6, 6 + k, 6 + k + 1]); } // the two caps, as fans
+  for (let k = 0; k < 6; k++) { const n = (k + 1) % 6; tris.push([k, 6 + k, 6 + n], [k, 6 + n, n]); } // the sides
+  const index = tris.flatMap(([a, b, c]) => { // outward (counter-clockwise seen from outside): flip if not
+    const u = [0, 1, 2].map((i) => pos[b][i] - pos[a][i]), w = [0, 1, 2].map((i) => pos[c][i] - pos[a][i]);
+    const n = [u[1] * w[2] - u[2] * w[1], u[2] * w[0] - u[0] * w[2], u[0] * w[1] - u[1] * w[0]];
+    const m = [0, 1, 2].map((i) => (pos[a][i] + pos[b][i] + pos[c][i]) / 3);
+    return n[0] * m[0] + n[1] * m[1] + n[2] * m[2] >= 0 ? [a, b, c] : [a, c, b];
+  });
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.Float32BufferAttribute(pos.flat(), 3));
+  g.setIndex(index);
+  return g;
 }
 
 /** A cells layer drawn as instanced solids of another shape (towers, boxes): `base` is a unit box whose corners the

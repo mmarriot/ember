@@ -35,7 +35,7 @@ export function Collections({ layers }: { layers: DisplayLayer[] }) {
         <section class="kind" key={group}>
           <h3>{group}</h3>
           {/* each slider just before the first row it cuts (a kind can have several, e.g. one per calorimeter) */}
-          {ls.map((d) => <Fragment key={layerKey(d)}>{cutsOf([d]).map((name) => <CutRow name={name} here={ls} />)}<LayerRow d={d} label={d.label} /></Fragment>)}
+          {ls.map((d) => <Fragment key={layerKey(d)}>{cutsOf([d]).map((name) => <CutRow name={name} here={ls} named={new Set(ls.flatMap((x) => (x.cut ? [x.cut.group] : []))).size > 1} />)}<LayerRow d={d} label={d.label} /></Fragment>)}
         </section>
       ))}
       {alternatives.length > 0 && (
@@ -66,8 +66,9 @@ const sliderRanges = computed(() => {
 });
 
 /** A cut group's minimum: log slider and exact value, labelled by the column it cuts (the group's name is in its
- *  tooltip). It applies to every layer of the group, also those listed elsewhere (named under it). */
-function CutRow({ name, here }: { name: string; here: DisplayLayer[] }) {
+ *  tooltip, and above it when its kind has several cuts, e.g. one per calorimeter: `named`). It applies to every layer
+ *  of the group, also those listed elsewhere (named under it). */
+function CutRow({ name, here, named = false }: { name: string; here: DisplayLayer[]; named?: boolean }) {
   const g = cutGroups.value.get(name);
   if (!g) return null;
   const v = cuts.value[name] ?? g.default, [lo, hi] = sliderRanges.value.get(name) ?? [-4, 2];
@@ -76,6 +77,7 @@ function CutRow({ name, here }: { name: string; here: DisplayLayer[] }) {
   const elsewhere = g.layers.filter((d) => !here.includes(d));
   return (
     <div class="cut" title={`Minimum ${name.toLowerCase()} for ${g.layers.map(layerName).join(", ")}`}>
+      {named && <div class="cutgroup">{name}</div>}
       <div class="cutrow">
         <span class="cutname">{g.layers[0].cut!.column} ≥</span>
         <input type="range" aria-label={name} min={lo} max={hi} step={0.01} value={toSlider(v)} onInput={(e) => set(fromSlider(Number((e.target as HTMLInputElement).value)))} />

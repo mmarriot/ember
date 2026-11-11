@@ -27,8 +27,9 @@ for uproot's many ranged reads.
 
 | profile | data |
 |---|---|
-| `cms` | `hgcal` and `tracker` together: the header `domains` `Tracker` (from `tracker`) then `HGCal` (its region and view), truth particles as helices and only in-time pile-up kept; HGCalNanoAOD's `GeneralTrack` folded into `Tracks` |
+| `cms` | `hgcal`, `tracker` and `calo` together: the header `domains` `Tracker` (from `tracker`), `Calo` (from `calo`) then `HGCal` (its region and view), the detector `outlines` of every module, truth particles as helices and only in-time pile-up kept; HGCalNanoAOD's `GeneralTrack` folded into `Tracks` |
 | `tracker` | CMS Phase-2 tracker (Fireworks/EventExport preset `tracker`): tracks as helices in the solenoid field (`field`; high purity, pT slider at 1 GeV, filtered to the primary vertex; preset "All vertices" coloured by vertex), primary vertices, the hits on each track shown for a selection, the beam spot; all in the `Tracker` domain, coloured by layer when it is chosen. It reads every table of the file: for a tracker bundle use `tracker_only` |
+| `calo` | CMS Phase-2 barrel and forward calorimeters (EventExport preset `calo`): ECAL barrel, HB, HO and HF rechits as η–φ towers (`cell` hint) in the `Calo` domain, one energy cut per subdetector, HO and HF hidden, HF not in the front view; used through `cms` |
 | `tracker_only` | `cms` without the calorimeters (excluded, so not read): the `tracker` layers with the truth graph and the track-truth associations |
 | `hgcal` | CMSSW step3 HGCal/TICL reconstruction (SoA and/or legacy): rechits, layer clusters, tracksters through candidates, tracks, the truth graph (particles, vertices, hits) with reco-truth associations, kept to in-time pile-up (bunch crossing 0); see [truth-graph.md](truth-graph.md) |
 | `mct` | multi-cassette test at P5, cosmic muons: hits and layer clusters, events with a hit above 6 sigma in two layers; the readout channels (per-run table) as background |
@@ -90,7 +91,7 @@ A list, applied in order (so a later derive can override an earlier estimate). E
 | `compose` | `"via": [r1, r2]`: earlier relations chained; each row reaches the union of what its `r1` rows reach through `r2`. `from` and `to` are those of the chain |
 
 Optional: `"weights": ["T.col", ...]` (one per link, stored as f32), and the viewer hints `association`, `best`,
-`match` (how a reco <-> truth match is measured: [truth.md](truth.md#each-kinds-contract)) and `inverseOf`
+`fact` (a truth -> hit relation: simulated energy per particle and cell, e.g. `{"in": "ECAL"}`), `match` (how a reco <-> truth match is measured: [truth.md](truth.md#each-kinds-contract)) and `inverseOf`
 ([format.md](format.md#relations)), copied to the header. `"inverseOf": r` says that this relation points
 from a part back up to its container, the reverse of relation `r` (e.g. `trackVertex`, the inverse of `vertexTracks`):
 the conversion stops if `r` does not have the opposite ends, and the hint is dropped when `r` is not written.

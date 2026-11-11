@@ -77,7 +77,7 @@ async function checkBundle(file, tag, state) {
   const keys = await page.locator(".colourkey .key li").count();
   log(`${tag}: tabs ${tabs.join(" | ")}; colour key: ${keys} entries`);
   if (h.display.some((d) => d.stage !== undefined) && keys < 2) fail("no colour key for the candidates");
-  await page.getByRole("group", { name: "Preset" }).getByRole("button").first().click({ timeout: 120000 }).catch(() => {}); // the default filters
+  if ((h.presets?.length ?? 0) > 1) await page.getByRole("group", { name: "Preset" }).getByRole("button").first().click({ timeout: 120000 }); // the default filters
   await checkFocusFilters(page, h, fail, tag);
 
   await page.getByRole("tab", { name: "Event", exact: true }).click();

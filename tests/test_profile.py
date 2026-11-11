@@ -243,3 +243,38 @@ def test_helix_columns_are_checked():
              "charge": "q", "end": ["x", "y", "z"]}
     with pytest.raises(ValueError, match="display T: no column pz, q"):
         converter({"T": {**XYZE, "px": F4, "py": F4}}, {"display": [layer]})
+
+
+def test_cms_profile_joins_hgcal_and_tracker():
+    """cms = hgcal + tracker: HGCal kinds in the HGCal domain, truth particles as helices, the tracker's tracks with
+    HGCalNanoAOD's GeneralTrack folded in (its HGCal entry taken over, its relations redirected); hgcal.json alone is
+    unchanged."""
+    p = load_profile("cms")
+    assert p["name"] == "cms" and [d["name"] for d in p["domains"]] == ["Tracker", "HGCal"] and p["field"]["bz"] == 3.8
+    assert p["kinds"]["rechit"]["domain"] == "HGCal" and p["kinds"]["rechit"]["repr"] == "cells"
+    assert p["kinds"]["truthParticle"]["repr"] == "helix" and "domain" not in p["kinds"]["truthParticle"]
+    assert "domain" not in load_profile("hgcal")["kinds"]["rechit"]
+    types = {"Tracks": dict.fromkeys(("vx", "vy", "vz", "px", "py", "pz", "outerX", "outerY", "outerZ", "pt", "eta"), F4)
+             | {"charge": np.dtype("i2"), "highPurity": np.dtype("u1"), "vertexIdx": I4},
+             "GeneralTrack": dict.fromkeys(("pt", "eta", "vz", "hgcal_x", "hgcal_y", "hgcal_z"), F4),
+             "TrackHits": {**XYZE, "trackIdx": I4, "subdet": np.dtype("u1")},
+             "Vertices": XYZE, "VertexTracks": {"vertexIdx": I4, "trackIdx": I4, "weight": F4},
+             "TICLCandidates": {"trackIdx": I4, "time": F4, "energy": F4}}
+    conv = converter(types, p)
+    d = {x["table"]: x for x in conv.display}
+    assert set(d) == {"Tracks", "TrackHits", "Vertices", "TICLCandidates"}  # GeneralTrack folded into Tracks
+    assert (d["Tracks"]["repr"], d["Tracks"]["domain"], d["TICLCandidates"]["domain"]) == ("helix", "Tracker", "HGCal")
+    assert d["Tracks"]["visible"] and not d["Tracks"]["onSelection"] and d["TrackHits"]["onSelection"]
+    trk = {"vx": [0, 0], "vy": [0, 0], "vz": [1, 2], "px": [1, 0], "py": [0, 1], "pz": [0, 9], "outerX": [100, 0],
+           "outerY": [0, 9], "outerZ": [1, 270], "pt": [1, 1], "eta": [0, 2.9], "charge": [1, -1], "highPurity": [1, 1],
+           "vertexIdx": [0, -1]}
+    gen = {"pt": [1, 1], "eta": [0, 2.9], "vz": [1, 2], "hgcal_x": [-999, 5], "hgcal_y": [-999, 6], "hgcal_z": [-999, 322]}
+    _, tables, rels = one_event(conv, {
+        "Tracks": trk, "GeneralTrack": gen, "Vertices": {"x": [0], "y": [0], "z": [1], "e": [0]},
+        "VertexTracks": {"vertexIdx": [0], "trackIdx": [0], "weight": [0.9]},
+        "TrackHits": {"x": [3, 6, 2], "y": [0, 0, 1], "z": [1, 1, 30], "e": [0, 0, 0], "trackIdx": [0, 0, 1], "subdet": [1, 1, 2]},
+        "TICLCandidates": {"trackIdx": [1], "time": [0], "energy": [3]}})
+    assert "GeneralTrack" not in tables and "VertexTracks" not in tables
+    assert tables["Tracks"][1]["hgcal_z"].tolist() == [-999, 322] and tables["TICLCandidates"][1]["x"].tolist() == [5]
+    assert rels["candidateTrack"]["indices"].tolist() == [1] and rels["trackHits"]["offsets"].tolist() == [0, 2, 3]
+    assert rels["trackVertex"]["indices"].tolist() == [0] and rels["vertexTracks"]["indices"].tolist() == [0]

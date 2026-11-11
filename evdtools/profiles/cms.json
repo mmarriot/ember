@@ -1,0 +1,24 @@
+{
+  "name": "cms",
+  "note": "CMS Phase-2 step3 with HGCal/TICL and the tracker: hgcal.json and tracker.json joined. HGCalNanoAOD's GeneralTrack has the rows of Tracks (both are generalTracks in order): it is checked and folded into Tracks, which takes over its HGCal entry point (used where a TICL candidate has no trackster), so candidate -> track and track <-> truth relations reach Tracks. Truth particles are drawn as helices; only in-time pile-up (bunch crossing 0) is kept. Domains: Tracker and HGCal, regions from the hits of the ttbar samples (tracker hits r <= 110 cm, |z| <= 268 cm; HGCal hits r <= 257 cm, 322 <= |z| <= 513 cm). Field: 3.8 T to |z| = 320 cm, where a helix from a track's reference point reaches HGCalNanoAOD's propagated HGCal entry within 0.23 cm (median; 1.3 cm for 90%) for high-purity tracks above 1 GeV; r = 295 cm is the inner radius of the coil.",
+  "include": ["hgcal", "tracker"],
+  "sameRows": [
+    {"keep": "Tracks", "drop": "GeneralTrack", "columns": [["pt", "pt"], ["eta", "eta"], ["vz", "vz"]],
+     "copy": ["hgcal_x", "hgcal_y", "hgcal_z"]}
+  ],
+  "cuts": {"TruthParticles": [["bunchCrossing", "==", 0]]},
+  "kinds": {
+    "rechit": {"domain": "HGCal"},
+    "layerCluster": {"domain": "HGCal"},
+    "trackster": {"domain": "HGCal"},
+    "linkedTrackster": {"domain": "HGCal"},
+    "interpretation": {"domain": "HGCal"},
+    "candidate": {"domain": "HGCal"},
+    "truthParticle": {"repr": "helix", "momentum": ["px", "py", "pz"], "charge": "charge"}
+  },
+  "domains": [
+    {"name": "Tracker", "region": {"rMax": 120, "zMax": 280}, "view": "front"},
+    {"name": "HGCal", "region": {"rMax": 260, "zMin": 320, "zMax": 515}, "view": "3d"}
+  ],
+  "field": {"bz": 3.8, "rMax": 295, "zMax": 320}
+}

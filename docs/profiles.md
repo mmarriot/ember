@@ -27,6 +27,8 @@ for uproot's many ranged reads.
 
 | profile | data |
 |---|---|
+| `cms` | `hgcal` and `tracker` together: HGCal kinds in the `HGCal` domain, tracker kinds in the `Tracker` domain (header `domains`), the solenoid field (`field`), truth particles as helices and only in-time pile-up kept; HGCalNanoAOD's `GeneralTrack` folded into `Tracks` |
+| `tracker` | CMS Phase-2 tracker (Fireworks/EventExport preset `tracker`): tracks as helices (high purity, pT slider at 1 GeV, filtered to the primary vertex; preset "All vertices" coloured by vertex), primary vertices, the hits on each track shown for a selection, the beam spot |
 | `hgcal` | CMSSW step3 HGCal/TICL reconstruction (SoA and/or legacy): rechits, layer clusters, tracksters through candidates, tracks, the truth graph (particles, vertices, hits) with reco-truth associations, kept to in-time pile-up (bunch crossing 0); see [truth-graph.md](truth-graph.md) |
 | `mct` | multi-cassette test at P5, cosmic muons: hits and layer clusters, events with a hit above 6 sigma in two layers; the readout channels (per-run table) as background |
 | `mct_diagnostics` | the same data without event selection, for unusual events (e.g. splats), picked with `--events`; digi quantities on every hit, per-module charts |

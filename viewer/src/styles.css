@@ -173,14 +173,14 @@ details { margin-top: 8px; } summary { cursor: pointer; color: var(--accent); fo
 .toast { background: #24292f; color: #fff; padding: 8px 14px; border-radius: 6px; box-shadow: var(--shadow); font-size: 12px; max-width: 70vw; }
 .toast.error { background: var(--error); }
 
-/* A bar with the domain buttons too: tighter before it wraps. */
+/* A bar with the domain buttons too (.parts): tighter before it wraps. */
 @media (max-width: 1300px) {
-  .topbar { gap: 8px; padding: 0 10px; }
-  .topbar .segmented button { padding: 5px 8px; }
-  .brand { font-size: 0; } /* the logo only */
-  .jump { display: none; }
-  .eventnav { flex: none; } /* the data set menu shrinks instead */
-  .eventid { min-width: 120px; }
+  .topbar.parts { gap: 8px; padding: 0 10px; }
+  .topbar.parts .segmented button { padding: 5px 8px; }
+  .topbar.parts .brand { font-size: 0; } /* the logo only */
+  .topbar.parts .jump { display: none; }
+  .topbar.parts .eventnav { flex: none; } /* the data set menu shrinks instead */
+  .topbar.parts .eventid { min-width: 120px; }
 }
 
 @media (max-width: 900px) {

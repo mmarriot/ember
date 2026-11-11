@@ -26,7 +26,7 @@ export function Header() {
   };
 
   return (
-    <header class="topbar">
+    <header class={(b?.header.domains?.length ?? 0) >= 2 ? "topbar parts" : "topbar"}>
       <div class="brand"><img src={logo} alt="" width={22} height={22} />Event display</div>
       <select class="dataset" value={bundleName.value} title="Data set" onChange={(ev) => openBundle((ev.target as HTMLSelectElement).value)}>
         {[...campaigns].map(([c, list]) => (c ? <optgroup label={c}>{list.map((x) => <option value={x.file}>{x.title}</option>)}</optgroup>

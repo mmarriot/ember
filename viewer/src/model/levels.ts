@@ -3,6 +3,7 @@
 // one per branch: a candidate's hits and its track's hits), with the levels drawn as lines (its track: lines do not
 // hide the hits); the other levels in between are shown one at a time, on request, so they do not cover each other.
 import { type DisplayLayer, type Header, kindName } from "../io/bundle";
+import { ownDomains } from "./domains";
 import type { Related } from "./relations";
 
 /** `count`: the focus's objects in it; `leaf`: it holds no other level; `always`: drawn whenever the focus is (a leaf,
@@ -96,7 +97,7 @@ export function stepLevel(levels: Level[], chosen: string | null, by: number): s
 
 /** The parts of the detector (layer `domain`, not a shared one) a level's layers are in: none for shared or
  *  domain-less layers (e.g. physics objects), which every domain draws. */
-const domainsOf = (l: Level, shared: Set<string>) => new Set(l.layers.flatMap((d) => (d.domain && !shared.has(d.domain) ? [d.domain] : [])));
+const domainsOf = (l: Level, shared: Set<string>) => ownDomains(l.layers, shared);
 
 /** Levels at the same depth (see focusLevels) that lie in different parts of the detector become one level (e.g. a
  *  jet's tracks and calorimeter clusters): they cannot cover each other, and the bar gets shorter. For the view of

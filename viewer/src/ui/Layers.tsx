@@ -34,7 +34,7 @@ export function Collections({ layers }: { layers: DisplayLayer[] }) {
       <Headline layers={main} />
       {[...groups].map(([group, ls]) => (
         <section class="kind" key={group}>
-          <h3>{group}{one(ls) && <TruthWord table={ls[0].table} />}</h3>
+          <h3>{group}{sameTruth(ls) && <TruthWord table={ls[0].table} />}</h3>
           {/* each slider just before the first row it cuts (a kind can have several, e.g. one per calorimeter) */}
           {ls.map((d) => <Fragment key={layerKey(d)}>{cutsOf([d]).map((name) => <CutRow name={name} here={ls} named={new Set(ls.flatMap((x) => (x.cut ? [x.cut.group] : []))).size > 1} />)}<LayerRow d={d} label={d.label} /></Fragment>)}
         </section>
@@ -105,7 +105,7 @@ function TruthWord({ table }: { table: string }) {
 /** The layers of a kind (its heading's group) in the current bundle. */
 const kindLayers = (d: DisplayLayer) => (bundle.value?.header.display ?? []).filter((l) => l.group === d.group && !l.alternative);
 /** Whether the layers have one truth status (so one word on their heading). */
-const one = (ls: DisplayLayer[]) => new Set(ls.map((l) => truthStatuses.value.get(l.table)?.kind)).size <= 1;
+const sameTruth = (ls: DisplayLayer[]) => new Set(ls.map((l) => truthStatuses.value.get(l.table)?.kind)).size <= 1;
 
 /** A symbol for how a layer is drawn, shown before its name. */
 const glyph = (d: DisplayLayer) =>
@@ -126,7 +126,7 @@ function LayerRow({ d, label }: { d: DisplayLayer; label: string }) {
           <input type="checkbox" checked={on} disabled={!n} onChange={() => { visible.value = { ...visible.value, [key]: !on }; if (!on) showLevel(); }} />
           <span class="glyph" aria-hidden="true">{glyph(d)}</span>
           <span class="name">{label}</span>{d.source && <span class="tag" title="Reconstruction path">{d.source}</span>}
-          {!one(kindLayers(d)) && <TruthWord table={d.table} />}
+          {!sameTruth(kindLayers(d)) && <TruthWord table={d.table} />}
           <span class="count">{on && s !== undefined && s !== n ? `${s.toLocaleString()} / ` : ""}{n.toLocaleString()}</span>
         </label>
         <button class={open ? "more on" : "more"} aria-expanded={open} title="Colour, filter and new columns" onClick={() => setOpen(!open)}>⋯</button>

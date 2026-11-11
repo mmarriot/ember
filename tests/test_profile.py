@@ -270,6 +270,31 @@ def test_helix_columns_are_checked():
         converter({"T": {**XYZE, "px": F4, "py": F4}}, {"display": [layer]})
 
 
+def test_new_layer_hints_name_existing_columns():
+    """Columns named by the hints of the all-detectors format additions (cones, segments by direction, towers,
+    object lists, inspector rows) are checked like the others; constants and `{"to": ...}` lengths are not columns."""
+    ok = {"table": "J", "repr": "cones", "position": ["x", "y", "z"], "direction": ["eta", "phi"], "radius": 0.4,
+          "length": {"to": {"r": 129, "z": 320}}, "list": {"columns": ["pt", "eta"], "sort": "pt"}, "inspect": ["pt"],
+          "fractions": {"chf": "charged hadrons"}}
+    jets = {"J": {**XYZE, "eta": F4, "phi": F4, "pt": F4, "chf": F4}}
+    assert converter(jets, {"display": [ok]}).display[0]["radius"] == 0.4
+    with pytest.raises(ValueError, match="display J: no column mass, nhf"):
+        converter(jets, {"display": [{**ok, "fractions": {"nhf": "n"}, "inspect": ["mass"]}]})
+    tower = {"table": "H", "repr": "cells", "position": ["x", "y", "z"],
+             "cell": {"shape": "tower", "face": "disc", "dEta": "dEta", "dPhi": 0.087, "depth": {"column": "e", "scale": 4}}}
+    with pytest.raises(ValueError, match="display H: no column dEta"):
+        converter({"H": XYZE}, {"display": [tower]})
+    assert converter({"H": {**XYZE, "dEta": F4}}, {"display": [tower]}).display[0]["cell"]["shape"] == "tower"
+
+
+def test_fact_hint_is_passed_to_the_header():
+    """`fact` marks a truth -> hit relation as simulated energy per particle and cell (a fact, not a match)."""
+    rel = {"name": "truthHits", "kind": "index", "from": "P", "to": "H", "index": "H.p", "association": True,
+           "fact": {"in": "ECAL"}}
+    header = converter({"P": {}, "H": {"p": I4}}, {"relations": [rel]}).header([], "t")
+    assert header["relations"]["truthHits"]["fact"] == {"in": "ECAL"}
+
+
 def test_cms_profile_joins_hgcal_and_tracker():
     """cms = hgcal + tracker: HGCal kinds in the HGCal domain (from hgcal.json), truth particles as helices, the tracker's tracks with
     HGCalNanoAOD's GeneralTrack folded in (its HGCal entry taken over, its relations redirected); hgcal.json alone is

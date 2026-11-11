@@ -433,9 +433,15 @@ class Converter:
     def _check_display(self, layer):
         table = layer["table"]
         cut = layer.get("cut") or {}
+        cell, listing = layer.get("cell") or {}, layer.get("list") or {}
+        # A hint value naming a column: a string, or {"column": ...} (a scaled column); numbers are constants.
+        col = lambda v: v if isinstance(v, str) else v.get("column") if isinstance(v, dict) else None
         named = [*layer["position"], *layer.get("end", []), *layer.get("axis", []), *layer.get("extent", []),
                  *layer.get("momentum", []), *(layer.get(k) for k in ("colour", "size", "time", "charge")),
-                 cut.get("column")]
+                 cut.get("column"), *layer.get("direction", []), col(layer.get("radius")), col(layer.get("length")),
+                 *(col(cell.get(k)) for k in ("dEta", "dPhi", "depth")), *cell.get("u", []), *cell.get("v", []),
+                 *(map(col, cell["size"]) if isinstance(cell.get("size"), list) else ()),
+                 *listing.get("columns", []), listing.get("sort"), *layer.get("inspect", []), *layer.get("fractions", {})]
         missing = [c for c in named if c and c not in self.tables[table]["columns"]]
         if missing:
             raise ValueError(f"display {table}: no column {', '.join(missing)}; "
@@ -458,7 +464,7 @@ class Converter:
                        for t, m in written.items()},
             "relations": {n: {"from": r["from"], "to": r["to"],
                               "weights": [_column(w)[1] for w in r.get("weights", [])],
-                              **{k: r[k] for k in ("association", "best", "match") if k in r},  # viewer hints
+                              **{k: r[k] for k in ("association", "best", "match", "fact") if k in r},  # viewer hints
                               **({"inverseOf": r["inverseOf"]} if r.get("inverseOf") in relations else {})}
                           for n, r in relations.items()},
             "display": self.display,

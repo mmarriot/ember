@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { EventData, Header } from "../io/bundle";
 import { bestPurities, completeness, NO_EXPORT, opensPair, quality, simEnergyByParticle, truthStatus } from "./match";
 import cms from "./fixtures/cms_header.json";
+import { facts, unitOf } from "./facts";
 
 const csr = (rows: number[][], weights: Record<string, number[]> = {}) => ({
   offsets: Uint32Array.from(rows.reduce((o, r) => [...o, o[o.length - 1] + r.length], [0])),
@@ -111,5 +112,13 @@ describe("truth status", () => {
       relations: { truthHits: csr([[0], [1]], { simEnergy: [3, 1] }), truthMHits: csr([[0], []], { simEnergy: [0.002] }) } } as unknown as EventData;
     const groups = simEnergyByParticle(sev, kinds, new Map([["Hit", new Set([0, 1])], ["MHit", new Set([0])]]), () => true);
     expect(groups.map((g) => [g.in, g.total, g.particles])).toEqual([["HGCal", 4, [[0, 3], [1, 1]]], ["Muons", expect.closeTo(0.002), [[0, expect.closeTo(0.002)]]]]);
+  });
+  it("names the simulation's unit of a hit where it is coarser than the hit", () => {
+    const h = { ...kinds, relations: { ...kinds.relations, truthMHits: { ...kinds.relations.truthMHits,
+      fact: { in: "Muon", unit: { column: "subdet", names: { "1": "DT wire", "2": "CSC layer" } } } } } } as unknown as Header;
+    const f = facts(h).find((x) => x.to === "MHit")!;
+    expect(unitOf(f, { subdet: Uint8Array.from([1, 2]) }, 1)).toBe("CSC layer");
+    expect(truthStatus(h, "MHit")).toMatchObject({ kind: "fact", in: "Muon", unit: { column: "subdet" } });
+    expect(unitOf(facts(kinds).find((x) => x.to === "Hit")!, {}, 0)).toBeUndefined(); // the hit itself
   });
 });

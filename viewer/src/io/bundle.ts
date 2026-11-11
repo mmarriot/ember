@@ -129,8 +129,8 @@ export interface Header {
    *  other side's own relations. `best`: the weight that picks one partner where only one can be shown (colours).
    *  `inverseOf`: the relation points from a part back up to its container, the inverse of the named relation (a
    *  track's vertex, next to the vertex's tracks). `fact`: truth -> hits, the simulated energy per particle and cell
-   *  in detector `in` (a simulation fact, not a match; model/facts.ts). */
-  relations: Record<string, { from: string; to: string; weights: string[]; association?: boolean; best?: { weight: string; order: "min" | "max" }; inverseOf?: string; match?: Match; fact?: { in: string } }>;
+   *  (a simulation fact, not a match; model/facts.ts). */
+  relations: Record<string, { from: string; to: string; weights: string[]; association?: boolean; best?: { weight: string; order: "min" | "max" }; inverseOf?: string; match?: Match; fact?: Fact }>;
   display: DisplayLayer[];
   /** How particles move through the detector, for the reconstruction replay: away from a point (default: the
    *  origin, i.e. collisions), along a direction (e.g. [0, -1, 0] for cosmics), or in a fixed random order (hits
@@ -160,6 +160,10 @@ export interface Header {
  *  On truth -> reco: `completeness`, the weight giving the share of the particle's amount in the object (or 1 minus
  *  it, `complement`). Vertices are matched to truth vertices (`target` "interaction" or "decayVertex", `measure`
  *  "pt2": the pT² of their tracks), with the purity as a weight (`purity`). */
+/** A truth -> hit relation of simulated energy per particle and cell, in detector `in` (model/facts.ts). `unit`: what
+ *  one row of the simulation's record covers when it is coarser than a hit, in words: a phrase, or one per value of a
+ *  hit column (e.g. {"column": "subdet", "names": {"2": "CSC layer"}}), so a hit says "in this CSC layer". */
+export interface Fact { in: string; unit?: string | { column: string; names: Record<string, string> } }
 export interface Match {
   measure: "hits" | "energy" | "pt2"; in: string; target?: "trackerHits" | "caloBoundary" | "particle" | "interaction" | "decayVertex";
   shared?: string; over?: string[]; good?: number; completeness?: { weight: string; complement?: boolean };

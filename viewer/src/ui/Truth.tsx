@@ -20,7 +20,23 @@ const LEVELS: [number, string, string][] = [
 ];
 const ANCESTORS = 4; // ancestors listed above the particle; higher ones are folded into one line
 
-const chip = (t: string, r: number) => <button class="chip" onClick={() => jump({ table: t, row: r })}>{describe(t, r) || `#${r}`}</button>;
+const chip = (t: string, r: number) => <button class="chip" onClick={() => jump({ table: t, row: r })}>{describe(t, r) || named(t, r) || `#${r}`}</button>;
+/** An object's name from its layer's categorical colouring (e.g. a truth vertex's reason: "decay"), for layers without
+ *  a `describe` hint. */
+function named(t: string, r: number) {
+  const c = layerOf(t)?.colourBy, v = typeof c === "object" && "category" in c ? event.value?.tables[t]?.columns[c.category]?.[r] : undefined;
+  if (v === undefined || typeof c !== "object" || !("category" in c) || !c.names) return "";
+  const names = Array.isArray(c.names) ? Object.fromEntries(c.names) : c.names, name = names[String(v)];
+  return name ? `${name} #${r}` : "";
+}
+/** How far apart two objects are, from their layers' positions (cm); undefined without them. */
+function distance(a: string, ra: number, b: string, rb: number) {
+  const ev = event.value, pa = layerOf(a)?.position, pb = layerOf(b)?.position;
+  if (!ev || !pa || !pb) return undefined;
+  const ca = ev.tables[a]?.columns, cb = ev.tables[b]?.columns;
+  if (!ca || !cb || ![...pa.map((c) => ca[c]), ...pb.map((c) => cb[c])].every(Boolean)) return undefined;
+  return Math.hypot(...[0, 1, 2].map((i) => Number(ca[pa[i]][ra]) - Number(cb[pb[i]][rb])));
+}
 
 /** The reco -> truth relations that carry a `match` contract, from `table` (to the truth particles, or to the truth
  *  vertices for vertices). */
@@ -50,7 +66,8 @@ export function TruthCard({ table, row }: { table: string; row: number }) {
       {p < 0 ? <NoMatch table={table} row={row} truth={truth} /> : (
         <>
           <p class="truthline" title={`The truth-graph ${particles ? "particle (with everything it made)" : "vertex"} that the CMSSW associator picked for this object: AdaptiveNominal working point`}>
-            <span class="badge truth">truth</span> associator's best match {chip(target, p)}</p>
+            <span class="badge truth">truth</span> associator's best match {particles ? "" : "truth vertex "}{chip(target, p)}
+            {!particles && distance(table, row, target, p) !== undefined && <span class="muted">{short(distance(table, row, target, p)!)} cm away</span>}</p>
           <ul class="quality">
             {q?.purity !== undefined && (m.purity ? <li title="Share of this object's tracks (weighted by pT²) from the matched truth vertex">
               <b>purity {percent(q.purity)}</b> <span class="muted">{unit}{q.clean !== undefined && <> · {q.clean ? "clean match" : "impure"} (clean from {percent(m.good)})</>}</span></li>
@@ -199,7 +216,7 @@ export function Coverage() {
   const gap = (n?: number) => (n !== undefined ? ` (truth-graph.md gap ${n})` : "");
   const what = (s: TruthStatus) => s.kind === "match"
     ? [`matched by CMSSW`, `${s.match.target ? `reconstruct ${TARGETS[s.match.target]}; ` : ""}clean from ${percent(s.match.good)} of its ${s.match.measure === "hits" ? "hits" : s.match.measure === "pt2" ? "tracks' pT²" : "energy"}${s.match.in ? ` (${s.match.in})` : ""}`]
-    : s.kind === "fact" ? ["simulation fact", `simulated energy per particle in each hit${s.in ? ` (${s.in})` : ""}`]
+    : s.kind === "fact" ? ["simulation fact", `simulated energy per particle in each hit${s.in ? ` (${s.in})` : ""}${s.unit ? `, recorded per ${typeof s.unit === "string" ? s.unit : Object.values(s.unit.names).join(", ")}` : ""}`]
     : s.kind === "derived" ? ["derived in evd", `${s.reason}${gap(s.gap)}`]
     : s.kind === "container" ? ["with what contains it", "no truth of its own: drawn in the colour of the object it belongs to"]
     : ["no truth for this kind", `${s.reason}${gap(s.gap)}`];

@@ -3,6 +3,7 @@ import { colourBy, customColumns, customDoc } from "../model/custom";
 import { unitOf } from "../io/bundle";
 import { bundle, describe, event, full, highlight, kindOf, labelOf, layerKey, layerOf, modes, relatives, selection, sizeColumn, drawnLayers, truthStatuses } from "../model/store";
 import { simEnergyByParticle } from "../model/match";
+import { facts, unitOf as factUnit } from "../model/facts";
 import { bestFirst, type Related } from "../model/relations";
 import { engine } from "./Viewport";
 import { jump } from "./navigate";
@@ -76,9 +77,10 @@ export function Inspector() {
             {chain.length > 0 && <p class="chainline" title="The objects that contain it, one per kind (Related tab: all of them)">
               Part of {chain.map(([t, r]) => <><span class="muted"> {kindOf(t)}</span> {chip(t, r)}</>)}</p>}
             {sel.table === modes.value.roots.truth ? <Lineage row={sel.row} /> : !truth && <TruthCard table={sel.table} row={sel.row} />}
-            {!truth && best && !hasCard && <p class="truthline" title="The truth-graph particle the association picked for it (best by its score); shared energy and score from CMSSW">
-              <span class="badge truth">truth</span> {status?.kind === "fact" ? "most simulated energy from" : "associator's best match"} {chip(truthMatch!.table, best.row)}
-              <span class="muted">{weightsText(best.weights)}</span></p>}
+            {!truth && best && !hasCard && (status?.kind === "fact" ? <FactLine table={sel.table} row={sel.row} chip={chip(truthMatch!.table, best.row)} weights={weightsText(best.weights)} />
+              : <p class="truthline" title="The truth-graph particle the association picked for it (best by its score); shared energy and score from CMSSW">
+              <span class="badge truth">truth</span> associator's best match {chip(truthMatch!.table, best.row)}
+              <span class="muted">{weightsText(best.weights)}</span></p>)}
             {content.map((g) => g.particles.length > 0 && (
               <div class="truthcontent" title={`Each particle's ${g.weight} in this object's hits${g.in ? ` in ${g.in}` : ""} (deposited in the sensors, not calibrated: compare only within one detector), summed over the hit layers shown; hits belong to the particles that entered the calorimeter, with their secondaries; only particles in the truth-graph export`}>
                 <p class="truthline"><span class="badge truth">truth</span> simulated energy in its hits{content.length > 1 && g.in ? ` in ${g.in}` : ""}, by particle that entered the calorimeter:</p>
@@ -148,6 +150,18 @@ function associations(table: string, row: number) {
     else out.push({ table: other, rows });
   }
   return out;
+}
+
+/** A hit's simulation fact: the particle that left the most simulated energy in it, and, where the simulation records
+ *  a coarser unit than the hit (e.g. a CSC layer), that unit, which every hit in it shares. */
+function FactLine({ table, row, chip, weights }: { table: string; row: number; chip: preact.JSX.Element; weights: string }) {
+  const b = bundle.value!, f = facts(b.header).find((x) => x.to === table), unit = f && factUnit(f, event.value?.tables[table]?.columns, row);
+  const where = unit ? (typeof f!.unit === "string" ? ` (per ${unit})` : ` in this ${unit}`) : "";
+  return (
+    <p class="truthline" title={`Simulation: the truth-graph particle that left the most simulated energy ${unit ? `in the ${unit} of this hit (the simulation does not resolve it further: every hit there shares these particles)` : "in this hit"}`}>
+      <span class="badge truth">truth</span> most simulated energy{where} from {chip}
+      <span class="muted">{weights}</span></p>
+  );
 }
 
 function drawn(table: string) {

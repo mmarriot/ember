@@ -2,7 +2,7 @@
 // share of the reco object's hits or energy that came from the particle) and completeness (the share of the
 // particle's hits or energy that the object has), from an association's `match` hint. The associator's own score is
 // a ranking (0 best, squared for calorimeter objects), not a fraction, so it is shown next to these, never instead.
-import type { EventData, Header, Match } from "../io/bundle";
+import type { EventData, Fact, Header, Match } from "../io/bundle";
 import { evaluate } from "./custom";
 import { facts } from "./facts";
 import { type ColourBy, modeColouring, modeRoots, reachesRoot } from "./modes";
@@ -13,8 +13,8 @@ export const TARGETS: Record<NonNullable<Match["target"]>, string> = {
   trackerHits: "the particle whose own tracker hits it collected",
   caloBoundary: "the particle that entered the calorimeter",
   particle: "the generator particle",
-  interaction: "the collision it comes from (its truth vertex)",
-  decayVertex: "the decay vertex of a b or c hadron",
+  interaction: "the collision their tracks come from (a truth vertex)",
+  decayVertex: "the vertex their tracks come from, aiming at b and c hadron decays (a truth vertex)",
 };
 
 /** The object's own amount (`over`: the first expression that can be computed on its table), once per event. */
@@ -92,7 +92,7 @@ export const percent = (x: number | undefined) => (x === undefined || Number.isN
  *  in docs/truth-graph.md); `container`, drawn in the colour of what contains it (a track's hits); else `none`. */
 export type TruthStatus =
   | { kind: "match"; relation: string; match: Match }
-  | { kind: "fact"; in: string }
+  | { kind: "fact"; in: string; unit?: Fact["unit"] }
   | { kind: "derived"; reason: string; gap?: number }
   | { kind: "none"; reason: string; gap?: number }
   | { kind: "container"; relation: string };
@@ -110,7 +110,7 @@ export function truthStatus(header: Header, table: string, colouring?: Record<st
   const own = Object.entries(header.relations).find(([, r]) => r.match && r.from === table && truth(r.to));
   if (own) return { kind: "match", relation: own[0], match: own[1].match! };
   const fact = facts(header).find((f) => f.to === table);
-  if (fact) return { kind: "fact", in: fact.in };
+  if (fact) return { kind: "fact", in: fact.in, ...(fact.unit ? { unit: fact.unit } : {}) };
   const c = (colouring ?? modeColouring(header, root, true))[table];
   if (c && typeof c === "object" && "content" in c) return { kind: "derived", reason: d.truthGap?.reason ?? DERIVED, gap: d.truthGap?.gap };
   if (d.truthGap) return { kind: "none", reason: d.truthGap.reason, gap: d.truthGap.gap };

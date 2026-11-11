@@ -4,7 +4,7 @@
 // across detectors (sampling and homogeneous calorimeters, HF photoelectrons). Bundles made before the hint, and
 // relations of profiles that do not set it (hgcal.json), keep the earlier rule: a truth association into a layer
 // drawn as cells is a fact, in that layer's domain.
-import type { DisplayLayer, Header } from "../io/bundle";
+import type { DisplayLayer, Fact, Header } from "../io/bundle";
 
 const layerOf = (header: Header, table: string): DisplayLayer | undefined => header.display?.find((l) => l.table === table);
 
@@ -20,18 +20,28 @@ export function factIn(header: Header, name: string): string | undefined {
 }
 
 /** The fact relations of the bundle: name, truth table, hit table and detector. Once per header. */
-export function facts(header: Header): { name: string; from: string; to: string; in: string }[] {
+export type FactRelation = { name: string; from: string; to: string; in: string; unit?: Fact["unit"] };
+export function facts(header: Header): FactRelation[] {
   let out = factsOf.get(header);
   if (!out) {
     out = Object.keys(header.relations).flatMap((name) => {
       const where = factIn(header, name), r = header.relations[name];
-      return where === undefined ? [] : [{ name, from: r.from, to: r.to, in: where }];
+      return where === undefined ? [] : [{ name, from: r.from, to: r.to, in: where, ...(r.fact?.unit ? { unit: r.fact.unit } : {}) }];
     });
     factsOf.set(header, out);
   }
   return out;
 }
-const factsOf = new WeakMap<Header, { name: string; from: string; to: string; in: string }[]>();
+const factsOf = new WeakMap<Header, FactRelation[]>();
+
+/** What one row of the simulation's record covers for hit `row` of a fact relation's table, when coarser than a hit
+ *  (e.g. "CSC layer"); undefined when it is the hit itself. */
+export function unitOf(f: FactRelation, columns: Record<string, ArrayLike<number | bigint>> | undefined, row: number): string | undefined {
+  const u = f.unit;
+  if (!u || typeof u === "string") return u;
+  const v = columns?.[u.column]?.[row];
+  return v === undefined ? undefined : u.names[String(v)];
+}
 
 /** Whether `table` holds hits with simulation facts (the `to` of a fact relation). */
 export const isFactTable = (header: Header, table: string) => facts(header).some((f) => f.to === table);

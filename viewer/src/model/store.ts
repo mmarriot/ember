@@ -1,7 +1,7 @@
 // Application state. Components and the renderer react to these signals.
 import { computed, effect, signal } from "@preact/signals";
 import { Bundle, type DisplayLayer, type EventData, type Header, httpSource, kindName, REPRS, type Table, unitOf } from "../io/bundle";
-import type { Legend, ThemeName } from "../render/colour";
+import { describeNoLink, type Legend, type ThemeName } from "../render/colour";
 import type { Caption } from "../render/replay";
 import type { Hit, ViewName } from "../render/engine";
 import { drawsLayer, sharedDomains, startDomain } from "./domains";
@@ -151,6 +151,13 @@ export function truthName(table: string) {
 }
 /** Whether `table` is a kind with no truth of its own (status none). */
 export const noTruth = (table: string) => truthStatuses.peek().get(table)?.kind === "none";
+// The words under a layer drawn in one neutral colour: by truth, why it has none (docs/truth.md "Where truth stops").
+describeNoLink((d) => {
+  const s = activeMode.peek() === "truth" ? truthStatuses.peek().get(d.table) : undefined;
+  if (s?.kind === "none") return `no truth for ${truthName(d.table).split(" ").map((w) => (/^[A-Z][a-z]/.test(w) ? w.toLowerCase() : w)).join(" ")}${s.gap !== undefined ? ` (gap ${s.gap})` : ""}`;
+  if (s?.kind === "match") return "matched to truth, not to a particle: no particle colour (inspector)";
+  return "one colour: no link to the colour's source";
+});
 
 /** In the "pid" and "truth" modes with something selected: its truth <-> reco pair, which colours every layer
  *  (Viewport); null when the pair has nothing to show (no candidate, and no hits of its particle), and for a kind with

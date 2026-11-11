@@ -45,6 +45,8 @@ def main(argv=None):
     p.add_argument("--max-events", type=int)
     p.add_argument("--events", help="only these event numbers, e.g. 416622,416630-416640 (the profile's selection "
                                     "still applies)")
+    p.add_argument("--sorted", action="store_true", help="write each file's events in (run, event) order, as a "
+                                                            "multi-threaded export does not (reads one entry at a time)")
     p.add_argument("--run-tables", help="NanoAOD file with the per-run tables (Runs tree, e.g. the channel table) of the "
                                         "same runs, for inputs made without them")
     p.add_argument("--run-info", help="information about the runs: a JSON file, or registry:<database>.<table> "
@@ -77,7 +79,8 @@ def main(argv=None):
     if args.command == "from-nano":
         from .nano import convert, parse_events  # needs uproot; inspect/validate need only numpy
         n = convert(args.inputs, args.output, args.profile, args.max_events, run_info=args.run_info,
-                    events=parse_events(args.events) if args.events else None, run_tables=args.run_tables)
+                    events=parse_events(args.events) if args.events else None, run_tables=args.run_tables,
+                    sort=args.sorted)
         print(f"wrote {n} events to {args.output}")
     elif args.command == "inspect":
         b = Bundle(args.bundle)

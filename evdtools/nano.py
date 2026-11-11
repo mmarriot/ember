@@ -636,18 +636,19 @@ def parse_events(spec):
     return out
 
 
-def _entries(tree, conv, events, progress):
+def _entries(tree, conv, events, progress, sort=False):
     """(arrays, i) of the entries of an Events tree to convert. `events`: only these event numbers, found from the
-    event branch alone and read one at a time, in event order. Otherwise, with an event selection on plain columns,
+    event branch alone and read one at a time, in event order; `sort`: every entry that way, in (run, event) order
+    (a multi-threaded export writes events in the order they finish). Otherwise, with an event selection on plain columns,
     a first pass reads only the branches that decide it, and an entry is read in full only if it passes;
     progress(entries scanned) is called after each chunk."""
     full = conv.branches()
     entry = lambda e: tree.arrays(full, entry_start=e, entry_stop=e + 1, library="np")
-    if events is not None:
-        numbers = tree["event"].array(library="np")
-        chosen = np.flatnonzero(np.isin(numbers, list(events)))
+    if events is not None or sort:
+        numbers, runs = tree["event"].array(library="np"), tree["run"].array(library="np")
+        chosen = np.flatnonzero(np.isin(numbers, list(events))) if events is not None else np.arange(len(numbers))
         progress(len(chosen))
-        for e in chosen[np.argsort(numbers[chosen], kind="stable")]:  # before, during, after
+        for e in chosen[np.lexsort((numbers[chosen], runs[chosen]))]:  # before, during, after
             yield entry(e), 0
         return
     pre = conv.selection_branches()
@@ -660,12 +661,12 @@ def _entries(tree, conv, events, progress):
         progress(report.tree_entry_stop)
 
 
-def _records(conv, files, log, events=None, runs=None):
+def _records(conv, files, log, events=None, runs=None, sort=False):
     """(record, run tables) of the converted events of `files`, in order. `events`: only these event numbers;
-    `runs`: per-run tables to use instead of each file's own."""
+    `runs`: per-run tables to use instead of each file's own; `sort`: each file's events in (run, event) order."""
     def progress(n):
-        if events is not None:
-            print(f"{name}: {n} of the requested events", file=log)
+        if events is not None or sort:
+            print(f"{name}: {n} {'of the requested ' if events is not None else ''}events, in event order", file=log)
         elif conv.select:
             print(f"{name}: scanned {n}, selected {selected}", file=log)
 
@@ -673,7 +674,7 @@ def _records(conv, files, log, events=None, runs=None):
         name, selected = os.path.basename(path), 0
         with _open(path) as f:
             file_runs = _run_tables(conv, f) if runs is None else runs
-            for arrays, i in _entries(f["Events"], conv, events, progress):
+            for arrays, i in _entries(f["Events"], conv, events, progress, sort):
                 run_tables = file_runs.get(int(arrays["run"][i]))
                 record = conv.event(arrays, i, run_tables)
                 if record is not None:
@@ -682,11 +683,11 @@ def _records(conv, files, log, events=None, runs=None):
 
 
 def convert(files, output, profile_name="hgcal", max_events=None, log=sys.stderr, data_time=None, run_info=None,
-            events=None, run_tables=None):
+            events=None, run_tables=None, sort=False):
     """Write the (selected) events of `files` to the bundle `output`; `data_time`: when the input was produced;
     `run_info`: where to find information about the runs (see runinfo.load); `events`: only these event numbers;
     `run_tables`: a NanoAOD file whose Runs tree has the per-run tables (e.g. the channel table) of the same runs,
-    for inputs made without them."""
+    for inputs made without them. `sort`: each file's events in (run, event) order."""
     profile = load_profile(profile_name)
     with _open(files[0]) as f, _open(run_tables or files[0]) as r:
         conv = Converter(discover(f["Events"]), profile, discover(r["Runs"]) if "Runs" in r else None)
@@ -700,7 +701,7 @@ def convert(files, output, profile_name="hgcal", max_events=None, log=sys.stderr
         header["source"]["data_time"] = data_time.isoformat(timespec="seconds")
     written, runs_written = 0, set()
     with BundleWriter(output, header) as out:
-        for record, per_run in itertools.islice(_records(conv, files, log, events, runs), max_events):
+        for record, per_run in itertools.islice(_records(conv, files, log, events, runs, sort), max_events):
             run = int(record[0][0])
             if per_run and run not in runs_written:
                 out.add_run(*conv.run_record(run, per_run))

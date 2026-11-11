@@ -111,4 +111,18 @@ describe("truth <-> reco pair", () => {
     expect(pairShows(pairFor(tev, header, { table: "P", row: 2 }, roots, colourings, header.display[3]))).toBe(false);
     expect(pairShows(pairFor(tev, header, { table: "P", row: 1 }, roots, colourings, header.display[3]))).toBe(true);
   });
+  it("counts only the hits of the candidates' detector: never sums simulated energy across detectors", () => {
+    // particle 0 also left 100 (simulated) in two ECAL hits; the candidates are HGCal objects
+    const eev = { ...ev, tables: { ...ev.tables, EB: { n: 2, columns: { energy: Float32Array.from([5, 5]) } } },
+      relations: { ...ev.relations, truthEB: csr([[0, 1], []], { simEnergy: [60, 40] }) } } as unknown as EventData;
+    const facts = (h: Header) => ({ ...h, relations: { ...h.relations,
+      truthHits: { ...h.relations.truthHits, fact: { in: "HGCal" } },
+      truthEB: rel("P", "EB", { weights: ["simEnergy"], association: true, best: { weight: "simEnergy", order: "max" }, fact: { in: "ECAL" } }),
+      candTruth: { ...h.relations.candTruth, match: { measure: "energy", in: "HGCal", shared: "x" } } },
+      display: [...h.display, { table: "EB", repr: "cells" }] }) as unknown as Header;
+    const eh = facts(header), c = { truth: modeColouring(eh, "P", true), reco: modeColouring(eh, "Cand") };
+    const p = pairFor(eev, eh, { table: "P", row: 0 }, roots, c, eh.display[3]);
+    expect(p.efficiency).toEqual({ candidate: 2, others: 1, missed: 1 }); // as without the ECAL hits
+    expect(p.purity).toEqual({ particle: 2, other: 1 });
+  });
 });

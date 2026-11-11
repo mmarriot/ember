@@ -3,6 +3,7 @@
 // so the picture does not change when you click from one to the other.
 import type { DisplayLayer, EventData, Header } from "../io/bundle";
 import type { ColourBy } from "./modes";
+import { facts } from "./facts";
 import { bestPartners, cached, contentPartners, identities, levelsOf, type Ref, relatedParts } from "./relations";
 
 /** What an object is in the pair view. `reco`: in a candidate that has no truth particle (no match, or no truth in
@@ -98,7 +99,11 @@ export function pairFor(ev: EventData, header: Header, focus: Ref, roots: { trut
   const members = candidate >= 0 ? levelsOf(ev, header, { table: reco, row: candidate }, { ...relatedParts(ev, header, { table: reco, row: candidate }), linked: new Map() }) : new Map<string, Set<number>>();
   const classes = new Map<string, Uint8Array>(), splitCands = new Set<number>(), anyParticle = particle >= 0;
   const truthTables = new Set(header.display.filter((d) => d.truth).map((d) => d.table));
-  const hitTables = new Set(header.display.filter((d) => d.repr === "cells" && !d.context).map((d) => d.table));
+  // The hits with simulated energy (facts) in the candidates' detector: simulated energy is never summed across
+  // detectors (an HGCal candidate's pair says nothing about the particle's ECAL or HCAL hits).
+  const rootIn = Object.values(header.relations).find((r) => r.match && r.from === reco && r.to === truth)?.match?.in;
+  const allFacts = facts(header).filter((f) => f.from === truth), here = allFacts.filter((f) => f.in === rootIn);
+  const hitFacts = here.length ? here : allFacts, hitTables = new Set(hitFacts.map((f) => f.to));
   // The reco root last: the candidates holding the particle's other objects are known by then.
   const tables = [...new Set(header.display.filter((d) => !d.context).map((d) => d.table))].sort((a, b) => Number(a === reco) - Number(b === reco));
   for (const t of tables) {
@@ -122,8 +127,8 @@ export function pairFor(ev: EventData, header: Header, focus: Ref, roots: { trut
   let efficiency: Pair["efficiency"], purity: Pair["purity"];
   if (anyParticle && key && ids) {
     efficiency = { candidate: 0, others: 0, missed: 0 };
-    const owns = new Uint8Array(key.length), hitRels = Object.entries(header.relations).filter(([name, info]) =>
-      ev.relations[name] && info.association && info.from === truth && hitTables.has(info.to) && !header.display.find((d) => d.table === info.to)?.alternative);
+    const owns = new Uint8Array(key.length), hitRels = hitFacts.map((f) => [f.name, header.relations[f.name]] as const).filter(([name, info]) =>
+      ev.relations[name] && !header.display.find((d) => d.table === info.to)?.alternative);
     for (const [name] of hitRels) { const o = ev.relations[name].offsets; for (let p = 0; p + 1 < o.length; p++) if (o[p + 1] > o[p]) owns[p] = 1; }
     const top = (p: number) => { for (let a = ids.parent[p], steps = 0; a >= 0 && steps < key.length; a = ids.parent[a], steps++) { if (owns[a] && has(key[a])) return false; } return true; };
     for (const [name, info] of hitRels) {

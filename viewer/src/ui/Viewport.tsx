@@ -9,7 +9,7 @@ import { colourBy, filters } from "../model/custom";
 import { cutMin, cutValues } from "../model/cuts";
 import { colours, type LayerFor, type Legend, PALETTES, valueRange, type Pal, type Range } from "../render/colour";
 import { Engine, MIN_RADIUS } from "../render/engine";
-import { builders, type ColourStage, type Layer } from "../render/layers";
+import { builders, type Layer } from "../render/layers";
 import { planReplay, type Plan } from "../render/replay";
 import { back, jump } from "./navigate";
 import {
@@ -18,7 +18,7 @@ import {
   showAll, shown, shownLayer, shownLevel, theme, touring, view, visible,
 } from "../model/store";
 import { PAIR } from "../model/pair";
-import { relationInto, type Ref } from "../model/relations";
+import type { Ref } from "../model/relations";
 import { stopTour } from "./tour";
 
 export let engine: Engine | null = null;
@@ -43,28 +43,8 @@ export function replayEvent(): Plan | null {
   const header = bundle.peek()?.header, hints = new Map(header?.display.map((d) => [layerKey(d), d]));
   const items = entries.filter((e) => !e.d.context).map((e) => ({ ...e, d: hints.get(e.key) ?? e.d })); // background stays as it is
   plan = planReplay(items, header?.replay);
-  stageColours(plan);
   engine.replay(plan.seconds);
   return plan;
-}
-
-/** Grouped layers (e.g. layer clusters) take the colours of each stage in turn: the objects of that stage that
- *  contain them, through a relation from the stage's table, if there is one. Not in the truth and reco colour
- *  modes: there a colour stays one object's for the whole replay. */
-function stageColours(p: Plan) {
-  const b = bundle.peek(), ev = event.peek(), pal = PALETTES[theme.peek()];
-  if (!b || !ev || activeMode.peek() !== "layers") return;
-  for (const e of entries) {
-    if (!(typeof e.d.colourBy === "object" && "relation" in e.d.colourBy) || !e.layer.setColourStages) continue;
-    const keys: ColourStage[] = [];
-    for (const st of p.stages) {
-      const rel = relationInto(b.header, st.tables, e.d.table, ev);
-      if (!rel) continue;
-      const c = colours({ ...e.d, colourBy: { relation: rel } }, e.t, ev, b.header, pal);
-      keys.push({ t: st.start, rgb: c.rgb, emphasis: c.emphasis });
-    }
-    e.layer.setColourStages(keys);
-  }
 }
 
 export function Viewport() {

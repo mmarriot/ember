@@ -30,13 +30,11 @@ export interface Layer {
   setClock(t: number): void; // replay time in s; REPLAY_OFF shows the final state
   setRetire(t: number): void; // replay: when the layer gives way to the next reconstruction stage (s); REPLAY_OFF: never
   setFade?(from: number, to: number, amount: number): void; // replay: fade towards the background between these times
-  setColourStages?(stages: ColourStage[]): void; // replay: colours (and emphasis) from time t on, e.g. per stage
   /** Shower objects: draw as outlines (e.g. the reco objects matched to a truth particle); `envelope`: as a
    *  full-size outline, also for compact cores (the focus around the level shown inside it). */
   setOutline?(on: boolean, envelope?: boolean): void;
   dispose(): void;
 }
-export interface ColourStage { t: number; rgb: Float32Array; emphasis?: Uint8Array }
 export interface LayerInput { key: string; d: DisplayLayer; t: Table; pal: Pal; rgb: Float32Array; emphasis?: Uint8Array; cut?: Float32Array }
 
 const GLSL = /* glsl */ `
@@ -212,31 +210,12 @@ export function markers(input: LayerInput): Layer {
   const common = shaderLayer(input, g, material, false, { ix: x, iy: y, iz: z });
   const emph = new THREE.BufferAttribute(input.emphasis ?? new Uint8Array(t.n).fill(1), 1); // 0 or 1, not normalised
   g.setAttribute("iemph", emph);
-  // Replay colour stages: the final colours are kept aside and restored when the replay ends.
-  const final = { rgb: Float32Array.from(input.rgb), emphasis: Uint8Array.from(emph.array as Uint8Array) };
-  let stages: ColourStage[] = [], showing = -1;
-  const showStage = (k: number) => {
-    if (k === showing) return;
-    showing = k;
-    const c = k < 0 ? final : stages[k];
-    common.setColours(c.rgb);
-    (emph.array as Uint8Array).set(c.emphasis ?? final.emphasis);
-    emph.needsUpdate = true;
-  };
   const points = new THREE.Points(g, material);
   points.frustumCulled = false;
   points.renderOrder = 2;
   return {
     ...identity(input, 9), object: points, x, y, z,
     ...common,
-    setColours(c) { final.rgb.set(c); if (showing < 0) common.setColours(c); },
-    setClock(t) {
-      common.setClock(t);
-      let k = -1; // the last stage that has started (none outside a replay)
-      if (t < REPLAY_OFF) stages.forEach((s, j) => { if (s.t <= t) k = j; });
-      showStage(k);
-    },
-    setColourStages(s) { stages = s; showStage(-1); },
     dispose() { g.dispose(); material.dispose(); },
   };
 }

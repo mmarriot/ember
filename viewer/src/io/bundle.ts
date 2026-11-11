@@ -95,8 +95,9 @@ export interface DisplayLayer {
   views?: ViewName[];
   visible: boolean;
   /** Object rows under the layer in its side-panel tab (the Physics tab's event summary): the `max` largest by `sort`
-   *  (default: the layer's size column) that pass its cut and filter, with these columns. */
-  list?: { columns: string[]; sort?: string; max?: number };
+   *  (default: the layer's size column) that pass its cut and filter, with these columns. The tab's headline gives
+   *  how many pass ("count", default) or, for a one-object table such as MET, the first column's value ("value"). */
+  list?: { columns: string[]; sort?: string; max?: number; headline?: "count" | "value" };
   /** The columns the inspector's summary shows first (e.g. pt, eta, phi for a jet, instead of its position). */
   inspect?: string[];
 }

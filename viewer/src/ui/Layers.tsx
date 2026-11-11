@@ -5,14 +5,16 @@
 import { computed } from "@preact/signals";
 import { Fragment } from "preact";
 import { useState } from "preact/hooks";
-import type { DisplayLayer } from "../io/bundle";
-import { colourBy, customColumns, filters, RELATION, removeFilter } from "../model/custom";
+import { type DisplayLayer, unitOf } from "../io/bundle";
+import { colourBy, customColumns, filterMask, filters, RELATION, removeFilter } from "../model/custom";
+import { columnName, passes, topRows } from "../model/objects";
 import { PALETTES, relatedColourText, type Legend } from "../render/colour";
 import {
-  activeMode, bundle, cutGroups, cuts, event, focusHidden, focusLayers, focusLevel, labelOf, layerKey, layerName, legends, levels, modes, pairView, short,
-  showAll, shown, shownLayer, theme, visible,
+  activeMode, bundle, cutGroups, cuts, describe, event, focusHidden, focusLayers, focusLevel, labelOf, layerKey, layerName, legends, levels, modes, pairView,
+  selection, short, showAll, shown, shownLayer, sizeColumn, theme, visible,
 } from "../model/store";
 import { ExprForm } from "./ExprForm";
+import { jump } from "./navigate";
 import { Icon } from "./widgets";
 
 /** The tab a layer is listed in: its `domain`, or "Objects" for bundles made before layers had one. */
@@ -28,6 +30,7 @@ export function Collections({ layers }: { layers: DisplayLayer[] }) {
   const cutsOf = (ls: DisplayLayer[]) => [...new Set(ls.flatMap((d) => (d.cut ? [d.cut.group] : [])))].filter((g) => !placed.has(g) && !!placed.add(g));
   return (
     <>
+      <Headline layers={main} />
       {[...groups].map(([group, ls]) => (
         <section class="kind" key={group}>
           <h3>{group}</h3>
@@ -122,7 +125,59 @@ function LayerRow({ d, label }: { d: DisplayLayer; label: string }) {
         </label>
       )}
       {open ? <Options d={d} legend={on ? legend : undefined} /> : on && legend && !keyed(d) && <div class="legend"><Scale d={d} legend={legend} /></div>}
+      {on && d.list && <ObjectRows d={d} />}
     </div>
+  );
+}
+
+/** A layer's rows that pass its cut and filter (model/objects.ts). */
+function passing(d: DisplayLayer) {
+  const t = event.value?.tables[d.table];
+  if (!t) return null;
+  return { t, pass: passes(d, t, d.cut ? cuts.value[d.cut.group] ?? 0 : 0, filterMask(t, filters.value[d.table])) };
+}
+
+/** The event in one line, from the ticked layers with object rows (`list`): how many objects of each pass its cut and
+ *  filter ("Jets 4"), or the value of a one-object table ("MET 42.2 GeV"). */
+function Headline({ layers }: { layers: DisplayLayer[] }) {
+  const parts = layers.filter((d) => d.list && visible.value[layerKey(d)]).flatMap((d) => {
+    const p = passing(d);
+    if (!p) return [];
+    if (d.list!.headline === "value") {
+      const c = d.list!.columns[0], col = p.t.columns[c];
+      if (!col || !p.t.n) return [];
+      const unit = unitOf(bundle.value!.header.tables[d.table]?.columns[c]?.doc);
+      return [[d.label, `${short(Number(col[0]))}${unit ? ` ${unit}` : ""}`]];
+    }
+    let n = 0;
+    for (let i = 0; i < p.t.n; i++) if (p.pass(i)) n++;
+    return [[d.label, n.toLocaleString()]];
+  });
+  return parts.length ? <p class="headline">{parts.map(([label, value], i) => <>{i > 0 && " · "}{label} <b>{value}</b></>)}</p> : null;
+}
+
+/** The largest objects of a layer with a `list` hint, one row each with its columns; a click selects (and frames) it. */
+function ObjectRows({ d }: { d: DisplayLayer }) {
+  const p = passing(d), sel = selection.value, list = d.list!;
+  if (!p) return null;
+  const cols = list.columns.filter((c) => c in p.t.columns);
+  const rows = topRows(p.t, list.sort ?? sizeColumn(d.table, p.t), p.pass, list.max ?? 10);
+  if (!rows.length) return null;
+  const more = (() => { let n = 0; for (let i = 0; i < p.t.n; i++) if (p.pass(i)) n++; return n - rows.length; })();
+  return (
+    <table class="objects">
+      <thead><tr><th />{cols.map((c) => <th title={bundle.value!.header.tables[d.table]?.columns[c]?.doc}>{columnName(c)}</th>)}</tr></thead>
+      <tbody>
+        {rows.map((r) => (
+          <tr class={sel?.table === d.table && sel.row === r ? "selected" : undefined} onClick={() => jump({ table: d.table, row: r })}
+            title={`${labelOf(d.table)} #${r}: select it`}>
+            <td>{describe(d.table, r) || `#${r}`}</td>
+            {cols.map((c) => <td>{short(Number(p.t.columns[c][r]))}</td>)}
+          </tr>
+        ))}
+        {more > 0 && <tr class="more"><td colSpan={cols.length + 1}>… and {more.toLocaleString()} more</td></tr>}
+      </tbody>
+    </table>
   );
 }
 

@@ -110,6 +110,18 @@ code { font: 11.5px ui-monospace, SFMono-Regular, Menlo, monospace; }
 .tabpanel section > h3 { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin-bottom: 2px; }
 .tabpanel section > h3 .count { text-transform: none; letter-spacing: 0; font-weight: 400; }
 details.others > summary { font-weight: 600; }
+/* Physics tab: the event in one line, and each kind's largest objects. */
+.headline { margin: 0 0 10px; font-size: 12.5px; line-height: 1.6; }
+.headline b { font-variant-numeric: tabular-nums; }
+table.objects { width: calc(100% - 22px); margin: 2px 0 6px 22px; border-collapse: collapse; font-size: 11.5px; font-variant-numeric: tabular-nums; }
+table.objects th { font-weight: 500; color: var(--muted); text-align: right; padding: 0 4px; }
+table.objects td { text-align: right; padding: 1px 4px; white-space: nowrap; }
+table.objects th:first-child, table.objects td:first-child { text-align: left; width: 40%; overflow: hidden; text-overflow: ellipsis; max-width: 0; }
+table.objects tbody tr { cursor: pointer; }
+table.objects tbody tr:hover { background: var(--surface); }
+table.objects tbody tr.selected { background: var(--accent); color: #fff; }
+table.objects tr.more { cursor: default; color: var(--muted); }
+table.objects tr.more td { text-align: left; }
 /* Detector tab: one folded section per part of the detector. */
 details.part + details.part { border-top: 1px solid var(--line); margin-top: 6px; padding-top: 6px; }
 details.part > summary { display: flex; align-items: baseline; gap: 6px; cursor: pointer; padding: 2px 0 6px; font-size: 13px; color: inherit; }

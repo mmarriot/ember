@@ -18,7 +18,8 @@ export function Inspector() {
   const custom = customColumns.value.filter((c) => c.table === sel.table).map((c) => c.name);
   const colour = d ? colourBy.value[layerKey(d)] ?? d.colour : undefined;
   const category = d && typeof d.colourBy === "object" && "category" in d.colourBy ? d.colourBy.category : undefined;
-  const key = [...new Set([category, colour, ...(d?.position ?? []), sizeColumn(sel.table, table), ...custom])]
+  // The summary's rows: the layer's `inspect` columns (e.g. pt, eta, phi of a jet), else what colours, places and sizes it.
+  const key = [...new Set([...(d?.inspect ?? [category, colour, ...(d?.position ?? []), sizeColumn(sel.table, table)]), ...custom])]
     .filter((c): c is string => !!c && c in table.columns);
   const doc = (c: string) => info.columns[c]?.doc ?? customDoc(sel.table, c);
   const rows = (cols: string[]) => (

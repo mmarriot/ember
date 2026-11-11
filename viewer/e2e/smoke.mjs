@@ -370,11 +370,13 @@ async function deepChecks(page, h, fail, shot) {
   await shot("6_help");
   await page.keyboard.press("Escape");
 
-  // From the first layer's ⋯: custom column r = hypot(x, y) on its table; colour the layer by it; then a filter hiding
-  // every row, shown on the layer's row.
+  // From the first layer's ⋯: custom column r = hypot(x, y) on its table (abs of its first float column if it has no
+  // x, y: tracks, jets); colour the layer by it; then a filter hiding every row, shown on the layer's row.
   const firstLayer = page.locator(".layer").first(), count = async () => (await firstLayer.locator(".count").innerText()).replace(/,/g, "");
+  const table = (await firstLayer.locator("label").getAttribute("title")).split(":")[0], columns = h.tables[table]?.columns ?? {};
+  const expr = "x" in columns && "y" in columns ? "hypot(x, y)" : `abs(${Object.keys(columns).find((c) => columns[c].type === "f32")})`;
   await firstLayer.locator(".more").click();
-  await firstLayer.locator(".exprform .expr").fill("hypot(x, y)");
+  await firstLayer.locator(".exprform .expr").fill(expr);
   await firstLayer.locator(".exprform .name").fill("r");
   log(`  expression preview: ${await firstLayer.locator(".exprform .feedback").innerText()}`);
   await firstLayer.getByRole("button", { name: "Add column" }).click();

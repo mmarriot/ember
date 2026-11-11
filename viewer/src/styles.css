@@ -331,3 +331,15 @@ ul.quality li { margin: 1px 0; }
 .labels .label.focus span { border-color: var(--accent); }
 .labels .label.hover::before { left: -11px; top: -11px; width: 18px; height: 18px; background: none; border: 2px solid var(--accent); }
 .labels .label.hover span { border-color: var(--accent); }
+
+/* Phones: the panel is a sheet under the view, folded to its tabs and the colour key's title (Sidebar.tsx). */
+.sheet-handle { display: none; }
+@media (max-width: 700px) {
+  .app { grid-template-rows: auto 1fr auto; }
+  main { grid-row: 2; }
+  .sidebar { grid-row: 3; max-height: 55vh; border-right: none; border-top: 1px solid var(--line); }
+  .sheet-handle { display: block; border: none; border-radius: 0; background: none; color: var(--muted); font-size: 11px; padding: 4px; }
+  .sidebar.closed > .tabs { flex: none; }
+  .sidebar.closed > .tabs > .tabpanel, .sidebar.closed > .segmented.presets, .sidebar.closed .colourkey > :not(summary) { display: none; }
+  .viewport > .views ~ .hintbar { display: none; }
+}

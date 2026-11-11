@@ -2,6 +2,7 @@
 // bar: a tab per shared domain, e.g. Physics, and one Detector tab for the parts, following the bar), the truth
 // (its collections, what became of each particle, the tree) and the event; the colour key under them. Its width can
 // be dragged.
+import { signal } from "@preact/signals";
 import type { ComponentChildren } from "preact";
 import { activePreset } from "../model/custom";
 import { applyPreset } from "../model/presets";
@@ -30,7 +31,10 @@ export function Sidebar() {
   tabs.push(["Event", EventInfo]);
   return (
     <>
-      <aside class="sidebar">
+      <aside class={sheetOpen.value ? "sidebar" : "sidebar closed"}
+        onClick={(e) => { if ((e.target as HTMLElement).closest(".tablist")) sheetOpen.value = true; }}>
+        <button class="sheet-handle" aria-expanded={sheetOpen.value} title="Show or hide the panel"
+          onClick={() => (sheetOpen.value = !sheetOpen.value)}>{sheetOpen.value ? "▾ hide the panel" : "▴ show the panel"}</button>
         {presets.length > 1 && (
           <div class="segmented presets" role="group" aria-label="Preset">
             {presets.map((p, i) => <button class={activePreset.value === i ? "on" : ""} onClick={() => applyPreset(i)}>{p.name}</button>)}
@@ -63,6 +67,10 @@ function Detector({ names, layers }: { names: string[]; layers: DisplayLayer[] }
     </>
   );
 }
+
+/** Phones (narrow screens): the panel is a sheet under the view, folded to its tabs and the colour key's title until
+ *  a tab or the handle opens it; wider screens ignore it. */
+const sheetOpen = signal(false);
 
 // Sidebar width: a CSS variable on the root, remembered per browser (storage may be unavailable, e.g. private mode).
 const DEFAULT_WIDTH = 340, KEY = "evd.sidebar";

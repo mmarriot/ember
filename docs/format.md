@@ -56,12 +56,18 @@ Optional hints:
 - `best: {"weight", "order": "min"|"max"}`: the weight that picks one partner where only one can be shown, e.g. the
   colour of a trackster by its best-matched particle.
 - `match`: how a reco <-> truth association measures a match ([truth.md](truth.md#measures)). On reco -> truth:
-  `target` (`"trackerHits"`, `"caloBoundary"` or `"particle"`: the truth level the kind reconstructs), `measure`
-  (`"hits"` or `"energy"`), `in` (the detector, for labels), `shared` (the weight holding the shared amount), `over`
-  (expressions on the reco table for the object's own amount, the first that can be computed; purity = shared / over)
-  and `good` (the purity from which the match is clean: the object then takes its particle's colour in truth mode). On
-  truth -> reco: `measure`, `in` and `completeness: {"weight", "complement": bool}` (the share of the particle's amount
-  in the object, or 1 minus the weight).
+  `target` (`"trackerHits"`, `"caloBoundary"` or `"particle"`: the truth level the kind reconstructs; for vertices,
+  matched to truth vertices, `"interaction"` or `"decayVertex"`), `measure` (`"hits"`, `"energy"`, or `"pt2"`: the pT²
+  of a vertex's tracks), `in` (the detector, for labels; the same names as `fact.in`), `shared` (the weight holding the
+  shared amount), `over` (expressions on the reco table for the object's own amount, the first that can be computed;
+  purity = shared / over), or `purity` (a weight that already is the purity, e.g. a vertex's pT² share), and `good`
+  (the purity from which the match is clean: the object then takes its particle's colour in truth mode). On truth ->
+  reco: `measure`, `in` and `completeness: {"weight", "complement": bool}` (the share of the particle's amount in the
+  object, or 1 minus the weight). A reco table with such a relation has truth status "matched by CMSSW".
+- `fact: {"in": detector}`: a truth -> hit relation holding the simulated energy each particle left in each hit (a
+  simulation fact, not a match; [truth.md](truth.md#where-truth-stops)), in detector `in` (e.g. `"HGCal"`, `"ECAL"`,
+  `"HCAL"`, `"HF"`). The viewer never adds simulated energy across detectors. Without the hint, a truth association
+  into a `cells` layer is read as a fact in that layer's `domain` (bundles made before it).
 
 - `inverseOf: <relation>`: the relation points from a part back up to its container, the inverse of the named
   relation, e.g. `trackVertex` (track -> its vertex) with `"inverseOf": "vertexTracks"` (vertex -> its tracks). The
@@ -109,6 +115,7 @@ draws the others.
 | `context`, `dim` | a background layer (e.g. every readout channel): never framed or replayed, drawn thin and without depth so it never hides the event, picked (over a smaller radius) only when nothing else is under the cursor; any `repr`. `dim` (0..1) mixes its colours towards the background |
 | `shape` | `ellipsoids` surface, so kinds of shower object look different: `solid` (default, translucent), `shell` (outline), `cage` (rings around the principal axes), `core` (compact, opaque) |
 | `truth` | simulation truth: labelled as such, `segments` drawn dashed; the side panel's Tree tab becomes Truth |
+| `truthGap` | a reco kind the truth graph has no answer for: `{"reason", "gap", "derived"}`. `reason` is said in the inspector, the truth colour key and the Truth tab's coverage list; `gap` is its number in [truth-graph.md](truth-graph.md); in truth mode the layer is drawn neutral and faint (cones as outlines) and never takes a colour from its container or its parts. `"derived": "content"`: the one exception, evd's stand-in colour by the particle with the most simulated energy in its parts (HGCal layer clusters). Ignored once the table has its own reco -> truth relation with a `match` hint ([truth.md](truth.md#where-truth-stops)) |
 | `particle` | truth particles: `{"flags", "bit", "first"}`, the level that is "the particle" ([truth.md](truth.md#two-levels-the-particle-and-each-kinds-target)): rows with `bit` set in the integer column `flags` (truth::LevelFlag bit 2: generator-level stable). With `"colourBy": "identity"`, a particle takes the colour of its highest ancestor in the level; with `first` (e.g. `isSignal`), only rows with it non-zero take colours (the others, pile-up, are drawn small in their own grey); rows in the level before those above it, then by size. The viewer's Truth colours need this hint |
 | `onSelection` | draw only objects related to the selection (none without one), until the user asks for all; not those reached only from objects a cut hides (the hits of a vertex's tracks below the pT cut). The selected object itself is drawn whatever the cut |
 | `describe` | `{"columns": [...], "names": {column: {value: name}}}`: how to name an object in lists (related objects, tree, inspector), e.g. `["pdgId", "energy"]` with PDG names |

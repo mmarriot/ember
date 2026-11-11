@@ -18,6 +18,7 @@ not repeating the study.
    `Colour = generator particle (truth)` or `Colour = truth ↔ reco pair`. Truth is drawn dashed, reco solid.
 4. **A reco object is never painted as truth.** It takes a particle's colour only when its match is clean (purity at
    or above its kind's threshold). Otherwise it is grey. Without any truth it is neutral, never the "shared" green.
+   A kind with no truth of its own is drawn faint, so it cannot be read as an unmatched (fake) object of a matched kind.
 5. **Numbers are linear and say what they divide by**: purity and completeness as percentages with the counted
    quantity and detector named ("21 of its 21 hits", "of the particle's energy in HGCal"). The associator's score is a
    ranking (0 best), shown as such, never as a fraction.
@@ -96,19 +97,28 @@ test in truth mode, the units and wording.
 
 | kind | target | measure, where | purity over | clean | completeness | status |
 |---|---|---|---|---|---|---|
-| tracks (generalTracks) | trackerHits | hits, tracker | nPixelHits + nOTHits | 0.75 | 1 − score (branch hits) | ✔ |
-| tracksters, linked tracksters, superclusters, interpretations | caloBoundary | energy, HGCal | raw energy | 0.5 | sharedFraction | ✔ |
-| TICL candidates | caloBoundary | energy, HGCal | raw energy | 0.5 | sharedFraction | ✔ (calorimeter only: a track-only candidate has no match; the card shows its track's) |
-| HGCal hits | — (simulation fact) | simulated energy per particle | — | — | — | ✔ (only particles that entered the calorimeter own hits) |
-| HGCal layer clusters | caloBoundary | energy, HGCal | — | — | — | derived in evd (no associator: truth-graph.md gap 1) |
-| primary / secondary vertices | interaction / B, C hadron decay vertex | pT² of tracks | — | 0.5 | — | associator exists, not exported |
-| ECAL / HCAL PF clusters | caloBoundary | energy, ECAL resp. HCAL | raw energy | 0.5 | sharedFraction | associator exists, not exported |
-| barrel ECAL / HCAL hits | — (simulation fact) | simulated energy per particle | — | — | — | in the hit index, not exported |
-| muon segments, standalone / global muons | particle with own muon hits | hits, muon system (and tracker part) | segment hits | 0.75 | of its muon hits | no adapter in CMSSW |
-| MTD clusters, track times | particle with own MTD hits | hits, MTD | cluster hits | 0.75 | — | no associator |
-| PF candidates | particle | constituents (track + clusters) | — | 0.5 | — | missing |
-| jets, MET | jets of generator particles (visible, signal) | constituents or ΔR | — | — | — | missing; build from graph particles, never GenJets |
-| electrons, photons, taus | particle (τ: TauVisibleHadronic) | constituents | — | 0.5 | — | missing |
+| tracks (generalTracks) | trackerHits | hits, tracker | nPixelHits + nOTHits | 0.75 | 1 − score (branch hits) | match |
+| tracksters, linked tracksters, superclusters, interpretations | caloBoundary | energy, HGCal | raw energy | 0.5 | sharedFraction | match |
+| TICL candidates | caloBoundary | energy, HGCal | raw energy | 0.5 | sharedFraction | match (calorimeter only: a track-only candidate has no match; the card shows its track's) |
+| ECAL / HCAL (HB) PF clusters | caloBoundary | energy, ECAL resp. HCAL | raw `energy` (never HCAL `correctedEnergy`: unset, negative) | 0.5 | sharedFraction (of the branch's ECAL resp. HCAL energy) | match |
+| primary / secondary vertices | interaction / decay vertex of a b or c hadron (a truth **vertex**) | pT² of tracks (tracks with score ≤ 0.25 vote) | the weight is the purity (`match.purity`) | 0.5 | TruthToReco fraction | none: associator written in step3, not exported (truth-graph.md gap 14) |
+| HGCal hits | — (simulation fact) | simulated energy per particle, HGCal | — | — | — | fact |
+| ECAL barrel, HCAL HB / HO, HF hits | — (simulation fact) | simulated energy per particle, ECAL / HCAL / HF (HF: photoelectrons) | — | — | — | fact |
+| muon hits (DT, CSC, RPC, GEM) | — (simulation fact) per unit the simulation records: DT wire, CSC layer, RPC roll, GEM partition | simulated energy loss per particle, muon system | — | — | — | not exported yet (fact once it is; the unit is named) |
+| MTD hits | — (simulation fact) with sim time | — | — | — | — | none: not exported (only 60% of PU200 MTD cells are under particles that entered the calorimeter; gap 19) |
+| HGCal layer clusters | caloBoundary | energy, HGCal | — | — | — | derived in evd (no associator: gap 1; `truthGap.derived`) |
+| HF, HO PF clusters | caloBoundary | energy, HCAL | raw energy | 0.5 | — | none: no associator configured in CMSSW (gap 15) |
+| muon segments | particle crossing the chamber | hits, muon system | segment hits | 0.75 | of its hits in the chamber | none: no adapter or associator (gap 17) |
+| reco, standalone, global muons | muon with own muon hits (no graph level yet) | hits per stub, tracker and muon | stub hits | 0.75 per stub | 0.5 per stub | none (gap 18); the inner track's own match, named as the track's |
+| MTD clusters, track times | particle with own MTD hits | hits, MTD | cluster cells | 0.75 | — | none (gap 19) |
+| PF candidates | generator particle (ReconstructableFinalState) | constituents (track + clusters) | — | 0.5 | — | none (gap 20); one constituent's own match, named as its |
+| jets | generator jets of visible signal generator particles (no clustering in the graph) | constituents | — | — | — | none (gap 21); never GenJets |
+| MET | −ΣpT of visible signal generator particles | vector | — | — | — | none (gap 22); never GenMET |
+| electrons, photons | generator e / γ (a conversion: the photon's PairConversion vertex) | constituents (supercluster + GSF track) | — | 0.5 | — | none (gap 23) |
+| taus | TauVisibleHadronic | constituents | — | — | — | none (gap 24) |
+
+Status words are the viewer's (`truthStatus`, below): *match* (matched by CMSSW), *fact* (simulation fact), *derived*
+(derived in evd), *none* (no truth for this kind, with the reason and gap number from the kind's `truthGap`).
 
 Thresholds follow each domain's reference validation, so evd agrees with DQM.
 
@@ -118,13 +128,49 @@ Thresholds follow each domain's reference validation, so evd agrees with DQM.
    selects it, and why the reco algorithm aims at it). Note where it disagrees with the other subdetectors' targets
    (conversions, interactions, decays in flight, brems) and check that the particle level reconciles them.
 2. Export its association from the truth graph (AdaptiveNominal reco -> truth, and TruthToReco). If CMSSW has none,
-   do not substitute one (no ΔR, no matching through hits in evd): leave the kind without truth until the associator
-   exists, and list the gap in truth-graph.md.
+   do not substitute one (no ΔR, no matching through hits in evd): list the gap in truth-graph.md and give the kind a
+   `truthGap` (`reason`, `gap`) in its profile; the viewer then says it everywhere ("Where truth stops"). When the
+   associator arrives, add the relation with its `match` hint (step 3) and delete the `truthGap`.
 3. Add the `match` hint to the reco -> truth relation (`target`, `measure`, `in`, `shared`, `over`, `good`) and the
    completeness to the truth -> reco relation. Take `good` from the domain's validation.
 4. If the kind has its own hits, export the hit index for its channel (simulated energy per particle and cell), so
-   its hits show their particle as a fact, not through the reco match.
-5. Check on a sample: purity ≤ 1 everywhere, and a few objects in the inspector against CMSSW's validation.
+   its hits show their particle as a fact, not through the reco match. Mark the truth -> hit relation
+   `"fact": {"in": "<detector>"}`, with the detector names the `match` hints use.
+5. Never let the kind take truth through its parts or its constituents ("Constituents" below).
+6. Check on a sample: purity ≤ 1 everywhere, and a few objects in the inspector against CMSSW's validation.
+
+## Where truth stops
+
+Every drawn kind has one truth status, worked out from the bundle (`truthStatus`, `viewer/src/model/match.ts`), in
+this order: **match** (its own reco -> truth relation with a `match` hint), **fact** (hits with a `fact` relation),
+**derived** (`truthGap.derived`: HGCal layer clusters only), **none** (its kind's `truthGap`, else "no truth
+association exported for this kind"), or, for a part drawn with what contains it (a track's hits), its container's.
+The same words appear in three places:
+
+- the inspector's truth box: "no truth for Jets: no jet associator in CMSSW, and no generator-jet level in the truth
+  graph (truth-graph.md gap 21)", plus at most one constituent's own match (below);
+- the truth colour key: one line, "faint: no truth for this kind: Jets, MET, … (why: Truth tab)";
+- the Truth tab, which opens with a "Truth coverage" list of every drawn kind.
+
+In truth mode a kind with status none is drawn neutral and faint (cones as outlines), never in a particle's colour; an
+object of a matched kind without a clean match stays the small grey. Such a kind never opens the truth ↔ reco pair,
+and neither does a matched kind outside the candidates' chain (the pair is HGCal's: an ECAL cluster's card gives its
+own purity and completeness). Simulated energy is never added across detectors: the pair counts the candidates'
+detector only, and the inspector gives one list per detector, only for kinds with a match or evd's stand-in (for any
+other, a ranking of the particles in its hits would be a match through hits; the facts stay on the hits).
+
+Bundles made before the hints: a truth association into a layer drawn as cells is a fact in that layer's domain, and
+the layer-cluster stand-in applies where it did, so they look as before.
+
+### Constituents
+
+A composite (jet, muon, PF candidate, electron) may show one constituent's **own** association, named as the
+constituent's: "Its track #212 is matched to μ⁻ #301 (the associator's answer for that track, not for this muon)".
+Only where a made-of relation gives exactly one part (not an association, not a pointer back up, not a "closest
+track" link), never aggregated over several parts ("80% of its tracks are from the b" is a match built in evd), and
+never as the composite's colour: by truth, an object takes a colour only across its own association, or from the
+container it is part of, never from its parts. With a jet in focus, its tracks show in their own particles' colours:
+each is the track's statement.
 
 ## Pitfalls
 
@@ -139,6 +185,10 @@ Thresholds follow each domain's reference validation, so evd agrees with DQM.
   "shared hits".
 - **Nested branches**: an ancestor shares at least as much as its descendants. Never sum over a particle and its
   descendants; the pair view counts each hit once.
+- **Units per detector**: simulated energy is what each detector's sensors recorded (HGCal and HCAL sampling, ECAL
+  crystals, HF photoelectrons); evd never adds it across detectors.
+- **Muon hit truth** is per unit the simulation records (DT wire, CSC layer, RPC roll, GEM partition), not per strip:
+  two particles in one CSC layer both own each of its hits.
 - **Scope**: HGCal completeness counts HGCal only. A barrel particle's few MeV in HGCal are not an inefficiency; the
   key shows the amount so this is visible.
 
@@ -159,6 +209,8 @@ Thresholds follow each domain's reference validation, so evd agrees with DQM.
 | merges | a match above the particle level: the object holds several generator particles |
 | pile-up | particles from other collisions of the same bunch crossing |
 | no truth | energy no exported particle left: noise, out-of-time pile-up or not exported |
+| no truth for this kind | the truth graph has no answer for the kind (no associator in CMSSW, or none exported): drawn faint, the reason in the Truth tab |
+| fact | a truth -> hit relation of simulated energy per particle and cell, in one detector |
 
 ## Samples
 

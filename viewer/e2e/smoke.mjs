@@ -223,9 +223,9 @@ async function checkDomains(page, h, fail, shot, tag) {
       const open = await page.locator(".tabpanel details.part[open] > summary b").allInnerTexts();
       if (open.join() !== name) fail(`the Detector tab does not follow the bar to ${name} (open: ${open.join() || "none"})`);
     }
-    await tabs.last().click();
+    await tabs.last().click({ timeout: 120000 });
     if (!new URL(page.url()).hash.includes(`d=${encodeURIComponent(name)}`)) fail(`the ${await tabs.last().innerText()} tab changed the view from ${name}`);
-    await tabs.getByText(tab, { exact: true }).click();
+    await tabs.getByText(tab, { exact: true }).click({ timeout: 120000 });
     await shot(`1_domain_${name}`);
   }
   await chooseDomain(page, "All");

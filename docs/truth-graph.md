@@ -26,8 +26,9 @@ and what is missing, so each gap can be checked off as CMSSW adds it.
   matched by a reco object (`identities` in the same file). So a π⁺ that interacted in the tracker and was matched as
   a whole has the colour of its daughters' hits, and a shower secondary matched to a trackster has the colour of the
   shower's hits. The inspector still names the particle actually matched.
-- **Grey hits** mean no exported particle left energy in them: noise, or a particle that was not exported (gaps 3 to 5);
-  the export cannot tell which.
+- **Small, faint grey hits** mean no exported particle left energy in them: noise, or a particle that was not exported
+  (gaps 3 to 5); the export cannot tell which. (The larger mid-grey is different: a particle beyond the seven that get
+  a colour.)
 
 ## How truth reaches evd
 
@@ -121,8 +122,10 @@ calorimeter) or above it (a π⁰, whose photons are not exported unless matched
 *Measured, ttbar PU200:* 284 of the 1852 distinct CLUEstering match targets (event 0) and 179 of 1219 (event 1) lack
 CaloBoundary: mostly γ and e±, a few π⁰. 283 and 179 of them have no exported hit anywhere in their own subgraph. For
 interpretations: 373 of 2153. For candidates: 221 of 1284. *Gun, 0PU:* 2 of 6 CLUEstering targets in event 1 (two
-photons). Consequence: the trackster's colour, taken from its best particle, can never agree with the hits' colour,
-taken from the CaloBoundary ancestor. The ancestor's hits are still drawn, because `keepAncestors` exports it.
+photons). Consequence: the trackster's best particle is not the particle its hits are attributed to, the
+CaloBoundary ancestor. The ancestor's hits are still drawn, because `keepAncestors` exports it. evd works around the
+case of matches *below* CaloBoundary by giving a particle the colour of its highest ancestor that owns hits or is
+matched (see above); matches *above* it (e.g. a π⁰, whose photons own the hits) still get a colour of their own.
 
 **Check:** `TruthHitTableProducer` gains a mode that exports hits for every exported particle with its own
 (non-inclusive) direct hits, or for the association targets themselves. Today the only knob is `levelMask`.

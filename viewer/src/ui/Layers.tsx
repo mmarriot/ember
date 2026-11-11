@@ -86,7 +86,7 @@ const HOW: Record<Exclude<ColourMode, "layers">, string[]> = {
   truth: ["hits: the particle that left the most simulated energy in them", "layer clusters: the particle with the most simulated energy in their hits (worked out here: the truth graph has no layer-cluster association)",
     "tracksters, candidates, tracks: their best truth match",
     "a particle shares the colour of its highest ancestor that left hits or is matched to a reco object: one colour per truth shower, e.g. a π⁺ that interacted before the calorimeter and its daughters"],
-  reco: ["layer clusters, tracks, interpretations: their candidate", "hits: their layer cluster's candidate", "tracksters, linked tracksters: the candidate of their first layer cluster",
+  reco: ["layer clusters, tracks, interpretations: their candidate", "hits: their layer cluster's candidate", "tracksters, linked tracksters: the candidate holding most of their layer clusters",
     "truth particles: the candidate that reconstructs the largest share of them"],
 };
 
@@ -109,10 +109,11 @@ function ColourModes() {
         <>
           <p class="hint">One colour each for the largest {tableName(b.header, root)}; the same colour in another layer means linked to it.</p>
           <ul class="key">
-            {key.top.map((row, j) => (
-              <li><i style={{ background: pal.identity[j] }} /><button class="chip" onClick={() => jump({ table: root, row })}>{describe(root, row) || `#${row}`}</button>
-                {branch(key.key, row) > 0 && <span title="particles below it that share its colour">+{branch(key.key, row)} below</span>}</li>
-            ))}
+            {key.top.map((row, j) => {
+              const below = branch(key.key, row);
+              return <li><i style={{ background: pal.identity[j] }} /><button class="chip" onClick={() => jump({ table: root, row })}>{describe(root, row) || `#${row}`}</button>
+                {below > 0 && <span title="particles below it that share its colour">+{below} below</span>}</li>;
+            })}
             {key.others > 0 && <li><i style={{ background: pal.other }} />the other {key.others.toLocaleString()}</li>}
             <li><i class="small" style={{ background: pal.unassigned }} />small: nothing linked{mode === "truth" ? " (noise, or a particle not exported)" : ""}</li>
           </ul>
@@ -154,6 +155,8 @@ function LegendRow({ d, legend }: { d: DisplayLayer; legend: Legend }) {
     if (!byTable.has(other) || r.from === d.table) byTable.set(other, name);
   }
   const shown = shownLayer(d, activeMode.value, {}), byMode = shown.colourBy !== d.colourBy;
+  // Identity colours (directly, or taken along a chain in a colour mode) show the identity palette.
+  const identity = shown.colourBy === "identity" || (byMode && !!shown.colourBy);
   const current = typeof shown.colourBy === "object" && "relation" in shown.colourBy ? shown.colourBy.relation : "";
   const related = [...byTable].filter(([, name]) => name !== current)
     .map(([other, name]) => [`${RELATION}${name}`, relatedColourText(header, other, name)]);
@@ -168,7 +171,7 @@ function LegendRow({ d, legend }: { d: DisplayLayer; legend: Legend }) {
       {legend.kind === "category" && legend.items && !legend.items.some((it) => it.ref) ? (
         <span class="items">{legend.items.map((it) => <span><i style={{ background: it.colour }} />{it.label}</span>)}</span>
       ) : legend.kind === "category" ? (
-        <><span class="dots">{(byMode ? pal.identity : pal.categories).slice(0, 5).map((c) => <i style={{ background: c }} />)}</span>
+        <><span class="dots">{(identity ? pal.identity : pal.categories).slice(0, 5).map((c) => <i style={{ background: c }} />)}</span>
           {legend.text}{legend.note && `; ${legend.note}`}</>
       ) : (
         <>

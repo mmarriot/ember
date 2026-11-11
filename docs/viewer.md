@@ -46,11 +46,13 @@ support is not offered.
 | mode | one colour per | how the other layers take it |
 |---|---|---|
 | **Truth particle** (default with truth) | truth particle (`truth` layer with associations), largest first | hits: the particle with the most simulated energy in them; layer clusters: the particle with the most simulated energy in their hits, weighted by the hit fractions (worked out in the viewer: the truth graph has no layer-cluster association); tracksters, candidates, tracks: their best truth match. A particle shares the colour of its highest ancestor that owns hits or is matched (one colour per truth shower) |
-| **Reconstruction** (default without truth) | object of the last reconstruction stage (candidates), largest first | what contains it, step by step: layer clusters, tracks and interpretations their candidate, hits their layer cluster's; tracksters the candidate of their first layer cluster; truth particles the candidate that reconstructs the largest share of them |
+| **Reconstruction** (default without truth) | object of the last reconstruction stage (candidates), largest first | what contains it, step by step: layer clusters, tracks and interpretations their candidate, hits their layer cluster's; tracksters and linked tracksters the candidate holding most of their layer clusters; truth particles the candidate that reconstructs the largest share of them |
 | **Per layer** | — | each layer's own colouring from the profile (energies, particle types) |
 
 Seven colours (Okabe-Ito and Tol hues, checked for protan, deutan and tritan vision); the other objects share one
-grey, and objects with nothing to take a colour from are drawn small and dark. The key under the switch names the
+grey, and objects with nothing to take a colour from (no truth particle in the export, no candidate) are drawn small
+in a faint grey. The colouring of a layer the mode cannot reach falls back to its colour column, so that no other
+categorical colours appear next to the mode's. The key under the switch names the
 object behind each colour (click to select it). Choosing a colour for one layer overrides the mode for that layer;
 switching mode clears those choices. The replay keeps the mode's colours (per layer: each stage's).
 

@@ -195,7 +195,7 @@ ul.matches li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 
 .tree .chip.selected { background: var(--accent); color: white; }
 .tree input.expr { width: 100%; margin: 4px 0; }
 
-/* MC truth is simulation, not reconstruction: marked wherever it appears. */
+/* Truth-graph objects are simulation, not reconstruction: marked wherever it appears. */
 .badge.truth { display: inline-block; font-size: 10px; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; padding: 0 5px; margin: 0 6px 0 0; border-radius: 3px; border: 1px dashed currentColor; color: #d7a6ff; }
 [data-theme="light"] .badge.truth { color: #7a3fb0; }
 .card.truth { border-style: dashed; }

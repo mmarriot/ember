@@ -24,10 +24,11 @@ export function modeRoots(header: Header): Partial<Record<Exclude<ColourMode, "l
 }
 
 /** How `mode` colours each table: the root gets identity colours; a table related to the root takes its partner's
- *  colour through that relation; a table whose parts (hits) are linked to the root by an association, but which is
- *  not itself, takes the root object with the most in its parts (layer clusters in truth mode); every other table
- *  takes the colour of its neighbour on the shortest path to the root (associations count as long steps, so
- *  reconstruction is followed first). Tables the mode cannot reach keep their own colouring. */
+ *  colour through that relation; a table whose parts are linked to the root, but which is not itself, takes the root
+ *  object with the most in its parts (layer clusters in truth mode: the particle with the most simulated energy in
+ *  their hits; tracksters in reco mode: the candidate holding most of their layer clusters); every other table takes
+ *  the colour of its neighbour on the shortest path to the root (associations count as long steps, so
+ *  reconstruction is followed first). Tables the mode cannot reach are not listed (store.ts draws them plainly). */
 export function modeColouring(header: Header, root: string): Record<string, ColourBy> {
   const rels = Object.entries(header.relations).filter(([, r]) => r.from !== r.to);
   const out: Record<string, ColourBy> = { [root]: "identity" };
@@ -45,7 +46,7 @@ export function modeColouring(header: Header, root: string): Record<string, Colo
     if (table in out || !dist.has(table)) continue;
     const direct = rels.filter(([, r]) => (r.from === table && r.to === root) || (r.to === table && r.from === root));
     const content = !direct.length && rels.some(([, p]) => !p.association && p.from === table &&
-      rels.some(([, a]) => a.association && a.from === root && a.to === p.to));
+      rels.some(([, a]) => a.from === root && a.to === p.to));
     if (content) { out[table] = { content: root }; continue; }
     // The step towards the root; of several, the one from this table (it points at its own match), with a `best`.
     const steps = rels.filter(([, r]) => {

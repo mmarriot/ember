@@ -35,7 +35,7 @@ describe("colour modes", () => {
   it("reco mode: follows what the candidate is made of; truth particles by the candidate that reconstructs them", () => {
     expect(modeColouring(header, "Cand")).toEqual({
       Cand: "identity", Interp: { relation: "candInterp" }, LC: { relation: "candLCs" }, Track: { relation: "candTrack" },
-      Hit: { relation: "lcHits" }, T: { relation: "tLCs" }, P: { relation: "truthCand" }, V: { relation: "decay" },
+      Hit: { relation: "lcHits" }, T: { content: "Cand" }, P: { relation: "truthCand" }, V: { relation: "decay" }, // T: by vote
     });
   });
 });

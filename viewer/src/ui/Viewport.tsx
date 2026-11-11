@@ -123,6 +123,7 @@ export function Viewport() {
     };
 
     let builtFor: EventData | null = null; // the event the layers were built for
+    let lastFirst = colourFirst.peek(); // the selection's colours the layers have (recoloured when it changes)
     const stopLayers = effect(() => {
       const b = bundle.value, ev = event.value, pal = PALETTES[theme.value];
       visible.value; colourBy.value; activeMode.value; filters.value; replaying.value; // any change rebuilds every layer
@@ -132,6 +133,7 @@ export function Viewport() {
       const drawn: Record<string, Legend> = {};
       entries = build(wanted(b.header, ev), b.header, ev, drawn);
       builtFor = ev;
+      lastFirst = colourFirst.peek(); // built with these
       legends.value = drawn;
       eng.setLayers(entries.map((e) => e.layer));
       applyCuts(false);
@@ -165,14 +167,16 @@ export function Viewport() {
       applyCuts(false);
     });
 
-    // A new focus: the layers that show only its objects (e.g. MC truth, candidate tracks) are rebuilt, which is
+    // A new focus: the layers that show only its objects (e.g. truth particles, candidate tracks) are rebuilt, which is
     // cheap as they are small (the big layers keep their buffers); then every layer fades to the new highlight.
     const stopFocus = effect(() => {
       const hl = highlight.value, f = filters.peek(), pal = PALETTES[theme.peek()], b = bundle.peek(), ev = event.peek();
       showAll.value; colourFirst.value;
       // In the truth and reco modes the focus's own particles or candidate take the first colours: the categorical
       // layers are recoloured in place (a buffer upload each, no rebuild).
-      if (activeMode.peek() !== "layers" && b && ev && ev === builtFor) {
+      const first = colourFirst.peek(), changed = first !== lastFirst;
+      lastFirst = first;
+      if (changed && activeMode.peek() !== "layers" && b && ev && ev === builtFor) {
         const recolour = entries.filter((e) => e.d.colourBy), drawn = { ...legends.peek() };
         colourEntries(recolour, ev, b.header, cuts.peek(), pal).forEach(({ rgb, legend }, i) => {
           recolour[i].layer.setColours(rgb);
@@ -329,8 +333,8 @@ function colourEntries(items: Item[], ev: EventData, header: Header, c: Record<s
   });
 }
 
-/** Highlight the focus and what belongs to it on every layer (outlines for reco objects when the focus is MC
- *  truth), faded in over `ms` (0: at once, e.g. for freshly built layers). */
+/** Highlight the focus and what belongs to it on every layer (outlines for reco objects when the focus is a
+ *  truth particle), faded in over `ms` (0: at once, e.g. for freshly built layers). */
 function showFocus(ms: number) {
   const hl = highlight.peek(), outline = focusIsTruth.peek();
   for (const { layer } of entries) {

@@ -94,6 +94,7 @@ describe("truth identities", () => {
     expect([...key]).toEqual([0, 0, 0, 3, 4, 5]); // daughters of the matched π⁺ share its key
     expect(top).toEqual([0, 3]); // largest first; the quark is linked to nothing and takes no colour
     expect(others).toBe(1); // particle 5
+    expect([...identities(d, tev.tables.P, tev, th, 2).used]).toEqual([1, 0, 0, 1, 0, 1]); // keys in use: not the quark
   });
   it("ranks the keys of the given objects first", () => {
     expect(identities(d, tev.tables.P, tev, th, 2, [5, 2]).top).toEqual([5, 0]); // in order; daughter 2 brings its key 0
@@ -118,5 +119,14 @@ describe("content partners", () => {
     const { partner, weight } = contentPartners("LC", "P", 3, cev, ch);
     expect([...partner]).toEqual([0, -1, -1]); // particle 0: 1 + 0.5 * 4 = 3 > particle 1: 0.5 * 3; hit 2 has no particle
     expect(weight).toBe("simE");
+  });
+  it("votes through containment: a trackster takes the candidate holding most of its layer clusters", () => {
+    // trackster 0 -> clusters 0, 1, 2; candidate 0 holds cluster 0, candidate 1 holds clusters 1 and 2
+    const vev = { id: [1, 1, 1], tables: { T: { n: 1, columns: {} }, LC: { n: 3, columns: {} }, Cand: { n: 2, columns: {} } },
+      relations: { tLCs: csr([[0, 1, 2]]), candLCs: csr([[0], [1, 2]]) } } as unknown as EventData;
+    const vh = { relations: { tLCs: { from: "T", to: "LC", weights: [] }, candLCs: { from: "Cand", to: "LC", weights: [] } } } as unknown as Header;
+    const c = contentPartners("T", "Cand", 1, vev, vh);
+    expect([...c.partner]).toEqual([1]);
+    expect(c.derived).toBe(false);
   });
 });

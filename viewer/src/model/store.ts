@@ -81,10 +81,11 @@ export const activeMode = computed<ColourMode>(() => {
  *  before any other: first those an association links to the focus itself (its best match first), then the rest of
  *  what is related to it (e.g. every particle in a candidate's hits, the candidate containing a hit). So what is
  *  selected is never "other". */
+const NO_FIRST: ReadonlyMap<string, number[]> = new Map(); // one object, so "still nothing selected" is no change
 export const colourFirst = computed(() => {
   const mode = activeMode.value, root = mode === "layers" ? undefined : modes.value.roots[mode];
   const f = focus.value, parts = focusParts.value, b = bundle.value, ev = event.value;
-  if (!root || !f || !parts || !b || !ev) return new Map<string, number[]>();
+  if (!root || !f || !parts || !b || !ev) return NO_FIRST;
   const rows: number[] = [];
   for (const [name, info] of Object.entries(b.header.relations)) {
     const rel = ev.relations[name];
@@ -105,15 +106,22 @@ export const colourFirst = computed(() => {
   return new Map([[root, [...rows, ...rest]]]);
 });
 
-/** A layer's display hint as drawn: the colour mode's colouring, then the user's choice for that layer. */
+/** A layer's display hint as drawn: the colour mode's colouring, then the user's choice for that layer. In the truth
+ *  and reco modes a layer the mode cannot reach loses its categorical colours (they would read as linked) and is
+ *  drawn by its colour column. */
 export function shownLayer(d: DisplayLayer, mode = activeMode.peek(), by = colourBy.peek()): DisplayLayer {
-  const c = modes.peek().colouring[mode]?.[d.table];
-  return withColour(c && !d.context ? { ...d, colourBy: c } : d, by[layerKey(d)]);
+  const c = d.context ? undefined : modes.peek().colouring[mode]?.[d.table];
+  const plain = !c && mode !== "layers" && !d.context && d.colourBy;
+  return withColour(c ? { ...d, colourBy: c } : plain ? { ...d, colourBy: undefined } : d, by[layerKey(d)]);
 }
 
-/** Switch mode: every layer's own colour choice is dropped, so the mode colours all of them. */
+/** Switch mode: the per-layer colour choices of the layers either mode colours are dropped, so the new mode colours
+ *  them; other choices (e.g. a preset's) stay. */
 export function setMode(m: ColourMode) {
-  colourBy.value = {};
+  const { colouring } = modes.peek(), tables = new Set([...Object.keys(colouring[activeMode.peek()] ?? {}), ...Object.keys(colouring[m] ?? {})]);
+  const by = { ...colourBy.peek() };
+  for (const d of bundle.peek()?.header.display ?? []) if (tables.has(d.table)) delete by[layerKey(d)];
+  colourBy.value = by;
   colourMode.value = m;
 }
 
@@ -160,9 +168,9 @@ const partsOf = (ref: Ref | null) => {
   return b && ev && ref && ref.row < (ev.tables[ref.table]?.n ?? 0) ? relatedParts(ev, b.header, ref) : null;
 };
 const focusParts = computed(() => partsOf(focus.value));
-/** The selection's relatives: what it is made of, what it is part of, what is linked to it (e.g. MC truth). */
+/** The selection's relatives: what it is made of, what it is part of, what is linked to it (e.g. its truth particle). */
 export const relatives = computed(() => (sameRef(selection.value, focus.value) ? focusParts.value : partsOf(selection.value)));
-/** What is drawn highlighted: the focus, its levels and what is linked to it (e.g. its MC truth). What contains it
+/** What is drawn highlighted: the focus, its levels and what is linked to it (e.g. its truth particle). What contains it
  *  is listed in the inspector, not highlighted: big containers would cover it. */
 export const highlight = computed(() => {
   const b = bundle.value, ev = event.value, f = focus.value, parts = focusParts.value;

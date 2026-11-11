@@ -97,13 +97,13 @@ export function relatedColourText(header: Header, table: string, relation?: stri
 export type LayerFor = (table: string) => DisplayLayer | undefined;
 /** `emphasis`: 0 for objects with nothing to take a colour from (drawn small and grey). Category legend `items` may
  *  name an object (`ref`) for the UI to describe; `note` says what grey means. */
-export interface Coloured { rgb: Float32Array; legend: Legend; emphasis?: Uint8Array }
+interface Coloured { rgb: Float32Array; legend: Legend; emphasis?: Uint8Array }
 
 /** Options of `colours`. `range` shares one value scale between layers; without it the layer's own values set the
  *  scale. `layerFor` gives the colouring of related tables (default: their display hints), so colours follow chains:
  *  a hit takes its layer cluster's colour, which is its candidate's. `first`: per table, objects whose identity
  *  colours come first, in this order (e.g. those related to the selection), so they never fall among the "other" grey. */
-export interface ColourOptions { range?: Range; layerFor?: LayerFor; first?: ReadonlyMap<string, readonly number[]> }
+interface ColourOptions { range?: Range; layerFor?: LayerFor; first?: ReadonlyMap<string, readonly number[]> }
 
 /** Per-object RGB (n * 3), the legend describing it, and (for relation colouring) which objects to emphasise:
  *  0 for objects not related to anything, which are drawn as background. `seen`: the tables already on a chain of
@@ -121,11 +121,16 @@ export function colours(d: DisplayLayer, t: Table, ev: EventData, header: Header
     return { rgb: out, legend: { kind: "category", text: "one colour per object" } };
   }
   if (d.colourBy === "identity") {
-    const { key, top, others } = identities(d, t, ev, header, pal.identity.length, opts.first?.get(d.table)), slot = new Map(top.map((k, j) => [k, j]));
-    const ids = pal.identity.map(rgb), other = rgb(pal.other);
-    for (let i = 0; i < t.n; i++) { const j = slot.get(key[i]); set(i, j === undefined ? other : ids[j]); }
+    const { key, used, top, others } = identities(d, t, ev, header, pal.identity.length, opts.first?.get(d.table));
+    const slot = new Map(top.map((k, j) => [k, j])), ids = pal.identity.map(rgb), other = rgb(pal.other), none = rgb(pal.unassigned);
+    const emphasis = new Uint8Array(t.n); // linked to nothing (e.g. a quark): small and grey, like any object without a partner
+    for (let i = 0; i < t.n; i++) {
+      const j = slot.get(key[i]);
+      set(i, !used[key[i]] ? none : j === undefined ? other : ids[j]);
+      emphasis[i] = used[key[i]];
+    }
     const items = top.map((row, j) => ({ label: `#${row}`, colour: pal.identity[j], ref: { table: d.table, row } }));
-    return { rgb: out, legend: { kind: "category", text: `one colour each for the ${top.length} largest`, items,
+    return { rgb: out, emphasis, legend: { kind: "category", text: `one colour each for the ${top.length} largest`, items,
       ...(others ? { note: `grey: the other ${others}` } : {}) } };
   }
   if (typeof d.colourBy === "object" && "category" in d.colourBy) {
@@ -157,12 +162,15 @@ export function colours(d: DisplayLayer, t: Table, ev: EventData, header: Header
       emphasis[i] = none ? 0 : 1;
     }
     // A chain is named to its end: "colour of its layer clusters (SoA): colour of its candidates (legacy)".
-    const via = from?.legend.kind === "category" && from.emphasis ? `: ${from.legend.text}` : "";
+    const via = from?.legend.kind === "category" && from.legend.text.startsWith("colour of") ? `: ${from.legend.text}` : "";
     return { rgb: out, emphasis, legend: { kind: "category", text: `${text}${via}`, note: "small grey: none" } };
   };
   if (typeof d.colourBy === "object" && "content" in d.colourBy && ev.tables[d.colourBy.content]) {
-    const { partner, weight } = contentPartners(d.table, d.colourBy.content, t.n, ev, header);
-    return partnerColours(d.colourBy.content, partner, `colour of the ${tableName(header, d.colourBy.content)} with the most ${weight} in its hits (derived in evd)`);
+    const { partner, weight, parts, derived } = contentPartners(d.table, d.colourBy.content, t.n, ev, header);
+    const name = tableName(header, d.colourBy.content), of = parts ? tableName(header, parts) : "parts";
+    return partnerColours(d.colourBy.content, partner, weight
+      ? `colour of the ${name} with the most ${weight} in its ${of}${derived ? " (derived in evd)" : ""}`
+      : `colour of the ${name} holding most of its ${of}`);
   }
   const relName = typeof d.colourBy === "object" && "relation" in d.colourBy ? d.colourBy.relation : undefined;
   const rel = relName ? ev.relations[relName] : undefined, info = relName ? header.relations[relName] : undefined;

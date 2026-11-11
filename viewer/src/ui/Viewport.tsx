@@ -99,7 +99,7 @@ export function Viewport() {
     const build = (layers: DisplayLayer[], header: Header, ev: EventData, drawn: Record<string, Legend>, pool: Entry[] = []): Entry[] => {
       const f = filters.peek(), hl = highlight.peek(), pal = PALETTES[theme.peek()];
       const items = layers.map((d0) => {
-        const key = layerKey(d0), d = shownLayer(d0), t = ev.tables[d.table], keep = filterMask(t, f[d.table]), focusRows = hl?.get(d.table);
+        const key = layerKey(d0), d = shownLayer(d0), t = ev.tables[d.table], keep = filterMask(t, f[d.table]), focusRows = bypassing(d, f, hl);
         return { d, t, key, keep, rescued: rescued(keep, focusRows), cut: cutValues(d, t, f[d.table], onlyFor(d, key, hl), focusRows) };
       });
       const coloured = colourEntries(items, ev, header, cuts.peek(), pal, [...pool, ...items]);
@@ -184,7 +184,7 @@ export function Viewport() {
         legends.value = drawn;
       }
       for (const e of entries) {
-        const only = onlyFor(e.d, e.key, hl), focusRows = hl?.get(e.d.table), again = rescued(e.keep, focusRows);
+        const only = onlyFor(e.d, e.key, hl), focusRows = bypassing(e.d, f, hl), again = rescued(e.keep, focusRows);
         if (!only && again === e.rescued) continue;
         const cut = cutValues(e.d, e.t, f[e.d.table], only, focusRows);
         const next = builders[e.d.repr]({ key: e.key, d: e.d, t: e.t, pal, rgb: e.rgb, emphasis: e.emphasis, cut, field: b?.header.field });
@@ -330,6 +330,12 @@ function Tooltip() {
     </div>
   );
 }
+
+/** The focus's rows that the layer's filter does not hide: all of them while the filter is the profile's default (a
+ *  candidate's track from another vertex); none once the user set or changed it (a filter they chose applies to the
+ *  focus too, and a click never rebuilds a big layer they filtered). */
+const bypassing = (d: DisplayLayer, f: Record<string, string>, hl: Map<string, Set<number>> | null) =>
+  d.filter && f[d.table] === d.filter ? hl?.get(d.table) : undefined;
 
 /** For a layer that shows only the focus's objects: the rows to keep (none without a focus); else undefined. */
 const onlyFor = (d: DisplayLayer, key: string, hl: Map<string, Set<number>> | null) =>

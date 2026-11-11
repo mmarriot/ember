@@ -89,7 +89,7 @@ tracks).
 | `alternative` | a less preferred reconstruction path of a kind that is shown (e.g. legacy next to SoA): starts hidden and folded away |
 | `stage` | reconstruction step (0, 1, ...): the replay grows each stage in turn and ends on the last |
 | `cut` | `{"group", "column", "unit", "default"}`: a minimum on `column`, one slider per `group` shared by all layers of the group (so SoA and legacy rechits get the same energy cut) |
-| `filter` | expression used as the layer's table filter until the user changes it, e.g. `isSignal`; presets reset to it. The objects of a selection (what it is made of and linked to) are drawn even if the filter leaves them out, e.g. a candidate's track from another vertex; cuts still apply |
+| `filter` | expression used as the layer's table filter until the user changes it, e.g. `isSignal`; presets reset to it. The objects of a selection (what it is made of and linked to) are drawn even if this default filter leaves them out, e.g. a candidate's track from another vertex; cuts still apply, and a filter the user sets or changes applies to them too |
 | `context`, `dim` | a background layer (e.g. every readout channel): never framed or replayed, drawn thin and without depth so it never hides the event, picked (over a smaller radius) only when nothing else is under the cursor; any `repr`. `dim` (0..1) mixes its colours towards the background |
 | `shape` | `ellipsoids` surface, so kinds of shower object look different: `solid` (default, translucent), `shell` (outline), `cage` (rings around the principal axes), `core` (compact, opaque) |
 | `truth` | simulation truth: labelled as such, `segments` drawn dashed; the side panel's Tree tab becomes Truth |

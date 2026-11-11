@@ -12,7 +12,7 @@ The same list is in the viewer's help (`?`).
 | action | how |
 |---|---|
 | rotate, pan, zoom | drag; right-drag or shift + drag; scroll (zooms towards the cursor) |
-| inspect an object | click it: it is shown with its smallest parts, one kind per branch, and the parts drawn as lines, which do not hide them (e.g. a candidate with its calorimeter hits, its track and the track's hits; a vertex with its tracks and their hits), related objects highlighted (a track: its vertex and truth particle); its parts are drawn even where a layer's filter would hide them (cuts still apply); further clicks pick among its parts |
+| inspect an object | click it: it is shown with its smallest parts, one kind per branch, and the parts drawn as lines, which do not hide them (e.g. a candidate with its calorimeter hits, its track and the track's hits; a vertex with its tracks and their hits), related objects highlighted (a track: its vertex and truth particle); its parts are drawn even where a layer's default filter would hide them (cuts and filters you set still apply); further clicks pick among its parts |
 | see what it is made of, level by level | ↓ / ↑, or click a level in the bar at the top left: one level at a time between the object and its smallest parts (e.g. a candidate's interpretations, linked tracksters, tracksters, layer clusters), with the object drawn as an outline around it; a level with several layers (e.g. two linking algorithms) draws those ticked in Layers, or all of them if none is |
 | objects on top of each other | click again on the same spot for the next one |
 | zoom to an object | double-click it, or F |

@@ -9,7 +9,22 @@ export type TypeCode = keyof typeof TYPES;
 export type Column = InstanceType<(typeof TYPES)[TypeCode]>;
 
 /** How layers can be drawn (render/layers.ts `builders`); a bundle may name others, from a newer format. */
-export const REPRS = ["cells", "markers", "ellipsoids", "segments", "helix"] as const;
+export const REPRS = ["cells", "markers", "ellipsoids", "segments", "helix", "cones"] as const;
+/** A value per row from a column, scaled and clamped (cm per unit; `log`: cm per decade of 1 + |value|). */
+export interface Scaled { column: string; scale: number; min?: number; max?: number; log?: boolean }
+/** A length to a cylinder around the beam (cm): from the object's start along its direction until it leaves it. */
+export interface ToCylinder { to: { r: number; z: number } }
+/** A number per row: a constant, a column, or a scaled column. */
+export type PerRow = number | string | Scaled;
+export type ViewName = "3d" | "front" | "side" | "rz";
+/** `cells`: the cell's shape. `tower`: an eta-phi bin seen from the origin, from the front face through `position`
+ *  (a cylinder rho = const, or a disc |z| = const) outwards by `depth` cm. `box`: an oriented box or trapezoid around
+ *  `position`, axes `u` (width) and `v` (length) as columns, `size` [half width at -v, at +v, half length, half
+ *  thickness]. Default: a hexagon in the z plane (half-width `size`). */
+export type CellShape =
+  | { shape: "hexagon" }
+  | { shape: "tower"; face?: "cylinder" | "disc"; dEta?: PerRow; dPhi?: PerRow; depth?: PerRow }
+  | { shape: "box"; u: [string, string, string]; v: [string, string, string]; size: [PerRow, PerRow, PerRow, PerRow] };
 export interface DisplayLayer {
   table: string;
   repr: (typeof REPRS)[number];
@@ -65,6 +80,19 @@ export interface DisplayLayer {
   particle?: { flags: string; bit: number; first?: string };
   /** Draw only the objects related to the current selection (none without one), until the user chooses all. */
   onSelection?: boolean;
+  /** `cells`: the cell's shape (default: hexagon). */
+  cell?: CellShape;
+  /** `segments`: three columns, the direction of a line of `length` from `position` (instead of `end`); `cones`:
+   *  [eta, phi] columns of the axis. */
+  direction?: string[];
+  /** `segments`, `cones`: the length (cm); `helix`: with `to`, where a path without a finite `end` stops. */
+  length?: PerRow | ToCylinder;
+  centred?: boolean; // segments with `direction`: `length` split evenly around `position`
+  arrow?: boolean; // segments: an arrow head at the end
+  width?: number; // segments: line width in px (default 1)
+  radius?: number | string; // cones: half-opening in eta-phi
+  /** The views that draw the layer (default: all). */
+  views?: ViewName[];
   visible: boolean;
 }
 /** A per-event chart: `table` rows grouped by the integer column `groupBy`, counted or summed over `value`. */
@@ -103,6 +131,8 @@ export interface Header {
   domains?: Domain[];
   /** Solenoid field for `helix` layers: Bz (T), uniform inside the cylinder r < rMax, |z| < zMax (cm), none outside. */
   field?: { bz: number; rMax: number; zMax: number };
+  /** Faint outlines of the parts of the detector: cylinders (cm; `z` as a |z| range, drawn at both ends). */
+  outlines?: Outline[];
 }
 /** How a reco <-> truth association measures a match (docs/truth.md), on the relation. On reco -> truth: the truth
  *  level the reco kind reconstructs (`target`), what is shared (`measure`: detector hits, or rechit energy) and where
@@ -114,8 +144,11 @@ export interface Match {
   measure: "hits" | "energy"; in: string; target?: "trackerHits" | "caloBoundary" | "particle";
   shared?: string; over?: string[]; good?: number; completeness?: { weight: string; complement?: boolean };
 }
+export interface Outline { name: string; r: [number, number]; z: [number, number] }
 export interface Domain {
   name: string; region: { rMax: number; zMax: number }; view?: "3d" | "front" | "side" | "rz";
+  /** Its layers are drawn in every domain's view (e.g. physics objects); seen from another domain, as outlines. */
+  shared?: boolean;
   /** A colour mode id: "layers": while this domain is looked at, each layer takes its own colours, also in a bundle
    *  with candidates; "pid" (the default with candidates): particle types. */
   colourMode?: "pid" | "layers";

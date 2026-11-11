@@ -61,6 +61,10 @@ async function startTour() {
       // Start wide (collider data: the whole detector, both endcaps) while the particles travel; orbit tours come
       // closer to the action straight away.
       move(beam ? undefined : around(targets), plan.travel * 1000, 0.6);
+      if (plan.growth) { // closer on the paths while they are built (e.g. tracks in the tracker)
+        if (!(await until(plan.growth.start))) return;
+        move(everything(plan.growth.tables), (plan.growth.build - plan.growth.start) * 1000 + 800, 0.3, 1.15);
+      }
       if (!(await until(plan.linkStart))) return; // circle while the clusters form
       // Glide into the leading shower while it is built and linked; at the last reconstruction step, pull back to
       // show every final object (and the tracks that reach them).

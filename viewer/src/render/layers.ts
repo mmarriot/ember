@@ -541,7 +541,8 @@ export function helices(input: LayerInput): Layer {
         float s = selected(ipsel, isel);
         if (uProj > 0.5) c = projectRZ(c, s * 2.0, iend.y >= 0.0 ? 1.0 : -1.0);
         gl_Position = projectionMatrix * modelViewMatrix * vec4(c, 1.0);
-        vCol = fade(mix(icol, vec3(1.0), uFlash * pop(iT)), s) * remaining() + uBg * (1.0 - remaining());
+        // A selected line is lifted towards white: a thin line in a dark colour (a low-pT track) would be hard to see.
+        vCol = fade(mix(mix(icol, vec3(1.0), 0.3 * s * selActive()), vec3(1.0), uFlash * pop(iT)), s) * remaining() + uBg * (1.0 - remaining());
       }`,
     fragmentShader: `uniform float uDash; uniform vec3 uBg; varying vec3 vCol; varying float vS;
       void main() {

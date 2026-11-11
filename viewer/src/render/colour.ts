@@ -134,7 +134,7 @@ export function colours(d: DisplayLayer, t: Table, ev: EventData, header: Header
       emphasis[i] = used[key[i]];
     }
     const items = top.map((row, j) => ({ label: `#${row}`, colour: pal.identity[j], ref: { table: d.table, row } }));
-    return { rgb: out, emphasis, legend: { kind: "category", text: `one colour each for the ${top.length} largest`, items,
+    return { rgb: out, emphasis, legend: { kind: "category", text: top.length === 1 ? "one colour for the largest" : `one colour each for the ${top.length} largest`, items,
       ...(others ? { note: `grey: the other ${others}` } : {}) } };
   }
   if (typeof d.colourBy === "object" && "category" in d.colourBy) {

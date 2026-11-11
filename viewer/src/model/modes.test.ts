@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { Header } from "../io/bundle";
 import { modeColouring, modeRoots } from "./modes";
+import cms from "./fixtures/cms_header.json";
+import cmsColourings from "./fixtures/cms_colourings.json";
 
 // The shape of the hgcal profile: candidates -> interpretations, layer clusters, tracks; tracksters -> layer clusters;
 // layer clusters -> hits; truth particles -> hits, children; associations reco <-> truth both ways.
@@ -27,7 +29,7 @@ describe("colour modes", () => {
     expect(modeRoots({ ...header, display: header.display.filter((d) => !d.truth) })).toEqual({ reco: "Cand" });
   });
   it("truth mode: reco objects by their own best match, hits by particle, layer clusters from their hits", () => {
-    expect(modeColouring(header, "P")).toEqual({
+    expect(modeColouring(header, "P", true)).toEqual({
       P: "identity", Hit: { relation: "truthHits" }, LC: { content: "P" }, T: { relation: "tTruth" }, Cand: { relation: "candTruth" },
       Interp: { relation: "candInterp" }, Track: { relation: "candTrack" }, V: { relation: "decay" },
     });
@@ -45,5 +47,52 @@ describe("colour modes", () => {
     expect(reco.Vtx).toBeUndefined();
     expect(reco.THit).toEqual({ relation: "trackHits" }); // a track's hits take its candidate's colour
     expect(modeColouring(h, "P").Vtx).toBeUndefined();
+  });
+
+  // docs/truth.md "Constituents": by truth, an object is coloured only by its own match or its container's.
+  const physics = {
+    relations: {
+      jetCands: rel("Jet", "PFCand"), candTrack: rel("PFCand", "Track"), trackHits: rel("Track", "THit"),
+      muonTrack: rel("Muon", "Track"), muonSegs: rel("Muon", "Seg"), segHits: rel("Seg", "MHit"), clHits: rel("MTDCl", "MTDHit"),
+      trackTruth: assoc("Track", "P", "score", "min"), truthTrack: assoc("P", "Track", "sharedFraction", "max"),
+      truthMHits: { ...assoc("P", "MHit", "simEnergy", "max"), fact: { in: "Muons" } },
+      truthMTD: { ...assoc("P", "MTDHit", "simEnergy", "max"), fact: { in: "MTD" } },
+    },
+    display: [
+      { table: "Jet", repr: "segments", stage: 4, truthGap: { reason: "no jet associator in CMSSW", gap: 21 } },
+      { table: "PFCand", repr: "helix", stage: 3, truthGap: { reason: "no PF-candidate associator in CMSSW", gap: 20 } },
+      { table: "Muon", repr: "helix", stage: 3, truthGap: { reason: "no muon associator in CMSSW", gap: 18 } },
+      { table: "Seg", repr: "segments", stage: 2, truthGap: { reason: "no muon-segment associator in CMSSW", gap: 17 } },
+      { table: "MTDCl", repr: "markers", stage: 2, truthGap: { reason: "no MTD-cluster associator in CMSSW", gap: 19 } },
+      { table: "Track", repr: "helix", stage: 2 }, { table: "THit", repr: "markers" }, { table: "MHit", repr: "markers" },
+      { table: "MTDHit", repr: "markers" }, { table: "P", repr: "helix", truth: true },
+    ],
+  } as unknown as Header;
+  it("truth mode: a composite never takes a part's match, a vote through hits, or a dangling container colour", () => {
+    const c = modeColouring(physics, "P", true);
+    for (const t of ["Jet", "PFCand", "Muon", "Seg", "MTDCl"]) expect(c[t]).toBeUndefined();
+    expect(c).toMatchObject({ Track: { relation: "trackTruth" }, THit: { relation: "trackHits" }, MHit: { relation: "truthMHits" }, MTDHit: { relation: "truthMTD" } });
+    // without truthGap hints the staged composites still cannot climb to their parts' matches
+    const plain = { ...physics, display: physics.display.map(({ truthGap: _, ...d }) => d) } as unknown as Header;
+    const p = modeColouring(plain, "P", true);
+    for (const t of ["Jet", "PFCand", "Muon"]) expect(p[t]).toBeUndefined();
+  });
+  it("truth mode: a part of a matched container takes its colour; a part of an uncoloured composite does not", () => {
+    const h = { ...physics, relations: { ...physics.relations, candHit: rel("PFCand", "CHit") }, display: [...physics.display, { table: "CHit", repr: "markers" }] } as unknown as Header;
+    const c = modeColouring(h, "P", true);
+    expect(c.THit).toEqual({ relation: "trackHits" });
+    expect(c.CHit).toBeUndefined();
+  });
+  it("truth mode: the vote by content only for a kind that opts in, or in a bundle made before truthGap", () => {
+    expect(modeColouring(header, "P", true).LC).toEqual({ content: "P" }); // no truthGap anywhere: as before
+    const gap = (derived?: "content") => ({ ...header, display: header.display.map((d) => (d.table === "LC" ? { ...d, truthGap: { reason: "no layer-cluster associator", gap: 1, derived } } : d)) }) as unknown as Header;
+    expect(modeColouring(gap("content"), "P", true).LC).toEqual({ content: "P" });
+    expect(modeColouring(gap(), "P", true).LC).toBeUndefined();
+  });
+  it("leaves the colourings of today's cms bundle unchanged", () => {
+    const h = cms as unknown as Header, roots = modeRoots(h);
+    expect(roots).toEqual(cmsColourings.roots);
+    expect(modeColouring(h, roots.truth!, true)).toEqual(cmsColourings.truth);
+    expect(modeColouring(h, roots.reco!)).toEqual(cmsColourings.reco);
   });
 });

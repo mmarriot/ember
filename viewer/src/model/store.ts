@@ -89,7 +89,7 @@ export const modes = computed(() => {
   const h = bundle.value?.header, roots = h ? modeRoots(h) : {};
   const colouring = {
     reco: h && roots.reco ? modeColouring(h, roots.reco) : undefined,
-    truth: h && roots.truth ? modeColouring(h, roots.truth) : undefined,
+    truth: h && roots.truth ? modeColouring(h, roots.truth, true) : undefined,
   };
   return { roots, colouring };
 });

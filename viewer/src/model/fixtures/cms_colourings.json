@@ -1,0 +1,90 @@
+{
+ "roots": {
+  "truth": "TruthParticles",
+  "reco": "TICLCandidates"
+ },
+ "truth": {
+  "TruthParticles": "identity",
+  "HGCalSoARecHitsEE": {
+   "relation": "truthHitsSoAEE"
+  },
+  "HGCalSoARecHitsHSi": {
+   "relation": "truthHitsSoAHSi"
+  },
+  "HGCalSoARecHitsHSci": {
+   "relation": "truthHitsSoAHSci"
+  },
+  "HGCalHits": {
+   "relation": "truthHitsHGCal"
+  },
+  "HGCalSoALayerClusters": {
+   "content": "TruthParticles"
+  },
+  "TICLSoATracksters": {
+   "relation": "clusteringTruth"
+  },
+  "ticlTracksterLinks": {
+   "relation": "linksTruth"
+  },
+  "ticlTracksterLinksSuperclusteringDNN": {
+   "relation": "superclusterTruth"
+  },
+  "ticlTracksterInterpretations": {
+   "relation": "interpretationTruth"
+  },
+  "TICLCandidates": {
+   "relation": "candidateTruth"
+  },
+  "Tracks": {
+   "relation": "trackTruth"
+  },
+  "TruthVertices": {
+   "relation": "truthDecayVertex"
+  },
+  "TrackHits": {
+   "relation": "trackHits"
+  }
+ },
+ "reco": {
+  "TICLCandidates": "identity",
+  "HGCalSoARecHitsEE": {
+   "relation": "lcSoAHitsEE"
+  },
+  "HGCalSoARecHitsHSi": {
+   "relation": "lcSoAHitsHSi"
+  },
+  "HGCalSoARecHitsHSci": {
+   "relation": "lcSoAHitsHSci"
+  },
+  "HGCalHits": {
+   "relation": "lcHits"
+  },
+  "HGCalSoALayerClusters": {
+   "relation": "candidateLCs"
+  },
+  "TICLSoATracksters": {
+   "content": "TICLCandidates"
+  },
+  "ticlTracksterLinks": {
+   "content": "TICLCandidates"
+  },
+  "ticlTracksterLinksSuperclusteringDNN": {
+   "content": "TICLCandidates"
+  },
+  "ticlTracksterInterpretations": {
+   "relation": "candidateTrackster"
+  },
+  "Tracks": {
+   "relation": "candidateTrack"
+  },
+  "TruthParticles": {
+   "relation": "truthCandidates"
+  },
+  "TruthVertices": {
+   "relation": "truthDecayVertex"
+  },
+  "TrackHits": {
+   "relation": "trackHits"
+  }
+ }
+}

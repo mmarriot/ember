@@ -278,6 +278,8 @@ def test_cms_profile_joins_hgcal_and_tracker():
     assert p["kinds"]["rechit"]["domain"] == "HGCal" and p["kinds"]["rechit"]["repr"] == "cells"
     assert p["kinds"]["truthParticle"]["repr"] == "helix" and "domain" not in p["kinds"]["truthParticle"]
     assert load_profile("hgcal")["kinds"]["rechit"] == p["kinds"]["rechit"]
+    assert [r["name"] for r in p["relations"]].count("truthProdVertex") == 1  # in-time truth from hgcal.json, once
+    assert p["cuts"]["TruthParticles"] == [["bunchCrossing", "==", 0]] and len(p["cuts"]["TruthVertices"]) == 1
     types = {"Tracks": dict.fromkeys(("vx", "vy", "vz", "px", "py", "pz", "outerX", "outerY", "outerZ", "pt", "eta"), F4)
              | {"charge": np.dtype("i2"), "highPurity": np.dtype("u1"), "vertexIdx": I4},
              "GeneralTrack": dict.fromkeys(("pt", "eta", "vz", "hgcal_x", "hgcal_y", "hgcal_z"), F4),

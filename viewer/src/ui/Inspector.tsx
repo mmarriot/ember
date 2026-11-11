@@ -1,7 +1,8 @@
 // Floating card for the selected object: summary, all columns with documentation, related objects.
 import { colourBy, customColumns, customDoc } from "../model/custom";
 import { unitOf } from "../io/bundle";
-import { bundle, describe, event, full, highlight, isHitLayer, kindOf, labelOf, layerKey, layerOf, modes, relatives, selection, sizeColumn, drawnLayers } from "../model/store";
+import { bundle, describe, event, full, highlight, kindOf, labelOf, layerKey, layerOf, modes, relatives, selection, sizeColumn, drawnLayers, truthStatuses } from "../model/store";
+import { simEnergyByParticle } from "../model/match";
 import { bestFirst, type Related } from "../model/relations";
 import { engine } from "./Viewport";
 import { jump } from "./navigate";
@@ -42,8 +43,11 @@ export function Inspector() {
   const matches = associations(sel.table, sel.row);
   const truthMatch = truth ? undefined : matches.find((m) => isTruth(m.table)), best = truthMatch?.rows[0];
   // A kind whose association carries a `match` contract gets the truth card instead of the bare best-match line.
-  const hasCard = Object.entries(b.header.relations).some(([n, r]) => r.match?.shared && r.from === sel.table && r.to === modes.value.roots.truth && ev.relations[n]);
-  const content = !truth && parts ? truthInHits(parts.madeOf) : null;
+  const hasCard = Object.entries(b.header.relations).some(([n, r]) => (r.match?.shared ?? r.match?.purity) && r.from === sel.table && isTruth(r.to) && ev.relations[n]);
+  // What the particles left in its hits, per detector; not for a kind with no truth of its own, where a ranking of the
+  // particles in its hits would be a match through hits (docs/truth.md "Constituents"): the facts stay on the hits.
+  const status = truthStatuses.value.get(sel.table);
+  const content = !truth && parts && status?.kind !== "none" ? simEnergyByParticle(ev, b.header, parts.madeOf, drawn) : [];
   // What contains it, one object per kind, innermost first in display order: hit -> layer cluster -> trackster -> ...
   const order = (t: string) => b.header.display.findIndex((l) => l.table === t);
   const chain = [...(parts?.partOf ?? [])].filter(([t, set]) => set.size && order(t) >= 0 && !layerOf(t)?.alternative)
@@ -73,17 +77,17 @@ export function Inspector() {
               Part of {chain.map(([t, r]) => <><span class="muted"> {kindOf(t)}</span> {chip(t, r)}</>)}</p>}
             {sel.table === modes.value.roots.truth ? <Lineage row={sel.row} /> : !truth && <TruthCard table={sel.table} row={sel.row} />}
             {!truth && best && !hasCard && <p class="truthline" title="The truth-graph particle the association picked for it (best by its score); shared energy and score from CMSSW">
-              <span class="badge truth">truth</span> {isHitLayer(d) ? "most simulated energy from" : "associator's best match"} {chip(truthMatch!.table, best.row)}
+              <span class="badge truth">truth</span> {status?.kind === "fact" ? "most simulated energy from" : "associator's best match"} {chip(truthMatch!.table, best.row)}
               <span class="muted">{weightsText(best.weights)}</span></p>}
-            {content && content.particles.length > 0 && (
-              <div class="truthcontent" title={`Each particle's ${content.weight} in this object's hits (sampling energy, not calibrated), summed over the hit layers shown; hits belong to the particles that entered the calorimeter, with their secondaries; only particles in the truth-graph export`}>
-                <p class="truthline"><span class="badge truth">truth</span> simulated energy in its hits, by particle that entered the calorimeter:</p>
-                <ul class="matches">{content.particles.slice(0, 5).map(([p, e]) => (
-                  <li>{chip(content.table, p)}<span class="muted">{(100 * e / content.total).toFixed(0)}%</span></li>
+            {content.map((g) => g.particles.length > 0 && (
+              <div class="truthcontent" title={`Each particle's ${g.weight} in this object's hits${g.in ? ` in ${g.in}` : ""} (deposited in the sensors, not calibrated: compare only within one detector), summed over the hit layers shown; hits belong to the particles that entered the calorimeter, with their secondaries; only particles in the truth-graph export`}>
+                <p class="truthline"><span class="badge truth">truth</span> simulated energy in its hits{content.length > 1 && g.in ? ` in ${g.in}` : ""}, by particle that entered the calorimeter:</p>
+                <ul class="matches">{g.particles.slice(0, 5).map(([p, e]) => (
+                  <li>{chip(g.table, p)}<span class="muted">{(100 * e / g.total).toFixed(0)}%</span></li>
                 ))}</ul>
-                {content.particles.length > 5 && <p class="hint">… and {content.particles.length - 5} more particles</p>}
+                {g.particles.length > 5 && <p class="hint">… and {g.particles.length - 5} more particles</p>}
               </div>
-            )}
+            ))}
             {rows(key)}
           </div>
         )],
@@ -144,27 +148,6 @@ function associations(table: string, row: number) {
     else out.push({ table: other, rows });
   }
   return out;
-}
-
-/** What truth particles left in the given hits: per particle, the sum of the `best` weight of truth -> hit
- *  associations (e.g. simEnergy) over those hits, in drawn hit layers only (so a hit is not counted twice through
- *  two hit tables). Largest first. Null without such associations. */
-function truthInHits(objects: Related) {
-  const b = bundle.value, ev = event.value;
-  if (!b || !ev) return null;
-  const sums = new Map<number, number>();
-  let table = "", weight = "", total = 0;
-  for (const [name, info] of Object.entries(b.header.relations)) {
-    const rel = ev.relations[name], rows = objects.get(info.to), w = info.best ? rel?.weights[info.best.weight] : undefined;
-    if (!rel || !rows || !w || !info.association || !isTruth(info.from) || !drawn(info.to) || isTruth(info.to)) continue;
-    if (!isHitLayer(layerOf(info.to))) continue;
-    table = info.from;
-    weight = info.best!.weight;
-    for (let p = 0; p + 1 < rel.offsets.length; p++)
-      for (let k = rel.offsets[p]; k < rel.offsets[p + 1]; k++)
-        if (rows.has(rel.indices[k])) { sums.set(p, (sums.get(p) ?? 0) + w[k]); total += w[k]; }
-  }
-  return table ? { table, weight, total, particles: [...sums].sort((a, c) => c[1] - a[1]) } : null;
 }
 
 function drawn(table: string) {

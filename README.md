@@ -78,6 +78,5 @@ From a laptop: `ssh -L 5173:127.0.0.1:5173 <host>`, then open http://localhost:5
 
 - CMSSW exporter: write the reconstruction and truth tables the `hgcal` profile reads, so step3 output converts
   without patches.
-- More representations: helices for tracks in the magnetic field (tracks are straight segments now), polylines,
-  cones.
+- More representations: polylines, cones.
 - More detectors and data types through new profiles.

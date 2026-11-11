@@ -12,7 +12,7 @@ The same list is in the viewer's help (`?`).
 | action | how |
 |---|---|
 | rotate, pan, zoom | drag; right-drag or shift + drag; scroll (zooms towards the cursor) |
-| inspect an object | click it: it is shown with its smallest parts (e.g. a candidate with its hits), related objects highlighted; further clicks pick among its parts |
+| inspect an object | click it: it is shown with its smallest parts, one kind per branch (e.g. a candidate with its calorimeter hits and its track's hits; a vertex with its tracks' hits), related objects highlighted (a track: its vertex and truth particle); further clicks pick among its parts |
 | see what it is made of, level by level | ↓ / ↑, or click a level in the bar at the top left: one level at a time between the object and its smallest parts (e.g. a candidate's interpretations, linked tracksters, tracksters, layer clusters), with the object drawn as an outline around it; a level with several layers (e.g. two linking algorithms) draws those ticked in Layers, or all of them if none is |
 | objects on top of each other | click again on the same spot for the next one |
 | zoom to an object | double-click it, or F |
@@ -20,6 +20,7 @@ The same list is in the viewer's help (`?`).
 | back to the normal view, close a dialog | Esc, or click on empty space |
 | previous / next event | ← / →, or the arrows at the top |
 | views: 3D, front, side, ρ–z | 1, 2, 3, 4 |
+| one part of the detector, or all | D (cycles), or All · Tracker · HGCal … at the top (bundles with `domains`): the part's layers and the shared ones (e.g. truth), framed on its region, in its view; the side panel keeps your ticks |
 | replay | R: hits appear at their arrival time (display hint `time`, else time of flight, or the bundle's `replay` order), then each reconstruction stage in turn |
 | tour | P, or the play button: replay with a moving camera, visit the main showers, next event; any key or touch stops it |
 | live | the Live button: play new files as they appear in the site's index |
@@ -62,7 +63,9 @@ inside them give the same pair and the same picture; a selected candidate that i
 fragment) shows as split. Without a particle (no truth in the file, or none matched) the pair is the selection's
 candidate alone, and its objects show as "in the candidate". The levels in the focus bar are then the pair
 candidate's kinds, whichever of its objects is selected, and count the pair's objects (also the particle's in other
-candidates or in none); the selected object itself is always drawn. Every layer is coloured by where its objects ended up:
+candidates or in none); the selected object itself is always drawn. A selection with neither a candidate nor a
+particle that left hits (e.g. a central track, a vertex) has no pair: it is shown with its own levels and links.
+In the pair view, every layer is coloured by where its objects ended up:
 
 | class | meaning |
 |---|---|
@@ -85,5 +88,5 @@ Expressions (filters, custom columns, summary `where`) admit column names, numbe
 `&& || !`, parentheses and a fixed list of Math functions. They are parsed, never evaluated as JavaScript
 (`viewer/src/model/expr.ts`).
 
-The URL keeps the bundle, event, view and selection, so links can be shared. Custom columns, filters, colour
+The URL keeps the bundle, event, view, domain and selection, so links can be shared. Custom columns, filters, colour
 choices and the active preset (per profile), the theme and the panel width are remembered per browser.

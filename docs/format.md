@@ -41,7 +41,7 @@ Run-level description, the same for every event.
 | `tables` | `{name: {"doc", "columns": {name: {"type", "doc"}}}}`. Column types: `f32 f64 i8 u8 i16 u16 i32 u32 i64 u64`; booleans are `u8`. `"scope": "run"`: a per-run table (e.g. a channel table), stored once per run in a run record; readers add it to every event of that run |
 | `relations` | `{name: {"from", "to", "weights": [names]}}` plus optional hints, see [Relations](#relations) |
 | `display` | drawable layers, see [Display hints](#display-hints) |
-| `replay`, `view`, `summaries`, `presets`, `runTitle`, `runFields` | optional viewer settings, see [Viewer settings](#viewer-settings) |
+| `replay`, `view`, `summaries`, `presets`, `runTitle`, `runFields`, `domains`, `field` | optional viewer settings, see [Viewer settings](#viewer-settings) |
 
 A table missing from an event has no entry in its record; a table present with zero rows has `n: 0`. Tables without a
 display entry are not drawn, but their columns and relations are still available to the viewer.
@@ -56,23 +56,30 @@ Optional hints:
 - `best: {"weight", "order": "min"|"max"}`: the weight that picks one partner where only one can be shown, e.g. the
   colour of a trackster by its best-matched particle.
 
+Two plain relations may be each other's inverse, e.g. `vertexTracks` (vertex -> its tracks) and `trackVertex` (track ->
+its vertex). The viewer takes the one with at most one link per object, where the other has more, as a pointer back
+up: a selected track links its vertex (highlighted, listed under "Part of"), but does not reach the vertex's other
+tracks. The colour modes do not colour such a container (the vertex) from its parts (the candidates of its tracks).
+
 ### Display hints
 
-`display` lists drawable layers, in display order. `repr` is one of `cells`, `markers`, `ellipsoids`, `segments`.
+`display` lists drawable layers, in display order. `repr` is one of `cells`, `markers`, `ellipsoids`, `segments`,
+`helix`.
 
 | key | meaning |
 |---|---|
 | `table`, `repr` | the table drawn and how |
 | `position` | three columns: x, y, z in cm |
-| `end` | `segments`: three columns for the end point (lines run from `position` to `end`) |
+| `end` | `segments`: three columns for the end point (lines run from `position` to `end`); `helix`: where the path stops (see [Helices](#helices)) |
+| `momentum`, `charge` | `helix`: three columns for the momentum at `position` (px, py, pz in GeV), and the charge column (e) |
 | `axis`, `extent` | `ellipsoids`: principal-axis columns and eigenvalue columns |
-| `size` | `cells` only: column with the cell's half-width in cm (centre to side), or null for 0.6 cm. The cell is drawn as a hexagon with its corners at that distance, so it fits inside the real cell and neighbours never overlap |
+| `size` | `cells`: column with the cell's half-width in cm (centre to side), or null for 0.6 cm. The cell is drawn as a hexagon with its corners at that distance, so it fits inside the real cell and neighbours never overlap. `markers`: a column whose larger values draw larger discs (5 to 14 px over the bulk of its values, log scale when they are positive, as for `colour`), e.g. `sumPt2` so the primary vertex stands out among pile-up vertices |
 | `colour` | numeric column for the colour scale over the bulk of the values: log scale when at least 95% of the finite values are positive (non-positive ones take the lowest colour), linear otherwise |
 | `palette` | scale for `colour`: `heat` (default) or `cool` |
 | `colourBy` | categorical colour instead of `colour`: `"row"` (one colour per object); `"identity"` (one colour each for the largest objects by `colour`, never repeated, the rest one "other" colour; in a `truth` table with a parent -> children relation, a particle takes the colour of its highest ancestor that owns hits or is matched by a reco object, and only those use colours); `{"content": table}` (the colour of the `table` object with the most association weight in this object's parts, e.g. the truth particle with the most simulated energy in a layer cluster's hits, each hit weighted by the cluster's fraction); `{"relation": name}` (the colour of the related object: for a layer on the relation's `to` side, the `from` object containing this row; on its `from` side, the `to` object it points to; with several, the relation's `best` weight picks one, else the first; grey if none, or if the related object is itself grey; the related object's own categorical colouring is followed, so colours carry along chains; falls back to `colour` if the relation is absent); `{"category": column, "abs": bool, "names": {value: name}}` (one colour per value, in the order of `names`, which also label the legend) |
 | `time` | column with the arrival time in ns, used by the replay; values <= -50 mean "no time". A column corrected for time of flight (prompt particles near 0) is recognised and converted |
 | `group`, `label`, `visible` | heading in the layer list, layer name, default visibility |
-| `domain` | the part of the detector the layer belongs to (e.g. `HGCal`, `Tracker`): its tab in the side panel. Truth layers have none (they are listed under Truth); a reco layer without one is listed under "Objects" |
+| `domain` | the part of the detector the layer belongs to (e.g. `HGCal`, `Tracker`): its tab in the side panel and, if the header's `domains` has it, the domain view that draws it. Truth layers have none (they are listed under Truth); a reco layer without one is listed under "Objects". A layer without a domain is drawn in every domain's view |
 | `kind`, `source` | object type (e.g. `trackster`; `group` is then its display name) and the reconstruction path that produced it (e.g. `SoA`, `legacy`). Layers of one kind are listed together, tagged with their source |
 | `alternative` | a less preferred reconstruction path of a kind that is shown (e.g. legacy next to SoA): starts hidden and folded away |
 | `stage` | reconstruction step (0, 1, ...): the replay grows each stage in turn and ends on the last |
@@ -103,8 +110,31 @@ All optional; the converter copies them from the profile.
   settings, shown as buttons when there are several. Applying one first resets every table any preset touches to its
   default colour and `filter` hint. The first preset is active on opening, unless the viewer remembers another one
   chosen for the same profile.
+- `domains`: `[{"name", "region": {"rMin", "rMax", "zMin", "zMax"}, "view"}]`: the parts of the detector, in order (cm; z
+  is |z|, so a region covers both ends; `rMin`, `zMin` optional). With two or more, the viewer offers All · <name> ·
+  <name>: a domain's view draws its layers (display hint `domain`) and those without a domain, frames the cylinder
+  `rMax`, `zMax`, and switches to `view` (`3d`, `front`, `side`, `rz`). A layer of another domain is still drawn when
+  a selection has objects in it (e.g. a track's calorimeter candidate).
+- `field`: `{"bz", "rMax", "zMax"}`: a uniform solenoid field along z (T), inside the cylinder r < `rMax`, |z| < `zMax`
+  (cm), none outside; used by `helix` layers.
 - `runTitle`: a template naming a run from its `info`, e.g. `"{Beam} {Energy} GeV · {Type}"`; parts separated by
   ` · ` that name a field the run lacks are left out. `runFields`: the `info` fields shown, in order (default: all).
+
+### Helices
+
+A `helix` layer draws each object as the path of a charged particle (`viewer/src/render/helix.ts`): from `position`
+along `momentum`, curving in the header's `field` (radius pT / (0.3 B), clockwise seen from +z for positive charge)
+while inside its cylinder, then straight along the last direction. A neutral particle, an object starting outside the
+field, or a bundle without `field` goes straight from `position` to `end`, exactly as `segments`.
+
+Where it stops: z changes linearly along the path, so a path moving mostly along the beam (|Δz| to the end point at
+least its transverse distance) stops level with the end point's z; one moving mostly outwards stops where its
+transverse distance from the start reaches the end point's. With a measured momentum the helix passes near the end
+point (a track's outermost hit, a particle's decay vertex or calorimeter entry), and the arc stops level with it. If
+the helix cannot get level with the end point (a looper that never gets that far out), or ends more than 2 cm + 5% of
+its length from it (energy lost on the way, a scatter, an end point extrapolated without the field), the object is
+drawn straight from start to end instead, so a particle always ends where its daughters start. Picking, colours,
+cuts, filters, truth dashes and `onSelection` are as for `segments`.
 
 ## Index JSON
 

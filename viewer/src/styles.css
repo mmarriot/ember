@@ -169,7 +169,7 @@ details { margin-top: 8px; } summary { cursor: pointer; color: var(--accent); fo
 @media (prefers-reduced-motion: reduce) { .inspector, .caption { animation: none; } }
 @keyframes fade-in { from { opacity: 0; } }
 .caption b { font-size: 14px; } .caption small { color: var(--muted); font-size: 11px; }
-.hintbar { position: absolute; bottom: 10px; left: 12px; max-width: calc(100% - 330px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 11px; color: var(--muted); background: var(--overlay); padding: 3px 8px; border-radius: 6px; }
+.hintbar { position: absolute; bottom: 10px; left: 12px; max-width: calc(100% - 24px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 11px; color: var(--muted); background: var(--overlay); padding: 3px 8px; border-radius: 6px; }
 
 /* inspector card */
 .inspector { position: absolute; top: 12px; right: 12px; width: 340px; max-height: calc(100% - 24px); overflow-y: auto; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
@@ -195,7 +195,8 @@ details { margin-top: 8px; } summary { cursor: pointer; color: var(--accent); fo
 
 /* The parts of the detector: buttons, or a drop-down list below 1100 px; the views then sit on the canvas. */
 .domainlist { display: none; flex: none; }
-.viewport > .views { position: absolute; right: 76px; bottom: 10px; background: var(--overlay); z-index: 2; }
+.viewport > .views { position: absolute; left: 12px; bottom: 8px; background: var(--overlay); z-index: 2; }
+.viewport > .views ~ .hintbar { left: 226px; max-width: calc(100% - 240px); } /* the inspector takes the right */
 .viewport > .views button { padding: 3px 9px; font-size: 12px; background: transparent; }
 .viewport > .views button.on { background: var(--accent); }
 @media (max-width: 1100px) {
@@ -294,6 +295,7 @@ table.outcome td:nth-child(3) { color: var(--muted); text-align: right; }
 .level.on .count { color: inherit; opacity: 0.85; }
 .level:disabled { cursor: default; }
 .level .count { font-size: 11px; }
+.level.part { border-style: dashed; } /* another part of the detector: a click looks at it */
 .badge.reco { display: inline-block; font-size: 10px; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; padding: 0 5px; margin: 0 6px 0 0; border-radius: 3px; border: 1px solid currentColor; color: var(--muted); }
 .badge.level { display: inline-block; font-size: 10px; padding: 0 4px; margin-left: 4px; border-radius: 3px; border: 1px dashed var(--line-strong); color: var(--muted); }
 .truthcard { margin: 0 0 8px; }

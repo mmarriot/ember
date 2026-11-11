@@ -6,7 +6,7 @@ import type { Caption } from "../render/replay";
 import type { Hit, ViewName } from "../render/engine";
 import { drawsLayer, sharedDomains, startDomain } from "./domains";
 import { colourBy, type ColourMode, customColumns, loadCustom, withColour, withCustomColumns } from "./custom";
-import { focusLevels, levelLayers, stepLevel } from "./levels";
+import { focusLevels, levelLayers, mergeAcrossDomains, scopeLevels, stepLevel } from "./levels";
 import { modeColouring, modeRoots } from "./modes";
 import { PAIR, type Pair, pairFor, pairShows } from "./pair";
 import { levelsOf, type Related, relatedParts, sameRef, type Ref } from "./relations";
@@ -255,17 +255,24 @@ export const levels = computed(() => {
   const linked = pair ? focusParts.value?.linked : undefined;
   const unclassified = (t: string) => { const cls = pair!.classes.get(t); return [...linked!.get(t)!].every((r) => !cls || cls[r] === PAIR.other); };
   const own = (t: string) => parts.madeOf.has(t) || (!parts.linked.has(t) && !(linked?.has(t) && unclassified(t)));
-  return focusLevels(b.header.display, top.table, hl, own, b.header.relations);
+  const lv = focusLevels(b.header.display, top.table, hl, own, b.header.relations);
+  // Looking at everything in a bundle with parts of the detector: same-depth levels of different parts become one.
+  return !domain.value && (b.header.domains?.length ?? 0) >= 2 ? mergeAcrossDomains(lv, shared.value) : lv;
 });
+/** The focus bar: the levels the current domain draws as its own or shares, and a chip per other part of the
+ *  detector the focus has levels in (model/levels.ts scopeLevels). */
+export const focusBar = computed(() => scopeLevels(levels.value, domain.value, shared.value, (bundle.value?.header.domains ?? []).map((d) => d.name)));
 /** The chosen level, if the focus has it and it is not one drawn anyway (the bottom ones, lines); else null. */
 export const shownLevel = computed(() => {
   const c = focusLevel.value;
   return levels.value.some((l) => !l.always && l.name === c) ? c : null;
 });
-/** Step the shown level down (+1) or up (-1); false (and nothing changes) if the focus has no levels to step through. */
+/** Step the shown level down (+1) or up (-1) among the focus bar's; false (and nothing changes) if it has none to step
+ *  through. */
 export function stepFocusLevel(by: number) {
-  if (!levels.peek().some((l) => !l.always)) return false;
-  focusLevel.value = stepLevel(levels.peek(), focusLevel.peek(), by);
+  const bar = focusBar.peek().bar; // the levels of the current domain (and the shared ones)
+  if (!bar.some((l) => !l.always)) return false;
+  focusLevel.value = stepLevel(bar, focusLevel.peek(), by);
   return true;
 }
 

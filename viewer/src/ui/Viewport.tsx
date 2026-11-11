@@ -13,10 +13,10 @@ import { colours, type LayerFor, type Legend, PALETTES, valueRange, type Pal, ty
 import { Engine, MIN_RADIUS, type ViewName } from "../render/engine";
 import { builders, type Layer } from "../render/layers";
 import { planReplay, type Parts, type Plan } from "../render/replay";
-import { back, jump } from "./navigate";
+import { back, chooseDomain, jump } from "./navigate";
 import {
-  activeMode, bundle, cuts, describe, domain, drawnLayers, event, focus, focusHidden, focusHistory, focusIsTruth, focusLayers, focusLevel, focusLinked, following,
-  highlight, hover, inDomain, inFocus, isHitLayer, kindOf, labelOf, layerKey, layerOf, legends, levels, levelTop, pairView, rawEvent, replayCaption, selection, short,
+  activeMode, bundle, cuts, describe, domain, drawnLayers, event, focus, focusBar, focusHidden, focusHistory, focusIsTruth, focusLayers, focusLevel, focusLinked, following,
+  highlight, hover, inDomain, inFocus, isHitLayer, kindOf, labelOf, layerKey, layerOf, legends, levelTop, pairView, rawEvent, replayCaption, selection, short,
   showAll, shown, shownLayer, shownLevel, theme, touring, view,
 } from "../model/store";
 import { PAIR } from "../model/pair";
@@ -331,10 +331,12 @@ function FocusBar() {
 }
 
 /** The kinds of object the focus is made of, top first: the last ones (its smallest objects, e.g. hits) are always
- *  shown, one of the others on request (a click, or ↓ ↑), so they do not cover each other. */
+ *  shown, one of the others on request (a click, or ↓ ↑), so they do not cover each other. With parts of the detector,
+ *  the levels of the domain looked at (and the shared ones), and a chip for each other part the focus has objects in:
+ *  a click there looks at that part, keeping the focus. */
 function Levels() {
-  const lv = levels.value, chosen = focusLevel.value;
-  if (!lv.some((l) => !l.always)) return null;
+  const { bar: lv, chips } = focusBar.value, chosen = focusLevel.value;
+  if (!lv.some((l) => !l.always) && !chips.length) return null;
   return (
     <div class="row levels" title="What it is made of, from the largest objects down: click one to show it as well (↓ ↑)">
       {pairView.value && <span class="muted" title="Counts: the pair's objects (its candidate's, and its particle's in other candidates or none)">truth ↔ reco pair:</span>}
@@ -348,6 +350,11 @@ function Levels() {
           </>
         );
       })}
+      {chips.length > 0 && <span class="muted chipsin">{lv.length ? "· in" : "in"}</span>}
+      {chips.map(({ domain: name, level }) => (
+        <button class="level part" title={`Look at it in ${name}, keeping the focus (D): its ${level.name.toLowerCase()} and what they are made of`}
+          onClick={() => chooseDomain(name)}>{name} <span class="count">{level.count.toLocaleString()}</span></button>
+      ))}
     </div>
   );
 }

@@ -317,19 +317,22 @@ export class Engine {
     this.aim(ctr, radius, animate, ms, swing, dir);
   }
 
-  /** Frame a cylinder around the beam axis whole (radius rMax, |z| up to zMax; cm), e.g. a part of the detector,
-   *  from the current direction. */
+  /** Frame a cylinder around the beam axis (radius rMax, |z| up to zMax; cm), e.g. a part of the detector, from the
+   *  current direction: whole in the 3D view; in the front and side views, its section through the beam line across
+   *  the line of sight (the disc of radius rMax end-on, the 2 zMax x 2 rMax rectangle from the side), which then fills
+   *  the view: framing the near rim of a long cylinder seen end-on in perspective would leave its middle small. */
   frameRegion(rMax: number, zMax: number, animate = true, ms = 700) {
     if (this.rz) return this.aimRZ(new THREE.Vector3(), new THREE.Vector3(2 * zMax, 2 * rMax, 0), animate, ms);
     // The camera distance that keeps each point of its rims in view, in perspective: a point `a` nearer the camera
     // than the centre and `r` off the line of sight needs r / (distance - a) <= tan(fov / 2).
     const dir = this.direction(), p = new THREE.Vector3(), tan = Math.tan(THREE.MathUtils.degToRad(this.cam3d.fov / 2));
+    const section = this.view === "front" || this.view === "side";
     let need = 0;
     for (let i = 0; i < 32; i++)
       for (const z of [-zMax, zMax]) {
         p.set(rMax * Math.cos((i * Math.PI) / 16), rMax * Math.sin((i * Math.PI) / 16), z);
-        const a = p.dot(dir);
-        need = Math.max(need, a + p.addScaledVector(dir, -a).length() / tan);
+        const a = section ? 0 : p.dot(dir), off = p.addScaledVector(dir, -p.dot(dir)).length();
+        need = Math.max(need, a + off / tan);
       }
     this.aim(new THREE.Vector3(), 1.05 * need * Math.sin(THREE.MathUtils.degToRad(this.cam3d.fov / 2)), animate, ms, 0, dir);
   }

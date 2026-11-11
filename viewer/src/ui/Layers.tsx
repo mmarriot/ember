@@ -6,8 +6,8 @@ import { applyPreset } from "../model/presets";
 import { PAIR, type PairClass } from "../model/pair";
 import { PALETTES, relatedColourText, type Legend } from "../render/colour";
 import {
-  activeMode, bundle, describe, event, focusLayers, layerKey, layerOf, legends, modes, pairView, setMode, short, showAll, shown, shownLayer,
-  theme, visible,
+  activeMode, bundle, describe, event, focusHidden, focusLayers, layerKey, layerOf, legends, modes, pairView, setMode, short, showAll,
+  shown, shownLayer, theme, visible,
 } from "../model/store";
 import { jump } from "./navigate";
 
@@ -65,6 +65,7 @@ function LayerRow({ d, label }: { d: DisplayLayer; label: string }) {
         <span class="count">{on && s !== undefined && s !== n ? `${s.toLocaleString()} / ` : ""}{n.toLocaleString()}</span>
       </label>
       {!on && focusLayers.value.has(key) && <div class="sub muted">shown for the focus</div>}
+      {on && focusHidden.value.has(key) && <div class="sub muted">hidden for the focus (its levels, at the top of the view)</div>}
       {on && legend && <LegendRow d={d} legend={legend} />}
       {on && d.onSelection && (
         <label class="sub" title="Ticked: only the objects related to what you click; unticked: all of them">

@@ -13,9 +13,9 @@ import { builders, type ColourStage, type Layer } from "../render/layers";
 import { planReplay, type Plan } from "../render/replay";
 import { back, jump } from "./navigate";
 import {
-  activeMode, bundle, cuts, describe, event, focus, focusHistory, focusIsTruth, focusLayers, focusLinked, following, highlight, hover,
-  inFocus, isHitLayer, kindOf, labelOf, layerKey, layerOf, legends, pairView, rawEvent, replayCaption, selection, short, showAll, shown,
-  shownLayer,
+  activeMode, bundle, cuts, describe, event, focus, focusHidden, focusHistory, focusIsTruth, focusLayers, focusLevel, focusLinked, following,
+  highlight, hover, inFocus, isHitLayer, kindOf, labelOf, layerKey, layerOf, legends, levels, pairView, rawEvent, replayCaption, selection, short,
+  showAll, shown, shownLayer,
   theme, touring, view, visible,
 } from "../model/store";
 import { PAIR } from "../model/pair";
@@ -103,11 +103,12 @@ export function Viewport() {
       recolourFrame ||= requestAnimationFrame(() => { recolourFrame = 0; applyCuts(true); });
     });
 
-    // The layers to draw: the visible ones, the hidden ones the focus has objects in, and in a replay every
-    // reconstruction stage.
+    // The layers to draw: the visible ones but the levels a focus hides, the hidden ones it shows, and in a replay
+    // every visible layer and reconstruction stage.
     const wanted = (header: Header, ev: EventData) => {
-      const vis = visible.peek(), forced = focusLayers.peek(), all = replaying.peek();
-      return header.display.filter((d) => (vis[layerKey(d)] || forced.has(layerKey(d)) || (all && d.stage !== undefined)) && ev.tables[d.table]?.n);
+      const vis = visible.peek(), forced = focusLayers.peek(), hidden = focusHidden.peek(), all = replaying.peek();
+      const draw = (k: string, d: DisplayLayer) => (vis[k] && (all || !hidden.has(k))) || forced.has(k) || (all && d.stage !== undefined);
+      return header.display.filter((d) => draw(layerKey(d), d) && ev.tables[d.table]?.n);
     };
     // Builds the given layers, adding their legends to `drawn`; colour scales are shared with the layers in `pool`.
     const build = (layers: DisplayLayer[], header: Header, ev: EventData, drawn: Record<string, Legend>, pool: Entry[] = []): Entry[] => {
@@ -145,10 +146,10 @@ export function Viewport() {
       showFocus(0);
     });
 
-    // A focus draws the hidden layers it has objects in (e.g. a candidate's tracksters): only those are built, or
-    // freed when it ends; the other layers keep their buffers.
+    // A focus draws some hidden layers (e.g. a candidate's tracksters, when that level is chosen) and hides some
+    // ticked ones (e.g. its layer clusters, until chosen): only those are built or freed; the others keep their buffers.
     const stopForced = effect(() => {
-      focusLayers.value;
+      focusLayers.value; focusHidden.value;
       const b = bundle.peek(), ev = event.peek();
       if (!b || !ev || ev !== builtFor) return; // a new event: stopLayers builds everything
       const keep = new Set(wanted(b.header, ev).map(layerKey)), have = new Set(entries.map((e) => e.key));
@@ -273,10 +274,34 @@ function FocusBar() {
     return `${kindOf(r.table)}${n ? ` · ${n}` : ` #${r.row}`}`;
   };
   return (
-    <div class="focusbar" role="status" title="All its parts are shown, and only they can be clicked">
-      {prev && <button class="link" onClick={back} title={`Back to ${name(prev)}`}>← {name(prev)}</button>}
-      <span class="muted">Focus</span> <b>{name(f)}</b>
-      <button class="link" onClick={() => (selection.value = null)}>leave (Esc)</button>
+    <div class="focusbar" role="status">
+      <div class="row" title="It is shown with its smallest parts; only its parts can be clicked">
+        {prev && <button class="link" onClick={back} title={`Back to ${name(prev)}`}>← {name(prev)}</button>}
+        <span class="muted">Focus</span> <b>{name(f)}</b>
+        <button class="link" onClick={() => (selection.value = null)}>leave (Esc)</button>
+      </div>
+      <Levels />
+    </div>
+  );
+}
+
+/** The kinds of object the focus is made of, top first: the last one (e.g. hits) is always shown, one of the others
+ *  on request (a click, or ↓ ↑), so they do not cover each other. */
+function Levels() {
+  const lv = levels.value, chosen = focusLevel.value;
+  if (lv.length < 2) return null;
+  return (
+    <div class="row levels" title="What it is made of, from the largest objects down: click one to show it as well (↓ ↑)">
+      {lv.map((l, i) => {
+        const last = i === lv.length - 1, on = last || l.name === chosen;
+        return (
+          <>
+            {i > 0 && <span class="muted" aria-hidden="true">›</span>}
+            <button class={on ? "level on" : "level"} disabled={last} aria-pressed={on}
+              onClick={() => (focusLevel.value = on ? null : l.name)}>{l.name} <span class="count">{l.count.toLocaleString()}</span></button>
+          </>
+        );
+      })}
     </div>
   );
 }

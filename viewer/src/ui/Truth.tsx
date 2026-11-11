@@ -36,6 +36,11 @@ function collision(truth: string, t: string, r: number) {
   const first = layerOf(truth)?.particle?.first, v = first ? event.value?.tables[t]?.columns[first]?.[r] : undefined;
   return v === undefined ? `#${r}` : `${Number(v) ? "signal collision" : "pile-up collision"} #${r}`;
 }
+/** Any other truth vertex: its name (e.g. its reason, "decay"), marked when it belongs to a pile-up collision. */
+function vertexName(truth: string, t: string, r: number) {
+  const first = layerOf(truth)?.particle?.first, v = first ? event.value?.tables[t]?.columns[first]?.[r] : undefined;
+  return `${describe(t, r) || named(t, r) || `#${r}`}${v !== undefined && !Number(v) ? " (pile-up)" : ""}`;
+}
 /** How far apart two objects are, from their layers' positions (cm); undefined without them. */
 function distance(a: string, ra: number, b: string, rb: number) {
   const ev = event.value, pa = layerOf(a)?.position, pb = layerOf(b)?.position;
@@ -73,7 +78,7 @@ export function TruthCard({ table, row }: { table: string; row: number }) {
       {p < 0 ? <NoMatch table={table} row={row} truth={truth} /> : (
         <>
           <p class="truthline" title={`The truth-graph ${particles ? "particle (with everything it made)" : "vertex"} that the CMSSW associator picked for this object: AdaptiveNominal working point`}>
-            <span class="badge truth">truth</span> associator's best match {particles ? chip(target, p) : <>truth vertex {m.target === "interaction" ? chipAs(target, p, collision(truth, target, p)) : chip(target, p)}</>}
+            <span class="badge truth">truth</span> associator's best match {particles ? chip(target, p) : <>truth vertex {chipAs(target, p, m.target === "interaction" ? collision(truth, target, p) : vertexName(truth, target, p))}</>}
             {!particles && distance(table, row, target, p) !== undefined && <span class="muted">{short(distance(table, row, target, p)!)} cm away</span>}</p>
           <ul class="quality">
             {q?.purity !== undefined && (m.purity ? <li title="Share of this object's tracks (weighted by pT²) from the matched truth vertex">

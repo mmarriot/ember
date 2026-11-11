@@ -1,19 +1,26 @@
 // Colours per theme. Sequential scales fade towards the background at low values and stand out at high values
 // (log10 for positive quantities such as energies, linear otherwise); categorical colours tell objects apart
-// (one per trackster; its layer clusters share it). Computed once per event on the CPU, so shaders and legend agree.
+// (one per trackster; its layer clusters share it). Identity colours (the colour modes) give the largest objects of
+// one table a colour each, and the objects linked to them the same colour. Computed once per event on the CPU, so
+// shaders and legend agree.
 import { type Column, type DisplayLayer, type EventData, type Header, kindName, type Table, unitOf } from "../io/bundle";
-import { bestPartners } from "../model/relations";
+import { bestPartners, contentPartners, identities } from "../model/relations";
 
 export const PALETTES = {
   light: {
     background: 0xffffff, rim: [0.1, 0.1, 0.1], unassigned: "#cdd2d8", flash: 0, // replay: how far a new object flashes to white
     ramps: { heat: ["#fff1a8", "#fdb863", "#f4743b", "#c7253e", "#5c0a1e"], cool: ["#d6e6f5", "#8fbbe0", "#4a8cc4", "#22589b", "#0b2a5c"] },
     categories: ["#1f77b4", "#2ca02c", "#9467bd", "#17becf", "#e377c2", "#393b79", "#637939", "#7b4173", "#3182bd", "#31a354"],
+    // Identity colours (colour modes), never repeated: Okabe-Ito and Tol hues with >= 3.6:1 contrast on white, in the
+    // dark theme's hue order where possible. Simulated protan/deutan/tritan vision (Machado 2009): every pair, and
+    // "other", at least 17 CIELAB dE apart (dark set: 14.5; the categories above: 1.3).
+    identity: ["#D55E00", "#2E8FCB", "#117733", "#CC6677", "#AA4499", "#332288", "#882255"], other: "#a3abb5",
   },
   dark: {
     background: 0x0f1419, rim: [0.93, 0.95, 0.97], unassigned: "#3a424d", flash: 0.8,
     ramps: { heat: ["#6a2450", "#a0303f", "#d4533a", "#f59e42", "#fde89a"], cool: ["#1d4166", "#2563a0", "#3a8fd0", "#72c3ee", "#cdf0ff"] },
     categories: ["#4ea1ff", "#5fd068", "#b48cff", "#3dd6e0", "#ff8fd1", "#8e95ff", "#b5d94c", "#e08fd0", "#76b8ff", "#7be39a"],
+    identity: ["#E69F00", "#56B4E9", "#009E73", "#D55E00", "#CC79A7", "#0072B2", "#F0E442"], other: "#68717c",
   },
 } as const;
 export type ThemeName = keyof typeof PALETTES;
@@ -23,7 +30,7 @@ export interface Range { scale: "log" | "linear"; lo: number; hi: number } // lo
 
 export type Legend =
   | { kind: "ramp"; palette: Palette; range: Range; column: string; unit: string }
-  | { kind: "category"; text: string; items?: { label: string; colour: string }[] };
+  | { kind: "category"; text: string; note?: string; items?: { label: string; colour: string; ref?: { table: string; row: number } }[] };
 
 // Parsed once per colour: colouring runs per object (about 500k hits at PU200) and must not allocate per object.
 const parsed = new Map<string, readonly number[]>();
@@ -68,16 +75,42 @@ export function valueRange(values: ArrayLike<number>): Range {
 
 const position = (r: Range, v: number) => ((r.scale === "log" ? Math.log10(Math.max(v, 1e-12)) : v) - r.lo) / (r.hi - r.lo);
 
-/** How colouring by a related object is named (legend, colour menu): "colour of its tracksters (SoA)". */
-export const relatedColourText = (header: Header, table: string) => {
-  const d = header.display.find((l) => l.table === table), name = d ? `${kindName(d)}${d.source ? ` (${d.source})` : ""}` : table;
-  return `colour of its ${name.replace(/^[A-Z](?=[a-z])/, (c) => c.toLowerCase())}`; // "MC truth" keeps its capitals
-};
+/** A table's name in colour descriptions: "tracksters (SoA)", or with its layer's label when its kind has several
+ *  layers, "trackster links (linked tracksters, legacy)", "particles (truth graph)". */
+export function tableName(header: Header, table: string) {
+  const d = header.display.find((l) => l.table === table);
+  if (!d) return table;
+  const several = !!d.kind && header.display.filter((l) => l.group === d.group).length > 1;
+  const lower = (x: string) => x.replace(/^[A-Z](?=[a-z])/, (c) => c.toLowerCase()); // "CE-E", "DNN" keep capitals
+  const notes = [several ? lower(d.group) : "", d.source ?? ""].filter(Boolean);
+  return `${lower(several ? d.label : kindName(d))}${notes.length ? ` (${notes.join(", ")})` : ""}`;
+}
+
+/** How colouring through a relation is named (legend, colour menu): "colour of its layer clusters (SoA)"; for an
+ *  association with a `best` weight, "colour of its matched particles (truth graph), best by score". */
+export function relatedColourText(header: Header, table: string, relation?: string) {
+  const info = relation ? header.relations[relation] : undefined;
+  return `colour of its ${info?.association ? "matched " : ""}${tableName(header, table)}${info?.association && info.best ? `, best by ${info.best.weight}` : ""}`;
+}
+
+/** The display hint that colours a table's layer, with the user's colour choice applied. */
+export type LayerFor = (table: string) => DisplayLayer | undefined;
+/** `emphasis`: 0 for objects with nothing to take a colour from (drawn small and grey). Category legend `items` may
+ *  name an object (`ref`) for the UI to describe; `note` says what grey means. */
+export interface Coloured { rgb: Float32Array; legend: Legend; emphasis?: Uint8Array }
+
+/** Options of `colours`. `range` shares one value scale between layers; without it the layer's own values set the
+ *  scale. `layerFor` gives the colouring of related tables (default: their display hints), so colours follow chains:
+ *  a hit takes its layer cluster's colour, which is its candidate's. `first`: per table, objects whose identity
+ *  colours come first, in this order (e.g. those related to the selection), so they never fall among the "other" grey. */
+export interface ColourOptions { range?: Range; layerFor?: LayerFor; first?: ReadonlyMap<string, readonly number[]> }
 
 /** Per-object RGB (n * 3), the legend describing it, and (for relation colouring) which objects to emphasise:
- *  0 for objects not related to anything, which are drawn as background. `range` shares one value scale
- *  between layers; without it the layer's own values set the scale. */
-export function colours(d: DisplayLayer, t: Table, ev: EventData, header: Header, pal: Pal, range?: Range): { rgb: Float32Array; legend: Legend; emphasis?: Uint8Array } {
+ *  0 for objects not related to anything, which are drawn as background. `seen`: the tables already on a chain of
+ *  related colours (no loops). */
+export function colours(d: DisplayLayer, t: Table, ev: EventData, header: Header, pal: Pal, opts: ColourOptions = {},
+  seen: ReadonlySet<string> = new Set()): Coloured {
+  const { range, layerFor = (table: string) => header.display.find((l) => l.table === table) } = opts;
   const out = new Float32Array(3 * t.n), cats = pal.categories.map(rgb);
   const category = (k: number) => pal.categories[k % pal.categories.length];
   const set = (i: number, c: ArrayLike<number>, at = 0) => { out[3 * i] = c[at]; out[3 * i + 1] = c[at + 1]; out[3 * i + 2] = c[at + 2]; };
@@ -86,6 +119,14 @@ export function colours(d: DisplayLayer, t: Table, ev: EventData, header: Header
   if (d.colourBy === "row") {
     for (let i = 0; i < t.n; i++) setCategory(i, i);
     return { rgb: out, legend: { kind: "category", text: "one colour per object" } };
+  }
+  if (d.colourBy === "identity") {
+    const { key, top, others } = identities(d, t, ev, header, pal.identity.length, opts.first?.get(d.table)), slot = new Map(top.map((k, j) => [k, j]));
+    const ids = pal.identity.map(rgb), other = rgb(pal.other);
+    for (let i = 0; i < t.n; i++) { const j = slot.get(key[i]); set(i, j === undefined ? other : ids[j]); }
+    const items = top.map((row, j) => ({ label: `#${row}`, colour: pal.identity[j], ref: { table: d.table, row } }));
+    return { rgb: out, legend: { kind: "category", text: `one colour each for the ${top.length} largest`, items,
+      ...(others ? { note: `grey: the other ${others}` } : {}) } };
   }
   if (typeof d.colourBy === "object" && "category" in d.colourBy) {
     // Colours follow the order of `names`, so a value keeps its colour from event to event.
@@ -101,6 +142,28 @@ export function colours(d: DisplayLayer, t: Table, ev: EventData, header: Header
     // Up to 16 values get a legend entry each; more (e.g. one colour per module) only tell neighbours apart.
     return { rgb: out, legend: { kind: "category", text: items.length > 16 ? `by ${column} (${items.length} values)` : `by ${column}`, ...(items.length > 16 ? {} : { items }) } };
   }
+  // Colour taken from a partner object: through a relation, or (content) from the hits it is made of.
+  const partnerColours = (otherTable: string, partner: Int32Array, text: string): Coloured => {
+    // A partner with colours of its own passes them on (one per object, a category such as a candidate's particle
+    // type, or taken from its own partner, with its grey); otherwise one colour per partner.
+    const od = layerFor(otherTable), ot = ev.tables[otherTable], next = new Set(seen).add(d.table);
+    const from = od && ot && od.colourBy && !next.has(otherTable) ? colours(od, ot, ev, header, pal, { layerFor, first: opts.first }, next) : null;
+    const grey = rgb(pal.unassigned), emphasis = new Uint8Array(t.n);
+    for (let i = 0; i < t.n; i++) {
+      const o = partner[i], none = o < 0 || (from?.emphasis !== undefined && !from.emphasis[o]);
+      if (none) set(i, grey);
+      else if (from) set(i, from.rgb, 3 * o);
+      else setCategory(i, o);
+      emphasis[i] = none ? 0 : 1;
+    }
+    // A chain is named to its end: "colour of its layer clusters (SoA): colour of its candidates (legacy)".
+    const via = from?.legend.kind === "category" && from.emphasis ? `: ${from.legend.text}` : "";
+    return { rgb: out, emphasis, legend: { kind: "category", text: `${text}${via}`, note: "small grey: none" } };
+  };
+  if (typeof d.colourBy === "object" && "content" in d.colourBy && ev.tables[d.colourBy.content]) {
+    const { partner, weight } = contentPartners(d.table, d.colourBy.content, t.n, ev, header);
+    return partnerColours(d.colourBy.content, partner, `colour of the ${tableName(header, d.colourBy.content)} with the most ${weight} in its hits (derived in evd)`);
+  }
   const relName = typeof d.colourBy === "object" && "relation" in d.colourBy ? d.colourBy.relation : undefined;
   const rel = relName ? ev.relations[relName] : undefined, info = relName ? header.relations[relName] : undefined;
   if (rel && info && (info.to === d.table || info.from === d.table)) {
@@ -108,21 +171,7 @@ export function colours(d: DisplayLayer, t: Table, ev: EventData, header: Header
     // the object it points to (e.g. a trackster's truth particle). With several, the relation's `best` weight
     // decides, else the first.
     const forward = info.from === d.table && info.to !== d.table, otherTable = forward ? info.to : info.from;
-    const owner = bestPartners(rel, info, forward, t.n).partner;
-    // An object takes its partner's colour when the partner has colours of its own (one per object, or a category
-    // such as a candidate's particle type), otherwise one colour per partner.
-    const fromTable = otherTable, od = header.display.find((l) => l.table === fromTable), ot = ev.tables[fromTable];
-    const ownerRgb = od && ot && (od.colourBy === "row" || (typeof od.colourBy === "object" && "category" in od.colourBy))
-      ? colours(od, ot, ev, header, pal).rgb : null;
-    const grey = rgb(pal.unassigned), emphasis = new Uint8Array(t.n);
-    for (let i = 0; i < t.n; i++) {
-      const o = owner[i];
-      if (o < 0) set(i, grey);
-      else if (ownerRgb) set(i, ownerRgb, 3 * o);
-      else setCategory(i, o);
-      emphasis[i] = o < 0 ? 0 : 1;
-    }
-    return { rgb: out, emphasis, legend: { kind: "category", text: `${relatedColourText(header, fromTable)}; small grey: none` } };
+    return partnerColours(otherTable, bestPartners(rel, info, forward, t.n).partner, relatedColourText(header, otherTable, relName));
   }
 
   const palette = d.palette ?? "heat", column = d.colour ?? "";

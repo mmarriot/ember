@@ -202,7 +202,7 @@ ul.matches li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 
 .card.truth h3 .badge { margin-left: 6px; }
 .layer .sub { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); margin: 2px 0 4px 24px; }
 .relsection h4 { margin: 10px 0 2px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
-.truthline { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px; margin: 0 0 6px; font-size: 12px; }
+.truthline, .chainline { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px; margin: 0 0 6px; font-size: 12px; }
 .inspector .kind.truth { color: #d7a6ff; }
 [data-theme="light"] .inspector .kind.truth { color: #7a3fb0; }
 .layer .glyph { width: 14px; text-align: center; color: var(--muted); flex: none; }
@@ -215,3 +215,13 @@ table.outcome tr.missed td:first-child .chip { border-color: #e5534b; }
 .sidebar .tablist { background: var(--surface-2); z-index: 2; }
 .focusbar { position: absolute; top: 10px; left: 12px; max-width: 46%; background: var(--surface); border: 1px solid var(--accent); border-radius: 16px; padding: 3px 12px; font-size: 12px; display: flex; gap: 8px; align-items: baseline; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; box-shadow: 0 2px 10px rgba(0,0,0,0.25); z-index: 3; }
 .focusbar .link { white-space: nowrap; }
+/* Colour mode switch and its key: which object each identity colour stands for. */
+.colourmode .segmented.presets { margin-bottom: 4px; }
+.key { list-style: none; margin: 0; padding: 0; font-size: 12px; display: flex; flex-direction: column; gap: 1px; }
+.key li { display: flex; align-items: center; gap: 6px; color: var(--muted); }
+.key i { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.key i.small { width: 6px; height: 6px; margin: 0 2px; }
+.key .chip { margin: 1px 0; }
+.how { font-size: 11px; color: var(--muted); margin-top: 6px; }
+.how summary { cursor: pointer; }
+.how ul { margin: 4px 0 0; padding-left: 16px; }

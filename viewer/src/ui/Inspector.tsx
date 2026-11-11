@@ -1,7 +1,7 @@
 // Floating card for the selected object: summary, all columns with documentation, related objects.
 import { colourBy, customColumns, customDoc } from "../model/custom";
 import { unitOf } from "../io/bundle";
-import { bundle, describe, event, full, highlight, isHitLayer, labelOf, layerKey, layerOf, relatives, selection, sizeColumn, visible } from "../model/store";
+import { bundle, describe, event, full, highlight, isHitLayer, kindOf, labelOf, layerKey, layerOf, relatives, selection, sizeColumn, visible } from "../model/store";
 import { bestFirst, type Related } from "../model/relations";
 import { engine } from "./Viewport";
 import { jump } from "./navigate";
@@ -33,12 +33,16 @@ export function Inspector() {
   const sections: [string, string, (readonly [string, Set<number>])[]][] = [
     ["Made of", "what it is built from; highlighted in the view", without(parts?.madeOf)],
     ["Part of", "the objects that contain it (not highlighted, so they do not cover it)", without(parts?.partOf)],
-    [truth ? "Reconstructed as" : linked.every(([t]) => isTruth(t)) ? "MC truth" : "Linked", "linked by an association (e.g. reco <-> truth); highlighted", linked],
+    [truth ? "Reconstructed as" : linked.every(([t]) => isTruth(t)) ? "Truth matches" : "Linked", "linked by an association (e.g. reco <-> truth graph); highlighted", linked],
   ];
   const nRelated = sections.reduce((s, [, , g]) => s + g.reduce((k, [, set]) => k + set.size, 0), 0);
   const matches = associations(sel.table, sel.row);
   const truthMatch = truth ? undefined : matches.find((m) => isTruth(m.table)), best = truthMatch?.rows[0];
   const content = !truth && parts ? truthInHits(parts.madeOf) : null;
+  // What contains it, one object per kind, innermost first in display order: hit -> layer cluster -> trackster -> ...
+  const order = (t: string) => b.header.display.findIndex((l) => l.table === t);
+  const chain = [...(parts?.partOf ?? [])].filter(([t, set]) => set.size && order(t) >= 0 && !layerOf(t)?.alternative)
+    .sort(([a], [c]) => order(a) - order(c)).map(([t, set]) => [t, Math.min(...set)] as const);
   const chip = (t: string, r: number) => {
     const text = describe(t, r);
     return <button class="chip" title={text ? `#${r}` : undefined} onClick={() => jump({ table: t, row: r })}>{text || r}</button>;
@@ -60,11 +64,14 @@ export function Inspector() {
       <Tabs tabs={[
         ["Summary", () => (
           <div>
-            {best && <p class="truthline"><span class="badge truth">MC truth</span> best match {chip(truthMatch!.table, best.row)}
+            {chain.length > 0 && <p class="chainline" title="The objects that contain it, one per kind (Related tab: all of them)">
+              Part of {chain.map(([t, r]) => <><span class="muted"> {kindOf(t)}</span> {chip(t, r)}</>)}</p>}
+            {best && <p class="truthline" title="The truth-graph particle the association picked for it (best by its score); shared energy and score from CMSSW">
+              <span class="badge truth">truth graph</span> best match {chip(truthMatch!.table, best.row)}
               <span class="muted">{weightsText(best.weights)}</span></p>}
             {content && content.particles.length > 0 && (
-              <div class="truthcontent" title={`Each particle's ${content.weight} in this object's hits, summed over the hit layers shown`}>
-                <p class="truthline"><span class="badge truth">MC truth</span> who made its hits (share of {content.weight}):</p>
+              <div class="truthcontent" title={`Each particle's ${content.weight} in this object's hits, summed over the hit layers shown; only particles in the truth-graph export`}>
+                <p class="truthline"><span class="badge truth">truth graph</span> simulated energy in its hits, by particle (share of {content.weight}):</p>
                 <ul class="matches">{content.particles.slice(0, 5).map(([p, e]) => (
                   <li>{chip(content.table, p)}<span class="muted">{(100 * e / content.total).toFixed(0)}%</span></li>
                 ))}</ul>

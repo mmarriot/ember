@@ -1,8 +1,9 @@
 // Browser check (headless Chromium, software WebGL) of every bundle in the site's index.json, or of those named.
-// Each: layers draw, presets apply, summary charts show where the profile defines them, selecting an object shows
-// what is related, a related object can be jumped to and back, Esc leaves. One bundle (`--deep`, default the smallest
-// with reconstruction stages) also gets: themes, help, a rotate drag keeping the selection, a custom column used for
-// colour and a filter, the replay and the tour. Any console error, or a bundle taking over BUNDLE_TIMEOUT, fails.
+// Each: layers draw, presets and colour modes apply (with a key), summary charts show where the profile defines them,
+// selecting an object shows what is related, a related object can be jumped to and back, Esc leaves. One bundle
+// (`--deep`, default the smallest with reconstruction stages) also gets: themes, help, a rotate drag keeping the
+// selection, a custom column used for colour and a filter, the replay and the tour. Any console error, or a bundle
+// taking over BUNDLE_TIMEOUT, fails.
 // Screenshots: <dir>/<bundle>_*.png (one small one for scenes over BIG objects). Progress: one timestamped line per step.
 // Usage: node e2e/smoke.mjs <dev server URL> <screenshot dir> [--deep <bundle>] [bundle ...]  (dev builds expose the engine)
 import { chromium } from "playwright";
@@ -65,6 +66,17 @@ async function checkBundle(file, tag, state) {
     const button = page.locator(".segmented.presets button", { hasText: name });
     await button.click();
     if (!(await button.getAttribute("class"))?.includes("on")) fail(`preset ${name} did not apply`);
+  }
+
+  // Colour modes: each applies, and the truth and reconstruction modes show a key naming their colours.
+  for (const name of await page.$$eval(".colourmode .segmented button", (b) => b.map((x) => x.textContent))) {
+    const button = page.locator(".colourmode .segmented button", { hasText: name });
+    await button.click();
+    if (!(await button.getAttribute("class"))?.includes("on")) fail(`colour mode ${name} did not apply`);
+    const keys = await page.locator(".colourmode .key li").count();
+    log(`${tag}: colour mode ${name}: ${keys} key entries`);
+    if (name !== "Per layer" && !keys) fail(`colour mode ${name}: no key`);
+    await shot(`1_mode_${name.replace(/\W+/g, "_")}`);
   }
 
   await page.getByRole("tab", { name: "Event", exact: true }).click();

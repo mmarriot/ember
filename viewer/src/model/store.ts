@@ -4,8 +4,9 @@ import { Bundle, type DisplayLayer, type EventData, httpSource, kindName, type T
 import type { Legend, ThemeName } from "../render/colour";
 import type { Caption } from "../render/replay";
 import type { Hit, ViewName } from "../render/engine";
-import { customColumns, loadCustom, withCustomColumns } from "./custom";
-import { levelsOf, relatedParts, sameRef, type Ref } from "./relations";
+import { colourBy, colourMode, type ColourMode, customColumns, loadCustom, withColour, withCustomColumns } from "./custom";
+import { type ColourBy, modeColouring, modeRoots } from "./modes";
+import { bestFirst, levelsOf, relatedParts, sameRef, type Ref } from "./relations";
 
 /** One entry of the site's index.json (written by `evdtools sync`; hand-written ones need only file and title). */
 export interface Listed { file: string; title: string; campaign?: string; campaign_title?: string; events?: number; data_time?: string }
@@ -60,6 +61,61 @@ export const sizeColumn = (table: string, t: Table) => {
   const d = layerOf(table);
   return [d?.cut?.column, d?.colour, "energy"].find((c): c is string => !!c && c in t.columns);
 };
+
+// Colour modes (model/modes.ts).
+/** The modes this bundle offers (layers always), the default first (truth if it has truth, else reco). */
+export const modes = computed(() => {
+  const h = bundle.value?.header, roots = h ? modeRoots(h) : {};
+  const available: ColourMode[] = [...(["truth", "reco"] as const).filter((m) => roots[m]), "layers"];
+  const colouring: Partial<Record<ColourMode, Record<string, ColourBy>>> =
+    Object.fromEntries(Object.entries(roots).map(([m, root]) => [m, modeColouring(h!, root)]));
+  return { available, roots, colouring };
+});
+/** The mode in use: the user's choice if this bundle offers it, else the bundle's default. */
+export const activeMode = computed<ColourMode>(() => {
+  const { available } = modes.value, m = colourMode.value;
+  return m && available.includes(m) ? m : available[0];
+});
+
+/** In the truth and reco modes, the root objects related to the focus, in the order their colours are given out
+ *  before any other: first those an association links to the focus itself (its best match first), then the rest of
+ *  what is related to it (e.g. every particle in a candidate's hits, the candidate containing a hit). So what is
+ *  selected is never "other". */
+export const colourFirst = computed(() => {
+  const mode = activeMode.value, root = mode === "layers" ? undefined : modes.value.roots[mode];
+  const f = focus.value, parts = focusParts.value, b = bundle.value, ev = event.value;
+  if (!root || !f || !parts || !b || !ev) return new Map<string, number[]>();
+  const rows: number[] = [];
+  for (const [name, info] of Object.entries(b.header.relations)) {
+    const rel = ev.relations[name];
+    if (!rel || !info.association) continue;
+    if (info.from === f.table && info.to === root) {
+      const w = info.best ? rel.weights[info.best.weight] : undefined, cmp = info.best && bestFirst(info.best), ks: number[] = [];
+      for (let k = rel.offsets[f.row]; k < rel.offsets[f.row + 1]; k++) ks.push(k);
+      if (w && cmp) ks.sort((a, c) => cmp(w[a], w[c]));
+      rows.push(...ks.map((k) => rel.indices[k]));
+    } else if (info.to === f.table && info.from === root) {
+      for (let p = 0; p + 1 < rel.offsets.length; p++)
+        for (let k = rel.offsets[p]; k < rel.offsets[p + 1]; k++) if (rel.indices[k] === f.row) rows.push(p);
+    }
+  }
+  const rest = [parts.madeOf, parts.partOf, parts.linked].flatMap((r) => [...(r.get(root) ?? [])]);
+  const t = ev.tables[root], size = t && sizeColumn(root, t), col = size ? t.columns[size] : undefined; // largest first
+  if (col) rest.sort((a, c) => Number(col[c]) - Number(col[a]));
+  return new Map([[root, [...rows, ...rest]]]);
+});
+
+/** A layer's display hint as drawn: the colour mode's colouring, then the user's choice for that layer. */
+export function shownLayer(d: DisplayLayer, mode = activeMode.peek(), by = colourBy.peek()): DisplayLayer {
+  const c = modes.peek().colouring[mode]?.[d.table];
+  return withColour(c && !d.context ? { ...d, colourBy: c } : d, by[layerKey(d)]);
+}
+
+/** Switch mode: every layer's own colour choice is dropped, so the mode colours all of them. */
+export function setMode(m: ColourMode) {
+  colourBy.value = {};
+  colourMode.value = m;
+}
 
 /** A number in a few significant figures, for names, legends and charts. */
 export const short = (v: number) => (Number.isInteger(v) || Math.abs(v) >= 100 ? v.toFixed(0) : v.toPrecision(3));

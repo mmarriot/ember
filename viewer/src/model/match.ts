@@ -5,7 +5,7 @@
 import type { EventData, Header, Match } from "../io/bundle";
 import { evaluate } from "./custom";
 import { facts } from "./facts";
-import { type ColourBy, modeColouring, modeRoots } from "./modes";
+import { type ColourBy, modeColouring, modeRoots, reachesRoot } from "./modes";
 import { bestPartners, cached, type Related } from "./relations";
 
 /** What a reco kind reconstructs, in words, per `match.target`. */
@@ -124,7 +124,7 @@ export function truthStatus(header: Header, table: string, colouring?: Record<st
  *  without truth keep their pair. */
 export function opensPair(header: Header, table: string, colouring?: Record<string, ColourBy>, reco?: Record<string, ColourBy>) {
   const s = truthStatus(header, table, colouring);
-  return !s || (s.kind !== "none" && (!reco || table in reco));
+  return !s || (s.kind !== "none" && (!reco || reachesRoot(header, reco, table)));
 }
 
 /** What truth particles left in the given objects' hits, one group per detector (simulated energy is never summed

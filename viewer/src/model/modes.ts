@@ -78,3 +78,14 @@ export function modeColouring(header: Header, root: string, truthRoot = false): 
   }
   return out;
 }
+
+/** Whether `table`'s colouring leads all the way to the root (a step towards a table that is itself not coloured
+ *  leads nowhere: e.g. a PF cluster by the PF candidate containing it, when PF candidates are not in the chain). */
+export function reachesRoot(header: Header, colouring: Record<string, ColourBy>, table: string, seen = new Set<string>()): boolean {
+  const c = colouring[table];
+  if (!c || seen.has(table)) return false;
+  if (c === "identity" || (typeof c === "object" && "content" in c)) return true;
+  if (typeof c !== "object" || !("relation" in c)) return false;
+  const r = header.relations[c.relation];
+  return !!r && reachesRoot(header, colouring, r.from === table ? r.to : r.from, new Set(seen).add(table));
+}

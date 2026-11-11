@@ -5,6 +5,7 @@ import * as THREE from "three";
 import type { DisplayLayer, Table } from "../io/bundle";
 import { position, toF32, type Pal, valueRange } from "./colour";
 import { type Field, helixPaths, type Paths, polylines } from "./helix";
+import { HIDDEN } from "../model/cuts";
 import { REPLAY_OFF } from "./replay";
 
 export interface Layer {
@@ -79,34 +80,59 @@ function cutter(n: number, values: Float32Array | undefined, onChange: (min: num
   };
 }
 
-/** What the shader-drawn layers (cells, markers, segments) share. Per object: the given float attributes, the cut
- *  value, the colour, the selection as two byte masks (previous and current, cross-faded by a uniform) and the
- *  replay times. A cut or a replay frame is one uniform; a selection change is one mask copy. */
-function shaderLayer(input: LayerInput, g: THREE.BufferGeometry, material: THREE.ShaderMaterial, instanced: boolean, attributes: Record<string, Float32Array>) {
+/** What the shader-drawn layers (cells, markers, segments, helices) share. Per object: the given float attributes (`vec3`:
+ *  three floats each), the cut value, the colour, the selection as two byte masks (previous and current, cross-faded
+ *  by a uniform) and the replay times. A cut or a replay frame is one uniform; a selection change is one mask copy.
+ *  Instanced layers (cells, segments, helices) whose cut values hide rows for good (a filter, or a layer that shows only
+ *  the selection's objects) get instances for the other rows only: each instance runs the vertex shader for every
+ *  vertex of every frame, even when its object is hidden, and 100k truth helices of 48 points each are 5M vertices. */
+function shaderLayer(input: LayerInput, g: THREE.BufferGeometry, material: THREE.ShaderMaterial, instanced: boolean,
+  attributes: Record<string, Float32Array>, vec3: Record<string, Float32Array> = {}) {
   const n = input.t.n, u = material.uniforms, Attr = instanced ? THREE.InstancedBufferAttribute : THREE.BufferAttribute;
   const cut = cutter(n, input.cut, (m) => (u.uCut.value = Math.max(m, -1e30)));
-  const now = new Uint8Array(n), before = new Uint8Array(n), appear = new Float32Array(n), link = new Float32Array(n);
-  for (const [name, a] of Object.entries({ ...attributes, icut: cut.values, iT: appear, iL: link })) g.setAttribute(name, new Attr(a, 1));
-  g.setAttribute("icol", new Attr(input.rgb, 3));
+  // Rows that can ever be drawn, if fewer than all (instanced only); `slot`: each row's instance, -1 for none.
+  let rows: Uint32Array | null = null, slot: Int32Array | null = null;
+  if (instanced && input.cut) {
+    const kept: number[] = [];
+    for (let i = 0; i < n; i++) if (input.cut[i] > HIDDEN) kept.push(i);
+    if (kept.length < n) {
+      rows = Uint32Array.from(kept);
+      slot = new Int32Array(n).fill(-1);
+      rows.forEach((r, k) => (slot![r] = k));
+    }
+  }
+  const m = rows ? rows.length : n;
+  const pick = (a: Float32Array, size = 1) => {
+    if (!rows) return a;
+    const out = new Float32Array(size * rows.length);
+    for (let k = 0; k < rows.length; k++) for (let c = 0; c < size; c++) out[size * k + c] = a[size * rows[k] + c];
+    return out;
+  };
+  const now = new Uint8Array(m), before = new Uint8Array(m), appear = new Float32Array(m), link = new Float32Array(m);
+  for (const [name, a] of Object.entries({ ...attributes, icut: cut.values })) g.setAttribute(name, new Attr(pick(a), 1));
+  for (const [name, a] of Object.entries({ iT: appear, iL: link })) g.setAttribute(name, new Attr(a, 1));
+  for (const [name, a] of Object.entries(vec3)) g.setAttribute(name, new Attr(pick(a, 3), 3));
+  g.setAttribute("icol", new Attr(pick(input.rgb, 3), 3));
   g.setAttribute("isel", new Attr(now, 1, true));
   g.setAttribute("ipsel", new Attr(before, 1, true));
+  if (instanced) (g as THREE.InstancedBufferGeometry).instanceCount = m;
   const changed = (...names: string[]) => names.forEach((a) => (g.getAttribute(a).needsUpdate = true));
   return {
     passes: cut.passes,
     setCut: cut.setCut,
-    setColours(rgb: Float32Array) { (g.getAttribute("icol").array as Float32Array).set(rgb); changed("icol"); },
-    setHighlight(rows: Set<number> | null) {
+    setColours(rgb: Float32Array) { (g.getAttribute("icol").array as Float32Array).set(pick(rgb, 3)); changed("icol"); },
+    setHighlight(sel: Set<number> | null) {
       before.set(now);
       now.fill(0);
-      rows?.forEach((r) => (now[r] = 255));
+      sel?.forEach((r) => { const k = slot ? slot[r] : r; if (k >= 0) now[k] = 255; });
       changed("isel", "ipsel");
       u.uAct0.value = u.uAct1.value;
-      u.uAct1.value = rows ? 1 : 0;
+      u.uAct1.value = sel ? 1 : 0;
       u.uMix.value = 0;
     },
     setHighlightMix(k: number) { u.uMix.value = k; },
     setProjection(rz: boolean) { u.uProj.value = rz ? 1 : 0; },
-    setTimeline(a: Float32Array, l: Float32Array) { appear.set(a); link.set(l); changed("iT", "iL"); }, // in place: a new attribute would orphan its GPU buffer
+    setTimeline(a: Float32Array, l: Float32Array) { appear.set(pick(a)); link.set(pick(l)); changed("iT", "iL"); }, // in place: a new attribute would orphan its GPU buffer
     setClock(t: number) { u.uClock.value = t; },
     setRetire(t: number) { u.uRetire.value = t; },
   };
@@ -155,7 +181,6 @@ export function cells(input: LayerInput): Layer {
     fragmentShader: `varying vec3 vCol; void main() { gl_FragColor = vec4(vCol, 1.0); }`,
   });
   const common = shaderLayer(input, g, material, true, { ix: x, iy: y, iz: z, isize: size });
-  g.instanceCount = t.n;
   const mesh = new THREE.Mesh(g, material);
   mesh.frustumCulled = false;
   if (d.context) { // drawn first and without depth, so it never hides the event in front of or behind it
@@ -413,7 +438,6 @@ export function segments(input: LayerInput): Layer {
       }`,
   });
   const common = shaderLayer(input, g, material, true, { ix: start[0], iy: start[1], iz: start[2], jx: x, jy: y, jz: z });
-  g.instanceCount = t.n;
   const lines = new THREE.LineSegments(g, material);
   lines.frustumCulled = false;
   lines.renderOrder = 1;
@@ -450,8 +474,6 @@ export function helices(input: LayerInput): Layer {
   const { paths, pick } = cached;
   const g = new THREE.InstancedBufferGeometry();
   g.setAttribute("position", new THREE.Float32BufferAttribute(Array.from({ length: 3 * HELIX_POINTS }, (_, i) => (i % 3 ? 0 : i / 3 / (HELIX_POINTS - 1))), 3));
-  g.setAttribute("idir", new THREE.InstancedBufferAttribute(paths.dir, 3));
-  g.setAttribute("ipath", new THREE.InstancedBufferAttribute(paths.path, 3));
   const material = new THREE.ShaderMaterial({
     uniforms: { ...baseUniforms(input.pal), uDash: { value: d.truth ? 1 : 0 } },
     vertexShader: /* glsl */ `
@@ -485,8 +507,7 @@ export function helices(input: LayerInput): Layer {
         gl_FragColor = vec4(uDash > 0.5 ? mix(vCol, uBg, 0.35) : vCol, 1.0);
       }`,
   });
-  const common = shaderLayer(input, g, material, true, { ix: start[0], iy: start[1], iz: start[2] });
-  g.instanceCount = t.n;
+  const common = shaderLayer(input, g, material, true, { ix: start[0], iy: start[1], iz: start[2] }, { idir: paths.dir, ipath: paths.path });
   const lines = new THREE.Line(g, material);
   lines.frustumCulled = false;
   lines.renderOrder = 1;

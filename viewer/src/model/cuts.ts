@@ -5,7 +5,8 @@ import type { DisplayLayer, Table } from "../io/bundle";
 import { toF32 } from "../render/colour";
 import { filterMask } from "./custom";
 
-const HIDDEN = -3e38, SHOWN = 3e38, NO_CUT = -1e30; // NO_CUT: the minimum of a layer with a filter but no cut
+export const HIDDEN = -3e38; // below any minimum: never shown
+const SHOWN = 3e38, NO_CUT = -1e30; // NO_CUT: the minimum of a layer with a filter but no cut
 
 /** Per-object values to compare with cutMin: the cut column with filtered-out rows hidden, or (`only`) just those
  *  rows shown; undefined when nothing applies. */

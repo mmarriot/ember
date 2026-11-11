@@ -66,7 +66,7 @@ async function checkBundle(file, tag, state) {
 
   for (const name of await page.$$eval(".segmented.presets button", (b) => b.map((x) => x.textContent))) {
     const button = page.locator(".segmented.presets button", { hasText: name });
-    await button.click();
+    await button.click({ force: true, timeout: 120000 }); // force: see checkDomains
     if (!(await button.getAttribute("class"))?.includes("on")) fail(`preset ${name} did not apply`);
   }
 
@@ -146,7 +146,8 @@ async function checkDomains(page, h, fail, shot, tag) {
   const tables = () => page.evaluate(() => window.evdEngine.layers.map((l) => l.table));
   const bar = page.getByRole("group", { name: "Detector part" }), before = await tables();
   for (const name of names) {
-    await bar.getByRole("button", { name, exact: true }).click();
+    // force: Playwright's "stable" check waits for animation frames, which software WebGL makes very slow on big scenes.
+    await bar.getByRole("button", { name, exact: true }).click({ force: true, timeout: 120000 });
     await page.waitForTimeout(800);
     const drawn = await tables(), url = decodeURIComponent(new URL(page.url()).hash.match(/[#&]d=([^&]+)/)?.[1] ?? "");
     const other = drawn.filter((t) => h.display.some((d) => d.table === t && d.domain && d.domain !== name));
@@ -155,7 +156,7 @@ async function checkDomains(page, h, fail, shot, tag) {
     if (url !== name) fail(`domain ${name} is not in the URL`);
     await shot(`1_domain_${name}`);
   }
-  await bar.getByRole("button", { name: "All", exact: true }).click();
+  await bar.getByRole("button", { name: "All", exact: true }).click({ force: true, timeout: 120000 });
   await page.waitForTimeout(800);
   if ((await tables()).length !== before.length) fail("All did not bring every layer back");
 }
@@ -243,8 +244,8 @@ async function deepChecks(page, fail, shot) {
   await page.keyboard.press("r");
   if (!(await page.evaluate(() => window.evdEngine.replaying))) fail("R did not start a replay");
   // Each hit layer arrives in the physics phase (its first 3 s, render/replay.ts TRAVEL) in any colour mode, not with
-  // the clusters: half of its hits are shown by then.
-  const hitsAt = await page.evaluate(() => window.evdEngine.layers.filter((l) => l.key.endsWith(":cells") && !l.context && l.x.length).map((l) => {
+  // the clusters: half of its hits are shown by then. A layer has instances only for the rows the filter can show.
+  const hitsAt = await page.evaluate(() => window.evdEngine.layers.filter((l) => l.key.endsWith(":cells") && !l.context && l.object.geometry.getAttribute("iT").array.length).map((l) => {
     const t = [...l.object.geometry.getAttribute("iT").array].sort((a, b) => a - b);
     return [l.label, t[t.length >> 1]];
   }));

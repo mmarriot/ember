@@ -10,15 +10,15 @@
     {"name": "trackHits", "kind": "index", "from": "Tracks", "to": "TrackHits", "index": "TrackHits.trackIdx"}
   ],
   "kinds": {
-    "vertex": {"label": "Vertices", "repr": "markers", "domain": "Tracker", "colourBy": "row", "visible": true},
+    "vertex": {"label": "Vertices", "repr": "markers", "domain": "Tracker", "colourBy": "identity", "visible": true},
     "track": {"label": "Tracks", "repr": "helix", "domain": "Tracker", "visible": true, "onSelection": false,
               "cut": {"group": "Track pT", "unit": "GeV", "default": 1.0}},
     "trackHit": {"label": "Track hits", "repr": "markers", "domain": "Tracker", "visible": true, "onSelection": true,
-                 "colourBy": {"category": "subdet", "names": {"1": "pixel barrel", "2": "pixel endcap", "5": "outer tracker barrel", "4": "outer tracker endcap"}}},
-    "beamSpot": {"label": "Beam spot", "repr": "markers", "visible": false}
+                 "colourBy": {"category": "subdet", "names": [["1", "pixel barrel"], ["2", "pixel endcap"], ["5", "outer tracker barrel"], ["4", "outer tracker endcap"]]}},
+    "beamSpot": {"label": "Beam spot", "repr": "markers", "domain": "Tracker", "visible": false}
   },
   "display": [
-    {"table": "Vertices", "kind": "vertex", "label": "Primary vertices", "position": ["x", "y", "z"], "size": "sumPt2",
+    {"table": "Vertices", "kind": "vertex", "label": "Primary vertices", "position": ["x", "y", "z"], "size": "sumPt2", "colour": "sumPt2",
      "describe": {"columns": ["nTracks", "sumPt2"]}},
     {"table": "Tracks", "kind": "track", "label": "General tracks", "position": ["vx", "vy", "vz"],
      "momentum": ["px", "py", "pz"], "charge": "charge", "end": ["outerX", "outerY", "outerZ"], "colour": "pt",

@@ -204,7 +204,7 @@ def test_viewer_hints_are_passed_to_the_header():
 def test_domains_without_layers_are_dropped():
     """`domains` is copied to the header without the domains none of the written layers is in (e.g. HGCal in a
     tracker-only bundle made from a profile that includes cms)."""
-    domains = [{"name": "Tracker", "region": {"rMax": 125}, "colourMode": "layer"}, {"name": "HGCal", "region": {}}]
+    domains = [{"name": "Tracker", "region": {"rMax": 125}, "colourMode": "layers"}, {"name": "HGCal", "region": {}}]
     kinds = {"hit": {"label": "Hits", "repr": "markers", "domain": "Tracker"}, "cell": {"label": "Cells", "repr": "cells", "domain": "HGCal"}}
     display = [{"table": "T", "kind": "hit", "position": ["x", "y", "z"]}, {"table": "H", "kind": "cell", "position": ["x", "y", "z"]}]
     profile = {"domains": domains, "kinds": kinds, "display": display}

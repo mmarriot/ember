@@ -13,14 +13,14 @@ The same list is in the viewer's help (`?`).
 |---|---|
 | rotate, pan, zoom | drag; right-drag or shift + drag; scroll (zooms towards the cursor) |
 | inspect an object | click it: it is shown with its smallest parts, one kind per branch, and the parts drawn as lines, which do not hide them (e.g. a candidate with its calorimeter hits, its track and the track's hits; a vertex with its tracks and their hits), related objects highlighted (a track: its vertex and truth particle); its parts are drawn even where a layer's default filter would hide them (cuts and filters you set still apply; the object itself is drawn whatever the cut, and the hits of parts a cut hides are not); further clicks pick among its parts |
-| see what it is made of, level by level | ↓ / ↑, or click a level in the bar at the top left: one level at a time between the object and its smallest parts (e.g. a candidate's interpretations, linked tracksters, tracksters, layer clusters), with the object drawn as an outline around it; a level with several layers (e.g. two linking algorithms) draws those ticked in Layers, or all of them if none is |
+| see what it is made of, level by level | ↓ / ↑, or click a level in the bar at the top left: one level at a time between the object and its smallest parts (e.g. a candidate's interpretations, linked tracksters, tracksters, layer clusters), with the object drawn as an outline around it; a level with several layers (e.g. two linking algorithms) draws those ticked in Layers, or all of them if none is. With parts of the detector, the bar lists the levels of the part looked at (and of shared domains), and a chip for each other part the object has objects in (e.g. a jet's "Calo 9"): a click on it looks at that part, keeping the object. In All, levels of different parts at the same depth are one (e.g. a jet's tracks and clusters) |
 | objects on top of each other | click again on the same spot for the next one |
 | zoom to an object | double-click it, or F |
 | show everything | Home, or Reset |
 | back to the normal view, close a dialog | Esc, or click on empty space |
 | previous / next event | ← / →, or the arrows at the top |
-| views: 3D, front, side, ρ–z | 1, 2, 3, 4 |
-| one part of the detector, or all | D (cycles), or All · Tracker · HGCal … at the top (bundles with `domains`): the part's layers and the shared ones (e.g. truth), framed on its region, in its view, and its tab opens in the side panel (choosing a tab does not change the view); the side panel keeps your ticks |
+| views: 3D, front, side, ρ–z | 1, 2, 3, 4, or the buttons at the bottom left of the view (in the top bar for bundles without parts of the detector) |
+| one part of the detector, or all | D (Shift+D backwards), or Physics · Tracker · … · All at the top (bundles with `domains`; a drop-down list below 1100 px): the part's layers, those of shared domains (e.g. the physics objects) and those of none (truth), framed on its region, in its view, and its layers' tab opens in the side panel (choosing a tab does not change the view); the side panel keeps your ticks. A shared domain (e.g. **Physics**) draws only its own layers and those of none. A bundle opens on its `view.domain`. With something selected it stays selected: the view frames its objects in that part, and D skips the parts it has nothing in |
 | what the colours show | T, or Reco · Truth in the colour key: the reconstruction (candidate types), or the truth (each generator particle in its own colour, reco objects only where they are a clean match); see [Colours](#colours-and-the-truth--reco-pair) |
 | replay | R: hits appear at their arrival time (display hint `time`, else time of flight, or the bundle's `replay` order), then paths are built from their hits (display hint `grow`: tracks seeded, built outwards, fitted), then each reconstruction stage in turn; a caption says what is happening |
 | tour | P, or the play button: replay with a moving camera (closer on the paths while they are built), visit the main showers, next event; any key or touch stops it |
@@ -33,14 +33,19 @@ The same list is in the viewer's help (`?`).
 Preset buttons when the bundle has more than one preset; then tabs; then the colour key.
 
 - **One tab per part of the detector** (display hint `domain`, e.g. **HGCal**; **Objects** for bundles made before
-  layers had one), in the order of the header's `domains`, as the top bar's buttons: its collections by kind of object. Each kind lists its `cut` slider (log scale over the group's
+  layers had one), in the order of the header's `domains`, as the top bar's buttons: its collections by kind of object.
+  With two or more `domains`, a shared domain (e.g. **Physics**) keeps a tab of its own and the other parts share one,
+  **Detector**, which follows the domain bar: a section per part, the one looked at open and first, the others folded
+  (their cuts still apply to a selection's objects there). Each kind lists its `cut` slider (log scale over the group's
   values in the shown event; the lowest position is no cut; it applies to every layer of the group, also those listed
-  elsewhere, which it names) and then one row per layer: visibility and count, the layer's filter, "only for the
+  elsewhere, which it names), just before the first row it cuts, and then one row per layer: visibility and count, the layer's filter, "only for the
   selection" for `onSelection` layers, and its colour scale when the colour key does not already explain it. Other
   reconstruction paths are folded at the end. **⋯** on a row: what colours the layer (any column, custom ones too,
   or a related object), an expression to filter its table or to add as a custom column (e.g. `snr = energy /
   sigmaNoise`, computed in the browser for every event and usable for colour and filters like stored columns), and the
-  table's custom columns.
+  table's custom columns. A ticked layer with a `list` hint lists its largest objects that pass its cut and filter
+  (e.g. jets by pT, with pT, η, φ); a click selects one. The tab opens with a headline: how many objects of each such
+  layer pass (or the value of a one-object table, e.g. MET).
 - **Truth** (named **Tree** for a tree without truth layers): the truth collections with their cut, what became of
   each particle that left hits (its best candidate, or not reconstructed), and objects linked to objects of the same
   table, e.g. truth-graph particles and their children, as a collapsible tree.
@@ -116,5 +121,6 @@ Expressions (filters, custom columns, summary `where`) admit column names, numbe
 `&& || !`, parentheses and a fixed list of Math functions. They are parsed, never evaluated as JavaScript
 (`viewer/src/model/expr.ts`).
 
-The URL keeps the bundle, event, view, domain and selection, so links can be shared. Custom columns, filters, colour
+The URL keeps the bundle, event, view, domain (`All` when a bundle that opens on a domain shows everything) and
+selection, so links can be shared. Custom columns, filters, colour
 choices and the active preset (per profile), the theme and the panel width are remembered per browser.

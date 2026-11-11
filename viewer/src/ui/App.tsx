@@ -87,13 +87,13 @@ function HelpDialog() {
   const rows: [string, string][] = [
     ["Rotate", "drag"], ["Pan", "right-drag (or shift + drag)"], ["Zoom", "scroll, towards the cursor"],
     ["Inspect an object", "click it: it is shown with its smallest parts (e.g. hits), and further clicks pick among its parts"],
-    ["See what it is made of, level by level", "↓ / ↑, or click a level in the bar at the top left of the view (e.g. its tracksters, then their layer clusters)"],
+    ["See what it is made of, level by level", "↓ / ↑, or click a level in the bar at the top left of the view (e.g. its tracksters, then their layer clusters); a part of the detector named there (e.g. Calo 9) shows its objects in that part"],
     ["Objects on top of each other", "click again on the same spot for the next one"],
     ["Go to a related object", "click it in the inspector or the tree, or click an object linked to the one shown (e.g. its truth-graph particle)"],
     ["Back to the previous object", "← in the bar at the top left of the view"],
     ["Zoom to the selection", "double-click it, or F"], ["Show the whole event", "Home, or the reset button"],
     ["Leave the object", "click on empty space; Esc also shows the whole event (and closes this dialog)"],
-    ["Previous / next event", "← / →, or the arrows at the top"], ["Views: 3D, front, side, ρ–z", "1, 2, 3, 4"],
+    ["Previous / next event", "← / →, or the arrows at the top"], ["Views: 3D, front, side, ρ–z", "1, 2, 3, 4, or the buttons in the top bar (with parts of the detector: at the bottom left of the view)"],
     ["One part of the detector (e.g. the tracker), or all", "D (Shift+D backwards), or the … · All buttons at the top (when the data has several parts); a selection stays selected, and D skips the parts it has nothing in"],
     ["Colours: what the reconstruction made, or what was really there", "T, or Reco · Truth in the colour key"],
     ["Replay: how the event builds up, step by step", "R"],
@@ -106,9 +106,11 @@ function HelpDialog() {
     <Modal title="How to use the event display">
       <table class="kv"><tbody>{rows.map(([what, how]) => <tr><td>{what}</td><td>{how}</td></tr>)}</tbody></table>
       <h3>Side panel</h3>
-      <p class="hint">One tab per part of the detector with its collections, by kind of object; the truth (its collections, what became
-        of each particle, the history as a tree); the event. Each cut slider sits with the first kind it applies to and applies to
-        every layer of its group, so the same objects from different reconstruction paths always get the same selection.</p>
+      <p class="hint">One tab per part of the detector with its collections, by kind of object (with a domain bar: the physics objects in
+        their own tab, with the event's headline and each kind's largest objects, a click selecting one; the parts of the detector
+        in Detector, which follows the bar); the truth (its collections, what became of each particle, the history as a tree); the
+        event. Each cut slider sits just before the first collection it applies to and applies to every layer of its group, so the
+        same objects from different reconstruction paths always get the same selection.</p>
       <h3>Colours</h3>
       <p class="hint">Colour means one thing at a time; the title of the key at the bottom of the side panel says which.
         <b>Reco</b>: candidates by the particle type the reconstruction gave them, and everything they are made of (tracksters, layer

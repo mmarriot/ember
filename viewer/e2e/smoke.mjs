@@ -7,7 +7,7 @@
 // object can be jumped to and back, Esc leaves. One bundle (`--deep`, default the smallest with reconstruction
 // stages) also gets: themes, help, a rotate drag keeping the selection, a custom column used for colour and a filter,
 // the replay and the tour; the replay also for any bundle whose paths are built from their parts (`grow`: captions in order, paths complete by the fit). Any console error, or a bundle taking over BUNDLE_TIMEOUT (three times that for files over
-// BIG_FILE: software WebGL takes seconds per frame on their scenes, and clicks wait for frames), fails.
+// BIG_FILE or events over BIG_EVENT: software WebGL takes seconds per frame on their scenes, and clicks wait for frames), fails.
 // Screenshots: <dir>/<bundle>_*.png (one small one for scenes over BIG objects). Progress: one timestamped line per step.
 // Usage: node e2e/smoke.mjs <dev server URL> <screenshot dir> [--deep <bundle>] [bundle ...]  (dev builds expose the engine)
 import { chromium } from "playwright";
@@ -19,7 +19,9 @@ const files = names.length ? names : (await (await fetch(`${base}index.json`)).j
 const headers = Object.fromEntries(await Promise.all(files.map(async (f) => [f, await header(f)])));
 const deep = deepName ?? files.filter((f) => headers[f].display.some((d) => d.stage !== undefined)).sort((a, c) => headers[a].size - headers[c].size)[0];
 
-const BUNDLE_TIMEOUT = 300_000, BIG_FILE = 500e6; // ms: a bundle not checked by then fails, and the run goes on with the next; bytes
+const BUNDLE_TIMEOUT = 300_000, BIG_FILE = 500e6, BIG_EVENT = 10e6; // ms: a bundle not checked by then fails, and the run goes on with the next; bytes
+/** A bundle whose events are big (PU200: ~30 MB each), however many it holds: software WebGL is slow on its scenes. */
+const bigEvents = (h) => h.size > BIG_FILE || h.size / Math.max(1, h.events) > BIG_EVENT;
 const BIG = 200_000; // objects drawn above which a bundle gets one small screenshot (software WebGL is slow)
 const log = (text) => console.log(`[${new Date().toISOString().slice(11, 19)}] ${text}`);
 const browser = await chromium.launch({ args: ["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader"] });
@@ -29,7 +31,7 @@ for (const file of files) {
   let timer;
   const result = await Promise.race([
     checkBundle(file, tag, state).then(() => "checked", (e) => `error: ${e.message.split("\n")[0]}`),
-    new Promise((done) => { const ms = (headers[file].size > BIG_FILE ? 3 : 1) * BUNDLE_TIMEOUT; timer = setTimeout(() => done(`not finished after ${ms / 1000} s`), ms); }),
+    new Promise((done) => { const ms = (bigEvents(headers[file]) ? 3 : 1) * BUNDLE_TIMEOUT; timer = setTimeout(() => done(`not finished after ${ms / 1000} s`), ms); }),
   ]);
   clearTimeout(timer);
   await state.page?.close().catch(() => {}); // also ends a check that timed out
@@ -66,7 +68,7 @@ async function checkBundle(file, tag, state) {
   if (!drawn) fail("no layer drawn");
   // A big scene (or a big file, whose start view may be light, e.g. only the physics objects): software WebGL is too
   // slow for the replay and full-size screenshots.
-  if ((small = objects > BIG || h.size > BIG_FILE)) await page.setViewportSize({ width: 720, height: 450 });
+  if ((small = objects > BIG || bigEvents(h))) await page.setViewportSize({ width: 720, height: 450 });
   await shot("1_layers");
   await checkHelices(page, fail, tag);
   await checkDomains(page, h, fail, shot, tag);
@@ -422,6 +424,9 @@ async function deepChecks(page, h, fail, shot) {
   log(`  first layer: ${before} without the filter, ${after} with r < 0`);
   if (!after.startsWith("0 /")) fail("the filter did not hide the rows");
   await shot("7_filter");
+  // Remove it again: the replay below builds this layer's objects too (e.g. tracks, when the first layer is theirs).
+  await firstLayer.locator(".sub.filter .icon-button").click({ timeout: 120000 });
+  if ((await count()) !== before) fail(`removing the filter did not bring the rows back (${await count()}, was ${before})`);
 
   await page.keyboard.press("Escape"); // the replay and tour start from the whole event
   await checkReplay(page, h, fail);
@@ -493,5 +498,8 @@ async function header(file) {
   const head = await get(0, 11), buf = Buffer.from(await head.arrayBuffer()), n = buf.readUInt32LE(8);
   if (head.status === 200) return { ...JSON.parse(buf.subarray(12, 12 + n).toString()), size: buf.length };
   const size = Number(head.headers.get("Content-Range")?.split("/")[1]);
-  return { ...JSON.parse(Buffer.from(await (await get(12, 11 + n)).arrayBuffer()).toString()), size };
+  // The index's offset and length are in the 16-byte trailer; it gives the number of events.
+  const tail = Buffer.from(await (await get(size - 16, size - 1)).arrayBuffer()), at = Number(tail.readBigUInt64LE(0)), len = tail.readUInt32LE(8);
+  const events = JSON.parse(Buffer.from(await (await get(at, at + len - 1)).arrayBuffer()).toString()).events.length;
+  return { ...JSON.parse(Buffer.from(await (await get(12, 11 + n)).arrayBuffer()).toString()), size, events };
 }

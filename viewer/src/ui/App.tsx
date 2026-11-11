@@ -8,7 +8,7 @@ import { SYNTAX } from "./ExprForm";
 import { Header } from "./Header";
 import { Inspector } from "./Inspector";
 import { Sidebar } from "./Sidebar";
-import { chooseDomain, nextDomain } from "./navigate";
+import { chooseDomain, nextDomain, showWhole } from "./navigate";
 import { stopTour, toggleTour } from "./tour";
 import { engine, replayEvent, Viewport } from "./Viewport";
 import { Modal, Toasts } from "./widgets";
@@ -45,7 +45,7 @@ export function App() {
       stopTour(); // any other key takes over from the tour
       if (e.key === "Escape") { // close a dialog; else back to the normal view: no selection, the whole event
         if (dialog.value) dialog.value = null;
-        else { selection.value = null; engine?.home(); }
+        else { selection.value = null; showWhole(true); }
       }
       else if (e.key === "?") dialog.value = dialog.value ? null : "help";
       else if (e.key === "ArrowRight") showEvent(eventIndex.value + 1);
@@ -54,7 +54,7 @@ export function App() {
       else if (VIEW_KEYS[e.key]) view.value = VIEW_KEYS[e.key];
       else if (e.key === "d" || e.key === "D") nextDomain();
       else if (e.key === "f" || e.key === "F") engine?.frame(highlight.value ?? undefined, true);
-      else if (e.key === "Home") engine?.frame(undefined, true);
+      else if (e.key === "Home") showWhole();
       else if (e.key === "r" || e.key === "R") void replayEvent();
     };
     const onDrop = (e: DragEvent) => {

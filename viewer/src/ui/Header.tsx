@@ -3,9 +3,8 @@ import logo from "../../logo.svg";
 import type { ViewName } from "../render/engine";
 import { bundle, bundleName, catalogue, dialog, domain, eventIndex, following, loading, openBundle, showEvent, theme, toast, toggleTheme, touring, view, type Listed } from "../model/store";
 import { toggleLive } from "./live";
-import { chooseDomain } from "./navigate";
+import { chooseDomain, showWhole } from "./navigate";
 import { toggleTour } from "./tour";
-import { engine } from "./Viewport";
 import { Icon } from "./widgets";
 
 const VIEWS: [ViewName, string, string][] = [["3d", "3D", "1"], ["front", "Front", "2"], ["side", "Side", "3"], ["rz", "ρ–z", "4"]];
@@ -42,7 +41,7 @@ export function Header() {
         <button class="icon-button" title="Next event (→)" onClick={() => showEvent(eventIndex.value + 1)}><Icon name="next" /></button>
         <button class={touring.value ? "icon-button on" : "icon-button"} title={touring.value ? "Stop the tour (P)" : "Tour: orbit each event and visit its main showers (P)"}
           aria-pressed={touring.value} onClick={toggleTour}><Icon name={touring.value ? "pause" : "play"} /></button>
-        <input class="jump" placeholder="Go to event…" title="Event number, or run:event" onKeyDown={(ev) => {
+        <input class="jump" placeholder="Event…" title="Event number, or run:event" onKeyDown={(ev) => {
           if (ev.key === "Enter") { jump((ev.target as HTMLInputElement).value.trim()); (ev.target as HTMLInputElement).blur(); }
         }} />
       </nav>
@@ -57,7 +56,7 @@ export function Header() {
         <i class="dot" />Live
       </button>
       <div class="actions">
-        <button class="icon-button" title="Show the whole event (Home)" onClick={() => engine?.frame(undefined, true)}><Icon name="reset" /></button>
+        <button class="icon-button" title="Show the whole event (Home)" onClick={() => showWhole()}><Icon name="reset" /></button>
         <button class="icon-button" title="Copy a link to this view" onClick={share}><Icon name="share" /></button>
         <button class="icon-button" title={theme.value === "dark" ? "Light theme" : "Dark theme"} onClick={toggleTheme}><Icon name={theme.value === "dark" ? "sun" : "moon"} /></button>
         <button class="icon-button" title="Help (?)" onClick={() => (dialog.value = "help")}><Icon name="help" /></button>

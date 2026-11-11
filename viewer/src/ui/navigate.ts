@@ -40,3 +40,12 @@ export function nextDomain() {
   const i = domain.peek() ? names.indexOf(domain.peek()!) : -1;
   chooseDomain(i + 1 < names.length ? names[i + 1] : null);
 }
+
+/** Show everything: the domain's region while one is looked at (in its view), else the whole event; `home`: also back
+ *  to the view's preset direction (3D). */
+export function showWhole(home = false) {
+  const d = bundle.peek()?.header.domains?.find((x) => x.name === domain.peek());
+  if (d) engine?.frameRegion(d.region.rMax, d.region.zMax, true);
+  else if (home) engine?.home();
+  else engine?.frame(undefined, true);
+}

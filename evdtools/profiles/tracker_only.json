@@ -5,7 +5,9 @@
   "exclude": ["HGCal*", "TICL*", "ticl*", "EcalHits", "HBHEHits", "HFHits", "HOHits", "PFCandidates", "GSFTrack",
               "TrackMuonInfo", "TruthHGCalHits", "TruthSoAHits*",
               "PFCandidate*", "PFCluster*", "Jets", "JetConstituents", "PuppiMET", "PFMET", "TruthEcalHits", "TruthHBHEHits",
-              "TruthHFHits", "TruthHOHits", "particleFlowCluster*"],
+              "TruthHFHits", "TruthHOHits", "particleFlowCluster*",
+              "Muon*", "TruthMuonHits", "JetsCHS*", "Electrons*", "Photons*", "*SuperCluster*", "GsfTrack*", "Taus", "TauSignalCands",
+              "SecondaryVert*", "inclusiveSecondaryVertices*"],
   "kinds": {"vertex": {"domain": "Tracker"}},
   "view": {"start": "front", "domain": "Tracker"}
 }

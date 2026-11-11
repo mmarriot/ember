@@ -1,0 +1,36 @@
+{
+  "name": "muon",
+  "note": "CMS Phase-2 muon system (Fireworks/EventExport preset muon): muons (reco::Muon; IDs computed in the exporter, as the selector bits in RECO are not reliable) drawn as their inner track's helix to its outermost state; their standalone and global tracks as a path (polyline) through their muon-system hits (DT and CSC segments, RPC and GEM hits), ordered outwards; DT 4D, CSC and GEM segments as short lines through their chamber; every rechit (DT wire pairs at the wire, CSC 2D hits, RPC and GEM strip clusters); the chambers that hold something in the event as faint boxes (DT and CSC chambers, RPC rolls, GEM chambers). GE0 (GEM station 0, behind HGCal) is mostly neutron background (3.7k hits per PU200 event against 0.7k in all other muon detectors): its hits and chambers are filtered out by default (filter 'subdet != 4 || station != 0'), its segments shown. A muon links its tracks, segments, crossed chambers (the track extrapolated into each), PF candidate, and the ECAL crystal and HCAL tower it crossed (by DetId). Truth: simulated energy loss per particle in the muon hits (a fact, at the simulation's unit: DT wire, CSC layer, RPC roll, GEM partition: every rechit of a unit shows the unit's energy); no muon or segment associator in CMSSW (truth-graph.md gaps 17, 18). Domain Muons (declared in cms.json, after HGCal): the region of the chambers (r <= 760 cm, |z| <= 1080 cm), rho-z view.",
+  "internal": ["MuonSegmentMatches", "MuonChamberMatches", "TruthMuonHits"],
+  "relations": [
+    {"name": "muonTrack", "kind": "index", "from": "Muons", "to": "Tracks", "index": "Muons.trackIdx"},
+    {"name": "muonTracks", "kind": "index", "from": "Muons", "to": "MuonTracks", "index": "MuonTracks.muonIdx"},
+    {"name": "muonTrackHits", "kind": "index", "from": "MuonTracks", "to": "MuonTrackHits", "index": "MuonTrackHits.trackIdx"},
+    {"name": "muonSegments", "kind": "links", "from": "Muons", "to": "MuonSegments", "table": "MuonSegmentMatches", "fromIndex": "MuonSegmentMatches.muonIdx", "toIndex": "MuonSegmentMatches.segmentIdx"},
+    {"name": "muonChambers", "kind": "links", "from": "Muons", "to": "MuonChambers", "table": "MuonChamberMatches", "fromIndex": "MuonChamberMatches.muonIdx", "toIndex": "MuonChamberMatches.chamberIdx"},
+    {"name": "chamberSegments", "kind": "index", "from": "MuonChambers", "to": "MuonSegments", "index": "MuonSegments.chamberIdx"},
+    {"name": "chamberHits", "kind": "index", "from": "MuonChambers", "to": "MuonHits", "index": "MuonHits.chamberIdx"},
+    {"name": "muonEcalHit", "kind": "key", "from": "Muons", "to": "EcalHits", "fromKey": "Muons.ecalDetId", "toKey": "EcalHits.detId"},
+    {"name": "muonHcalHit", "kind": "key", "from": "Muons", "to": "HBHEHits", "fromKey": "Muons.hcalDetId", "toKey": "HBHEHits.detId"},
+    {"name": "pfMuon", "kind": "index", "from": "PFCandidates", "to": "Muons", "index": "PFCandidates.muonIdx"},
+    {"name": "truthHitsMuon", "kind": "links", "from": "TruthParticles", "to": "MuonHits", "table": "TruthMuonHits", "fromIndex": "TruthMuonHits.particleIdx", "toIndex": "TruthMuonHits.hitIdx", "weights": ["TruthMuonHits.simEnergy"], "association": true, "best": {"weight": "simEnergy", "order": "max"}, "fact": {"in": "Muon", "unit": "the hit's DT wire, CSC layer, RPC roll or GEM partition"}}
+  ],
+  "derive": [
+    {"table": "Muons", "gather": [{"relation": "muonTrack", "columns": {"endX": "outerX", "endY": "outerY", "endZ": "outerZ"}}]}
+  ],
+  "kinds": {
+    "muon": {"label": "Muons", "domain": "Physics", "repr": "helix", "visible": true, "labels": 2, "width": 3, "colourBy": "none", "fixedColour": "#e04040", "cut": {"group": "Muon pT", "label": "muon pT", "unit": "GeV", "default": 10}, "truthGap": {"reason": "no muon associator in CMSSW (its inner track has its own match)", "gap": 18}},
+    "muonTrack": {"label": "Muon tracks", "domain": "Muons", "repr": "polyline", "visible": true, "width": 2, "colourBy": "none", "fixedColour": "#e04040", "truthGap": {"reason": "no muon associator in CMSSW", "gap": 18}},
+    "muonSegment": {"label": "Segments", "domain": "Muons", "repr": "segments", "visible": true, "width": 2, "colourBy": {"category": "subdet", "names": [["1", "DT"], ["2", "CSC"], ["3", "RPC"], ["4", "GEM"]]}, "truthGap": {"reason": "no muon-segment associator in CMSSW (its hits show the simulated energy)", "gap": 17}},
+    "muonHit": {"label": "Muon hits", "domain": "Muons", "repr": "markers", "visible": true, "colourBy": {"category": "subdet", "names": [["1", "DT"], ["2", "CSC"], ["3", "RPC"], ["4", "GEM"]]}},
+    "muonChamber": {"label": "Chambers", "domain": "Muons", "repr": "cells", "visible": true, "context": true, "dim": 0.6, "colourBy": {"category": "subdet", "names": [["1", "DT"], ["2", "CSC"], ["3", "RPC"], ["4", "GEM"]]}}
+  },
+  "display": [
+    {"table": "Muons", "kind": "muon", "label": "Muons", "position": ["vx", "vy", "vz"], "momentum": ["px", "py", "pz"], "charge": "charge", "end": ["endX", "endY", "endZ"], "length": {"to": {"r": 129, "z": 320}}, "size": "pt", "cut": {"column": "pt"}, "filter": "isGlobal == 1 || isPF == 1", "describe": {"columns": ["pt", "eta"]}, "list": {"columns": ["pt", "eta", "phi"], "sort": "pt", "max": 5}, "inspect": ["pt", "eta", "phi", "charge", "isGlobal", "isTracker", "isStandAlone", "isPF", "isLoose", "isMedium", "isTight", "nMatchedStations", "nValidMuonHits", "relIso", "time"]},
+    {"table": "MuonTracks", "kind": "muonTrack", "label": "Standalone and global", "position": ["x", "y", "z"], "points": {"relation": "muonTrackHits"}, "size": null, "describe": {"columns": ["kind", "pt"], "names": {"kind": {"1": "standalone", "2": "global"}}}, "inspect": ["pt", "eta", "phi", "kind", "nMuonHits", "chi2", "ndof"]},
+    {"table": "MuonTrackHits", "kind": "muonHit", "label": "Hits on muon tracks", "position": ["x", "y", "z"], "size": null, "onSelection": true, "describe": {"columns": ["subdet", "station"], "names": {"subdet": {"1": "DT", "2": "CSC", "3": "RPC", "4": "GEM"}}}},
+    {"table": "MuonSegments", "kind": "muonSegment", "label": "DT, CSC, GEM", "position": ["x", "y", "z"], "direction": ["dx", "dy", "dz"], "length": {"column": "halfLength", "scale": 2}, "centred": true, "size": null, "time": "time", "describe": {"columns": ["subdet", "station"], "names": {"subdet": {"1": "DT", "2": "CSC", "3": "RPC", "4": "GEM"}}}, "inspect": ["subdet", "station", "nHits", "chi2", "ndof", "time"]},
+    {"table": "MuonHits", "kind": "muonHit", "label": "Rechits", "position": ["x", "y", "z"], "size": null, "time": "time", "filter": "subdet != 4 || station != 0", "describe": {"columns": ["subdet", "station"], "names": {"subdet": {"1": "DT", "2": "CSC", "3": "RPC", "4": "GEM"}}}, "inspect": ["subdet", "station", "time", "bx", "clusterSize"]},
+    {"table": "MuonChambers", "kind": "muonChamber", "label": "Chambers in use", "position": ["x", "y", "z"], "size": null, "filter": "subdet != 4 || station != 0", "cell": {"shape": "box", "u": ["ux", "uy", "uz"], "v": ["vx", "vy", "vz"], "size": ["halfWidthBottom", "halfWidthTop", "halfLength", "halfThickness"]}, "describe": {"columns": ["subdet", "station", "wheelOrRing", "sector"], "names": {"subdet": {"1": "DT", "2": "CSC", "3": "RPC", "4": "GEM"}}}}
+  ]
+}

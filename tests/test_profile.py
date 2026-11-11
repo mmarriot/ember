@@ -311,7 +311,7 @@ def test_cms_profile_joins_hgcal_and_tracker():
     HGCalNanoAOD's GeneralTrack folded in (its HGCal entry taken over, its relations redirected); hgcal.json alone is
     unchanged."""
     p = load_profile("cms")
-    assert p["name"] == "cms" and [d["name"] for d in p["domains"]] == ["Physics", "Tracker", "Calo", "HGCal"] and p["field"]["bz"] == 3.8
+    assert p["name"] == "cms" and [d["name"] for d in p["domains"]] == ["Physics", "Tracker", "Calo", "HGCal", "Muons"] and p["field"]["bz"] == 3.8
     assert p["kinds"]["rechit"]["domain"] == "HGCal" and p["kinds"]["rechit"]["repr"] == "cells"
     assert p["kinds"]["truthParticle"]["repr"] == "helix" and "domain" not in p["kinds"]["truthParticle"]
     assert load_profile("hgcal")["kinds"]["rechit"] == p["kinds"]["rechit"]
@@ -358,7 +358,7 @@ def test_calo_layers_in_cms():
     assert [x["name"] for x in conv.header([], "t")["domains"]] == ["Calo"]
     assert {r["name"]: r["fact"]["in"] for r in p["relations"] if "fact" in r} == {
         "truthHitsHGCal": "HGCal", "truthHitsSoAEE": "HGCal", "truthHitsSoAHSi": "HGCal", "truthHitsSoAHSci": "HGCal",
-        "truthHitsEcal": "ECAL", "truthHitsHBHE": "HCAL", "truthHitsHO": "HCAL", "truthHitsHF": "HF"}
+        "truthHitsEcal": "ECAL", "truthHitsHBHE": "HCAL", "truthHitsHO": "HCAL", "truthHitsHF": "HF", "truthHitsMuon": "Muon"}
     assert p["kinds"]["layerCluster"]["truthGap"]["derived"] == "content"
 
 
@@ -403,6 +403,40 @@ def test_physics_and_pf_in_cms():
     assert rel["secondaryVertexTruth"]["match"]["target"] == "decayVertex" and "truthGap" not in p["kinds"]["vertex"]
     assert {k: v["truthGap"]["gap"] for k, v in p["kinds"].items() if "truthGap" in v and k in ("electron", "photon", "tau", "met")} == \
         {"electron": 23, "photon": 23, "tau": 24, "met": 22}
+
+
+def test_muon_layers_in_cms():
+    """cms includes muon.json: muons as a Physics kind (helix to their inner track's outermost state, gathered), their
+    standalone and global tracks as paths through their ordered hits, segments as centred lines, hits and the chambers
+    in use as boxes in the Muons domain, GE0 filtered out by default; muon-hit truth is a fact."""
+    p = load_profile("cms")
+    f4 = lambda *c: dict.fromkeys(c, F4)
+    u1, i2 = np.dtype("u1"), np.dtype("i2")
+    types = {"Muons": f4("pt", "eta", "phi", "px", "py", "pz", "vx", "vy", "vz", "relIso", "time")
+                      | {k: u1 for k in ("isGlobal", "isTracker", "isStandAlone", "isPF", "isLoose", "isMedium", "isTight", "nMatchedStations")}
+                      | {"charge": i2, "nValidMuonHits": i2, "trackIdx": I4, "ecalDetId": U4, "hcalDetId": U4},
+             "Tracks": f4("outerX", "outerY", "outerZ", "vx", "vy", "vz", "px", "py", "pz", "pt", "eta") | {"charge": i2, "highPurity": u1, "vertexIdx": I4},
+             "MuonTracks": f4("x", "y", "z", "pt", "eta", "phi", "chi2", "ndof") | {"muonIdx": I4, "kind": u1, "nMuonHits": i2},
+             "MuonTrackHits": f4("x", "y", "z") | {"trackIdx": I4, "subdet": u1, "station": i2},
+             "MuonSegments": f4("x", "y", "z", "dx", "dy", "dz", "halfLength", "chi2", "time") | {"subdet": u1, "station": i2, "nHits": u1, "ndof": u1, "chamberIdx": I4},
+             "MuonHits": f4("x", "y", "z", "time") | {"subdet": u1, "station": i2, "chamberIdx": I4, "bx": i2, "clusterSize": u1},
+             "MuonChambers": f4("x", "y", "z", "ux", "uy", "uz", "vx", "vy", "vz", "halfWidthBottom", "halfWidthTop", "halfLength", "halfThickness")
+                             | {"subdet": u1, "station": i2, "wheelOrRing": i2, "sector": u1},
+             "MuonSegmentMatches": {"muonIdx": I4, "segmentIdx": I4}}
+    conv = converter(types, p)
+    d = {x["table"]: x for x in conv.display}
+    assert (d["Muons"]["domain"], d["Muons"]["repr"], d["MuonTracks"]["repr"], d["MuonTracks"]["points"]) == ("Physics", "helix", "polyline", {"relation": "muonTrackHits"})
+    assert d["MuonChambers"]["cell"]["shape"] == "box" and d["MuonChambers"]["context"] and d["MuonHits"]["filter"] == "subdet != 4 || station != 0"
+    assert d["MuonSegments"]["centred"] and d["Muons"]["truthGap"]["gap"] == 18 and d["MuonSegments"]["truthGap"]["gap"] == 17
+    _, tables, rels = one_event(conv, {
+        "Muons": {**{k: [1] for k in types["Muons"]}, "trackIdx": [0]}, "Tracks": {**{k: [1] for k in types["Tracks"]}, "outerX": [5], "outerY": [6], "outerZ": [7]},
+        "MuonTracks": {**{k: [1, 1] for k in types["MuonTracks"]}, "muonIdx": [0, 0]},
+        "MuonTrackHits": {**{k: [1, 1, 1] for k in types["MuonTrackHits"]}, "trackIdx": [0, 1, 1]},
+        "MuonSegments": {**{k: [1] for k in types["MuonSegments"]}, "chamberIdx": [0]},
+        "MuonHits": {**{k: [1] for k in types["MuonHits"]}, "chamberIdx": [0]}, "MuonChambers": {k: [1] for k in types["MuonChambers"]},
+        "MuonSegmentMatches": {"muonIdx": [0], "segmentIdx": [0]}})
+    assert tables["Muons"][1]["endX"].tolist() == [5] and rels["muonTrackHits"]["offsets"].tolist() == [0, 1, 3]
+    assert rels["muonSegments"]["indices"].tolist() == [0] and rels["chamberHits"]["indices"].tolist() == [0]
 
 
 def test_tracker_profile_alone_and_tracker_only():

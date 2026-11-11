@@ -5,8 +5,8 @@
 import { effect, signal } from "@preact/signals";
 import { useEffect, useRef } from "preact/hooks";
 import { type DisplayLayer, type EventData, type Header, type Table, unitOf } from "../io/bundle";
-import { colourBy, filters } from "../model/custom";
-import { cutMin, cutValues } from "../model/cuts";
+import { colourBy, filterMask, filters } from "../model/custom";
+import { cutMin, cutValues, rescued } from "../model/cuts";
 import { colours, type LayerFor, type Legend, PALETTES, valueRange, type Pal, type Range } from "../render/colour";
 import { Engine, MIN_RADIUS } from "../render/engine";
 import { builders, type Layer } from "../render/layers";
@@ -23,7 +23,8 @@ import { stopTour } from "./tour";
 
 export let engine: Engine | null = null;
 
-interface Entry { d: DisplayLayer; t: Table; key: string; cut?: Float32Array; rgb: Float32Array; emphasis?: Uint8Array; layer: Layer }
+/** `keep`: the layer's filter (null: none); `rescued`: the focus's rows it hides, drawn anyway (see cutValues). */
+interface Entry { d: DisplayLayer; t: Table; key: string; cut?: Float32Array; keep: Float32Array | null; rescued: string; rgb: Float32Array; emphasis?: Uint8Array; layer: Layer }
 let entries: Entry[] = []; // what is drawn now
 
 let plan: Plan | null = null;
@@ -97,8 +98,8 @@ export function Viewport() {
     const build = (layers: DisplayLayer[], header: Header, ev: EventData, drawn: Record<string, Legend>, pool: Entry[] = []): Entry[] => {
       const f = filters.peek(), hl = highlight.peek(), pal = PALETTES[theme.peek()];
       const items = layers.map((d0) => {
-        const key = layerKey(d0), d = shownLayer(d0), t = ev.tables[d.table];
-        return { d, t, key, cut: cutValues(d, t, f[d.table], onlyFor(d, key, hl)) };
+        const key = layerKey(d0), d = shownLayer(d0), t = ev.tables[d.table], keep = filterMask(t, f[d.table]), focusRows = hl?.get(d.table);
+        return { d, t, key, keep, rescued: rescued(keep, focusRows), cut: cutValues(d, t, f[d.table], onlyFor(d, key, hl), focusRows) };
       });
       const coloured = colourEntries(items, ev, header, cuts.peek(), pal, [...pool, ...items]);
       return items.map((s, i) => {
@@ -153,8 +154,10 @@ export function Viewport() {
       applyCuts(false);
     });
 
-    // A new focus: the layers that show only its objects (e.g. truth particles, candidate tracks) are rebuilt, which is
-    // cheap as they are small (the big layers keep their buffers); then every layer fades to the new highlight.
+    // A new focus: the layers that show only its objects (e.g. truth particles, track hits) are rebuilt, which is cheap
+    // as they are small, and so are the filtered layers whose rows hidden by the filter but in the focus changed (a
+    // candidate's track from another vertex); the other layers keep their buffers. Then every layer fades to the new
+    // highlight.
     const stopFocus = effect(() => {
       const hl = highlight.value, f = filters.peek(), pal = PALETTES[theme.peek()], b = bundle.peek(), ev = event.peek();
       showAll.value; pairView.value;
@@ -172,12 +175,14 @@ export function Viewport() {
         legends.value = drawn;
       }
       for (const e of entries) {
-        if (!e.d.onSelection) continue;
-        const cut = cutValues(e.d, e.t, f[e.d.table], onlyFor(e.d, e.key, hl));
+        const only = onlyFor(e.d, e.key, hl), focusRows = hl?.get(e.d.table), again = rescued(e.keep, focusRows);
+        if (!only && again === e.rescued) continue;
+        const cut = cutValues(e.d, e.t, f[e.d.table], only, focusRows);
         const next = builders[e.d.repr]({ key: e.key, d: e.d, t: e.t, pal, rgb: e.rgb, emphasis: e.emphasis, cut, field: b?.header.field });
         eng.replaceLayer(e.layer, next);
         e.layer = next;
         e.cut = cut;
+        e.rescued = again;
       }
       applyCuts(false);
       showFocus(touring.peek() ? 900 : 250);

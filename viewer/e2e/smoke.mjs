@@ -1,5 +1,5 @@
 // Browser check (headless Chromium, software WebGL) of every bundle in the site's index.json, or of those named.
-// Each: layers draw, presets apply, a bundle with candidates has a colour key, summary charts show where the profile defines them,
+// Each: layers draw (helices end at finite points), domains draw only their layers, presets apply, a bundle with candidates has a colour key, summary charts show where the profile defines them,
 // selecting an object shows what is related and only its bottom level (↓ ↑ step through the others), a related
 // object can be jumped to and back, Esc leaves. One bundle (`--deep`, default the smallest with reconstruction
 // stages) also gets: themes, help, a rotate drag keeping the selection, a custom column used for colour and a filter,
@@ -61,6 +61,8 @@ async function checkBundle(file, tag, state) {
   if (!drawn) fail("no layer drawn");
   if ((small = objects > BIG)) await page.setViewportSize({ width: 720, height: 450 });
   await shot("1_layers");
+  await checkHelices(page, fail, tag);
+  await checkDomains(page, h, fail, shot, tag);
 
   for (const name of await page.$$eval(".segmented.presets button", (b) => b.map((x) => x.textContent))) {
     const button = page.locator(".segmented.presets button", { hasText: name });
@@ -126,6 +128,38 @@ async function checkBundle(file, tag, state) {
 // The focus is drawn with its bottom level (e.g. hits) only: no layer of an earlier reconstruction stage. ↓ adds one
 // level in between (one more layer kind drawn, its pill lit) and turns a shower focus into an outline around it; ↑
 // goes back.
+/** Helix layers drawn: their paths end at finite points and have a picking polyline. */
+async function checkHelices(page, fail, tag) {
+  const helices = await page.evaluate(() => window.evdEngine.layers.filter((l) => l.path)
+    .map((l) => ({ label: l.label, n: l.x.length, finite: l.x.filter(Number.isFinite).length, points: l.path.points })));
+  for (const l of helices) {
+    log(`${tag}: helix layer ${l.label}: ${l.n} paths, ${l.finite} with a finite end, ${l.points} picking points each`);
+    if (l.n && !l.finite) fail(`helix layer ${l.label}: no path ends at a finite point`);
+  }
+}
+
+/** With two or more domains: each one draws only its layers and those without a domain, puts itself in the URL, and
+ *  All brings every layer back. */
+async function checkDomains(page, h, fail, shot, tag) {
+  const names = (h.domains ?? []).map((d) => d.name);
+  if (names.length < 2) return;
+  const tables = () => page.evaluate(() => window.evdEngine.layers.map((l) => l.table));
+  const bar = page.getByRole("group", { name: "Detector part" }), before = await tables();
+  for (const name of names) {
+    await bar.getByRole("button", { name, exact: true }).click();
+    await page.waitForTimeout(800);
+    const drawn = await tables(), url = decodeURIComponent(new URL(page.url()).hash.match(/[#&]d=([^&]+)/)?.[1] ?? "");
+    const other = drawn.filter((t) => h.display.some((d) => d.table === t && d.domain && d.domain !== name));
+    log(`${tag}: domain ${name}: ${drawn.length} layers drawn (${before.length} in All), URL d=${url}`);
+    if (other.length) fail(`domain ${name} draws layers of other domains: ${other.join(", ")}`);
+    if (url !== name) fail(`domain ${name} is not in the URL`);
+    await shot(`1_domain_${name}`);
+  }
+  await bar.getByRole("button", { name: "All", exact: true }).click();
+  await page.waitForTimeout(800);
+  if ((await tables()).length !== before.length) fail("All did not bring every layer back");
+}
+
 async function checkLevels(page, h, target, fail, shot, tag) {
   const drawn = () => page.evaluate(() => window.evdEngine.layers.map((l) => l.table).sort().join());
   const style = () => page.evaluate((t) => { // shower layers: surface style and transparency of the focus's layer

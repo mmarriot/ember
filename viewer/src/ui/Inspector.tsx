@@ -1,6 +1,6 @@
 // Floating card for the selected object: summary, all columns with documentation, related objects.
 import { colourBy, customColumns, customDoc } from "../model/custom";
-import { unitOf } from "../io/bundle";
+import { type Table, unitOf } from "../io/bundle";
 import { bundle, describe, event, full, highlight, short, kindOf, labelOf, layerKey, layerOf, modes, relatives, selection, sizeColumn, drawnLayers, truthStatuses } from "../model/store";
 import { simEnergyByParticle } from "../model/match";
 import { facts, unitOf as factUnit } from "../model/facts";
@@ -90,6 +90,7 @@ export function Inspector() {
                 {g.particles.length > 5 && <p class="hint">… and {g.particles.length - 5} more particles</p>}
               </div>
             ))}
+            {d?.fractions && <Fractions fractions={d.fractions} table={table} row={sel.row} />}
             {rows(key)}
           </div>
         )],
@@ -170,3 +171,18 @@ function drawn(table: string) {
 }
 
 const isTruth = (table: string) => !!layerOf(table)?.truth;
+
+/** A reco object's energy fractions (layer hint `fractions`, e.g. a jet's charged and neutral hadrons, photons...) as
+ *  one bar, in a neutral ramp (a reconstruction quantity, not a colour of the views), with the shares named under it. */
+function Fractions({ fractions, table, row }: { fractions: Record<string, string>; table: Table; row: number }) {
+  const parts = Object.entries(fractions).filter(([c]) => c in table.columns)
+    .map(([c, name]) => [name, Number(table.columns[c][row])] as const).filter(([, v]) => v >= 0.005);
+  if (!parts.length) return null;
+  const shade = (i: number) => `hsl(210, 8%, ${72 - (44 * i) / Math.max(1, parts.length - 1)}%)`;
+  return (
+    <div class="fractions" title="Energy fractions from the reconstruction (not truth)">
+      <div class="fbar">{parts.map(([name, v], i) => <span style={{ width: `${100 * v}%`, background: shade(i) }} title={`${name} ${(100 * v).toFixed(0)}%`} />)}</div>
+      <div class="flegend"><span class="badge reco">reco</span> energy:{parts.map(([name, v], i) => <span><i style={{ background: shade(i) }} />{name} {(100 * v).toFixed(0)}%</span>)}</div>
+    </div>
+  );
+}

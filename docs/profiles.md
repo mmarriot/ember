@@ -78,6 +78,7 @@ A list, applied in order (so a later derive can override an earlier estimate). E
 | form | result |
 |---|---|
 | `"xyFromEtaPhiZ": [eta, phi, z]` | columns `x`, `y` |
+| `"rowIndex": column` | `column` = the row's number in the event (int32, before cuts), e.g. to filter the leading primary vertex (`index == 0`) |
 | `"column", "neighbourDistance": [cols], "k": 1, "groupBy": col, "scale": 1` | `column` = scale × distance to the k-th nearest other row with the same `groupBy` value (cell sizes from positions; needs scipy) |
 | `"gather": [{"relation", "columns": {new: col}}, ...], "fill": v` | columns copied from the first row each row points to through `relation` (a column of its `to` table). Sources are tried in order; a source that places a row sets the columns it does not name to 0; rows no source reaches get `fill` (default NaN, see the `defined` cut). With `"missing": true`, a column the table already has keeps its finite values and only its NaN values are filled (e.g. PF candidates without an ECAL entrance point end at their track's outermost state) |
 | `"lookup": T, "index": col, "columns": {new: col of T}` | columns copied from row `index` of table `T`, typically a per-run table; out of range: NaN, or -1 for integers. Integer columns become the narrowest signed type that also holds -1 (bool → i8, u8 → i16, u16 → i32, u32 and u64 → i64; signed types unchanged), so the viewer gets 64-bit (BigInt) arrays only where the values need them |

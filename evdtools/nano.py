@@ -122,6 +122,8 @@ def _derived_columns(d, tables):
             dtype, doc = source[col]
             out[new] = (_lookup_dtype(dtype), f"{doc} (from {d['lookup']}.{col} by {d['index']})")
         return out
+    if "rowIndex" in d:
+        return {d["rowIndex"]: (np.dtype("i4"), "row number in the event (0 first), e.g. the leading primary vertex")}
     if "gather" in d:
         names, doc = _gathered(d), f"copied through {', '.join(s['relation'] for s in d['gather'])} (first linked row)"
     elif "xyFromEtaPhiZ" in d:
@@ -134,9 +136,11 @@ def _derived_columns(d, tables):
 
 
 def _derive(d, tables):
-    """Add the columns of a lookup, xyFromEtaPhiZ or neighbourDistance derive to its table."""
+    """Add the columns of a lookup, rowIndex, xyFromEtaPhiZ or neighbourDistance derive to its table."""
     n, cols = tables[d["table"]]
-    if "lookup" in d:  # the lookup table's row named by the index column; none: NaN, or -1 for integers
+    if "rowIndex" in d:  # the row's number in the event, before cuts
+        cols[d["rowIndex"]] = np.arange(n, dtype=np.int32)
+    elif "lookup" in d:  # the lookup table's row named by the index column; none: NaN, or -1 for integers
         n_source, source = tables[d["lookup"]]
         idx = np.asarray(cols[d["index"]], np.int64)
         ok = (idx >= 0) & (idx < n_source)

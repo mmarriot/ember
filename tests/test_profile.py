@@ -176,6 +176,14 @@ def test_xy_from_eta_phi_z():
     assert {("H", "x"), ("H", "y")} <= conv.derived and "H_x" not in conv.branches()
 
 
+def test_row_index_derive():
+    """rowIndex: each row's number in the event, so a filter can pick the first row (the leading primary vertex)."""
+    conv = converter({"V": XYZE}, {"derive": [{"table": "V", "rowIndex": "index"}]})
+    assert conv.written()["V"]["columns"]["index"][0] == np.dtype("i4") and "V_index" not in conv.branches()
+    _, tables, _ = one_event(conv, {"V": {"x": [1, 2, 3], "y": [0, 0, 0], "z": [0, 0, 0], "e": [0, 0, 0]}})
+    assert tables["V"][1]["index"].tolist() == [0, 1, 2]
+
+
 def test_neighbour_distance_derive():
     derive = [{"table": "Hit", "column": "size", "neighbourDistance": ["x", "y"], "groupBy": "layer", "k": 1, "scale": 0.5}]
     conv = converter({"Hit": {"x": F4, "y": F4, "layer": I4}}, {"derive": derive})

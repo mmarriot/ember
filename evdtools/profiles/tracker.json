@@ -1,7 +1,8 @@
 {
   "name": "tracker",
-  "note": "CMS Phase-2 tracker: tables of Fireworks/EventExport preset tracker. Tracks (generalTracks, in collection order) drawn as helices from their reference point to their outermost hit, high purity, pt >= 1 GeV and from the primary vertex (PV0) by default; offline primary vertices; the hits on each track (valid pixel and outer-tracker hits, positions from their clusters, mid-strip on the outer tracker), shown for a selection; the beam spot. Used alone (tracker_only.json writes only these tables), or with hgcal through cms.json. Domain Tracker: region from the hits of the ttbar samples (r <= 110 cm, |z| <= 268 cm), coloured by layer (pT) when chosen. The replay builds the tracks from their hits (grow): a seed of their first 4 hits (Phase-2 tracking seeds mostly from pixel quadruplets), then outwards along the helix. Field: 3.8 T inside the coil (inner radius 295 cm) to |z| = 320 cm, where a helix from a track's reference point reaches HGCalNanoAOD's propagated HGCal entry within 0.23 cm (median; 1.3 cm for 90%) for high-purity tracks above 1 GeV. MTD (Fireworks/EventExport preset mtd): every BTL and ETL rechit (35k per PU200 event, 0.5 MB in the nano), unticked, coloured by time; preset 'Track time' colours tracks by t0, vertices by t and MTD hits by time. A track's MTD hit is at its mtdX/Y/Z (on a rechit for 98% of tracks at PU200); no track -> rechit link is exported (it would need the extended track's MTD cluster matched back to rechits by cell). No MTD hit truth (truth-graph.md gap 19).",
+  "note": "CMS Phase-2 tracker: tables of Fireworks/EventExport preset tracker. Tracks (generalTracks, in collection order) drawn as helices from their reference point to their outermost hit, high purity, pt >= 1 GeV and from the primary vertex (PV0) by default; offline primary vertices; the hits on each track (valid pixel and outer-tracker hits, positions from their clusters, mid-strip on the outer tracker), shown for a selection; the beam spot. Used alone (tracker_only.json writes only these tables), or with hgcal through cms.json. Domain Tracker: region from the hits of the ttbar samples (r <= 110 cm, |z| <= 268 cm), coloured by layer (pT) when chosen. The replay builds the tracks from their hits (grow): a seed of their first 4 hits (Phase-2 tracking seeds mostly from pixel quadruplets), then outwards along the helix. Field: 3.8 T inside the coil (inner radius 295 cm) to |z| = 320 cm, where a helix from a track's reference point reaches HGCalNanoAOD's propagated HGCal entry within 0.23 cm (median; 1.3 cm for 90%) for high-purity tracks above 1 GeV. MTD (Fireworks/EventExport preset mtd): every BTL and ETL rechit (35k per PU200 event, 0.5 MB in the nano), unticked, coloured by time; preset 'Track time' colours tracks by t0, vertices by t and MTD hits by time. A track's MTD hit is at its mtdX/Y/Z (on a rechit for 98% of tracks at PU200); no track -> rechit link is exported (it would need the extended track's MTD cluster matched back to rechits by cell). No MTD hit truth (truth-graph.md gap 19). Only the leading primary vertex (row 0, the hard scatter for PF and PUPPI) is drawn by default (filter 'index == 0' on a derived row number); the preset 'All vertices' shows every vertex.",
   "internal": ["VertexTracks"],
+  "derive": [{"table": "Vertices", "rowIndex": "index"}],
   "relations": [
     {"name": "trackVertex", "kind": "index", "from": "Tracks", "to": "Vertices", "index": "Tracks.vertexIdx",
      "inverseOf": "vertexTracks"},
@@ -20,7 +21,7 @@
                "truthGap": {"reason": "MTD hit truth is not exported: the hit index's MTD channel is keyed by module and cell, and following the particles that enter the calorimeter covers only 60% of the cells at PU200", "gap": 19}}
   },
   "display": [
-    {"table": "Vertices", "kind": "vertex", "label": "Primary vertices", "position": ["x", "y", "z"], "size": "sumPt2", "colour": "sumPt2",
+    {"table": "Vertices", "kind": "vertex", "label": "Primary vertices", "position": ["x", "y", "z"], "size": "sumPt2", "colour": "sumPt2", "filter": "index == 0",
      "describe": {"columns": ["nTracks", "sumPt2"]}},
     {"table": "Tracks", "kind": "track", "label": "General tracks", "position": ["vx", "vy", "vz"],
      "momentum": ["px", "py", "pz"], "charge": "charge", "end": ["outerX", "outerY", "outerZ"], "colour": "pt",
@@ -34,8 +35,8 @@
      "inspect": ["time", "timeError", "energy", "subdet", "row", "col"]}
   ],
   "presets": [
-    {"name": "Primary vertex", "filters": {"Tracks": "highPurity == 1 && vertexIdx == 0"}},
-    {"name": "All vertices", "filters": {"Tracks": "highPurity == 1"}, "colour": {"Tracks": "rel:trackVertex"}},
+    {"name": "Primary vertex", "filters": {"Tracks": "highPurity == 1 && vertexIdx == 0", "Vertices": "index == 0"}},
+    {"name": "All vertices", "filters": {"Tracks": "highPurity == 1", "Vertices": ""}, "colour": {"Tracks": "rel:trackVertex"}},
     {"name": "Track time", "colour": {"Tracks": "t0", "Vertices": "t", "MTDHits": "time"}}
   ],
   "domains": [{"name": "Tracker", "region": {"rMax": 120, "zMax": 280}, "view": "front", "colourMode": "layers", "minRadius": 15}],

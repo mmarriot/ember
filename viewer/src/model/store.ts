@@ -224,9 +224,14 @@ export const levelTop = computed<Ref | null>(() => {
 const topParts = computed(() => (sameRef(levelTop.value, focus.value) ? focusParts.value : partsOf(levelTop.value)));
 /** The kinds of object the focus is made of, top first (see model/levels.ts); its own kind and truth are not levels. */
 export const levels = computed(() => {
-  const b = bundle.value, top = levelTop.value, hl = highlight.value, parts = topParts.value;
+  const b = bundle.value, top = levelTop.value, hl = highlight.value, parts = topParts.value, pair = pairView.value;
   if (!b || !top || !hl || !parts) return [];
-  return focusLevels(b.header.display, top.table, hl, (t) => parts.madeOf.has(t) || !parts.linked.has(t), b.header.relations);
+  // Not levels: what is only linked to the top, and in the pair view what the pair does not classify but is linked to
+  // the focus (a track's vertex is not a part of its candidate, and stays drawn).
+  const linked = pair ? focusParts.value?.linked : undefined;
+  const unclassified = (t: string) => { const cls = pair!.classes.get(t); return [...linked!.get(t)!].every((r) => !cls || cls[r] === PAIR.other); };
+  const own = (t: string) => parts.madeOf.has(t) || (!parts.linked.has(t) && !(linked?.has(t) && unclassified(t)));
+  return focusLevels(b.header.display, top.table, hl, own, b.header.relations);
 });
 /** The chosen level, if the focus has it and it is not one drawn anyway (the bottom ones, lines); else null. */
 export const shownLevel = computed(() => {

@@ -53,7 +53,8 @@ of their layer clusters), layer clusters, and hits (their layer cluster's candid
 small and grey. How each layer reaches a candidate or a truth particle is worked out from the bundle's relations
 (`viewer/src/model/modes.ts`), so this needs no profile settings. The colour key at the bottom of the side panel names
 the particle types. A bundle without candidates shows each layer's own colouring from the profile (energies, particle
-types), with its scale under the layer's row.
+types), with its scale under the layer's row; so does a domain with `colourMode` `"layers"` (e.g. the Tracker, its tracks
+by pT) while it is looked at.
 
 **The pair view.** With candidates, selecting anything shows its truth ↔ reco pair
 (`viewer/src/model/pair.ts`): first the selection's particle (a truth particle stands for its whole shower: its

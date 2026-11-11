@@ -1,6 +1,7 @@
 // The colour key, at the bottom of the side panel so it stays in sight from every tab: in a bundle with candidates,
 // their particle types (everything they are made of takes the same colour) with nothing selected, and the
-// selection's truth <-> reco pair otherwise. Bundles without candidates have none: each layer shows its own colours.
+// selection's truth <-> reco pair otherwise. Bundles without candidates, and a domain coloured layer by layer, have
+// none: each layer shows its own colours.
 import { PAIR, type PairClass } from "../model/pair";
 import { PALETTES } from "../render/colour";
 import { activeMode, describe, layerKey, layerOf, legends, modes, pairView, theme } from "../model/store";

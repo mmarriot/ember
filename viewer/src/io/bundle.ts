@@ -89,7 +89,11 @@ export interface Header {
   /** Solenoid field for `helix` layers: Bz (T), uniform inside the cylinder r < rMax, |z| < zMax (cm), none outside. */
   field?: { bz: number; rMax: number; zMax: number };
 }
-export interface Domain { name: string; region: { rMin?: number; rMax: number; zMin?: number; zMax: number }; view?: "3d" | "front" | "side" | "rz" }
+export interface Domain {
+  name: string; region: { rMin?: number; rMax: number; zMin?: number; zMax: number }; view?: "3d" | "front" | "side" | "rz";
+  /** "layers": while this domain is looked at, each layer takes its own colours, also in a bundle with candidates. */
+  colourMode?: "layers";
+}
 /** The unit in a column's documentation, written as "[GeV]". */
 export const unitOf = (doc = "") => doc.match(/\[([^\]]+)\]/)?.[1] ?? "";
 /** Short name of a layer's kind of object: its group for a layer with a kind ("Tracksters"), else its label. */

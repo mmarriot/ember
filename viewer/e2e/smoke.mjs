@@ -139,7 +139,7 @@ async function checkHelices(page, fail, tag) {
 }
 
 /** With two or more domains: each one draws only its layers and those without a domain, puts itself in the URL, and
- *  All brings every layer back. */
+ *  hides the particle-type colour key if it colours layer by layer (`colourMode`); All brings every layer back. */
 async function checkDomains(page, h, fail, shot, tag) {
   const names = (h.domains ?? []).map((d) => d.name);
   if (names.length < 2) return;
@@ -151,14 +151,17 @@ async function checkDomains(page, h, fail, shot, tag) {
     await page.waitForTimeout(800);
     const drawn = await tables(), url = decodeURIComponent(new URL(page.url()).hash.match(/[#&]d=([^&]+)/)?.[1] ?? "");
     const other = drawn.filter((t) => h.display.some((d) => d.table === t && d.domain && d.domain !== name));
-    log(`${tag}: domain ${name}: ${drawn.length} layers drawn (${before.length} in All), URL d=${url}`);
+    const key = await page.locator(".colourkey").count(), own = h.domains.find((d) => d.name === name).colourMode === "layers";
+    log(`${tag}: domain ${name}: ${drawn.length} layers drawn (${before.length} in All), URL d=${url}, colour key ${key ? "shown" : "none"}`);
     if (other.length) fail(`domain ${name} draws layers of other domains: ${other.join(", ")}`);
     if (url !== name) fail(`domain ${name} is not in the URL`);
+    if (own && key) fail(`domain ${name} colours layer by layer, but the particle-type colour key is shown`);
     await shot(`1_domain_${name}`);
   }
   await bar.getByRole("button", { name: "All", exact: true }).click({ force: true, timeout: 120000 });
   await page.waitForTimeout(800);
   if ((await tables()).length !== before.length) fail("All did not bring every layer back");
+  if (h.display.some((d) => d.stage !== undefined) && !(await page.locator(".colourkey").count())) fail("All did not bring the colour key back");
 }
 
 async function checkLevels(page, h, target, fail, shot, tag) {

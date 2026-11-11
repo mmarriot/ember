@@ -83,8 +83,12 @@ export const modes = computed(() => {
   };
   return { roots, colouring };
 });
-/** The colour mode: "pid" when the bundle has a reconstruction root (candidates), else "layers". */
-export const activeMode = computed<ColourMode>(() => (modes.value.roots.reco ? "pid" : "layers"));
+/** The colour mode: "pid" when the bundle has a reconstruction root (candidates), else "layers"; also "layers" while a
+ *  domain that asks for it (its `colourMode`) is looked at, e.g. the tracker, whose tracks keep their pT colours. */
+export const activeMode = computed<ColourMode>(() => {
+  const d = bundle.value?.header.domains?.find((x) => x.name === domain.value);
+  return modes.value.roots.reco && d?.colourMode !== "layers" ? "pid" : "layers";
+});
 
 /** A layer's display hint as drawn. In the "pid" mode, the reconstruction root (candidates) keeps its own colouring
  *  (particle type) and every reco layer it reaches takes its candidate's colour; a categorical reco layer it cannot

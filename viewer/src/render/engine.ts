@@ -61,6 +61,9 @@ export class Engine {
   private width = 1;
   private height = 1;
   private layers: Layer[] = [];
+  /** Layers taken out of the scene, freed after the next draw: by then the layers that replaced them have their shader
+   *  programs, which three.js frees with the last material using one (a new event would compile them all again). */
+  private retired: Layer[] = [];
   private outlines: ReturnType<typeof outlineObject> | null = null; // the detector's outlines (header `outlines`)
   private view: ViewName = "3d";
   private dirty = true;
@@ -131,6 +134,7 @@ export class Engine {
     r.setViewport(0, 0, this.width, this.height);
     this.outlines?.setReach(this.ctl3d.target, this.cam3d.position.distanceTo(this.ctl3d.target) / this.cam3d.zoom); // 3D: what it looks at
     r.render(this.scene, this.camera);
+    for (const l of this.retired.splice(0)) l.dispose();
     this.onDraw();
     if (this.rz) return;
     const size = 110;
@@ -296,7 +300,10 @@ export class Engine {
 
   setLayers(layers: Layer[]) {
     if (this.replayClock) { this.replayClock = null; this.onReplayTick(null); } // new layers start in their final state
-    for (const l of this.layers) { this.scene.remove(l.object); l.dispose(); }
+    // Layers retired without a draw since (a background tab draws nothing, e.g. in Live mode) go now, so at most one
+    // event's layers wait.
+    for (const l of this.retired.splice(0)) l.dispose();
+    for (const l of this.layers) { this.scene.remove(l.object); this.retired.push(l); }
     this.layers = layers;
     this.envelope = null;
     for (const l of layers) { l.setProjection(this.rz); this.showIn(l); this.scene.add(l.object); }
@@ -318,7 +325,7 @@ export class Engine {
     const i = this.layers.indexOf(layer);
     if (i < 0) return;
     this.scene.remove(layer.object);
-    layer.dispose();
+    this.retired.push(layer);
     this.layers.splice(i, 1);
     this.envelope = null;
     this.requestRender();
@@ -329,7 +336,7 @@ export class Engine {
     const i = this.layers.indexOf(old);
     if (i < 0) return;
     this.scene.remove(old.object);
-    old.dispose();
+    this.retired.push(old);
     next.setProjection(this.rz);
     this.showIn(next);
     this.scene.add(next.object);

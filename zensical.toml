@@ -1,0 +1,24 @@
+# The documentation site: docs/*.md built by Zensical (https://zensical.org) and published to GitHub Pages by
+# .github/workflows/docs.yml. Preview locally with `zensical serve`.
+
+[project]
+site_name = "evd"
+site_description = "Web event display for CMS: NanoAOD tables converted to self-describing bundles and drawn in the browser"
+site_url = "https://mmarriot.github.io/evd/"
+# A new page in docs/ needs its line here, or the site has no way to it.
+nav = [
+  { "Home" = "index.md" },
+  { "Bundle format" = "format.md" },
+  { "Profiles" = "profiles.md" },
+  { "Viewer" = "viewer.md" },
+  { "Truth" = "truth.md" },
+  { "Truth graph" = "truth-graph.md" },
+]
+
+# Setting this table replaces Zensical's default extensions (smartsymbols, magiclink, ...), so the pages render as on
+# GitHub: e.g. -> and <-> stay as written. Tables and fenced code are always on.
+[project.markdown_extensions]
+# Heading ids as GitHub makes them, so a link like viewer.md#colours-and-the-truth--reco-pair works both on the
+# site and when the file is read on GitHub.
+toc.permalink = true
+toc.slugify = { object = "pymdownx.slugs.slugify", kwds = { case = "lower" } }

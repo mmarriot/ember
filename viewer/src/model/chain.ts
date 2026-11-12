@@ -56,19 +56,20 @@ export function recoLadder(ev: EventData, header: Header, sel: Ref, parts: { mad
     const groups = tables.map((table) => ({ table, rows: sorted(from.get(table) ?? []) })).filter((g) => g.rows.length);
     return { kind: name, groups, count: groups.reduce((s, g) => s + g.rows.length, 0), links: linksOf(ev, header, groups, statuses, truth, rank) };
   };
-  // Holders before what they hold (model/levels.ts gives each kind its depth), so each list reads down the chain; then
-  // the collections of another reconstruction path (a PF candidate's CHS jet next to its Puppi jet), by their own name.
-  const rungs = (from: Related, rank: boolean) => {
+  // Holders before what they hold (model/levels.ts gives each kind its depth), so each list reads down the chain; then,
+  // among what contains it (`paths`), the collections of another reconstruction path (a PF candidate's CHS jet next to
+  // its Puppi jet), by their own name. Not among its parts: those are the same objects again (legacy hits next to SoA).
+  const rungs = (from: Related, rank: boolean, paths = false) => {
     const levels = focusLevels(header.display, sel.table, from, () => true, header.relations).map((l, i) => ({ l, i }))
       .sort((a, b) => (a.l.depth ?? 0) - (b.l.depth ?? 0) || a.i - b.i).map(({ l }) => rung(l.name, [...new Set(l.layers.map((d) => d.table))], from, rank));
-    const others = [...from.keys()].filter((t) => t !== sel.table && layerOf(header, t)?.alternative && from.get(t)!.size)
+    const others = !paths ? [] : [...from.keys()].filter((t) => t !== sel.table && layerOf(header, t)?.alternative && from.get(t)!.size)
       .map((t) => rung(`${layerOf(header, t)!.group} · ${layerOf(header, t)!.label}`, [t], from, rank));
     return [...levels, ...others];
   };
   const own = layerOf(header, sel.table), self = rung(own ? kindName(own) : sel.table, [sel.table], new Map([[sel.table, new Set([sel.row])]]), true);
   const other = [...parts.partOf, ...below].filter(([t, rows]) => rows.size && t !== sel.table && !layerOf(header, t))
     .map(([t, rows]) => ({ kind: t, groups: [{ table: t, rows: sorted(rows) }], count: rows.size, links: [] }));
-  return { above: [...voted(ev, header, sel, parts, statuses, truth), ...rungs(parts.partOf, true)], self, below: rungs(below, ranked), beside: rungs(beside, ranked), other };
+  return { above: [...voted(ev, header, sel, parts, statuses, truth), ...rungs(parts.partOf, true, true)], self, below: rungs(below, ranked), beside: rungs(beside, ranked), other };
 }
 
 /** Later steps of the selection's reconstruction that no relation names as containing it (a trackster's linked

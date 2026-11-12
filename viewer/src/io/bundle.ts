@@ -254,8 +254,16 @@ function gunzip(buf: ArrayBuffer): Promise<ArrayBuffer> {
   });
 }
 
+/** The events to keep decoded once event `i` of `n` is shown, coming from event `from`: it and its neighbours; and the
+ *  one to read ahead, the next in the direction of travel (forward after a jump; the events wrap around). */
+export function around(i: number, from: number, n: number): { keep: number[]; next: number | null } {
+  const step = (from - i + n) % n === 1 ? -1 : 1, at = (k: number) => (((i + k) % n) + n) % n;
+  return { keep: [...new Set([i, at(step), at(-step)])], next: n > 1 ? at(step) : null };
+}
+
 export class Bundle {
   private readonly runTables = new Map<number, Promise<Record<string, Table>>>(); // read once per run
+  private readonly decoded = new Map<number, Promise<EventData>>(); // events read, until keep() lets them go
   private constructor(readonly header: Header, readonly events: IndexEntry[], readonly runs: RunEntry[], private readonly source: Source) {}
 
   static async open(source: Source): Promise<Bundle> {
@@ -268,8 +276,24 @@ export class Bundle {
     return new Bundle(header, index.events, index.runs ?? [], source);
   }
 
-  /** Event i, with the per-run tables of its run (if the bundle has any) added to its own. */
-  async event(i: number): Promise<EventData> {
+  /** Event i, with the per-run tables of its run (if the bundle has any) added to its own. Read once while kept (see
+   *  keep); a read that fails is tried again on the next call. */
+  event(i: number): Promise<EventData> {
+    let ev = this.decoded.get(i);
+    if (!ev) {
+      const read = (ev = this.read(i));
+      this.decoded.set(i, read);
+      read.catch(() => { if (this.decoded.get(i) === read) this.decoded.delete(i); });
+    }
+    return ev;
+  }
+
+  /** Keep only these events read: the others are freed once nothing else holds them (a PU200 event is ~100 MB). */
+  keep(indices: number[]) {
+    for (const i of [...this.decoded.keys()]) if (!indices.includes(i)) this.decoded.delete(i);
+  }
+
+  private async read(i: number): Promise<EventData> {
     const entry = this.events[i];
     const [ev, perRun] = await Promise.all([this.record(entry), this.run(entry.run)]);
     ev.tables = { ...perRun, ...ev.tables };

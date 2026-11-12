@@ -1,6 +1,6 @@
 // Application state. Components and the renderer react to these signals.
 import { computed, effect, signal } from "@preact/signals";
-import { Bundle, type DisplayLayer, type EventData, type Header, httpSource, kindName, REPRS, type Table, unitOf } from "../io/bundle";
+import { around, Bundle, type DisplayLayer, type EventData, type Header, httpSource, kindName, REPRS, type Table, unitOf } from "../io/bundle";
 import { describeNoLink, type Legend, type ThemeName } from "../render/colour";
 import type { Caption } from "../render/replay";
 import type { Hit, ViewName } from "../render/engine";
@@ -386,22 +386,28 @@ export async function openBundle(name: string, open = () => httpSource(name), st
   }
 }
 
+let request = 0; // the latest showEvent call: an earlier one that finishes later is not shown
+/** Show event `i` (wrapping around), then read the next one in the direction of travel ahead (io/bundle.ts around). */
 export async function showEvent(i: number) {
   const b = bundle.value;
   if (!b || !b.events.length) return;
-  const index = ((i % b.events.length) + b.events.length) % b.events.length;
+  const n = b.events.length, index = ((i % n) + n) % n, mine = ++request, from = rawEvent.peek() ? eventIndex.peek() : index;
   loading.value = true;
   const t0 = performance.now();
   try {
     const ev = await b.event(index);
+    if (mine !== request || bundle.peek() !== b) return;
     selection.value = null;
     hover.value = null;
     eventIndex.value = index;
     rawEvent.value = ev;
     loadMs.value = performance.now() - t0;
+    const { keep, next } = around(index, from, n);
+    b.keep(keep);
+    if (next !== null) b.event(next).catch(() => {}); // a failed read ahead is tried again when that event is shown
   } catch (e) {
-    toast(`Could not read event ${index + 1}: ${e}`, "error");
+    if (mine === request) toast(`Could not read event ${index + 1}: ${e}`, "error");
   } finally {
-    loading.value = false;
+    if (mine === request) loading.value = false;
   }
 }

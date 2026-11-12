@@ -387,11 +387,15 @@ export async function openBundle(name: string, open = () => httpSource(name), st
 }
 
 let request = 0; // the latest showEvent call: an earlier one that finishes later is not shown
+let wanted = 0; // the event it asked for: shown, or still being read
+/** The event `d` after the one asked for last (← / →), so presses while an event is read each move on one event. */
+export const stepEvent = (d: number) => showEvent(wanted + d);
 /** Show event `i` (wrapping around), then read the next one in the direction of travel ahead (io/bundle.ts around). */
 export async function showEvent(i: number) {
   const b = bundle.value;
   if (!b || !b.events.length) return;
   const n = b.events.length, index = ((i % n) + n) % n, mine = ++request, from = rawEvent.peek() ? eventIndex.peek() : index;
+  wanted = index;
   loading.value = true;
   const t0 = performance.now();
   try {
@@ -406,7 +410,7 @@ export async function showEvent(i: number) {
     b.keep(keep);
     if (next !== null) b.event(next).catch(() => {}); // a failed read ahead is tried again when that event is shown
   } catch (e) {
-    if (mine === request) toast(`Could not read event ${index + 1}: ${e}`, "error");
+    if (mine === request) { wanted = eventIndex.peek(); toast(`Could not read event ${index + 1}: ${e}`, "error"); }
   } finally {
     if (mine === request) loading.value = false;
   }

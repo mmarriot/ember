@@ -2,7 +2,7 @@
 // them have no button of their own (labels, replay, next object, levels), so the menu is where they can be found.
 import { signal } from "@preact/signals";
 import { useEffect, useRef } from "preact/hooks";
-import { bundle, colourChoice, dialog, eventIndex, focus, focusBar, following, highlight, labelsOn, selection, showEvent, stepFocusLevel, theme, toggleTheme, touring, truthColours, view } from "../model/store";
+import { bundle, colourChoice, dialog, focus, focusBar, following, highlight, labelsOn, selection, stepEvent, stepFocusLevel, theme, toggleTheme, touring, truthColours, view } from "../model/store";
 import { toggleLive } from "./live";
 import { nextDomain, nextObject, showWhole } from "./navigate";
 import { toggleTour } from "./tour";
@@ -32,8 +32,8 @@ export function Menu() {
       { label: "Labels", keys: "L", on: labelsOn.value, run: () => (labelsOn.value = !labelsOn.value) },
     ]],
     ["Event", [
-      { label: "Previous event", keys: "←", run: () => showEvent(eventIndex.value - 1) },
-      { label: "Next event", keys: "→", run: () => showEvent(eventIndex.value + 1) },
+      { label: "Previous event", keys: "←", run: () => stepEvent(-1) },
+      { label: "Next event", keys: "→", run: () => stepEvent(1) },
       ...(parts ? [{ label: "Next part of the detector", keys: "D", run: () => nextDomain(1) },
         { label: "Previous part", keys: "⇧D", run: () => nextDomain(-1) }] : []),
     ]],

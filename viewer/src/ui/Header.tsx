@@ -2,7 +2,7 @@
 // every control, share and help.
 import logo from "../../logo.svg";
 import type { Domain } from "../io/bundle";
-import { bundle, bundleName, catalogue, dialog, domain, eventIndex, following, loading, openBundle, showEvent, toast, touring, type Listed } from "../model/store";
+import { bundle, bundleName, catalogue, dialog, domain, eventIndex, following, loading, openBundle, showEvent, stepEvent, toast, touring, type Listed } from "../model/store";
 import { toggleLive } from "./live";
 import { Menu } from "./Menu";
 import { chooseDomain, showWhole } from "./navigate";
@@ -37,12 +37,12 @@ export function Header() {
         {bundleName.value && !bundles.some((x) => x.file === bundleName.value) && <option value={bundleName.value}>{bundleName.value}</option>}
       </select>
       <nav class="eventnav" aria-label="Event navigation">
-        <button class="icon-button" title="Previous event (←)" onClick={() => showEvent(eventIndex.value - 1)}><Icon name="prev" /></button>
+        <button class="icon-button" title="Previous event (←)" onClick={() => stepEvent(-1)}><Icon name="prev" /></button>
         <div class="eventid">
           <strong>{e ? `Run ${e.run} · Event ${e.event}` : "No event"}</strong>
           <small>{b && e && b.runTitle(e.run) ? `${b.runTitle(e.run)} · ` : ""}{b ? `${eventIndex.value + 1} of ${b.events.length}` : ""}</small>
         </div>
-        <button class="icon-button" title="Next event (→)" onClick={() => showEvent(eventIndex.value + 1)}><Icon name="next" /></button>
+        <button class="icon-button" title="Next event (→)" onClick={() => stepEvent(1)}><Icon name="next" /></button>
         <button class={touring.value ? "icon-button on" : "icon-button"} title={touring.value ? "Stop the tour (P)" : "Tour: build each event up from the collision point to the physics objects (P)"}
           aria-pressed={touring.value} onClick={toggleTour}><Icon name={touring.value ? "pause" : "play"} /></button>
         <input class="jump" placeholder="Event…" title="Event number, or run:event" onKeyDown={(ev) => {

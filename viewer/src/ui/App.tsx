@@ -4,7 +4,7 @@ import { useEffect } from "preact/hooks";
 import { blobSource } from "../io/bundle";
 import type { ViewName } from "../render/engine";
 import { startDomain } from "../model/domains";
-import { activeMode, bundle, bundleName, catalogue, colourChoice, dialog, domain, event, eventIndex, focusLevel, highlight, labelsOn, openBundle, refreshCatalogue, selection, showEvent, shownLevel, stepFocusLevel, truthColours, view } from "../model/store";
+import { activeMode, bundle, bundleName, catalogue, colourChoice, dialog, domain, event, eventIndex, focusLevel, highlight, labelsOn, openBundle, refreshCatalogue, selection, shownLevel, stepEvent, stepFocusLevel, truthColours, view } from "../model/store";
 import { SYNTAX } from "./ExprForm";
 import { Header } from "./Header";
 import { Inspector } from "./Inspector";
@@ -58,8 +58,8 @@ export function App() {
         else { selection.value = null; showWhole(true); }
       }
       else if (e.key === "?") dialog.value = dialog.value ? null : "help";
-      else if (e.key === "ArrowRight") showEvent(eventIndex.value + 1);
-      else if (e.key === "ArrowLeft") showEvent(eventIndex.value - 1);
+      else if (e.key === "ArrowRight") stepEvent(1);
+      else if (e.key === "ArrowLeft") stepEvent(-1);
       else if ((e.key === "ArrowDown" || e.key === "ArrowUp") && stepFocusLevel(e.key === "ArrowDown" ? 1 : -1)) e.preventDefault();
       else if (VIEW_KEYS[e.key]) view.value = VIEW_KEYS[e.key];
       else if (e.key === "d" || e.key === "D") nextDomain(e.shiftKey ? -1 : 1);

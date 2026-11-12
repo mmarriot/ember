@@ -298,7 +298,7 @@ async function checkDomainFocus(page, h, fail, shot, tag) {
   const chip = page.locator(".focusbar .level.part").first();
   if (await chip.count()) {
     const name = (await chip.innerText()).split(/\s/)[0];
-    await chip.click();
+    await chip.click({ timeout: 120000 }); // software WebGL: a PU200 scene keeps the page busy
     await page.waitForTimeout(1200);
     const [d2, s2] = state();
     log(`${tag}: chip ${name}: ${d1} -> ${d2}, selection ${s2}`);

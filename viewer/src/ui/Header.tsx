@@ -43,7 +43,7 @@ export function Header() {
           <small>{b && e && b.runTitle(e.run) ? `${b.runTitle(e.run)} · ` : ""}{b ? `${eventIndex.value + 1} of ${b.events.length}` : ""}</small>
         </div>
         <button class="icon-button" title="Next event (→)" onClick={() => showEvent(eventIndex.value + 1)}><Icon name="next" /></button>
-        <button class={touring.value ? "icon-button on" : "icon-button"} title={touring.value ? "Stop the tour (P)" : "Tour: orbit each event and visit its main showers (P)"}
+        <button class={touring.value ? "icon-button on" : "icon-button"} title={touring.value ? "Stop the tour (P)" : "Tour: build each event up from the collision point to the physics objects (P)"}
           aria-pressed={touring.value} onClick={toggleTour}><Icon name={touring.value ? "pause" : "play"} /></button>
         <input class="jump" placeholder="Event…" title="Event number, or run:event" onKeyDown={(ev) => {
           if (ev.key === "Enter") { jump((ev.target as HTMLInputElement).value.trim()); (ev.target as HTMLInputElement).blur(); }

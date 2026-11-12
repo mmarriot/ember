@@ -68,10 +68,11 @@ export function backPointers(ev: EventData, header: Header): Set<string> {
 /** The levels of an object: what it is made of, plus every object of another table that is made only of those parts
  *  (e.g. for a candidate, the tracksters and linked tracksters whose layer clusters all belong to it, though no
  *  relation names them; through every relation it has: for a vertex, not a candidate whose track is inside but whose
- *  clusters are not), plus the linked objects (e.g. its truth particle). A containment test, no physics metric. `parts`:
- *  relatedParts of `sel`, if already known. */
-export function levelsOf(ev: EventData, header: Header, sel: Ref, parts = relatedParts(ev, header, sel)): Related {
-  const { madeOf, linked } = parts, back = backPointers(ev, header);
+ *  clusters are not), plus the linked objects (e.g. its truth particle). A containment test, no physics metric. An
+ *  object that contains the selection (`parts.partOf`) is never inside it, though its other parts may all be (a PF
+ *  candidate made of a TICL candidate and that candidate's track). `parts`: relatedParts of `sel`, if already known. */
+export function levelsOf(ev: EventData, header: Header, sel: Ref, parts: { madeOf: Related; linked: Related; partOf?: Related } = relatedParts(ev, header, sel)): Related {
+  const { madeOf, linked, partOf } = parts, back = backPointers(ev, header);
   // Only objects below the selection: not made of objects of its own table, and of an earlier reconstruction stage
   // than the selection's. A reconstruction stage is built on top of the objects without one, so it is never inside an
   // object without a stage (a candidate made only of a vertex's track is not part of the vertex).
@@ -98,7 +99,7 @@ export function levelsOf(ev: EventData, header: Header, sel: Ref, parts = relate
     }
   }
   for (const [table, flags] of inside)
-    for (let i = 0; i < flags.length; i++) if (flags[i] === 1) { if (!extra.has(table)) extra.set(table, new Set()); extra.get(table)!.add(i); }
+    for (let i = 0; i < flags.length; i++) if (flags[i] === 1 && !partOf?.get(table)?.has(i)) { if (!extra.has(table)) extra.set(table, new Set()); extra.get(table)!.add(i); }
   return union(madeOf, extra, linked);
 }
 

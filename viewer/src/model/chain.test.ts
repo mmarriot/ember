@@ -1,0 +1,85 @@
+import { describe, expect, it } from "vitest";
+import type { DisplayLayer, EventData, Header } from "../io/bundle";
+import { recoLadder, recoOfTruth, type Ladder } from "./chain";
+import { truthStatus, type TruthStatus } from "./match";
+import { relatedParts } from "./relations";
+
+// jet 0 -> PF candidates 0, 1; PF 0 -> track 0 and candidate 0; PF 1 -> track 1; candidate 0 -> track 0,
+// interpretation 0 -> layer clusters 0, 2 -> hits 0, 1, 3; trackster 1 holds clusters 0, 2 (named by no relation of the
+// candidate), trackster 0 cluster 1; a secondary vertex is made of tracks 0 and 1. Truth: particle 0 is matched by
+// track 0 (8 of its 10 hits), particle 1 by nothing; both left energy in hits.
+const csr = (rows: number[][], weights: Record<string, number[]> = {}) => ({
+  offsets: Uint32Array.from(rows.reduce((o, r) => [...o, o[o.length - 1] + r.length], [0])), indices: Uint32Array.from(rows.flat()),
+  weights: Object.fromEntries(Object.entries(weights).map(([k, v]) => [k, Float32Array.from(v)])),
+});
+const table = (n: number, columns: Record<string, number[]> = {}) => ({ n, columns: Object.fromEntries(Object.entries(columns).map(([k, v]) => [k, Float32Array.from(v)])) });
+const ev = {
+  id: [1, 1, 1],
+  tables: { Jet: table(1), PF: table(2), Trk: table(2, { nhits: [10, 5] }), Cand: table(1), Inter: table(1), T: table(2), LC: table(3), Hit: table(4), P: table(2), SV: table(1) },
+  relations: {
+    jetPF: csr([[0, 1]]), pfTrk: csr([[0], [1]]), pfCand: csr([[0], []]), candTrk: csr([[0]]), candInter: csr([[0]]), interLCs: csr([[0, 2]]),
+    tLCs: csr([[1], [0, 2]]), candLCs: csr([[0, 2]]), lcHits: csr([[0, 1], [2], [3]]), svTrk: csr([[0, 1]]),
+    trkTruth: csr([[0], []], { shared: [8], score: [0.2] }), truthTrk: csr([[0], []], { frac: [0.6] }),
+    truthHits: csr([[0, 1], [1, 3]], { simEnergy: [3, 1, 1, 2] }),
+  },
+} as unknown as EventData;
+const plain = (from: string, to: string) => ({ from, to, weights: [] });
+const layer = (table: string, group: string, extra: Partial<DisplayLayer> = {}) => ({ table, group, label: group, kind: group, repr: "markers", visible: true, position: ["x", "y", "z"], ...extra }) as DisplayLayer;
+const header = {
+  relations: {
+    jetPF: plain("Jet", "PF"), pfTrk: plain("PF", "Trk"), pfCand: plain("PF", "Cand"), candTrk: plain("Cand", "Trk"), candInter: plain("Cand", "Inter"),
+    interLCs: plain("Inter", "LC"), tLCs: plain("T", "LC"), candLCs: plain("Cand", "LC"), lcHits: plain("LC", "Hit"), svTrk: plain("SV", "Trk"),
+    trkTruth: { from: "Trk", to: "P", weights: ["shared", "score"], association: true, best: { weight: "score", order: "min" }, match: { measure: "hits", in: "tracker", shared: "shared", over: ["nhits"], good: 0.75 } },
+    truthTrk: { from: "P", to: "Trk", weights: ["frac"], association: true, best: { weight: "frac", order: "max" }, match: { measure: "hits", in: "tracker", completeness: { weight: "frac" } } },
+    truthHits: { from: "P", to: "Hit", weights: ["simEnergy"], association: true, best: { weight: "simEnergy", order: "max" }, fact: { in: "HGCal" } },
+  },
+  display: [
+    layer("Hit", "Hits", { repr: "cells" }), layer("LC", "Layer clusters", { truthGap: { reason: "no associator", gap: 1 } }), layer("T", "Tracksters", { stage: 0 }),
+    layer("Inter", "Interpretations", { stage: 2 }), layer("Cand", "Candidates", { stage: 3 }), layer("Trk", "Tracks", { repr: "helix" }),
+    layer("P", "Particles", { truth: true }), layer("PF", "PF candidates", { truthGap: { reason: "no PF associator", gap: 20 } }),
+    layer("Jet", "Jets", { truthGap: { reason: "no jet associator", gap: 21 } }), layer("SV", "Secondary vertices"),
+  ],
+} as unknown as Header;
+const statuses = new Map(header.display.flatMap((d) => { const s = truthStatus(header, d.table); return s ? [[d.table, s] as [string, TruthStatus]] : []; }));
+const ladder = (table: string, row: number) => recoLadder(ev, header, { table, row }, relatedParts(ev, header, { table, row }), statuses, "P");
+const kinds = (l: Ladder) => ({ above: l.above.map((r) => r.kind), below: l.below.map((r) => `${r.kind} ${r.count}`), beside: l.beside.map((r) => r.kind) });
+
+describe("recoLadder", () => {
+  it("reads down the chain: what holds the object above it, what it is made of below, holders first", () => {
+    expect(kinds(ladder("Cand", 0))).toEqual({ above: ["Jets", "PF candidates"],
+      below: ["Interpretations 1", "Tracks 1", "Tracksters 1", "Layer clusters 2", "Hits 3"], beside: [] });
+  });
+  it("never lists what contains the object as one of its parts (a PF candidate made of the candidate and its track)", () => {
+    expect(ladder("Cand", 0).below.some((r) => r.kind === "PF candidates")).toBe(false);
+  });
+  it("puts beside the object what is only built from its parts, not named by its relations (a jet's secondary vertex)", () => {
+    const l = kinds(ladder("Jet", 0));
+    expect(l.beside).toEqual(["Secondary vertices"]);
+    expect(l.below[0]).toBe("PF candidates 2");
+    expect(l.below).toContain("Tracks 2");
+  });
+  it("finds the later steps holding an object that no relation names, by vote, and marks them", () => {
+    const up = ladder("T", 1).above;
+    expect(up.map((r) => [r.kind, r.groups[0].rows, r.voted])).toEqual([["Candidates", [0], 1], ["Interpretations", [0], 1]]);
+  });
+  it("gives every step its truth link: matches counted, facts as shares per detector, gaps with their reason", () => {
+    const l = ladder("Jet", 0), link = (kind: string) => l.below.find((r) => r.kind === kind)!.links;
+    expect(link("Tracks")).toEqual([{ kind: "match", truth: "P", measure: "hits", good: 0.75, of: 2, matched: 1, clean: 1, partners: [[0, 1]], purity: undefined }]);
+    const [fact] = link("Hits");
+    expect(fact).toMatchObject({ kind: "fact", in: "HGCal", truth: "P", total: 7 });
+    expect(fact.kind === "fact" && fact.particles.map(([p, s]) => [p, Math.round(s * 100)])).toEqual([[0, 57], [1, 43]]);
+    expect(link("PF candidates")).toEqual([{ kind: "none", reason: "no PF associator", gap: 20 }]);
+    expect(l.self.links).toEqual([{ kind: "none", reason: "no jet associator", gap: 21 }]);
+  });
+});
+
+describe("recoOfTruth", () => {
+  it("lists what was reconstructed from a particle with its completeness, and the hits it left per detector", () => {
+    expect(recoOfTruth(ev, header, { table: "P", row: 0 })).toEqual({
+      reco: [{ table: "Trk", measure: "hits", in: "tracker", partners: [{ row: 0, completeness: expect.closeTo(0.6), best: true }] }],
+      hits: [{ in: "HGCal", hits: 2, energy: 4, weight: "simEnergy" }] });
+  });
+  it("keeps an empty entry where nothing of a matched kind was reconstructed", () => {
+    expect(recoOfTruth(ev, header, { table: "P", row: 1 }).reco).toEqual([{ table: "Trk", measure: "hits", in: "tracker", partners: [] }]);
+  });
+});

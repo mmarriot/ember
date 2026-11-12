@@ -63,7 +63,7 @@ export function TruthCard({ table, row }: { table: string; row: number }) {
   const rels = matchRelations(b.header, table).filter(([name]) => ev.relations[name]);
   if (!rels.length) {
     const s = truthStatuses.value.get(table);
-    return s?.kind === "none" ? <NoTruth table={table} row={row} reason={s.reason} gap={s.gap} /> : null;
+    return s?.kind === "none" ? <NoTruth table={table} row={row} /> : null;
   }
   const [name, info] = rels[0], rel = ev.relations[name], m = info.match!, target = info.to;
   const { partner, entry } = bestPartners(rel, info, true, ev.tables[table]?.n ?? 0);
@@ -80,16 +80,16 @@ export function TruthCard({ table, row }: { table: string; row: number }) {
           <p class="truthline" title={`The truth-graph ${particles ? "particle (with everything it made)" : "vertex"} that the CMSSW associator picked for this object: AdaptiveNominal working point`}>
             <span class="badge truth">truth</span> associator's best match {particles ? chip(target, p) : <>truth vertex {chipAs(target, p, m.target === "interaction" ? collision(truth, target, p) : vertexName(truth, target, p))}</>}
             {!particles && distance(table, row, target, p) !== undefined && <span class="muted">{short(distance(table, row, target, p)!)} cm away</span>}</p>
-          <ul class="quality">
-            {q?.purity !== undefined && (m.purity ? <li title="Share of this object's tracks (weighted by pT²) from the matched truth vertex">
-              <b>purity {percent(q.purity)}</b> <span class="muted">{unit}{q.clean !== undefined && <> · {q.clean ? "clean match" : "impure"} (clean from {percent(m.good)})</>}</span></li>
-              : <li title={`Share of this object's ${m.measure === "hits" ? "hits" : "rechit energy"} (${m.in}) that came from the particle`}>
-              <b>purity {percent(q.purity)}</b> <span class="muted">{amount(q.shared)} of its {amount(q.over!)} {unit} from it{q.clean !== undefined && <> · {q.clean ? "clean match" : "impure"} (clean from {percent(m.good)})</>}</span></li>)}
-            {c && <li title={m.measure === "hits" ? "Share of the particle's tracker hits, its secondaries' included, that are on this track" : `Share of the ${particles ? "particle's energy" : "truth vertex's tracks"} in ${c.match.in} that this object has`}>
-              <b>completeness {percent(c.value)}</b> <span class="muted">of the {particles ? "particle's" : "truth vertex's"} {c.match.measure === "hits" ? "tracker hits (with its secondaries')" : c.match.measure === "pt2" ? "findable tracks (pT²)" : `energy in ${c.match.in}`}</span></li>}
-            {q?.score !== undefined && <li title="The associator's ranking value: 0 is best. For calorimeter objects it is squared and energy weighted, so 1 − score is not a purity">
-              <b>score {short(q.score)}</b> <span class="muted">the associator's ranking, 0 best; not a fraction</span></li>}
-          </ul>
+          <div class="meters">
+            {q?.purity !== undefined && (m.purity
+              ? <Meter name="purity" value={q.purity} good={m.good} title="Share of this object's tracks (weighted by pT²) from the matched truth vertex" note={unit} />
+              : <Meter name="purity" value={q.purity} good={m.good} title={`Share of this object's ${m.measure === "hits" ? "hits" : "rechit energy"} (${m.in}) that came from the particle`}
+                  note={`${amount(q.shared)} of its ${amount(q.over!)} ${unit} from it`} />)}
+            {c && <Meter name="completeness" value={c.value} title={m.measure === "hits" ? "Share of the particle's tracker hits, its secondaries' included, that are on this track" : `Share of the ${particles ? "particle's energy" : "truth vertex's tracks"} in ${c.match.in} that this object has`}
+              note={`of the ${particles ? "particle's" : "truth vertex's"} ${c.match.measure === "hits" ? "tracker hits (with its secondaries')" : c.match.measure === "pt2" ? "findable tracks (pT²)" : `energy in ${c.match.in}`}`} />}
+            {q?.score !== undefined && <p class="hint" title="The associator's ranking value: 0 is best. For calorimeter objects it is squared and energy weighted, so 1 − score is not a purity">
+              score {short(q.score)} <span class="muted">· the associator's ranking, 0 best; not a fraction</span></p>}
+          </div>
           {generator >= 0 && generator !== p && <p class="hint">The match is part of the generator particle {chip(truth, generator)}, whose colour it takes.</p>}
           {particles && generator === p && aboveLevel(truth, p) && <p class="hint">The match is above the generator particles (it decayed in the generator, e.g. a π⁰):
             this object merges the particles it decayed to.</p>}
@@ -100,16 +100,24 @@ export function TruthCard({ table, row }: { table: string; row: number }) {
   );
 }
 
-/** A kind with no truth of its own: why, and the one constituent's own match where one part speaks for it. */
-function NoTruth({ table, row, reason, gap }: { table: string; row: number; reason: string; gap?: number }) {
-  const kind = truthName(table);
+/** A purity or completeness as a bar (linear, 0 to 100%), with what it counts; `good`: the kind's clean-match
+ *  threshold, marked on the bar, which is green from there and amber below. */
+function Meter({ name, value, good, title, note }: { name: string; value: number; good?: number; title: string; note: string }) {
+  const state = good === undefined ? "" : value >= good ? "ok" : "warn";
   return (
-    <section class="truthcard">
-      <p class="truthline" title="The truth graph has no answer for this kind: evd builds none (no ΔR, no vote through hits). See the Truth tab's coverage list.">
-        <span class="badge truth">truth</span> no truth for {kind}: {reason}{gap !== undefined && <span class="muted"> (truth-graph.md gap {gap})</span>}</p>
-      <Constituent table={table} row={row} truth={modes.value.roots.truth!} />
-    </section>
+    <div class="meter" title={`${title}${good !== undefined ? `. Clean from ${percent(good)}` : ""}`}>
+      <span class="mname">{name}</span>
+      <span class="mbar"><i class={state} style={{ width: `${Math.round(100 * Math.min(1, Math.max(0, value)))}%` }} />{good !== undefined && <u style={{ left: `${100 * good}%` }} />}</span>
+      <b>{percent(value)}</b>
+      <span class="muted mnote">{note}{good !== undefined && ` · ${value >= good ? "clean match" : "impure"} (clean from ${percent(good)})`}</span>
+    </div>
   );
+}
+
+/** A kind with no truth of its own: the one constituent's own match where one part speaks for it (why the kind has
+ *  none is said on its step of the chain). */
+function NoTruth({ table, row }: { table: string; row: number }) {
+  return <Constituent table={table} row={row} truth={modes.value.roots.truth!} />;
 }
 
 /** No match for the object itself: say so, and give the match of its single part (e.g. a track-only candidate's
@@ -188,6 +196,16 @@ export function Lineage({ row, compact = false }: { row: number; compact?: boole
     </li>
   );
   const entered = flags ? children.filter((c) => (Number(flags[c]) >>> 3) & 1).length : 0;
+  // Under a reco object's card: one line from the collision down to the match (select the particle for the rest).
+  if (compact) return (
+    <div class="lineage crumb" title="Where the match sits in the truth graph, from the collision down (simulation). Click a particle to go to it; X goes to the match">
+      <span class="badge truth">truth</span><span class="muted">chain</span>
+      {folded > 0 && <span class="muted" title={`${folded} earlier step${folded > 1 ? "s" : ""} up to the collision${lastParton >= 0 ? " (quarks and gluons of the generator)" : ""}`}>… ›</span>}
+      {shown.map((r, k) => <>{k > 0 && <span class="muted" aria-hidden="true">›</span>}<span class={r === row ? "here" : undefined}>{chip(truth, r)}</span>
+        {r === row && levels(r).map(([, name, what]) => <span class="badge level" title={what}>{name}</span>)}</>)}
+      {children.length > 0 && <span class="muted">› {children.length} daughter{children.length > 1 ? "s" : ""}</span>}
+    </div>
+  );
   return (
     <div class="lineage" title="Where it sits in the truth graph: its ancestors, itself and its daughters (simulation); the reco objects whose best match a particle is (associator)">
       {!compact && <p class="truthline"><span class="badge truth">truth</span> lineage in the truth graph</p>}

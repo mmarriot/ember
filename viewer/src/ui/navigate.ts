@@ -6,7 +6,7 @@ import { type DisplayLayer, kindName } from "../io/bundle";
 import { filterMask, filters } from "../model/custom";
 import { rowsInDomain, stepDomain, withFocus } from "../model/domains";
 import { passes, stepRow, topRows } from "../model/objects";
-import { bundle, cuts, domain, drawnLayers, event, focus, focusBack, focusOn, highlight, layerKey, layerOf, openTab, selection, shared, sizeColumn, tabOfDomain, toast, view } from "../model/store";
+import { bundle, cuts, domain, drawnLayers, event, focus, focusBack, focusOn, highlight, ladder, layerKey, layerOf, openTab, reconstructed, selection, shared, sizeColumn, tabOfDomain, toast, view } from "../model/store";
 import type { Ref } from "../model/relations";
 import { engine } from "./Viewport";
 
@@ -21,6 +21,22 @@ export function back() {
   if (!prev) return;
   selection.value = { ...prev };
   engine?.frame(highlight.peek() ?? undefined, true, 800);
+}
+
+/** Across the reco ↔ truth link (keyboard: X): from a reco object to its best truth match; from a truth object to the
+ *  reco object of the latest reconstruction step whose own best match it is (else the one holding most of it). Says
+ *  so when there is nothing on the other side. */
+export function cross() {
+  const sel = selection.peek(), l = ladder.peek(), rec = reconstructed.peek();
+  if (!sel) return;
+  if (l) {
+    const m = l.self.links.find((x) => x.kind === "match");
+    if (m?.kind === "match" && m.partners.length) return jump({ table: m.truth, row: m.partners[0][0] });
+    return toast(m ? "No truth match for this object" : "No truth link for this kind: step to one of its parts");
+  }
+  const all = (rec?.reco ?? []).filter((r) => r.partners.length), own = all.find((r) => r.partners.some((p) => p.best)) ?? all[0];
+  if (!own) return toast("Nothing reconstructed is linked to this truth object");
+  jump({ table: own.table, row: (own.partners.find((p) => p.best) ?? own.partners[0]).row });
 }
 
 /** Look at one domain (header `domains`): only its layers, those of shared domains and those without a domain are

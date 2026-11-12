@@ -7,10 +7,10 @@ import { startDomain } from "../model/domains";
 import { activeMode, bundle, bundleName, catalogue, colourChoice, dialog, domain, event, eventIndex, focusLevel, highlight, labelsOn, openBundle, refreshCatalogue, selection, shownLevel, stepEvent, stepFocusLevel, truthColours, view } from "../model/store";
 import { SYNTAX } from "./ExprForm";
 import { Header } from "./Header";
-import { Inspector } from "./Inspector";
+import { Navigator } from "./Navigator";
 import { menuOpen } from "./Menu";
 import { Sidebar } from "./Sidebar";
-import { chooseDomain, nextDomain, nextObject, showWhole } from "./navigate";
+import { back, chooseDomain, cross, nextDomain, nextObject, showWhole } from "./navigate";
 import { stopTour, toggleTour } from "./tour";
 import { engine, replayEvent, Viewport } from "./Viewport";
 import { Modal, Toasts } from "./widgets";
@@ -67,6 +67,8 @@ export function App() {
       else if (e.key === "f" || e.key === "F") engine?.frame(highlight.value ?? undefined, true);
       else if (e.key === "l" || e.key === "L") labelsOn.value = !labelsOn.value;
       else if (e.key === "n" || e.key === "N") nextObject(e.shiftKey ? -1 : 1);
+      else if (e.key === "x" || e.key === "X") cross();
+      else if (e.key === "b" || e.key === "B") back();
       else if (e.key === "Home") showWhole();
       else if (e.key === "r" || e.key === "R") void replayEvent();
     };
@@ -86,7 +88,7 @@ export function App() {
     <div class="app">
       <Header />
       <Sidebar />
-      <main><Viewport /><Inspector /></main>
+      <main><Viewport /><Navigator /></main>
       {dialog.value === "help" && <HelpDialog />}
       <Toasts />
     </div>

@@ -13,14 +13,13 @@ import { colours, type LayerFor, type Legend, PALETTES, valueRange, type Pal, ty
 import { Engine, MIN_RADIUS, type ViewName } from "../render/engine";
 import { builders, type Layer } from "../render/layers";
 import { growIn, planReplay, type Parts, type Plan } from "../render/replay";
-import { back, chooseDomain, jump } from "./navigate";
+import { jump } from "./navigate";
 import {
-  activeMode, bundle, cuts, describe, domain, drawnLayers, event, focus, focusBar, focusHidden, focusHistory, focusIsTruth, focusLayers, focusLevel, focusLinked, following,
-  highlight, hover, inDomain, noTruth, inFocus, isHitLayer, kindOf, labelOf, layerKey, layerOf, legends, levelTop, pairView, rawEvent, replayCaption, selection, short,
+  activeMode, bundle, cuts, describe, domain, drawnLayers, event, focus, focusHidden, focusIsTruth, focusLayers, focusLinked, following,
+  highlight, hover, inDomain, noTruth, inFocus, isHitLayer, labelOf, layerKey, layerOf, legends, levelTop, pairView, rawEvent, replayCaption, selection, short,
   showAll, shown, shownLayer, shownLevel, theme, touring, view,
 } from "../model/store";
 import { PAIR } from "../model/pair";
-import type { Ref } from "../model/relations";
 import { stopTour, tourCaption } from "./tour";
 import { Labels } from "./Labels";
 
@@ -324,7 +323,6 @@ export function Viewport() {
       <canvas ref={canvas} onPointerDown={onDown} onPointerUp={onUp} onPointerMove={onMove} onPointerLeave={() => (hover.value = null)} onClick={onClick} onDblClick={onDoubleClick} />
       <Labels />
       <Tooltip />
-      <FocusBar />
       <ReplayCaption />
       {(bundle.value?.header.domains?.length ?? 0) >= 2 && <Views />}
       <div class="hintbar">Drag to rotate · right-drag to pan · scroll to zoom · click to inspect · double-click to zoom in · <kbd>?</kbd> help</div>
@@ -340,55 +338,6 @@ export function Views() {
     <div class="segmented views" role="group" aria-label="View">
       {VIEWS.map(([v, name, key]) => (
         <button class={view.value === v ? "on" : ""} title={`${name} view (${key})`} onClick={() => (view.value = v)}>{name}</button>
-      ))}
-    </div>
-  );
-}
-
-/** What the view is focused on, the way back, and how to leave. */
-function FocusBar() {
-  const f = focus.value, prev = focusHistory.value.at(-1);
-  if (!f) return null;
-  const name = (r: Ref) => {
-    const n = describe(r.table, r.row);
-    return `${kindOf(r.table)}${n ? ` · ${n}` : ` #${r.row}`}`;
-  };
-  return (
-    <div class="focusbar" role="status">
-      <div class="row" title="It is shown with its smallest parts; only its parts can be clicked">
-        {prev && <button class="link" onClick={back} title={`Back to ${name(prev)}`}>← {name(prev)}</button>}
-        <span class="muted">Focus</span> <b>{name(f)}</b>
-        <button class="link" onClick={() => (selection.value = null)}>leave (Esc)</button>
-      </div>
-      <Levels />
-    </div>
-  );
-}
-
-/** The kinds of object the focus is made of, top first: the last ones (its smallest objects, e.g. hits) are always
- *  shown, one of the others on request (a click, or ↓ ↑), so they do not cover each other. With parts of the detector,
- *  the levels of the domain looked at (and the shared ones), and a chip for each other part the focus has objects in:
- *  a click there looks at that part, keeping the focus. */
-function Levels() {
-  const { bar: lv, chips } = focusBar.value, chosen = focusLevel.value;
-  if (!lv.some((l) => !l.always) && !chips.length) return null;
-  return (
-    <div class="row levels" title="What it is made of, from the largest objects down: click one to show it as well (↓ ↑)">
-      {pairView.value && <span class="muted" title="Counts: the pair's objects (its candidate's, and its particle's in other candidates or none)">truth ↔ reco pair:</span>}
-      {lv.map((l, i) => {
-        const last = l.always, on = last || l.name === chosen;
-        return (
-          <>
-            {i > 0 && <span class="muted" aria-hidden="true">›</span>}
-            <button class={on ? "level on" : "level"} disabled={last} aria-pressed={on}
-              onClick={() => (focusLevel.value = on ? null : l.name)}>{l.name} <span class="count">{l.count.toLocaleString()}</span></button>
-          </>
-        );
-      })}
-      {chips.length > 0 && <span class="muted chipsin">{lv.length ? "· in" : "in"}</span>}
-      {chips.map(({ domain: name, level }) => (
-        <button class="level part" title={`Look at it in ${name}, keeping the focus (D): its ${level.name.toLowerCase()} and what they are made of`}
-          onClick={() => chooseDomain(name)}>{name} <span class="count">{level.count.toLocaleString()}</span></button>
       ))}
     </div>
   );

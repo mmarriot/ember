@@ -11,6 +11,7 @@ import { modeColouring, modeRoots, recoColourOf } from "./modes";
 import { opensPair, truthStatus, type TruthStatus } from "./match";
 import { PAIR, type Pair, pairFor, pairShows } from "./pair";
 import { levelsOf, type Related, relatedParts, sameRef, type Ref } from "./relations";
+import { recoLadder, recoOfTruth } from "./chain";
 
 /** One entry of the site's index.json (written by `evdtools sync`; hand-written ones need only file and title). */
 export interface Listed { file: string; title: string; campaign?: string; campaign_title?: string; events?: number; data_time?: string }
@@ -226,6 +227,19 @@ const partsOf = (ref: Ref | null) => {
 const focusParts = computed(() => partsOf(focus.value));
 /** The selection's relatives: what it is made of, what it is part of, what is linked to it (e.g. its truth particle). */
 export const relatives = computed(() => (sameRef(selection.value, focus.value) ? focusParts.value : partsOf(selection.value)));
+/** The selection's ladder (model/chain.ts): for a reco object, what it is part of, itself and what it is made of,
+ *  each step with its link to the truth; null for a truth object. */
+export const ladder = computed(() => {
+  const b = bundle.value, ev = event.value, sel = selection.value, parts = relatives.value;
+  if (!b || !ev || !sel || !parts || layerOf(sel.table)?.truth) return null;
+  return recoLadder(ev, b.header, sel, parts, truthStatuses.value, modes.value.roots.truth);
+});
+/** For a selected truth object: what was reconstructed from it, per reco kind, and the hits it left (model/chain.ts). */
+export const reconstructed = computed(() => {
+  const b = bundle.value, ev = event.value, sel = selection.value;
+  if (!b || !ev || !sel || !layerOf(sel.table)?.truth || sel.row >= (ev.tables[sel.table]?.n ?? 0)) return null;
+  return recoOfTruth(ev, b.header, sel);
+});
 /** What is drawn highlighted: the focus, its levels and what is linked to it (e.g. its truth particle). What contains it
  *  is listed in the inspector, not highlighted: big containers would cover it. */
 export const highlight = computed(() => {

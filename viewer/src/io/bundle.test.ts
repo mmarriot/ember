@@ -72,6 +72,19 @@ describe("httpSource", () => {
     expect(asked[1][1].cache).toBeUndefined(); // this version's ranges may come from the cache
     vi.unstubAllGlobals();
   });
+
+  it("refuses the bytes of a file replaced since it was opened", async () => {
+    let etag = '"v1"';
+    vi.stubGlobal("fetch", async (_url: string, init: RequestInit) => {
+      const [, a, b] = (init.headers as Record<string, string>).Range.match(/bytes=(\d+)-(\d+)/)!.map(Number);
+      return new Response(new Uint8Array(b - a + 1), { status: 206, headers: { "Content-Range": `bytes ${a}-${b}/100`, ETag: etag } });
+    });
+    const src = await httpSource("x.evdb");
+    await src.read(0, 4);
+    etag = '"v2"'; // converted again under the same name
+    await expect(src.read(4, 4)).rejects.toThrow(/changed on the server/);
+    vi.unstubAllGlobals();
+  });
 });
 
 describe("event cache", () => {

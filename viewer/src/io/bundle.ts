@@ -215,7 +215,7 @@ export async function httpSource(url: string): Promise<Source> {
   if (!probe.ok) throw new Error(`${url}: HTTP ${probe.status}`);
   if (probe.status === 200) return blobSource(await probe.blob()); // server ignores Range: keep the whole file
   const size = Number(probe.headers.get("Content-Range")?.split("/")[1]);
-  const version = probe.headers.get("ETag") ?? probe.headers.get("Last-Modified");
+  const validator = probe.headers.has("ETag") ? "ETag" : "Last-Modified", version = probe.headers.get(validator);
   const at = version ? `${url}${url.includes("?") ? "&" : "?"}v=${encodeURIComponent(version)}` : url;
   // Servers (or caches in between) may answer any range request with the whole file (HTTP 200): from then on
   // keep that copy and serve every read from it.
@@ -225,7 +225,10 @@ export async function httpSource(url: string): Promise<Source> {
     async read(offset, length) {
       if (!whole) {
         const r = await fetch(at, { headers: { Range: `bytes=${offset}-${offset + length - 1}` } });
-        if (r.status === 206) return r.arrayBuffer();
+        if (r.status === 206) { // from the file opened: one replaced since would give its bytes at this one's offsets
+          if (version && r.headers.get(validator) !== version) throw new Error(`${url} changed on the server since it was opened: open it again`);
+          return r.arrayBuffer();
+        }
         if (!r.ok) throw new Error(`${url}: HTTP ${r.status}`);
         whole = r.blob();
       }

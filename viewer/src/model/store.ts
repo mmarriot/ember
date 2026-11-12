@@ -39,10 +39,16 @@ export const DETECTOR = "Detector";
 /** Whether a layer belongs in the current domain's view: its own domain's layers, those without a domain and those of
  *  a shared domain. */
 export const inDomain = (d: DisplayLayer, current = domain.value) => drawsLayer(d, current, shared.value);
-/** The layers drawn: ticked and in the domain's view (display layer key -> drawn). */
+/** One kind of object looked at alone (its heading's "only", e.g. "Tracks", "Jets"): only its collections are drawn,
+ *  whatever the part of the detector looked at; null: everything ticked. A view, like `domain`: the ticks are kept,
+ *  and a selection still draws its own objects of other kinds (its parts, its truth). */
+export const solo = signal<string | null>(null);
+/** The layers drawn: ticked and in the domain's view (display layer key -> drawn); with a kind alone (`solo`), its
+ *  collections (those ticked, and its preferred reconstruction path's whether ticked or not). */
 export const drawnLayers = computed(() => {
-  const vis = visible.value, d = domain.value;
-  return Object.fromEntries((bundle.value?.header.display ?? []).map((l) => [layerKey(l), !!vis[layerKey(l)] && inDomain(l, d)]));
+  const vis = visible.value, d = domain.value, only = solo.value;
+  return Object.fromEntries((bundle.value?.header.display ?? []).map((l) => [layerKey(l),
+    only ? l.group === only && (!!vis[layerKey(l)] || !l.alternative) : !!vis[layerKey(l)] && inDomain(l, d)]));
 });
 export const legends = signal<Record<string, Legend>>({}); // display layer key -> legend of the drawn layer
 export const shown = signal<Record<string, number>>({}); // display layer key -> objects passing the cuts
@@ -77,6 +83,11 @@ export const kindOf = (table: string) => { const d = layerOf(table); return d ? 
 export const labelOf = (table: string) => {
   const d = layerOf(table);
   return !d ? table : d.kind ? `${d.group} · ${layerName(d)}` : d.label;
+};
+/** A table's kind, with its layer's name only where the kind has several collections ("PF clusters · ECAL"). */
+export const stepName = (table: string) => {
+  const all = bundle.value?.header.display.filter((l) => !l.alternative && kindOf(l.table) === kindOf(table)) ?? [];
+  return new Set(all.map((l) => l.table)).size > 1 ? `${kindOf(table)} · ${layerOf(table)?.label}` : kindOf(table);
 };
 /** Whether a layer shows detector hits: drawn as cells, and not a background layer. */
 export const isHitLayer = (d: DisplayLayer | undefined) => d?.repr === "cells" && !d.context;
@@ -208,7 +219,7 @@ export const cutGroups = computed(() => {
   return groups;
 });
 
-// Selection and focus. The selection is what the inspector describes. The focus is the object clicked from outside
+// Selection and focus. The selection is what the card (ui/Navigator.tsx) describes. The focus is the object clicked from outside
 // any focus (e.g. a candidate): while it lasts, it is drawn with its smallest parts (e.g. hits) and, on request, one
 // level in between (see `levels`), and only its objects can be picked. Selecting one of them keeps the focus;
 // selecting anything else focuses on it (the old focus is kept for "back"); clearing the selection (a click on
@@ -313,7 +324,7 @@ export const levels = computed(() => {
   // Looking at everything in a bundle with parts of the detector: same-depth levels of different parts become one.
   return !domain.value && (b.header.domains?.length ?? 0) >= 2 ? mergeAcrossDomains(lv, shared.value) : lv;
 });
-/** The focus bar: the levels the current domain draws as its own or shares, and a chip per other part of the
+/** The levels ↓ ↑ step through and the card's chain offers to show (`bar`): those the current domain draws as its own or shares; and (`chips`) one per other part of the
  *  detector the focus has levels in (model/levels.ts scopeLevels). */
 export const focusBar = computed(() => scopeLevels(levels.value, domain.value, shared.value, (bundle.value?.header.domains ?? []).map((d) => d.name)));
 /** The chosen level, if the focus has it and it is not one drawn anyway (the bottom ones, lines); else null. */
@@ -321,7 +332,7 @@ export const shownLevel = computed(() => {
   const c = focusLevel.value;
   return levels.value.some((l) => !l.always && l.name === c) ? c : null;
 });
-/** Step the shown level down (+1) or up (-1) among the focus bar's; false (and nothing changes) if it has none to step
+/** Step the shown level down (+1) or up (-1) among the current domain's (focusBar); false (and nothing changes) if it has none to step
  *  through. */
 export function stepFocusLevel(by: number) {
   const bar = focusBar.peek().bar; // the levels of the current domain (and the shared ones)
@@ -385,6 +396,7 @@ export async function openBundle(name: string, open = () => httpSource(name), st
       b.header.display = b.header.display.filter(placed);
     }
     bundle.value = b;
+    solo.value = null;
     colourChoice.value = "reco";
     bundleName.value = name;
     const first = startDomain(b.header); // the domain it opens on (e.g. the physics objects), in its view

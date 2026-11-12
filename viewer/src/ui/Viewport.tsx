@@ -17,7 +17,7 @@ import { jump } from "./navigate";
 import {
   activeMode, bundle, cuts, describe, domain, drawnLayers, event, focus, focusHidden, focusIsTruth, focusLayers, focusLinked, following,
   highlight, hover, inDomain, noTruth, inFocus, isHitLayer, labelOf, layerKey, layerOf, legends, levelTop, pairView, rawEvent, replayCaption, selection, short,
-  showAll, shown, shownLayer, shownLevel, theme, touring, view,
+  showAll, shown, shownLayer, shownLevel, solo, theme, touring, view,
 } from "../model/store";
 import { PAIR } from "../model/pair";
 import { stopTour, tourCaption } from "./tour";
@@ -324,6 +324,7 @@ export function Viewport() {
       <Labels />
       <Tooltip />
       <ReplayCaption />
+      {solo.value && <div class="solobar" role="status">Only <b>{solo.value}</b> <button class="link" title="Draw everything ticked again" onClick={() => (solo.value = null)}>show everything</button></div>}
       {(bundle.value?.header.domains?.length ?? 0) >= 2 && <Views />}
       <div class="hintbar">Drag to rotate · right-drag to pan · scroll to zoom · click to inspect · double-click to zoom in · <kbd>?</kbd> help</div>
     </div>

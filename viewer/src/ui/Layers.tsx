@@ -11,7 +11,7 @@ import { columnName, passes, topRows } from "../model/objects";
 import { PALETTES, relatedColourText, type Legend } from "../render/colour";
 import {
   activeMode, bundle, cutGroups, cuts, describe, event, noTruth, truthStatuses, focusHidden, focusLayers, focusLevel, labelOf, layerKey, layerName, legends, levels, modes, pairView,
-  selection, short, showAll, shown, shownLayer, sizeColumn, theme, visible,
+  selection, short, showAll, shown, shownLayer, sizeColumn, solo, theme, visible,
 } from "../model/store";
 import { ExprForm } from "./ExprForm";
 import { rowHover } from "./Labels";
@@ -37,7 +37,10 @@ export function Collections({ layers }: { layers: DisplayLayer[] }) {
         return (
           <section class={shut ? "kind folded" : "kind"} key={group}>
             <h3><button class="fold" aria-expanded={!shut} title={shut ? "Show this kind's collections" : "Fold this kind"} onClick={() => fold(id)}>{group}</button>
-              {sameTruth(ls) && <TruthWord table={ls[0].table} />}{shut && <span class="count"> {drawn} of {ls.length} drawn</span>}</h3>
+              {sameTruth(ls) && <TruthWord table={ls[0].table} />}{shut && <span class="count"> {drawn} of {ls.length} drawn</span>}
+              <button class={solo.value === group ? "only on" : "only"} aria-pressed={solo.value === group}
+                title={solo.value === group ? "Back to everything ticked" : `Look at only the ${group.toLowerCase()}: nothing else is drawn until you select one, which brings its parts and its truth`}
+                onClick={() => (solo.value = solo.value === group ? null : group)}>only</button></h3>
             {/* each slider just before the first row it cuts (a kind can have several, e.g. one per calorimeter) */}
             {!shut && ls.map((d) => <Fragment key={layerKey(d)}>{cutsOf([d]).map((name) => <CutRow name={name} here={ls} named={new Set(ls.flatMap((x) => (x.cut ? [x.cut.group] : []))).size > 1} />)}<LayerRow d={d} label={d.label} /></Fragment>)}
           </section>
@@ -124,7 +127,9 @@ const glyph = (d: DisplayLayer) =>
 function LayerRow({ d, label }: { d: DisplayLayer; label: string }) {
   const b = bundle.value!, key = layerKey(d), n = event.value?.tables[d.table]?.n ?? 0, legend = legends.value[key];
   const on = !!visible.value[key], s = shown.value[key], filter = filters.value[d.table];
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(false), [listed, setListed] = useState(false);
+  // Its largest objects can be listed (those with a `list` hint always are); not hits, which lead nowhere.
+  const t = event.value?.tables[d.table], canList = !d.list && !d.context && d.repr !== "cells" && n > 0 && !!t;
   // A layer of one of the focus's levels: ticking it (or the link under it) shows that level.
   const level = levels.value.find((l) => l.layers.includes(d))?.name, showLevel = () => level && (focusLevel.value = level);
   return (
@@ -137,6 +142,7 @@ function LayerRow({ d, label }: { d: DisplayLayer; label: string }) {
           {!sameTruth(kindLayers(d)) && <TruthWord table={d.table} />}
           <span class="count">{on && s !== undefined && s !== n ? `${s.toLocaleString()} / ` : ""}{n.toLocaleString()}</span>
         </label>
+        {canList && <button class={listed ? "more on" : "more"} aria-expanded={listed} title="List its largest objects: click one to select it (N steps through them)" onClick={() => setListed(!listed)}>☰</button>}
         <button class={open ? "more on" : "more"} aria-expanded={open} title="Colour, filter and new columns" onClick={() => setOpen(!open)}>⋯</button>
       </div>
       {!on && focusLayers.value.has(key) && <div class="sub muted">shown for the focus</div>}
@@ -155,12 +161,13 @@ function LayerRow({ d, label }: { d: DisplayLayer; label: string }) {
       )}
       {open ? <Options d={d} legend={on ? legend : undefined} /> : on && legend && !keyed(d) && <div class="legend"><Scale d={d} legend={legend} /></div>}
       {on && d.list && <ObjectRows d={d} />}
+      {listed && canList && <ObjectRows d={d} list={{ columns: [sizeColumn(d.table, t!)].filter((c): c is string => !!c), max: 8 }} />}
     </div>
   );
 }
 
 /** A layer's rows that pass its cut and filter (model/objects.ts). */
-function passing(d: DisplayLayer) {
+export function passing(d: DisplayLayer) {
   const t = event.value?.tables[d.table];
   if (!t) return null;
   return { t, pass: passes(d, t, d.cut ? cuts.value[d.cut.group] ?? 0 : 0, filterMask(t, filters.value[d.table])) };
@@ -191,8 +198,8 @@ function Headline({ layers }: { layers: DisplayLayer[] }) {
 
 /** The largest objects of a layer with a `list` hint, one row each with its columns; a click selects (and frames) it,
  *  the pointer over a row rings the object in the view. */
-function ObjectRows({ d }: { d: DisplayLayer }) {
-  const p = passing(d), sel = selection.value, list = d.list!;
+function ObjectRows({ d, list = d.list! }: { d: DisplayLayer; list?: NonNullable<DisplayLayer["list"]> }) {
+  const p = passing(d), sel = selection.value;
   if (!p) return null;
   const cols = list.columns.filter((c) => c in p.t.columns);
   const rows = topRows(p.t, list.sort ?? sizeColumn(d.table, p.t), p.pass, list.max ?? 10);

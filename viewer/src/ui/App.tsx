@@ -4,7 +4,7 @@ import { useEffect } from "preact/hooks";
 import { blobSource } from "../io/bundle";
 import type { ViewName } from "../render/engine";
 import { startDomain } from "../model/domains";
-import { activeMode, bundle, bundleName, catalogue, colourChoice, dialog, domain, event, eventIndex, focusLevel, highlight, labelsOn, openBundle, refreshCatalogue, selection, shownLevel, stepEvent, stepFocusLevel, truthColours, view } from "../model/store";
+import { activeMode, bundle, bundleName, catalogue, colourChoice, dialog, domain, event, eventIndex, focusLevel, highlight, labelsOn, openBundle, refreshCatalogue, selection, shownLevel, solo, stepEvent, stepFocusLevel, truthColours, view } from "../model/store";
 import { SYNTAX } from "./ExprForm";
 import { Header } from "./Header";
 import { Navigator } from "./Navigator";
@@ -32,6 +32,8 @@ export function App() {
       if (d) chooseDomain(d === ALL ? null : d, false);
       const v = url.get("v") as ViewName | null;
       if (v && Object.values(VIEW_KEYS).includes(v)) view.value = v;
+      const only = url.get("only"); // one kind alone
+      if (only && bundle.peek()?.header.display.some((l) => l.group === only)) solo.value = only;
       const [table, row] = (url.get("s") ?? "").split(":");
       // A link made before the data set was re-converted may name a row that no longer exists.
       if (table && row && Number(row) < (event.peek()?.tables[table]?.n ?? 0)) selection.value = { table, row: Number(row) };
@@ -44,7 +46,7 @@ export function App() {
     const stopUrl = effect(() => {
       const s = selection.value, d = domain.value ?? (startDomain(bundle.value?.header) ? ALL : null), lv = s && shownLevel.value;
       const p = new URLSearchParams({ b: bundleName.value, e: String(eventIndex.value), v: view.value, ...(d ? { d } : {}), ...(s ? { s: `${s.table}:${s.row}` } : {}),
-        ...(lv ? { lv } : {}), ...(activeMode.value === "truth" ? { c: "truth" } : {}) });
+        ...(lv ? { lv } : {}), ...(activeMode.value === "truth" ? { c: "truth" } : {}), ...(solo.value ? { only: solo.value } : {}) });
       if (bundleName.value) history.replaceState(null, "", `#${p}`);
     });
 
@@ -106,17 +108,19 @@ function HelpDialog() {
       [["F"], "double-click it", "Zoom to the selection"], [["Home"], "the reset button", "Show the whole event"],
     ]],
     ["Select and explore", [
-      [[], "click it", "Inspect an object: it is shown with its smallest parts (e.g. hits), and further clicks pick among its parts"],
+      [[], "click it", "Select an object: its card shows its chain (what it is part of, what it is made of) and what the truth says at every step; the view shows it with its smallest parts (e.g. hits)"],
       [[], "click again on the same spot", "Objects on top of each other: the next one"],
-      [["↓", "↑"], "click a level in the bar at the top left of the view", "See what it is made of, level by level (e.g. its tracksters, then their layer clusters); a part of the detector named there (e.g. Calo 9) shows its objects in that part"],
-      [["N", "⇧N"], "", "Next / previous object of the selected kind, largest first (e.g. the next jet); with nothing selected, the leading object"],
-      [[], "click it in the inspector or the tree, or an object linked to the one shown", "Go to a related object (e.g. its truth-graph particle)"],
-      [[], "← in the bar at the top left of the view", "Back to the previous object"],
+      [[], "click an object in the card's chain, the side panel or the tree", "Walk the chain: up to what contains it, down to its parts"],
+      [["X"], "click the particle on a step's match line", "Across the link: from a reco object to its truth match, from a truth particle to what was reconstructed from it"],
+      [["B"], "← at the top of the card", "Back to the previous object"],
+      [["↓", "↑"], "show on a step of the chain", "Draw one step of what it is made of in the view (e.g. its tracksters, then their layer clusters); a part of the detector named on a step (e.g. Tracker ›) looks there"],
+      [["N", "⇧N"], "☰ on a collection lists its largest objects", "Next / previous object of the selected kind, largest first (e.g. the next jet, the next track); with nothing selected, the leading object"],
       [["Esc"], "click on empty space", "Leave the object; Esc also shows the whole event (and closes this dialog or the menu)"],
     ]],
     ["Event and parts of the detector", [
       [["←", "→"], "the arrows at the top", "Previous / next event"],
       [["D", "⇧D"], "the Look at buttons at the top (when the data has several parts)", "One part of the detector (e.g. the tracker), or all; a selection stays selected, and D skips the parts it has nothing in"],
+      [[], "only on a kind's heading in the side panel", "One kind of object alone (e.g. only the tracks, only the jets); selecting one brings its parts and its truth"],
     ]],
     ["Colours and labels", [
       [["T"], "Reco · Truth in the colour key or the menu", "Colours: what the reconstruction made, or what was really there"],
@@ -156,16 +160,18 @@ function HelpDialog() {
         every part of the detector (a conversion's electrons and an interacting pion's daughters take their particle's colour); a reco
         object takes its particle's colour only where it is a clean match (e.g. 75% of a track's hits), else grey. Selecting anything
         shows its truth ↔ reco pair: a generator particle and its best candidate, every hit coloured shared, contamination, split off or
-        missed, with the particle's completeness and the candidate's purity in the key. The inspector says what each reco kind
-        reconstructs, how pure and complete its match is, and where its particle sits in the truth graph. Truth is drawn dashed.
+        missed, with the particle's completeness and the candidate's purity as bars in its card. Each step of the card's chain says
+        what the truth graph has for it: match (the CMSSW associator's, with its purity), fact (simulated energy per particle in its hits),
+        derived (worked out in evd) or no truth for that kind yet. The Truth tab counts, for each matched kind, the clean, impure and
+        unmatched objects of the event. Truth is drawn dashed.
         ⋯ on a row colours it by any column, or by the colour of a related object, instead. With something selected, everything
         unrelated fades.</p>
       <h3>Expressions</h3>
       <p class="hint">A filter or a new column (⋯ on a row) is an expression of the table's columns: {SYNTAX}. A filter hides the rows where
         it is 0; a new column is shown in the inspector and can colour or filter.</p>
       <h3>Sharing</h3>
-      <p class="hint">The address bar keeps the data set, event, view, part of the detector, selection, the level shown and the truth
-        colours; the share button copies it.</p>
+      <p class="hint">The address bar keeps the data set, event, view, part of the detector, a kind looked at alone, selection, the level
+        shown and the truth colours; the share button copies it.</p>
     </Modal>
   );
 }

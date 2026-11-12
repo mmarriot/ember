@@ -14,18 +14,12 @@ import { percent } from "../model/match";
 import { PAIR } from "../model/pair";
 import type { Ref } from "../model/relations";
 import { PALETTES } from "../render/colour";
-import { bundle, describe, domain, event, focusBar, focusHistory, focusLevel, full, highlight, kindOf, labelOf, ladder, layerKey, layerOf, modes, pairView, reconstructed, selection, shared, short, shownLevel, sizeColumn, theme, truthName, truthStatuses } from "../model/store";
+import { bundle, describe, domain, event, focusBar, focusHistory, focusLevel, full, highlight, kindOf, labelOf, ladder, layerKey, layerOf, modes, pairView, reconstructed, selection, shared, short, shownLevel, sizeColumn, stepName, theme, truthName, truthStatuses } from "../model/store";
 import { facts, unitOf as factUnit } from "../model/facts";
 import { engine } from "./Viewport";
 import { back, chooseDomain, jump } from "./navigate";
 import { Lineage, TruthCard } from "./Truth";
 import { Icon } from "./widgets";
-
-/** A table's kind, with its layer's name only where the kind has several collections drawn ("PF clusters · ECAL"). */
-function stepName(table: string) {
-  const all = bundle.value?.header.display.filter((l) => !l.alternative && kindOf(l.table) === kindOf(table)) ?? [];
-  return new Set(all.map((l) => l.table)).size > 1 ? `${kindOf(table)} · ${layerOf(table)?.label}` : kindOf(table);
-}
 
 const INLINE = 3; // a step with at most this many objects names them; a longer one counts them and unfolds
 const LISTED = 40; // objects listed in an unfolded step

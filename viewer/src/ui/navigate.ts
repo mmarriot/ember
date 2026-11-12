@@ -100,7 +100,7 @@ export function nextObject(by = 1) {
   const drawn = drawnLayers.peek(), d = sel ? layerOf(sel.table)
     : b.header.display.find((l) => l.labels && drawn[layerKey(l)]) ?? b.header.display.find((l) => l.list && drawn[layerKey(l)]);
   if (!d) return;
-  if (!d.list) return toast(`N steps through objects listed in the side panel (e.g. jets); ${kindName(d).toLowerCase()} are not`);
+  if (d.repr === "cells" || d.context) return toast(`N steps through objects (e.g. jets, tracks); ${kindName(d).toLowerCase()} are hits`);
   const row = stepRow(ranked(d), sel?.table === d.table ? sel.row : undefined, by);
   if (row !== undefined) jump({ table: d.table, row });
 }

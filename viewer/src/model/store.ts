@@ -386,32 +386,43 @@ export async function openBundle(name: string, open = () => httpSource(name), st
   }
 }
 
-let request = 0; // the latest showEvent call: an earlier one that finishes later is not shown
-let wanted = 0; // the event it asked for: shown, or still being read
+let wanted = 0; // the event asked for last: shown, or still to be read
+let reading: Bundle | null = null; // the bundle whose event is being read: one read at a time
+let shownOf: Bundle | null = null; // the bundle of the event shown
 /** The event `d` after the one asked for last (← / →), so presses while an event is read each move on one event. */
 export const stepEvent = (d: number) => showEvent(wanted + d);
-/** Show event `i` (wrapping around), then read the next one in the direction of travel ahead (io/bundle.ts around). */
+/** Show event `i` (wrapping around), then read the next one in the direction of travel ahead (io/bundle.ts around).
+ *  One event is read at a time: asked for others meanwhile, the read goes on to the last one asked for, skipping
+ *  those in between (holding → at PU200 never has more than one 35 MB read in flight). */
 export async function showEvent(i: number) {
   const b = bundle.value;
   if (!b || !b.events.length) return;
-  const n = b.events.length, index = ((i % n) + n) % n, mine = ++request, from = rawEvent.peek() ? eventIndex.peek() : index;
-  wanted = index;
+  const n = b.events.length;
+  wanted = ((i % n) + n) % n;
+  if (reading === b) return; // the read in flight goes on to `wanted`
+  reading = b;
   loading.value = true;
-  const t0 = performance.now();
+  let index = wanted;
   try {
-    const ev = await b.event(index);
-    if (mine !== request || bundle.peek() !== b) return;
-    selection.value = null;
-    hover.value = null;
-    eventIndex.value = index;
-    rawEvent.value = ev;
-    loadMs.value = performance.now() - t0;
-    const { keep, next } = around(index, from, n);
-    b.keep(keep);
-    if (next !== null) b.event(next).catch(() => {}); // a failed read ahead is tried again when that event is shown
+    for (;;) {
+      const t0 = performance.now(), ev = await b.event(index);
+      if (bundle.peek() !== b) return; // another bundle opened meanwhile
+      if (index !== wanted) { index = wanted; continue; }
+      const from = shownOf === b ? eventIndex.peek() : index;
+      selection.value = null;
+      hover.value = null;
+      eventIndex.value = index;
+      rawEvent.value = ev;
+      shownOf = b;
+      loadMs.value = performance.now() - t0;
+      const { keep, next } = around(index, from, n);
+      b.keep(keep);
+      if (next !== null) b.event(next).catch(() => {}); // a failed read ahead is tried again when that event is shown
+      return;
+    }
   } catch (e) {
-    if (mine === request) { wanted = eventIndex.peek(); toast(`Could not read event ${index + 1}: ${e}`, "error"); }
+    if (bundle.peek() === b) { wanted = eventIndex.peek(); toast(`Could not read event ${index + 1}: ${e}`, "error"); }
   } finally {
-    if (mine === request) loading.value = false;
+    if (reading === b) { reading = null; loading.value = false; }
   }
 }

@@ -2,9 +2,9 @@
 // them have no button of their own (labels, replay, next object, levels), so the menu is where they can be found.
 import { signal } from "@preact/signals";
 import { useEffect, useRef } from "preact/hooks";
-import { bundle, colourChoice, dialog, focus, focusBar, following, highlight, labelsOn, selection, stepEvent, stepFocusLevel, theme, toggleTheme, touring, truthColours, view } from "../model/store";
+import { anchor, bundle, colourChoice, dialog, focus, focusBar, focusHistory, following, highlight, labelsOn, selection, stepEvent, stepFocusLevel, theme, toggleTheme, touring, truthColours, view } from "../model/store";
 import { toggleLive } from "./live";
-import { nextDomain, nextObject, showWhole } from "./navigate";
+import { back, cross, nextDomain, nextObject, showWhole } from "./navigate";
 import { stopTour, toggleTour } from "./tour";
 import { engine, replayEvent, VIEWS } from "./Viewport";
 
@@ -23,7 +23,7 @@ export function Menu() {
   }, [open]);
 
   const parts = (bundle.value?.header.domains?.length ?? 0) >= 2, f = focus.value;
-  const levels = !!f && focusBar.value.bar.some((l) => !l.always);
+  const levels = !!f && focusBar.value.some((l) => !l.always);
   const groups: [string, Item[]][] = [
     ["View", [
       ...VIEWS.map(([v, name, key]): Item => ({ label: name, keys: key, on: view.value === v, run: () => (view.value = v) })),
@@ -40,6 +40,8 @@ export function Menu() {
     ["Selection", [
       { label: "Next object, largest first", keys: "N", run: () => nextObject(1) },
       { label: "Previous object", keys: "⇧N", run: () => nextObject(-1) },
+      { label: "Across to its truth or reco match", keys: "X", off: !selection.value, run: cross },
+      { label: "Back to the previous object", keys: "B", off: !anchor.value && !focusHistory.value.length, run: back },
       { label: "One level down", keys: "↓", off: !levels, run: () => stepFocusLevel(1) },
       { label: "One level up", keys: "↑", off: !levels, run: () => stepFocusLevel(-1) },
       { label: "Leave the selection", keys: "Esc", off: !selection.value, run: () => { selection.value = null; showWhole(true); } },

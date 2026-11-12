@@ -3,11 +3,22 @@
 import type { DisplayLayer, Table } from "../io/bundle";
 
 /** The rows of `t` that `pass`, largest first by column `sort` (all of them if `t` has no such column, in row order),
- *  at most `max`. O(n log n) in the passing rows: a few thousand at most (PF candidates at PU200), well under a ms. */
+ *  at most `max`. For a short list (the side panel's object rows) one pass keeps the `max` largest in order, without
+ *  sorting the table: 110k layer clusters at PU200 are a scan, not a 40 ms sort on every render. Otherwise (N steps
+ *  through all of them) a sort, O(n log n) in the passing rows. */
 export function topRows(t: Table, sort: string | undefined, pass: (row: number) => boolean, max: number): number[] {
-  const rows: number[] = [];
+  const key = sort ? t.columns[sort] : undefined, rows: number[] = [];
+  if (key && max <= 64) {
+    for (let i = 0; i < t.n; i++) {
+      if (!pass(i) || (rows.length === max && !(Number(key[i]) > Number(key[rows[max - 1]])))) continue;
+      let at = Math.min(rows.length, max - 1); // insert before the first smaller one; equal ones keep row order
+      while (at > 0 && Number(key[rows[at - 1]]) < Number(key[i])) at--;
+      rows.splice(at, 0, i);
+      if (rows.length > max) rows.pop();
+    }
+    return rows;
+  }
   for (let i = 0; i < t.n; i++) if (pass(i)) rows.push(i);
-  const key = sort ? t.columns[sort] : undefined;
   if (key) rows.sort((a, b) => Number(key[b]) - Number(key[a]));
   return rows.slice(0, max);
 }

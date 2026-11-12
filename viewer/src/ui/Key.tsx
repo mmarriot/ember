@@ -3,11 +3,11 @@
 // they are made of in the same colour), the truth (everything by the generator particle it comes from), or, with
 // something selected, its truth <-> reco pair. The Reco | Truth switch (key T) chooses between the first two. Bundles
 // without candidates or truth, and a domain coloured layer by layer, have no key: each layer shows its own colours.
-import { signal } from "@preact/signals";
 import { PAIR, type PairClass } from "../model/pair";
 import { percent } from "../model/match";
 import { PALETTES } from "../render/colour";
-import { activeMode, bundle, colourChoice, describe, drawnLayers, focus, layerKey, layerOf, legends, modes, pairView, short, theme, truthColours, truthName, truthStatuses } from "../model/store";
+import { activeMode, bundle, colourChoice, describe, drawnLayers, layerKey, layerOf, legends, modes, pairView, theme, truthColours, truthName, truthStatuses } from "../model/store";
+import { Info } from "./Info";
 import { jump } from "./navigate";
 
 /** The pair view's classes, as the regions of the particle and the candidate: colour, name, meaning. */
@@ -17,14 +17,10 @@ const CLASSES: [Exclude<PairClass, 0 | 5>, string, string][] = [
   [PAIR.split, "split off", "the particle's, in other candidates"],
   [PAIR.missed, "missed", "the particle's, in no candidate"],
 ];
-const pct = (x: number, total: number) => percent(total > 0 ? x / total : undefined);
 
 export function ColourKey() {
   const pair = pairView.value, pal = PALETTES[theme.value], mode = activeMode.value, b = bundle.value;
-  const f = focus.value, selectedTruth = !!f && !!layerOf(f.table)?.truth;
   if (!b || (!truthColours.value && mode !== "pid")) return null;
-  const chip = (t: string | undefined, r: number) => (t && r >= 0 ? <button class="chip" onClick={() => jump({ table: t, row: r })}>{describe(t, r) || `#${r}`}</button> : null);
-  const eff = pair?.efficiency, effTotal = eff ? eff.candidate + eff.others + eff.missed : 0, pur = pair?.purity;
   const title = pair ? "Colour = truth ↔ reco pair" : mode === "truth" ? "Colour = generator particle (truth)" : mode === "pid" ? "Colour = candidate type (reco)" : "Colour = each layer's own";
   return (
     <details class="colourkey" open>
@@ -37,26 +33,13 @@ export function ColourKey() {
       </summary>
       {!pair && mode === "pid" && <PidKey />}
       {!pair && mode === "truth" && <TruthKey />}
-      {pair && (
-        <>
-          <p class="pairline"><span class="badge truth">truth</span> {chip(pair.truth, pair.particle) ?? <span class="muted">no particle</span>}
-            <span aria-hidden="true">↔</span> <span class="badge reco">reco</span> {chip(pair.reco, pair.candidate) ?? <span class="muted">no candidate</span>}</p>
-          {pair.particle < 0 && <p class="hint">{pair.truth ? "No truth particle is matched to this candidate" : "No truth in this file"}: its objects are shown as reconstructed, nothing confirmed.</p>}
-          {pair.particle >= 0 && pair.matched >= 0 && pair.matched !== pair.particle &&
-            <p class="hint">The selection's particle {chip(pair.truth, pair.matched)} is part of the generator particle {chip(pair.truth, pair.particle)}: the pair is the whole of it.</p>}
-          {pair.merged.length > 0 && <p class="hint">{selectedTruth ? "" : "The selection is matched to "}{chip(pair.truth, pair.particle)}{selectedTruth ? " is" : ","} above the generator particles (it decayed in
-            the generator): the pair stands for the {pair.merged.length} generator particle{pair.merged.length > 1 ? "s" : ""} it decayed to{selectedTruth ? "" : ", which the candidate merges"}: {pair.merged.slice(0, 3).map((m) => <> {chip(pair.truth, m)}</>)}{pair.merged.length > 3 ? " …" : "."}</p>}
-          <ul class="key">
-            {pair.particle < 0
-              ? <li><i style={{ background: pal.pair[PAIR.reco] }} /><b>in the candidate</b></li>
-              : CLASSES.map(([c, name, what]) => <li><i style={{ background: pal.pair[c] }} /><b>{name}</b>: <span>{what}</span></li>)}
-            <li><i class="small" style={{ background: pal.unassigned }} />everything else</li>
-          </ul>
-          {eff && effTotal > 0 && <p class="hint" title="Simulated energy of the generator particle and everything it made, in HGCal hits of the export, each hit counted once. It is the energy deposited in the sensors (sampling), not calibrated: compare it only with itself">
-            Completeness of the whole particle, of its simulated energy in HGCal ({short(effTotal)} GeV in the sensors): {pct(eff.candidate, effTotal)} in its candidate, {pct(eff.others, effTotal)} in other candidates, {pct(eff.missed, effTotal)} in none.</p>}
-          {pur && pur.particle + pur.other > 0 && <p class="hint" title="Rechit energy of the candidate's HGCal hits; each hit counted for the particle that left the most simulated energy in it">
-            Purity of the candidate against the whole particle, of its hit energy: {pct(pur.particle, pur.particle + pur.other)} from it.</p>}
-        </>
+      {pair && ( // the pair itself and its numbers are in the selection's card; here only what each colour means
+        <ul class="key">
+          {pair.particle < 0
+            ? <li><i style={{ background: pal.pair[PAIR.reco] }} /><b>in the candidate</b>: <span>nothing confirmed by truth</span></li>
+            : CLASSES.map(([c, name, what]) => <li><i style={{ background: pal.pair[c] }} /><b>{name}</b>: <span>{what}</span></li>)}
+          <li><i class="small" style={{ background: pal.unassigned }} />everything else</li>
+        </ul>
       )}
     </details>
   );
@@ -72,24 +55,13 @@ function PidKey() {
         {pid?.kind === "category" && pid.items?.map((it) => <li><i style={{ background: it.colour }} />{it.label}</li>)}
         <li><i class="small" style={{ background: pal.unassigned }} />in no candidate</li>
       </ul>
-      <details class="howto" open={howTo.value} onToggle={(e) => remember((e.currentTarget as HTMLDetailsElement).open)}>
-        <summary>How to read this</summary>
-        <p class="hint">The reconstruction's particle type: everything a candidate is made of takes its colour. Select anything for its truth ↔ reco pair.</p>
-      </details>
+      <p class="hint keyhelp">Select anything for its truth ↔ reco pair <Info title="Colour = candidate type">
+        <p>The reconstruction's particle type: everything a candidate is made of takes its colour.</p></Info></p>
     </>
   );
 }
 
 /** Everything by the generator particle it comes from; reco objects only where they are a clean match. */
-// The keys' explanations, folded unless the reader opened one (remembered per browser).
-const HOWTO = "evd.truthKeyHelp";
-const howTo = signal((() => { try { return localStorage.getItem(HOWTO) === "1"; } catch { return false; } })());
-const remember = (open: boolean) => {
-  if (open === howTo.peek()) return;
-  howTo.value = open;
-  try { localStorage.setItem(HOWTO, open ? "1" : "0"); } catch { /* not remembered */ }
-};
-
 function TruthKey() {
   const { roots } = modes.value, pal = PALETTES[theme.value], b = bundle.value!;
   const truthLayer = roots.truth ? layerOf(roots.truth) : undefined, legend = truthLayer ? legends.value[layerKey(truthLayer)] : undefined;
@@ -113,15 +85,11 @@ function TruthKey() {
         <li><i class="small" style={{ background: pal.pileup }} />pile-up</li>
         <li><i class="small" style={{ background: pal.unassigned }} />no truth, or no clean match</li>
       </ul>
-      {faint.length > 0 && <p class="hint faintkinds" title="The truth graph has no answer for these kinds (no associator in CMSSW, or none exported): they are drawn faint and never take a particle's colour. The Truth tab lists every kind's truth.">
-        faint: no truth for this kind: {faint.join(", ")} (why: Truth tab)</p>}
-      <details class="howto" open={howTo.value} onToggle={(e) => remember((e.currentTarget as HTMLDetailsElement).open)}>
-        <summary>How to read this</summary>
-        <p class="hint" title="Hits take the particle that left the most simulated energy in them. No truth: noise, out-of-time pile-up, or a particle the export left out.">
-          Hits and truth lines: the generator particle they come from (secondaries, conversions and decays in the detector
-          included). A reco object takes its particle's colour only when at least {[...rules.values()].join(", or ")} is from it; otherwise grey.
-          Pile-up is drawn small.</p>
-      </details>
+      <p class="hint keyhelp">{faint.length > 0 && <span class="faintkinds">faint: no truth for that kind </span>}<Info title="Colour = generator particle">
+        <p>Hits and truth lines take the colour of the generator particle they come from (secondaries, conversions and decays in the detector included). A hit takes the particle that left the most simulated energy in it.</p>
+        <p>A reco object takes its particle's colour only when at least {[...rules.values()].join(", or ")} is from it; otherwise it is grey. Pile-up is drawn small.</p>
+        <p>No truth: noise, out-of-time pile-up, or a particle the export left out.</p>
+        {faint.length > 0 && <p>Faint: kinds the truth graph has no answer for ({faint.join(", ")}). They never take a particle's colour; the Truth tab says why.</p>}</Info></p>
     </>
   );
 }

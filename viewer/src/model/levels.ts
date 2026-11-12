@@ -119,16 +119,9 @@ export function mergeAcrossDomains(levels: Level[], shared: Set<string>): Level[
   return out;
 }
 
-/** What the focus bar shows in domain `current` (null: everything): the levels it draws as its own or shares with
- *  every domain, and for each other part of the detector (`order`: the header's domains) that has levels, a chip
- *  with its first level (the largest objects there) and their count. */
-export function scopeLevels(levels: Level[], current: string | null, shared: Set<string>, order: string[]) {
-  if (!current) return { bar: levels, chips: [] as { domain: string; level: Level }[] };
-  const here = (l: Level) => { const ds = domainsOf(l, shared); return !ds.size || (!shared.has(current) && ds.has(current)); };
-  const chips = order.filter((name) => name !== current && !shared.has(name)).flatMap((name) => {
-    const there = levels.filter((l) => domainsOf(l, shared).has(name));
-    const first = there.find((l) => !l.always) ?? there[0];
-    return first ? [{ domain: name, level: first }] : [];
-  });
-  return { bar: levels.filter(here), chips };
+/** The levels that ↓ ↑ step through and the card's chain offers to show in domain `current` (null: everything): those
+ *  it draws as its own or shares with every domain. */
+export function scopeLevels(levels: Level[], current: string | null, shared: Set<string>) {
+  if (!current) return levels;
+  return levels.filter((l) => { const ds = domainsOf(l, shared); return !ds.size || (!shared.has(current) && ds.has(current)); });
 }

@@ -14,7 +14,7 @@ import { ColourKey } from "./Key";
 import { Collections, tabOf } from "./Layers";
 import { Truth, treeRelations } from "./Tree";
 import { stopTour } from "./tour";
-import { Tabs } from "./widgets";
+import { Icon, Tabs } from "./widgets";
 
 export function Sidebar() {
   const b = bundle.value, display = b?.header.display ?? [], presets = b?.header.presets ?? [];
@@ -37,10 +37,14 @@ export function Sidebar() {
         <button class="sheet-handle" aria-expanded={sheetOpen.value} title="Show or hide the panel"
           onClick={() => (sheetOpen.value = !sheetOpen.value)}>{sheetOpen.value ? "▾ hide the panel" : "▴ show the panel"}</button>
         {presets.length > 1 && (
-          <div class="presets" role="group" aria-label="Preset" title="Presets: which rows are shown and how they are coloured">
-            <span class="barlabel" aria-hidden="true">Preset</span>
-            {presets.map((p, i) => <button class={activePreset.value === i ? "on" : ""} aria-pressed={activePreset.value === i} onClick={() => applyPreset(i)}>{p.name}</button>)}
-          </div>
+          <label class="presets" title="Presets: which rows are drawn and how they are coloured">
+            <span class="barlabel">Preset</span>
+            {/* blurred once chosen: a focused list would take the view's keys (arrows, letters) */}
+            <select aria-label="Preset" value={activePreset.value} onChange={(e) => { applyPreset(Number((e.target as HTMLSelectElement).value)); (e.target as HTMLSelectElement).blur(); }}>
+              {presets.map((p, i) => <option value={i}>{p.name}</option>)}
+            </select>
+            <button class="icon-button small" title="Apply this preset again: undoes filters and colours changed by hand" onClick={(e) => { e.preventDefault(); applyPreset(activePreset.value); }}><Icon name="reset" /></button>
+          </label>
         )}
         <Tabs tabs={tabs} open={openTab.value} />
         <ColourKey />

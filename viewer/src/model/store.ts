@@ -1,5 +1,5 @@
 // Application state. Components and the renderer react to these signals.
-import { computed, effect, signal } from "@preact/signals";
+import { batch, computed, effect, signal } from "@preact/signals";
 import { around, Bundle, type DisplayLayer, type EventData, type Header, httpSource, kindName, REPRS, type Table, unitOf } from "../io/bundle";
 import { describeNoLink, type Legend, type ThemeName } from "../render/colour";
 import type { Caption } from "../render/replay";
@@ -11,6 +11,7 @@ import { modeColouring, modeRoots, recoColourOf } from "./modes";
 import { opensPair, truthStatus, type TruthStatus } from "./match";
 import { PAIR, type Pair, pairFor, pairShows } from "./pair";
 import { levelsOf, type Related, relatedParts, sameRef, type Ref } from "./relations";
+import { matchClass, recoLadder, recoOfTruth } from "./chain";
 
 /** One entry of the site's index.json (written by `evdtools sync`; hand-written ones need only file and title). */
 export interface Listed { file: string; title: string; campaign?: string; campaign_title?: string; events?: number; data_time?: string }
@@ -38,10 +39,18 @@ export const DETECTOR = "Detector";
 /** Whether a layer belongs in the current domain's view: its own domain's layers, those without a domain and those of
  *  a shared domain. */
 export const inDomain = (d: DisplayLayer, current = domain.value) => drawsLayer(d, current, shared.value);
-/** The layers drawn: ticked and in the domain's view (display layer key -> drawn). */
+/** One kind of object looked at alone (its heading's "only", e.g. the tracks, the jets), as `soloKey` names it: only
+ *  its collections are drawn, whatever the part of the detector looked at; null: everything ticked. A view, like
+ *  `domain`: the ticks are kept, and a selection still draws its own objects of other kinds (its parts, its truth). */
+export const solo = signal<string | null>(null);
+/** A side-panel heading: a kind in one part of the detector ("HGCal|Hits" is not "Calo|Hits"). */
+export const soloKey = (d: Pick<DisplayLayer, "domain" | "group">) => `${d.domain ?? ""}|${d.group}`;
+/** The layers drawn: ticked and in the domain's view (display layer key -> drawn); with a kind alone (`solo`), its
+ *  ticked collections, or with none ticked those of its preferred reconstruction path. */
 export const drawnLayers = computed(() => {
-  const vis = visible.value, d = domain.value;
-  return Object.fromEntries((bundle.value?.header.display ?? []).map((l) => [layerKey(l), !!vis[layerKey(l)] && inDomain(l, d)]));
+  const vis = visible.value, d = domain.value, only = solo.value, all = bundle.value?.header.display ?? [];
+  const alone = only ? all.filter((l) => soloKey(l) === only) : [], ticked = alone.some((l) => vis[layerKey(l)]);
+  return Object.fromEntries(all.map((l) => [layerKey(l), only ? alone.includes(l) && (ticked ? !!vis[layerKey(l)] : !l.alternative) : !!vis[layerKey(l)] && inDomain(l, d)]));
 });
 export const legends = signal<Record<string, Legend>>({}); // display layer key -> legend of the drawn layer
 export const shown = signal<Record<string, number>>({}); // display layer key -> objects passing the cuts
@@ -77,6 +86,16 @@ export const labelOf = (table: string) => {
   const d = layerOf(table);
   return !d ? table : d.kind ? `${d.group} · ${layerName(d)}` : d.label;
 };
+/** A table's kind, with its layer's name only where the kind has several collections ("PF clusters · ECAL"). */
+export const stepName = (table: string) => {
+  const all = bundle.value?.header.display.filter((l) => !l.alternative && kindOf(l.table) === kindOf(table)) ?? [];
+  return new Set(all.map((l) => l.table)).size > 1 ? `${kindOf(table)} · ${layerOf(table)?.label}` : kindOf(table);
+};
+/** Rows of `table`, largest first by its size column (e.g. energy), if it has one. */
+export function largestFirst(table: string, rows: number[]) {
+  const t = event.value?.tables[table], c = t && sizeColumn(table, t), key = c ? t!.columns[c] : undefined;
+  return key ? [...rows].sort((a, b) => Number(key[b]) - Number(key[a])) : rows;
+}
 /** Whether a layer shows detector hits: drawn as cells, and not a background layer. */
 export const isHitLayer = (d: DisplayLayer | undefined) => d?.repr === "cells" && !d.context;
 /** The column that says how big an object of `table` is (e.g. its energy), to rank objects: its layer's cut column,
@@ -160,7 +179,7 @@ export const noTruth = (table: string) => truthStatuses.peek().get(table)?.kind 
 describeNoLink((d) => {
   const s = activeMode.peek() === "truth" ? truthStatuses.peek().get(d.table) : undefined;
   if (s?.kind === "none") return `no truth for ${truthName(d.table).split(" ").map((w) => (/^[A-Z][a-z]/.test(w) ? w.toLowerCase() : w)).join(" ")}${s.gap !== undefined ? ` (gap ${s.gap})` : ""}`;
-  if (s?.kind === "match") return "matched to truth, not to a particle: no particle colour (inspector)";
+  if (s?.kind === "match") return "matched to truth, not to a particle: no particle colour (its card)";
   return "one colour: no link to the colour's source";
 });
 
@@ -207,7 +226,7 @@ export const cutGroups = computed(() => {
   return groups;
 });
 
-// Selection and focus. The selection is what the inspector describes. The focus is the object clicked from outside
+// Selection and focus. The selection is what the card (ui/Navigator.tsx) describes. The focus is the object clicked from outside
 // any focus (e.g. a candidate): while it lasts, it is drawn with its smallest parts (e.g. hits) and, on request, one
 // level in between (see `levels`), and only its objects can be picked. Selecting one of them keeps the focus;
 // selecting anything else focuses on it (the old focus is kept for "back"); clearing the selection (a click on
@@ -226,6 +245,62 @@ const partsOf = (ref: Ref | null) => {
 const focusParts = computed(() => partsOf(focus.value));
 /** The selection's relatives: what it is made of, what it is part of, what is linked to it (e.g. its truth particle). */
 export const relatives = computed(() => (sameRef(selection.value, focus.value) ? focusParts.value : partsOf(selection.value)));
+
+// Looking at an object from another's card (ui/Navigator.tsx): a click on an object in the card selects it, so the
+// view shows it as any selection (with its parts, its pair), while the card stays on the object it was opened for,
+// the `anchor`. Any other selection (a click in the view, a list, N) ends it: the card follows the selection again,
+// and the way back is the card's object, shown as it was (in its own focus), never the object looked at.
+export const anchor = signal<Ref | null>(null);
+let looking: Ref | null = null; // the selection made by `look`, which keeps the anchor
+let anchorFocus: Ref | null = null; // the focus the card's object was shown in: itself, or what it is a part of
+/** The object the card describes: the anchor while another is looked at, else the selection. */
+export const subject = computed(() => anchor.value ?? selection.value);
+/** Look at `ref` in the view, keeping the card on its object; on the card's own object, back to it. */
+export function look(ref: Ref) {
+  const a = anchor.peek(), sel = selection.peek();
+  if (sameRef(sel, ref)) return;
+  if (sameRef(a, ref)) return unlook();
+  batch(() => { // the focus moves there without history: "back" is the card's object
+    if (!a && sel) { anchor.value = sel; anchorFocus = focus.peek(); }
+    looking = { ...ref };
+    focus.value = looking;
+    selection.value = looking;
+  });
+}
+/** Back to the card's own object, in the focus it was shown in. */
+export function unlook() {
+  const a = anchor.peek(), f = anchorFocus ?? a;
+  if (!a) return;
+  batch(() => { anchor.value = null; looking = null; anchorFocus = null; focus.value = f; selection.value = a; });
+}
+/** Open the card of `ref` (the object looked at, or another): the card's object so far is kept for "back". */
+export function openCard(ref: Ref) {
+  const a = anchor.peek(), home = anchorFocus ?? a;
+  batch(() => {
+    if (home) { focusHistory.value = [...focusHistory.peek(), home]; anchor.value = null; looking = null; anchorFocus = null; }
+    if (!sameRef(selection.peek(), ref)) { if (!a) focusOn(ref); else focus.value = { ...ref }; selection.value = { ...ref }; }
+  });
+}
+const subjectParts = computed(() => (anchor.value ? partsOf(anchor.value) : relatives.value));
+/** The ladder of the card's object (model/chain.ts): for a reco object, what it is part of, itself and what it is made
+ *  of, each step with its link to the truth; null for a truth object. */
+export const ladder = computed(() => {
+  const b = bundle.value, ev = event.value, sel = subject.value, parts = subjectParts.value;
+  if (!b || !ev || !sel || !parts || layerOf(sel.table)?.truth) return null;
+  return recoLadder(ev, b.header, sel, parts, truthStatuses.value, modes.value.roots.truth);
+});
+/** What the CMSSW associator says of a reco object of a matched kind: clean, impure or unmatched (model/chain.ts
+ *  matchClass); undefined for any other kind. The colour of its name in lists. */
+export function matchOf(table: string, row: number) {
+  const b = bundle.value, ev = event.value, s = truthStatuses.value.get(table);
+  return b && ev && s?.kind === "match" ? matchClass(ev, b.header, s.relation, row) : undefined;
+}
+/** For a truth object in the card: what was reconstructed from it, per reco kind, and the hits it left (model/chain.ts). */
+export const reconstructed = computed(() => {
+  const b = bundle.value, ev = event.value, sel = subject.value;
+  if (!b || !ev || !sel || !layerOf(sel.table)?.truth || sel.row >= (ev.tables[sel.table]?.n ?? 0)) return null;
+  return recoOfTruth(ev, b.header, sel);
+});
 /** What is drawn highlighted: the focus, its levels and what is linked to it (e.g. its truth particle). What contains it
  *  is listed in the inspector, not highlighted: big containers would cover it. */
 export const highlight = computed(() => {
@@ -260,9 +335,9 @@ export const inFocus = (table: string, row: number) => {
 
 /** Focus on `ref`, keeping the current focus for back. */
 export function focusOn(ref: Ref) {
-  const f = focus.peek();
+  const f = focus.peek(), from = anchor.peek() ? anchorFocus ?? anchor.peek() : f; // while looking: back is the card's object
   if (sameRef(f, ref)) return;
-  if (f) focusHistory.value = [...focusHistory.peek(), f];
+  if (from) focusHistory.value = [...focusHistory.peek(), from];
   focus.value = { ...ref };
 }
 /** Back to the previous focus; returns it (null if there is none). */
@@ -274,7 +349,15 @@ export function focusBack(): Ref | null {
   return prev;
 }
 effect(() => {
-  const sel = selection.value;
+  const sel = selection.value, a = anchor.peek();
+  if (a && !sameRef(sel, looking)) { // a selection made elsewhere ends the look; the card's object is kept for "back"
+    const home = anchorFocus ?? a, h = focusHistory.peek(), inView = !!sel && !!highlight.peek()?.get(sel.table)?.has(sel.row);
+    anchor.value = null; looking = null; anchorFocus = null;
+    if (sel && !sameRef(sel, a) && !sameRef(h.at(-1) ?? null, home)) focusHistory.value = [...h, home];
+    if (sameRef(sel, a)) focus.value = home;
+    else if (sel && !inView) focus.value = { ...sel }; // not through focusOn, which would keep the object looked at for back
+    if (sel) return;
+  }
   if (sel && !highlight.peek()?.get(sel.table)?.has(sel.row)) focusOn(sel);
   else if (!sel) { focus.value = null; focusLevel.value = null; if (focusHistory.peek().length) focusHistory.value = []; }
 });
@@ -299,18 +382,18 @@ export const levels = computed(() => {
   // Looking at everything in a bundle with parts of the detector: same-depth levels of different parts become one.
   return !domain.value && (b.header.domains?.length ?? 0) >= 2 ? mergeAcrossDomains(lv, shared.value) : lv;
 });
-/** The focus bar: the levels the current domain draws as its own or shares, and a chip per other part of the
- *  detector the focus has levels in (model/levels.ts scopeLevels). */
-export const focusBar = computed(() => scopeLevels(levels.value, domain.value, shared.value, (bundle.value?.header.domains ?? []).map((d) => d.name)));
+/** The levels ↓ ↑ step through and the card's chain offers to show: those the current domain draws as its own or
+ *  shares (model/levels.ts scopeLevels). */
+export const focusBar = computed(() => scopeLevels(levels.value, domain.value, shared.value));
 /** The chosen level, if the focus has it and it is not one drawn anyway (the bottom ones, lines); else null. */
 export const shownLevel = computed(() => {
   const c = focusLevel.value;
   return levels.value.some((l) => !l.always && l.name === c) ? c : null;
 });
-/** Step the shown level down (+1) or up (-1) among the focus bar's; false (and nothing changes) if it has none to step
+/** Step the shown level down (+1) or up (-1) among the current domain's (focusBar); false (and nothing changes) if it has none to step
  *  through. */
 export function stepFocusLevel(by: number) {
-  const bar = focusBar.peek().bar; // the levels of the current domain (and the shared ones)
+  const bar = focusBar.peek(); // the levels of the current domain (and the shared ones)
   if (!bar.some((l) => !l.always)) return false;
   focusLevel.value = stepLevel(bar, focusLevel.peek(), by);
   return true;
@@ -371,6 +454,7 @@ export async function openBundle(name: string, open = () => httpSource(name), st
       b.header.display = b.header.display.filter(placed);
     }
     bundle.value = b;
+    solo.value = null;
     colourChoice.value = "reco";
     bundleName.value = name;
     const first = startDomain(b.header); // the domain it opens on (e.g. the physics objects), in its view

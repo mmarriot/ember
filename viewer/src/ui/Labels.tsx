@@ -7,14 +7,14 @@ import { useEffect, useRef } from "preact/hooks";
 import { kindName, type DisplayLayer } from "../io/bundle";
 import type { Ref } from "../model/relations";
 import { filters } from "../model/custom";
-import { bundle, cuts, describe, domain, drawnLayers, event, focus, labelsOn, layerKey, layerOf, shared } from "../model/store";
+import { bundle, cuts, describe, domain, drawnLayers, event, focus, labelsOn, layerKey, layerOf, selection, shared } from "../model/store";
 import { ranked } from "./navigate";
 import { engine } from "./Viewport";
 
 /** The object under the pointer in the side panel's object rows. */
 export const rowHover = signal<Ref | null>(null);
 
-interface Item { ref: Ref; text: string; kind: "lead" | "focus" | "hover" }
+interface Item { ref: Ref; text: string; kind: "lead" | "focus" | "selected" | "hover" }
 
 /** A label's text: its kind and the first value of its `describe` ("Jets · 49.7 GeV"); `full`: all of it. */
 function text(d: DisplayLayer, row: number, full = false) {
@@ -24,7 +24,7 @@ function text(d: DisplayLayer, row: number, full = false) {
 }
 
 const items = computed<Item[]>(() => {
-  const b = bundle.value, ev = event.value, drawn = drawnLayers.value, f = focus.value, h = rowHover.value;
+  const b = bundle.value, ev = event.value, drawn = drawnLayers.value, f = focus.value, h = rowHover.value, sel = selection.value;
   cuts.value; filters.value; // the leading objects follow the cuts and filters
   if (!b || !ev) return [];
   const out: Item[] = [], seen = new Set<string>(), add = (item: Item) => {
@@ -32,7 +32,11 @@ const items = computed<Item[]>(() => {
     if (!seen.has(k)) { seen.add(k); out.push(item); }
   };
   if (h && layerOf(h.table)) add({ ref: h, text: text(layerOf(h.table)!, h.row, true), kind: "hover" });
+  // The selected object, marked so it is found at once, whatever the labels (L): every kind gets this mark, also those
+  // the renderer cannot make stand out (a line one pixel wide).
+  if (sel && layerOf(sel.table)) add({ ref: sel, text: text(layerOf(sel.table)!, sel.row, true), kind: "selected" });
   if (!labelsOn.value) return out;
+  // The focus, when the selection is one of its parts.
   if (f && layerOf(f.table)) add({ ref: f, text: text(layerOf(f.table)!, f.row, true), kind: "focus" });
   // The leading objects: in a shared domain's view, or in a bundle without domains; not while a focus is shown elsewhere.
   const lead = (domain.value ? shared.value.has(domain.value) : !(b.header.domains?.length)) && !f;

@@ -8,7 +8,7 @@
 // and orbits them.
 import { batch, signal } from "@preact/signals";
 import type { DisplayLayer } from "../io/bundle";
-import { bundle, cuts, domain, event, eventIndex, highlight, layerKey, selection, showAll, showEvent, sizeColumn, touring, view, drawnLayers, visible } from "../model/store";
+import { bundle, cuts, domain, event, eventIndex, highlight, layerKey, selection, showAll, showEvent, sizeColumn, solo, touring, view, drawnLayers, visible } from "../model/store";
 import { filterMask, filters } from "../model/custom";
 import { passes } from "../model/objects";
 import { related, type Ref } from "../model/relations";
@@ -59,6 +59,7 @@ async function startTour() {
   if (!e) return;
   stopLive();
   touring.value = true;
+  solo.value = null; // the tour builds the whole event up, not one kind
   view.value = "3d";
   const pace = import.meta.env.DEV ? Number((window as { evdTourPace?: number }).evdTourPace ?? 1) : 1; // e2e tests: slower
   const opened = bundle.value; // another bundle opened (the data set list, a dropped file) stops the tour

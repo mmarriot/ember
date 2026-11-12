@@ -16,7 +16,7 @@ measures (purity, completeness) and the colours are in [truth.md](truth.md).
 | Truth graph · Particles, Vertices; the Truth tab (parent -> children) | `TruthParticles`, `TruthVertices`, `TruthParticleChildren` |
 | a reco object's "best match"; the pair view's choice of particle for a candidate | `<collection>ToTruth`: the AdaptiveNominal working point, one particle per reco object, with `sharedEnergy` and `score` (0 is best) |
 | a reco object's purity and whether its match is clean (inspector, truth mode) | `ToTruth.sharedEnergy` over the object's own amount, as the relation's `match` hint says ([truth.md](truth.md#measures)) |
-| a truth particle's matched reco objects (Related, Matches), a match's completeness | `<collection>FromTruth` (TruthToReco), with `sharedFraction` and `score` |
+| a truth particle's matched reco objects (its card's "Reconstructed as"), a match's completeness | `<collection>FromTruth` (TruthToReco), with `sharedFraction` and `score` |
 | "the particle" that colours and groups everything below it; the lineage's levels | `TruthParticles.levelFlags` (truth::LevelFlag; bit 2 StableDecayProducts, bit 3 CaloBoundary) |
 | a hit's particle, "simulated energy in its hits, by particle" | `TruthHGCalHits`, `TruthSoAHits{EE,HSi,HSci}`: per (particle, hit) the simulated energy of the particle's subgraph |
 
@@ -124,8 +124,8 @@ information. Priority is for the event display.
   `Validation/TruthInfo`.
 - **Today in evd:** layer clusters reach truth only through their hits. The colour (`contentPartners`,
   `viewer/src/model/relations.ts`) takes the particle with the largest sum of hit fraction × `simEnergy`; the
-  Inspector's "simulated energy in its hits, by particle" (`truthInHits`, `viewer/src/ui/Inspector.tsx`) sums
-  `simEnergy` over the object's hits without fractions. Neither knows the cell's total sim energy, and both inherit
+  fact line on the hits' step of the card's chain (`linksOf`, `viewer/src/model/chain.ts`) sums `simEnergy` over the
+  object's hits without fractions. Neither knows the cell's total sim energy, and both inherit
   gaps 2 to 4.
 - **Check:** a producer alias like `TruthBranchLayerClusterAssociatorsProducer` (or a `layerClusters` key in
   `truthGraphRecoLabelsPSet`) appears, and the step3 file has `*_truthBranchLayerClusterAssociators_*`. EventExport

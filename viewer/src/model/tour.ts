@@ -31,7 +31,7 @@ export const TOUR_STEPS: TourStep[] = [
     detail: "Neighbouring cells with energy are grouped into clusters, ideally one per particle, each with an energy and a position." },
   { kinds: ["candidate"], title: "Showers in HGCal",
     detail: "In HGCal, clusters on successive layers are linked into 3D showers, which are matched with the tracks that point at them." },
-  { kinds: ["muonHit", "muonSegment", "muonChamber"], title: "Muon chambers",
+  { kinds: ["muonHit", "muonSegment"], title: "Muon chambers", // not the chambers in use: big boxes over the hits
     detail: "Only muons get through the calorimeters and the magnet. Chambers in the steel outside it record their hits, combined into short segments in each chamber." },
   { kinds: ["muonTrack"], title: "Muon tracks",
     detail: "Segments are joined into tracks through the muon system, and matched with tracker tracks: a muon's momentum is measured with both." },

@@ -8,7 +8,7 @@ import { filterMask, filters } from "../model/custom";
 import { bundle, describe, event, isHitLayer, labelOf, layerOf, selection, short, sizeColumn, theme } from "../model/store";
 import { factIn } from "../model/facts";
 import { bestPartners } from "../model/relations";
-import { Coverage } from "./Truth";
+import { Coverage, Scorecard } from "./Truth";
 import { Collections } from "./Layers";
 import { jump } from "./navigate";
 
@@ -33,6 +33,7 @@ export function Truth() {
   const trees = treeRelations(), truth = bundle.value?.header.display.filter((d) => d.truth) ?? [];
   return (
     <div>
+      {truth.length > 0 && <Scorecard />}
       {truth.length > 0 && <Coverage />}
       {truth.length > 0 && <Collections layers={truth} />}
       {trees.map(([, table]) => <Outcome table={table} />)}

@@ -110,6 +110,24 @@ export function linksOf(ev: EventData, header: Header, groups: Group[], statuses
   return out;
 }
 
+/** The objects of the `from` table of reco -> truth relation `name` that `pass` (its layer's cut and filter), by what
+ *  the CMSSW associator says of each: `clean` (a best match with purity at or above the kind's `good`; without a
+ *  threshold, any match), `impure` (a match below it) or `unmatched` (none). Rows in table order; null without the
+ *  relation in this event. The event's list of fakes and merges for one kind. */
+export function matchTally(ev: EventData, header: Header, name: string, pass: (row: number) => boolean) {
+  const info = header.relations[name], rel = ev.relations[name];
+  if (!info?.match || !rel) return null;
+  const n = ev.tables[info.from]?.n ?? 0, { partner } = bestPartners(rel, info, true, n), purity = bestPurities(ev, header, name), good = info.match.good;
+  const clean: number[] = [], impure: number[] = [], unmatched: number[] = [];
+  for (let r = 0; r < n; r++) {
+    if (!pass(r)) continue;
+    if (partner[r] < 0) unmatched.push(r);
+    else if (good !== undefined && purity && !(purity[r] >= good)) impure.push(r);
+    else clean.push(r);
+  }
+  return { clean, impure, unmatched, good };
+}
+
 /** What was reconstructed from truth object `sel`, one entry per reco table with an association from its table (the
  *  truth -> reco maps), latest reconstruction step first: the objects sharing hits or energy with it, most complete
  *  first, each with its completeness (the share of the truth object it holds, where the association gives one) and

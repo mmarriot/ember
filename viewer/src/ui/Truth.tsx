@@ -1,4 +1,4 @@
-// The inspector's truth sections (docs/truth.md), the same for every kind of object:
+// The truth sections of the selection's card (ui/Navigator.tsx; docs/truth.md), the same for every kind of object:
 // - for a reco object, its truth card: what the kind reconstructs, the associator's best match, and how good that
 //   match is in linear numbers (purity, completeness) next to the associator's own score, with the generator particle
 //   it belongs to;
@@ -8,7 +8,10 @@
 import type { Header } from "../io/bundle";
 import { completeness, percent, quality, TARGETS, type TruthStatus } from "../model/match";
 import { bestPartners, identities } from "../model/relations";
-import { bundle, describe, event, kindOf, labelOf, layerOf, modes, short, truthName, truthStatuses } from "../model/store";
+import { signal } from "@preact/signals";
+import { matchTally } from "../model/chain";
+import { bundle, describe, event, kindOf, labelOf, layerOf, modes, short, sizeColumn, stepName, truthName, truthStatuses } from "../model/store";
+import { passing } from "./Layers";
 import { jump } from "./navigate";
 
 /** Names of truth::LevelFlag bits worth showing on a particle (SimDataFormats/TruthInfo ParticleData.h). */
@@ -229,6 +232,55 @@ function claimsOf(header: Header, truth: string, rows: Set<number>) {
     for (let o = 0; o < partner.length; o++) if (rows.has(partner[o])) out.set(partner[o], [...(out.get(partner[o]) ?? []), [info.from, o]]);
   }
   return out;
+}
+
+/** The count unfolded in the scorecard: "<table>|<class>". */
+const opened = signal<string | null>(null);
+const CLASSES = [["clean", "ok", "a best match with purity at or above the kind's threshold"], ["impure", "warn", "a best match below the threshold: merged with, or mostly from, something else"],
+  ["unmatched", "warn", "no match from the associator: a fake, or an object the associator does not consider (e.g. a candidate without calorimeter energy)"]] as const;
+
+/** The Truth tab's scorecard: for each reco kind the CMSSW associator matches, how many of the objects that pass their
+ *  cuts and filters are a clean match, an impure one, or unmatched (model/chain.ts matchTally). A count unfolds to its
+ *  objects, largest first: the event's fakes and merges, one click away. */
+export function Scorecard() {
+  const b = bundle.value, ev = event.value, statuses = truthStatuses.value;
+  if (!b || !ev || !modes.value.roots.truth) return null;
+  const rows = b.header.display.filter((d, i, all) => !d.truth && !d.context && !d.alternative && all.findIndex((x) => x.table === d.table) === i).flatMap((d) => {
+    const s = statuses.get(d.table), p = s?.kind === "match" ? passing(d) : null, tally = s?.kind === "match" && p ? matchTally(ev, b.header, s.relation, p.pass) : null;
+    return tally && s?.kind === "match" ? [{ d, tally, match: s.match }] : [];
+  });
+  if (!rows.length) return null;
+  const largest = (table: string, list: number[]) => {
+    const t = ev.tables[table], c = sizeColumn(table, t), key = c ? t.columns[c] : undefined;
+    return key ? [...list].sort((x, y) => Number(key[y]) - Number(key[x])) : list;
+  };
+  return (
+    <section class="scorecard">
+      <h3 title="For each kind of reco object that CMSSW's associator matches to the truth: what it says of the objects in this event. Kinds without an associator are listed under Truth coverage.">Reco ↔ truth in this event</h3>
+      <table class="score">
+        <thead><tr><th />{CLASSES.map(([name, , what]) => <th title={what}>{name === "unmatched" ? "no match" : name}</th>)}</tr></thead>
+        <tbody>
+          {rows.map(({ d, tally, match }) => {
+            const open = CLASSES.find(([name]) => opened.value === `${d.table}|${name}`)?.[0], list = open ? largest(d.table, tally[open]) : [];
+            return (
+              <>
+                <tr>
+                  <td title={`${match.target ? `They reconstruct ${TARGETS[match.target]}. ` : ""}${tally.good !== undefined ? `Clean: at least ${percent(tally.good)} of its ${match.measure === "hits" ? "hits" : match.measure === "pt2" ? "tracks' pT²" : "energy"} from its match.` : ""}`}>{stepName(d.table)}</td>
+                  {CLASSES.map(([name, cls]) => {
+                    const k = `${d.table}|${name}`, n = tally[name].length;
+                    return <td><button class={`num ${n ? cls : "zero"}`} disabled={!n} aria-expanded={opened.value === k} title={n ? "List them" : undefined}
+                      onClick={() => (opened.value = opened.value === k ? null : k)}>{n.toLocaleString()}</button></td>;
+                  })}
+                </tr>
+                {open && <tr class="list"><td colSpan={4}>{list.slice(0, 40).map((r) => chip(d.table, r))}{list.length > 40 && <span class="muted"> … {list.length - 40} more</span>}</td></tr>}
+              </>
+            );
+          })}
+        </tbody>
+      </table>
+      <p class="hint">Objects passing their cuts and filters, by the CMSSW associator's best match. Click a number to list its objects, largest first.</p>
+    </section>
+  );
 }
 
 /** The Truth tab's first section: what the truth graph says about each kind drawn from this bundle (docs/truth.md

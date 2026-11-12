@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { DisplayLayer, EventData, Header } from "../io/bundle";
-import { recoLadder, recoOfTruth, type Ladder } from "./chain";
+import { matchTally, recoLadder, recoOfTruth, type Ladder } from "./chain";
 import { truthStatus, type TruthStatus } from "./match";
 import { relatedParts } from "./relations";
 
@@ -81,5 +81,21 @@ describe("recoOfTruth", () => {
   });
   it("keeps an empty entry where nothing of a matched kind was reconstructed", () => {
     expect(recoOfTruth(ev, header, { table: "P", row: 1 }).reco).toEqual([{ table: "Trk", measure: "hits", in: "tracker", partners: [] }]);
+  });
+});
+
+describe("matchTally", () => {
+  // tracks 0 (8 of 10 hits from its match), 1 (no match), 2 (3 of 6 hits: below the 75% of a clean track)
+  const tev = { ...ev, tables: { ...ev.tables, Trk: table(3, { nhits: [10, 5, 6] }) },
+    relations: { ...ev.relations, trkTruth: csr([[0], [], [1]], { shared: [8, 3], score: [0.2, 0.5] }) } } as unknown as EventData;
+  it("sorts a kind's objects into clean, impure and unmatched by the associator's best match", () => {
+    expect(matchTally(tev, header, "trkTruth", () => true)).toEqual({ clean: [0], impure: [2], unmatched: [1], good: 0.75 });
+  });
+  it("counts only the objects that pass the layer's cut and filter", () => {
+    expect(matchTally(tev, header, "trkTruth", (r) => r !== 1)).toMatchObject({ clean: [0], impure: [2], unmatched: [] });
+  });
+  it("has nothing to say without the association in the event, or without a match contract", () => {
+    expect(matchTally({ ...tev, relations: {} } as unknown as EventData, header, "trkTruth", () => true)).toBeNull();
+    expect(matchTally(tev, header, "truthHits", () => true)).toBeNull();
   });
 });

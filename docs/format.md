@@ -108,7 +108,7 @@ draws the others.
 | `time` | column with the arrival time in ns, used by the replay; values <= -50 mean "no time". A column corrected for time of flight (prompt particles near 0) is recognised and converted |
 | `group`, `label`, `visible` | heading in the layer list, layer name, default visibility |
 | `domain` | the part of the detector the layer belongs to (e.g. `HGCal`, `Tracker`): its tab in the side panel and, if the header's `domains` has it, the domain view that draws it. Truth layers have none (they are listed under Truth); a reco layer without one is listed under "Objects". A layer without a domain is drawn in every domain's view |
-| `kind`, `source` | object type (e.g. `trackster`; `group` is then its display name) and the reconstruction path that produced it (e.g. `SoA`, `legacy`). Layers of one kind are listed together, tagged with their source |
+| `kind`, `source` | object type (e.g. `trackster`; `group` is then its display name) and the reconstruction path that produced it (e.g. `SoA`, `legacy`). Layers of one kind are listed together, tagged with their source. The tour builds an event up by kind, in the order of `TOUR_STEPS` in `viewer/src/model/tour.ts` (e.g. `vertex`, `trackHit`, `track`, ... `jet`, `met`): a layer of a kind not named there is not shown by its steps |
 | `alternative` | a less preferred reconstruction path of a kind that is shown (e.g. legacy next to SoA): starts hidden and folded away |
 | `stage` | reconstruction step (0, 1, ...): the replay grows each stage in turn and ends on the last |
 | `grow` | `helix`: `{"parts": relation, "seed": n}`: the replay builds these paths from their parts, e.g. tracks from their hits (`trackHits`, whose `to` objects are stored in order along each path). After the hits arrive and before the clustering and the stages (which wait for it): the first `n` parts of each drawn path (default 3, its seed) light up together, paths one after another; then every path grows out from its start at one speed (a path as long as the longest tenth takes the whole 2.4 s), each part lighting up as the path reaches it, and flashes when complete (the fit). Parts start grey and small, and those of no drawn path (below a cut, filtered out) stay so until the end. With the paths' layer drawn, a replay of the whole event draws every part, also of an `onSelection` layer (they shrink away as it ends); with no parts drawn there is nothing to seed, and the building starts at once |
@@ -136,7 +136,7 @@ All optional; the converter copies them from the profile.
   order, for hits without meaningful arrival times. The replay captions say which applies.
 - `view`: `{"start": "3d"|"front"|"side"|"rz", "minRadius": cm, "tour": "beam"|"orbit"}`. `start`: the view on
   opening (`front`, `side` and `rz` are 2D views: orthographic, pan and zoom only). `minRadius` (default 70): the smallest radius framed around the objects, e.g. small for a test-beam
-  stack. `tour`: `beam` for collider data (the camera stays outside the detector, glides to the showers and back),
+  stack. `tour`: `beam` for collider data (the camera stays outside the detector, glides to each step's objects and back),
   `orbit` (default) frames the objects at their own scale and orbits them. `domain`: the domain the viewer opens on (one of `domains`,
   e.g. `Physics`).
 - `summaries`: `[{"title", "table", "groupBy", "value", "op", "unit", "where"}]`: per-event charts of the `table`

@@ -153,7 +153,7 @@ async function checkBundle(file, tag, state) {
   }
   // The card's object (its kind and name: a cluster and a hit can both be "#0") and the URL's selection.
   const focused = async () => `${(await page.locator(".inspector > header .kind, .inspector h2").allInnerTexts().catch(() => [])).join(" ").replace(/\s+/g, " ")} (${decodeURIComponent(new URL(page.url()).hash.match(/s=([^&]+)/)?.[1] ?? "")})`;
-  const first = await focused(), card = (x) => x.split(" (")[0];
+  const first = await focused(), card = (x) => x.slice(0, x.lastIndexOf(" (")); // without the URL's selection (a kind's name may hold brackets)
   // A step of the chain names its objects when few; a longer one unfolds to them. A click looks at one: the view (and
   // the URL's selection) moves to it and the card stays; "Open" goes into its card; back returns to the first.
   if (!(await page.locator(".inspector .ladder .rhead .chip").count())) await page.locator(".inspector .ladder .rhead .count").first().click();
@@ -168,7 +168,7 @@ async function checkBundle(file, tag, state) {
   await shot("4_jumped");
   await page.locator(".inspector .backlink").click({ timeout: 120000 }).catch(() => fail("no way back after opening an object's card"));
   const back = await focused();
-  log(`${tag}: card ${first} -> looks at ${looked.split(" (")[1]} -> opens ${jumped} -> back to ${back}`);
+  log(`${tag}: card ${first} -> looks at ${looked.slice(looked.lastIndexOf(" (") + 2, -1)} -> opens ${jumped} -> back to ${back}`);
   if (first.startsWith(" ") || card(jumped) === card(first) || back !== first) fail("opening a chain object's card and going back did not move the card");
   // What a word means is one click away, and Esc closes the description alone.
   await page.locator(".inspector .ladder h4 .info").click();

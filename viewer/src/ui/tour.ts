@@ -38,7 +38,7 @@ export function toggleTour() {
 
 // The tour draws what each step shows, in All, and every object of layers normally drawn only for a selection (e.g.
 // track hits): the user's choices (and domain) are restored afterwards.
-let saved: { showAll: Record<string, boolean>; visible: Record<string, boolean>; domain: string | null } | null = null;
+let saved: { bundle: unknown; showAll: Record<string, boolean>; visible: Record<string, boolean>; domain: string | null } | null = null;
 
 export function stopTour() {
   if (!touring.value) return;
@@ -50,8 +50,8 @@ export function stopTour() {
   engine?.autoRotate(0);
   const s = saved;
   saved = null;
-  // One rebuild, of what the user's domain draws (not first everything in All).
-  if (s) batch(() => { domain.value = s.domain; showAll.value = s.showAll; visible.value = s.visible; });
+  // One rebuild, of what the user's domain draws (not first everything in All); nothing to restore in another bundle.
+  if (s && s.bundle === bundle.peek()) batch(() => { domain.value = s.domain; showAll.value = s.showAll; visible.value = s.visible; });
 }
 
 async function startTour() {
@@ -61,7 +61,11 @@ async function startTour() {
   touring.value = true;
   view.value = "3d";
   const pace = import.meta.env.DEV ? Number((window as { evdTourPace?: number }).evdTourPace ?? 1) : 1; // e2e tests: slower
-  const wait = (ms: number) => new Promise<boolean>((done) => setTimeout(() => done(generation === me), ms * pace));
+  const opened = bundle.value; // another bundle opened (the data set list, a dropped file) stops the tour
+  const wait = (ms: number) => new Promise<boolean>((done) => setTimeout(() => {
+    if (generation === me && bundle.peek() !== opened) stopTour();
+    done(generation === me);
+  }, ms * pace));
   const beam = bundle.value?.header.view?.tour === "beam";
   // `room` (beam tours): how much is kept in view around the target, larger is further out.
   const move = (rows: Map<string, Iterable<number>> | undefined, ms: number, swing: number, room?: number) =>
@@ -73,7 +77,7 @@ async function startTour() {
   if (beam) e.tourCamera(true);
   else e.autoRotate(ORBIT);
   const header = bundle.value?.header;
-  saved = { showAll: showAll.value, visible: visible.value, domain: domain.value };
+  saved = { bundle: opened, showAll: showAll.value, visible: visible.value, domain: domain.value };
   showAll.value = { ...showAll.value, ...Object.fromEntries((header?.display ?? []).filter((d) => d.onSelection && !d.truth).map((d) => [layerKey(d), true])) };
   const steps = tourPlan(header?.display ?? []);
   // A bundle that opens on a shared domain (e.g. Physics): the build-up (or replay) in All, the visits in that domain,

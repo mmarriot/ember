@@ -13,6 +13,7 @@ import { EventInfo } from "./EventInfo";
 import { ColourKey } from "./Key";
 import { Collections, tabOf } from "./Layers";
 import { Truth, treeRelations } from "./Tree";
+import { stopTour } from "./tour";
 import { Tabs } from "./widgets";
 
 export function Sidebar() {
@@ -31,7 +32,7 @@ export function Sidebar() {
   tabs.push(["Event", EventInfo]);
   return (
     <>
-      <aside class={sheetOpen.value ? "sidebar" : "sidebar closed"}
+      <aside class={sheetOpen.value ? "sidebar" : "sidebar closed"} onPointerDown={stopTour}
         onClick={(e) => { if ((e.target as HTMLElement).closest(".tablist")) sheetOpen.value = true; }}>
         <button class="sheet-handle" aria-expanded={sheetOpen.value} title="Show or hide the panel"
           onClick={() => (sheetOpen.value = !sheetOpen.value)}>{sheetOpen.value ? "▾ hide the panel" : "▴ show the panel"}</button>

@@ -6,7 +6,7 @@ import { bundle, bundleName, catalogue, dialog, domain, eventIndex, following, l
 import { toggleLive } from "./live";
 import { Menu } from "./Menu";
 import { chooseDomain, showWhole } from "./navigate";
-import { toggleTour } from "./tour";
+import { stopTour, toggleTour } from "./tour";
 import { Views } from "./Viewport";
 import { Icon } from "./widgets";
 
@@ -29,7 +29,8 @@ export function Header() {
   const parts = (b?.header.domains?.length ?? 0) >= 2; // the domain bar takes the views' place, which go on the canvas
 
   return (
-    <header class={parts ? "topbar parts" : "topbar"}>
+    <header class={parts ? "topbar parts" : "topbar"} // a touch here stops the tour, but on its own button and the menu (whose items do)
+      onPointerDown={(e) => { if (!(e.target as HTMLElement).closest(".tour-button, .menu")) stopTour(); }}>
       <div class="brand"><img src={logo} alt="" width={22} height={22} />Event display</div>
       <select class="dataset" value={bundleName.value} title="Data set" onChange={(ev) => openBundle((ev.target as HTMLSelectElement).value)}>
         {[...campaigns].map(([c, list]) => (c ? <optgroup label={c}>{list.map((x) => <option value={x.file}>{x.title}</option>)}</optgroup>
@@ -43,7 +44,7 @@ export function Header() {
           <small>{b && e && b.runTitle(e.run) ? `${b.runTitle(e.run)} · ` : ""}{b ? `${eventIndex.value + 1} of ${b.events.length}` : ""}</small>
         </div>
         <button class="icon-button" title="Next event (→)" onClick={() => stepEvent(1)}><Icon name="next" /></button>
-        <button class={touring.value ? "icon-button on" : "icon-button"} title={touring.value ? "Stop the tour (P)" : "Tour: build each event up from the collision point to the physics objects (P)"}
+        <button class={touring.value ? "icon-button tour-button on" : "icon-button tour-button"} title={touring.value ? "Stop the tour (P)" : "Tour: build each event up from the collision point to the physics objects (P)"}
           aria-pressed={touring.value} onClick={toggleTour}><Icon name={touring.value ? "pause" : "play"} /></button>
         <input class="jump" placeholder="Event…" title="Event number, or run:event" onKeyDown={(ev) => {
           if (ev.key === "Enter") { jump((ev.target as HTMLInputElement).value.trim()); (ev.target as HTMLInputElement).blur(); }

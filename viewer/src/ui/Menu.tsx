@@ -5,7 +5,7 @@ import { useEffect, useRef } from "preact/hooks";
 import { bundle, colourChoice, dialog, focus, focusBar, following, highlight, labelsOn, selection, stepEvent, stepFocusLevel, theme, toggleTheme, touring, truthColours, view } from "../model/store";
 import { toggleLive } from "./live";
 import { nextDomain, nextObject, showWhole } from "./navigate";
-import { toggleTour } from "./tour";
+import { stopTour, toggleTour } from "./tour";
 import { engine, replayEvent, VIEWS } from "./Viewport";
 
 /** Open or closed; Esc closes it first (App.tsx). */
@@ -69,7 +69,7 @@ export function Menu() {
               {name && <div class="menuhead">{name}</div>}
               {items.map((it) => (
                 <button role={it.on === undefined ? "menuitem" : "menuitemcheckbox"} aria-checked={it.on} class={it.on ? "menuitem on" : "menuitem"} disabled={it.off}
-                  onClick={() => { menuOpen.value = false; it.run(); }}>
+                  onClick={() => { menuOpen.value = false; if (it.run !== toggleTour) stopTour(); it.run(); }}>
                   <span class="check" aria-hidden="true">{it.on ? "✓" : ""}</span><span class="what">{it.label}</span>{it.keys && <kbd>{it.keys}</kbd>}
                 </button>
               ))}

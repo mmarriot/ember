@@ -230,8 +230,29 @@ export async function httpSource(url: string): Promise<Source> {
 }
 
 const text = (buf: ArrayBuffer) => new TextDecoder().decode(buf);
-const gunzip = (buf: ArrayBuffer) =>
+const inflate = (buf: ArrayBuffer) =>
   new Response(new Blob([buf]).stream().pipeThrough(new DecompressionStream("gzip"))).arrayBuffer();
+// Inflating a PU200 record (~35 MB to ~100 MB) blocks the thread that does it for a few hundred ms: a worker does it,
+// so the view keeps responding, also while the next event is read ahead. Without workers (tests), it is done here.
+let worker: Worker | null = null, jobs = 0;
+const waiting = new Map<number, { done: (buf: ArrayBuffer) => void; fail: (e: Error) => void }>();
+function gunzip(buf: ArrayBuffer): Promise<ArrayBuffer> {
+  if (typeof Worker === "undefined") return inflate(buf);
+  if (!worker) {
+    worker = new Worker(new URL("./gunzip.worker.ts", import.meta.url), { type: "module" });
+    worker.onmessage = ({ data }: MessageEvent<{ id: number; buf?: ArrayBuffer; error?: string }>) => {
+      const job = waiting.get(data.id);
+      waiting.delete(data.id);
+      if (data.buf) job?.done(data.buf);
+      else job?.fail(new Error(data.error));
+    };
+  }
+  const id = jobs++;
+  return new Promise((done, fail) => {
+    waiting.set(id, { done, fail });
+    worker!.postMessage({ id, buf }, [buf]); // moved, not copied: `buf` is empty here afterwards
+  });
+}
 
 export class Bundle {
   private readonly runTables = new Map<number, Promise<Record<string, Table>>>(); // read once per run

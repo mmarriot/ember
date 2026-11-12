@@ -151,7 +151,8 @@ async function checkBundle(file, tag, state) {
     log(`${tag}: link ${query ? "?" : "#"}${new URLSearchParams(want)} reopens ${bad.length ? `wrongly: ${bad.join(", ")}` : "its state"}; ${at}`);
     if (bad.length || !/^3 of|· 3 of/.test(at.trim())) fail(`a ${query ? "query" : "hash"} link did not reopen its state: ${bad.join(", ") || at}`);
   }
-  const focused = async () => `${(await page.locator(".inspector h2").innerText().catch(() => "")).replace(/\s+/g, " ")} (${decodeURIComponent(new URL(page.url()).hash.match(/s=([^&]+)/)?.[1] ?? "")})`;
+  // The card's object (its kind and name: a cluster and a hit can both be "#0") and the URL's selection.
+  const focused = async () => `${(await page.locator(".inspector > header .kind, .inspector h2").allInnerTexts().catch(() => [])).join(" ").replace(/\s+/g, " ")} (${decodeURIComponent(new URL(page.url()).hash.match(/s=([^&]+)/)?.[1] ?? "")})`;
   const first = await focused(), card = (x) => x.split(" (")[0];
   // A step of the chain names its objects when few; a longer one unfolds to them. A click looks at one: the view (and
   // the URL's selection) moves to it and the card stays; "Open" goes into its card; back returns to the first.

@@ -112,13 +112,15 @@ function HelpDialog() {
       [["F"], "double-click it", "Zoom to the selection"], [["Home"], "the reset button", "Show the whole event"],
     ]],
     ["Select and explore", [
-      [[], "click it", "Select an object: its card shows its chain (what it is part of, what it is made of) and what the truth says at every step; the view shows it with its smallest parts (e.g. hits)"],
+      [[], "click it", "Select an object: it stands out in the view, and its card shows its chain (what it is part of, what it is made of) with what the truth says at every step"],
       [[], "click again on the same spot", "Objects on top of each other: the next one"],
-      [[], "click an object in the card's chain, the side panel or the tree", "Walk the chain: up to what contains it, down to its parts"],
-      [["X"], "click the particle on a step's match line", "Across the link: from a reco object to its truth match, from a truth particle to what was reconstructed from it"],
-      [["B"], "← at the top of the card", "Back to the previous object"],
+      [[], "click a name in the card", "Look at that object in the view; the card stays. Click another to look at that one"],
+      [[], "double click a name in the card, or Open in its Looking at block", "Open that object's card"],
+      [["B"], "← at the top of the card; ✕ stop while looking", "Back: to the card's object, or to the previous card"],
+      [["X"], "", "Across the link: from a reco object to its truth match, from a truth particle to what was reconstructed from it"],
+      [[], "i next to a title, or a tag (match, fact, derived, no truth)", "What something is, and how its numbers are counted"],
       [["↓", "↑"], "show on a step of the chain", "Draw one step of what it is made of in the view (e.g. its tracksters, then their layer clusters); a part of the detector named on a step (e.g. Tracker ›) looks there"],
-      [["N", "⇧N"], "☰ on a collection lists its largest objects", "Next / previous object of the selected kind, largest first (e.g. the next jet, the next track); with nothing selected, the leading object"],
+      [["N", "⇧N"], "the count on a collection's row lists its largest objects", "Next / previous object of the selected kind, largest first (e.g. the next jet, the next track); with nothing selected, the leading object"],
       [["Esc"], "click on empty space", "Leave the object; Esc also shows the whole event (and closes this dialog or the menu)"],
     ]],
     ["Event and parts of the detector", [
@@ -154,9 +156,10 @@ function HelpDialog() {
       <h3>Side panel</h3>
       <p class="hint">One tab per part of the detector with its collections, by kind of object (with a domain bar: the physics objects in
         their own tab, with the event's headline and each kind's largest objects, a click selecting one; the parts of the detector
-        in Detector, which follows the bar); the truth (its collections, what became of each particle, the history as a tree); the
-        event. Each cut slider sits just before the first collection it applies to and applies to every layer of its group, so the
-        same objects from different reconstruction paths always get the same selection.</p>
+        in Detector, which follows the bar); the truth (the event's reco ↔ truth counts, its collections, what became of each particle,
+        the history as a tree); the event. A kind's heading shows its cut (e.g. pT ≥ 30 GeV): click it to change it; it applies to
+        every collection of its group. A row shows the collection's state as chips: filter (click to see or remove it), selected
+        (drawn only for the selected object; click for all), show (hidden while something is selected; click to draw it).</p>
       <h3>Colours</h3>
       <p class="hint">Colour means one thing at a time; the title of the key at the bottom of the side panel says which.
         <b>Reco</b>: candidates by the particle type the reconstruction gave them, and everything they are made of (tracksters, layer
@@ -166,7 +169,8 @@ function HelpDialog() {
         shows its truth ↔ reco pair: a generator particle and its best candidate, every hit coloured shared, contamination, split off or
         missed, with the particle's completeness and the candidate's purity as bars in its card. Each step of the card's chain says
         what the truth graph has for it: match (the CMSSW associator's, with its purity), fact (simulated energy per particle in its hits),
-        derived (worked out in evd) or no truth for that kind yet. The Truth tab counts, for each matched kind, the clean, impure and
+        derived (worked out in evd) or no truth for that kind yet. A dot on an object's name says what the associator found for it:
+        green for a clean match, half amber for an impure one, hollow for none. The Truth tab counts, for each matched kind, the clean, impure and
         unmatched objects of the event. Truth is drawn dashed.
         ⋯ on a row colours it by any column, or by the colour of a related object, instead. With something selected, everything
         unrelated fades.</p>

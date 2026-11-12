@@ -16,9 +16,9 @@ is there too. Esc closes it.
 | rotate, pan, zoom | drag; right-drag or shift + drag; scroll (zooms towards the cursor) |
 | select an object | click it: its card (right) shows its chain and what the truth says at every step (see [The selection's card](#the-selections-card)); the view shows it with its smallest parts, one kind per branch, and the parts drawn as lines, which do not hide them (e.g. a candidate with its calorimeter hits, its track and the track's hits; a vertex with its tracks and their hits), related objects highlighted (a track: its vertex and truth particle); its parts are drawn even where a layer's default filter would hide them (cuts and filters you set still apply; the object itself is drawn whatever the cut, and the hits of parts a cut hides are not); further clicks pick among its parts |
 | walk the chain | click an object on a step of the card's chain: up to what contains it, down to its parts; **B**, or ← at the top of the card, goes back |
-| across to the truth, or back to the reco | X, or the particle on a step's match line: from a reco object to the associator's best match; from a truth object to the reco object of the latest reconstruction step whose own best match it is (else the one holding most of it) |
+| across to the truth, or back to the reco | X, or the particle on a step's match line: from a reco object to the associator's best match (a hit or a layer cluster: the particle with the most simulated energy in it); from a truth object to the reco object of the latest reconstruction step whose own best match it is (else the one holding most of it) |
 | draw one step of what it is made of | ↓ / ↑, or **show** on a step of the chain: one step at a time between the object and its smallest parts (e.g. a candidate's interpretations, linked tracksters, tracksters, layer clusters), with the object drawn as an outline around it; a step with several layers (e.g. two linking algorithms) draws those ticked in Layers, or all of them if none is. With parts of the detector, ↓ / ↑ step through the steps of the part looked at (and of shared domains); a step in another part names it (e.g. **Tracker ›**): a click looks at that part, keeping the object. In All, steps of different parts at the same depth are drawn together (e.g. a jet's tracks and clusters) |
-| one kind of object alone | **only** on a kind's heading in the side panel (e.g. only the tracks, only the jets, only the PF candidates): nothing else is drawn, whatever the part of the detector looked at, until an object is selected, which brings its parts and its truth; "show everything" on the view goes back. The ticks are kept |
+| one kind of object alone | **only** on a kind's heading in the side panel (e.g. only the tracks, only the jets, only the PF candidates; a heading is a kind in one part of the detector: HGCal's hits, not the barrel's): its ticked collections (none ticked: those of its preferred reconstruction path) and nothing else are drawn, whatever the part of the detector looked at, until an object is selected, which brings its parts and its truth; "show everything" on the view goes back. The ticks are kept; a replay or a tour ends it. Not offered for kinds drawn only for a selection (track hits) |
 | objects on top of each other | click again on the same spot for the next one |
 | zoom to an object | double-click it, or F |
 | show everything | Home, or Reset |
@@ -103,11 +103,11 @@ particle, its candidate and anything inside them give the same pair and the same
 not its particle's best (a fragment) shows as split off. A match above the generator level (e.g. a candidate matched to
 a π⁰ as a whole, whose photons are generator particles of their own) stands for all the generator particles below it,
 and the key says the candidate merges them. Without a particle (no truth in the file, or none matched) the pair is the
-selection's candidate alone, in a neutral colour ("in the candidate": nothing is confirmed). The levels in the focus
-bar are then the pair candidate's kinds, whichever of its objects is selected, and count the pair's objects (also the
+selection's candidate alone, in a neutral colour ("in the candidate": nothing is confirmed). The levels drawn
+on request are then the pair candidate's kinds, whichever of its objects is selected, and count the pair's objects (also the
 particle's in other candidates or in none); the selected object itself is always drawn. A selection with neither a
 candidate nor a particle that left hits (e.g. a central track, a vertex) has no pair: it is shown with its own levels
-and links. The levels drawn are those the card's chain offers with **show**. In the pair view, every layer is coloured by where its objects ended up:
+and links. The levels drawn are those the card offers: **show** on the steps of the chain, or its "In the view" line. In the pair view, every layer is coloured by where its objects ended up:
 
 | class | meaning |
 |---|---|
@@ -134,21 +134,32 @@ contain it, outermost first) and what it is **made of** (from the largest object
 tracks are all in the jet, a tau made of its PF candidates). A step names its objects when there are at most three,
 else counts them and unfolds to a list, largest first; every object is a button that moves the selection there. Where
 no relation names what contains an object of a reconstruction step (a trackster's linked trackster, interpretation and
-candidate), the one holding most of its parts is shown, marked "≈ by its parts": worked out in evd. An object that
-contains the selection is never listed among its parts.
+candidate), the one holding the most of its parts is shown if it holds at least half of them, marked "≈ holds 3 of its
+4 parts": worked out in evd. An object that contains the selection is never listed among its parts. Collections of
+another reconstruction path (a PF candidate's CHS jet) are steps under their own name, and related rows of tables the
+bundle does not draw (a hit's digi) are listed last, as **other tables**.
 
 **Every step says what the truth graph has for it**, in the words of [truth.md](truth.md#where-truth-stops):
 
 | tag | the step shows |
 |---|---|
-| match | for one object, the associator's best match and its purity (green from the kind's clean threshold, amber below), or "no match"; for several, "N of M matched · K clean" and the particles matched most often |
-| fact | the particles that left the simulated energy in the step's hits, with their shares, one line per detector (never summed across detectors) |
+| match | for one object, the associator's best match and its purity (green from the kind's clean threshold, amber below), or "no match" (a fake, or an object the associator does not consider, e.g. a candidate without calorimeter energy); for several, "N of M matched · K clean" and the particles matched more than once |
+| fact | the particles that left the simulated energy in the step's hits, with their shares, one line per detector (never summed across detectors); "per CSC layer" where the simulation records a coarser unit than the hit |
 | derived | evd's stand-in (layer clusters): the particles with the most simulated energy in their hits |
 | no truth | no truth for this kind yet, with the gap number of [truth-graph.md](truth-graph.md); on the selected object's own step, the reason |
 
-Each line is that step's own statement: the tracks of a jet show their own matches, counted, and its hits their own
-simulated energy; the jet's step still says "no truth". No match is built through the parts. A kind that gains an
-associator in CMSSW gets its `match` relation in the profile, and its steps then show the match with no viewer change.
+Each line is that step's own statement, and no match is built through the parts ([truth.md](truth.md#constituents)).
+Under an object whose kind has no truth of its own (a jet, a PF candidate), a step of several parts counts their own
+matches ("9 of 9 matched · 9 clean") but names no particle, and its hits and layer clusters say only that the statement
+is on each of them ("on each hit: select one for its particles"): a ranking of the particles in a jet's hits would be
+a match through hits. One part alone speaks for itself (a candidate's track). Under a kind with truth of its own (a
+trackster, a candidate, a PF cluster) the particles are listed. Where a step's collections differ in truth (muon
+rechits: fact; hits on muon tracks: none), each line names its collection. A kind that gains an associator in CMSSW
+gets its `match` relation in the profile, and its steps then show the match with no viewer change.
+
+**The levels in the view.** When the view is built around another object than the selection (the pair's candidate for a
+hit or a truth particle; the focus for one of its parts), a line under the chain lists that object's levels, with the
+one drawn lit: a click, or ↓ ↑, draws another.
 
 **The match.** A reco object whose association has a `match` contract shows what its kind reconstructs (e.g. "the
 particle that entered the calorimeter"), the associator's best match, its purity and its completeness as bars (linear,
@@ -161,10 +172,17 @@ candidate's track) as that part's.
 its daughters, the levels each belongs to and the reco objects whose best match it is), then **Reconstructed as**: for
 each reco kind with a truth -> reco association, the objects sharing hits or energy with it, most complete first, each
 with the share of it that the object holds and a ★ where it is that object's own best match; "none" where nothing of
-the kind was reconstructed from it; and the hits it left, per detector. Hit-based association weights (tracks) are
-counted in hits.
+the kind was reconstructed from it (not by itself an inefficiency: it may never have reached that detector), in one
+line; and the number of hits it left, per detector. Hit-based association weights (tracks) are counted in hits.
 
-**The pair** the view is coloured by (above), as bars. **The columns**: the layer's `inspect` columns (e.g. a jet's
+**Every association**, folded: each object an association in the file links to the selection, with the relation's
+weights as stored (shared energy, score, a hit's simulated energy), best first: the associator's other partners behind
+the best match, e.g. every particle sharing an impure trackster.
+
+**The pair** the view is coloured by (above), as two bars under the chain: of the particle (where its simulated
+energy in the candidates' detector went) and of the candidate (what its hit energy is from). They compare the whole
+generator particle with its candidate hit by hit; the match's purity and completeness are the associator's, for the
+selected object. **The columns**: the layer's `inspect` columns (e.g. a jet's
 pT, η, φ), for a layer with `fractions` its reconstructed energy fractions as one bar in a neutral grey ramp (a
 reconstruction quantity, not one of the view's colours), and every column folded under them.
 

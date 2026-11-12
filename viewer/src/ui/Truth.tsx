@@ -10,7 +10,7 @@ import { completeness, percent, quality, TARGETS, type TruthStatus } from "../mo
 import { bestPartners, identities } from "../model/relations";
 import { signal } from "@preact/signals";
 import { matchTally } from "../model/chain";
-import { bundle, describe, event, kindOf, labelOf, layerOf, modes, short, sizeColumn, stepName, truthName, truthStatuses } from "../model/store";
+import { bundle, describe, event, kindOf, labelOf, largestFirst, layerOf, modes, short, stepName, truthName, truthStatuses } from "../model/store";
 import { passing } from "./Layers";
 import { jump } from "./navigate";
 
@@ -66,7 +66,7 @@ export function TruthCard({ table, row }: { table: string; row: number }) {
   const rels = matchRelations(b.header, table).filter(([name]) => ev.relations[name]);
   if (!rels.length) {
     const s = truthStatuses.value.get(table);
-    return s?.kind === "none" ? <NoTruth table={table} row={row} /> : null;
+    return s?.kind === "none" ? <Constituent table={table} row={row} truth={truth} /> : null; // why it has none: on its step of the chain
   }
   const [name, info] = rels[0], rel = ev.relations[name], m = info.match!, target = info.to;
   const { partner, entry } = bestPartners(rel, info, true, ev.tables[table]?.n ?? 0);
@@ -115,12 +115,6 @@ function Meter({ name, value, good, title, note }: { name: string; value: number
       <span class="muted mnote">{note}{good !== undefined && ` · ${value >= good ? "clean match" : "impure"} (clean from ${percent(good)})`}</span>
     </div>
   );
-}
-
-/** A kind with no truth of its own: the one constituent's own match where one part speaks for it (why the kind has
- *  none is said on its step of the chain). */
-function NoTruth({ table, row }: { table: string; row: number }) {
-  return <Constituent table={table} row={row} truth={modes.value.roots.truth!} />;
 }
 
 /** No match for the object itself: say so, and give the match of its single part (e.g. a track-only candidate's
@@ -188,17 +182,7 @@ export function Lineage({ row, compact = false }: { row: number; compact?: boole
   const physical = chain.slice(lastParton + 1), shown = physical.slice(-1 - ANCESTORS), folded = chain.length - shown.length;
   const children: number[] = [];
   for (let i = 0; i < t.n; i++) if (parent[i] === row) children.push(i);
-  const claims = claimsOf(b.header, truth, new Set(chain.concat(children)));
   const levels = (r: number) => (flags ? LEVELS.filter(([bit]) => (Number(flags[r]) >>> bit) & 1) : []);
-  const line = (r: number, depth: number) => (
-    <li style={{ paddingLeft: `${depth * 10}px` }} class={r === row ? "here" : undefined}>
-      {depth > 0 && <span class="muted">└ </span>}{chip(truth, r)}
-      {r === row && <span class="muted"> ← {compact ? "the match" : "this one"}</span>}
-      {levels(r).map(([, name, what]) => <span class="badge level" title={what}>{name}</span>)}
-      {(claims.get(r) ?? []).slice(0, 3).map(([tab, o]) => <span class="muted"> · {labelOf(tab).split(" · ")[0].toLowerCase()} {chip(tab, o)}</span>)}
-    </li>
-  );
-  const entered = flags ? children.filter((c) => (Number(flags[c]) >>> 3) & 1).length : 0;
   // Under a reco object's card: one line from the collision down to the match (select the particle for the rest).
   if (compact) return (
     <div class="lineage crumb" title="Where the match sits in the truth graph, from the collision down (simulation). Click a particle to go to it; X goes to the match">
@@ -209,14 +193,24 @@ export function Lineage({ row, compact = false }: { row: number; compact?: boole
       {children.length > 0 && <span class="muted">› {children.length} daughter{children.length > 1 ? "s" : ""}</span>}
     </div>
   );
+  const claims = claimsOf(b.header, truth, new Set(chain.concat(children)));
+  const line = (r: number, depth: number) => (
+    <li style={{ paddingLeft: `${depth * 10}px` }} class={r === row ? "here" : undefined}>
+      {depth > 0 && <span class="muted">└ </span>}{chip(truth, r)}
+      {r === row && <span class="muted"> ← this one</span>}
+      {levels(r).map(([, name, what]) => <span class="badge level" title={what}>{name}</span>)}
+      {(claims.get(r) ?? []).slice(0, 3).map(([tab, o]) => <span class="muted"> · {labelOf(tab).split(" · ")[0].toLowerCase()} {chip(tab, o)}</span>)}
+    </li>
+  );
+  const entered = flags ? children.filter((c) => (Number(flags[c]) >>> 3) & 1).length : 0;
   return (
     <div class="lineage" title="Where it sits in the truth graph: its ancestors, itself and its daughters (simulation); the reco objects whose best match a particle is (associator)">
-      {!compact && <p class="truthline"><span class="badge truth">truth</span> lineage in the truth graph</p>}
+      <p class="truthline"><span class="badge truth">truth</span> lineage in the truth graph</p>
       <ul class="matches">
         {folded > 0 && <li class="muted">… {folded} earlier step{folded > 1 ? "s" : ""} up to the collision{lastParton >= 0 ? " (quarks and gluons of the generator)" : ""}</li>}
         {shown.map((r, k) => line(r, k))}
         {children.length > 0 && <li class="muted" style={{ paddingLeft: `${shown.length * 10}px` }}>└ {children.length} daughter{children.length > 1 ? "s" : ""}
-          {entered > 0 && `, ${entered} entered the calorimeter`}{!compact && <> {children.slice(0, 4).map((c) => chip(truth, c))}{children.length > 4 && " …"}</>}</li>}
+          {entered > 0 && `, ${entered} entered the calorimeter`} {children.slice(0, 4).map((c) => chip(truth, c))}{children.length > 4 && " …"}</li>}
       </ul>
     </div>
   );
@@ -237,7 +231,7 @@ function claimsOf(header: Header, truth: string, rows: Set<number>) {
 /** The count unfolded in the scorecard: "<table>|<class>". */
 const opened = signal<string | null>(null);
 const CLASSES = [["clean", "ok", "a best match with purity at or above the kind's threshold"], ["impure", "warn", "a best match below the threshold: merged with, or mostly from, something else"],
-  ["unmatched", "warn", "no match from the associator: a fake, or an object the associator does not consider (e.g. a candidate without calorimeter energy)"]] as const;
+  ["unmatched", "", "no match from the associator: a fake, or an object the associator does not consider (e.g. a candidate without calorimeter energy)"]] as const;
 
 /** The Truth tab's scorecard: for each reco kind the CMSSW associator matches, how many of the objects that pass their
  *  cuts and filters are a clean match, an impure one, or unmatched (model/chain.ts matchTally). A count unfolds to its
@@ -250,10 +244,6 @@ export function Scorecard() {
     return tally && s?.kind === "match" ? [{ d, tally, match: s.match }] : [];
   });
   if (!rows.length) return null;
-  const largest = (table: string, list: number[]) => {
-    const t = ev.tables[table], c = sizeColumn(table, t), key = c ? t.columns[c] : undefined;
-    return key ? [...list].sort((x, y) => Number(key[y]) - Number(key[x])) : list;
-  };
   return (
     <section class="scorecard">
       <h3 title="For each kind of reco object that CMSSW's associator matches to the truth: what it says of the objects in this event. Kinds without an associator are listed under Truth coverage.">Reco ↔ truth in this event</h3>
@@ -261,7 +251,7 @@ export function Scorecard() {
         <thead><tr><th />{CLASSES.map(([name, , what]) => <th title={what}>{name === "unmatched" ? "no match" : name}</th>)}</tr></thead>
         <tbody>
           {rows.map(({ d, tally, match }) => {
-            const open = CLASSES.find(([name]) => opened.value === `${d.table}|${name}`)?.[0], list = open ? largest(d.table, tally[open]) : [];
+            const open = CLASSES.find(([name]) => opened.value === `${d.table}|${name}`)?.[0], list = open ? largestFirst(d.table, tally[open]) : [];
             return (
               <>
                 <tr>

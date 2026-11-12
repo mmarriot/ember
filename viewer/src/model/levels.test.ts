@@ -131,14 +131,9 @@ describe("levels across parts of the detector", () => {
     expect(mergeAcrossDomains(lv, shared).map((l) => `${l.name} ${l.count}`)).toEqual(
       ["Particles 2", "Clusters · Seeds 4", "Superclusters 2", "Tracks 2", "Track hits 2", "Calo hits 2"]);
   });
-  it("scopes the bar to the domain looked at, with a chip per other part holding its first level", () => {
-    const order = ["Physics", "Tracker", "Calo", "Muons"];
-    const physics = scopeLevels(lv, "Physics", shared, order);
-    expect(physics.bar.map((l) => l.name)).toEqual(["Particles"]);
-    expect(physics.chips.map((c) => `${c.domain}: ${c.level.name}`)).toEqual(["Tracker: Seeds", "Calo: Clusters"]);
-    const calo = scopeLevels(lv, "Calo", shared, order);
-    expect(calo.bar.map((l) => l.name)).toEqual(["Particles", "Clusters", "Superclusters", "Calo hits"]);
-    expect(calo.chips.map((c) => c.domain)).toEqual(["Tracker"]);
-    expect(scopeLevels(lv, null, shared, order)).toEqual({ bar: lv, chips: [] });
+  it("scopes the levels to the domain looked at: its own and the shared ones", () => {
+    expect(scopeLevels(lv, "Physics", shared).map((l) => l.name)).toEqual(["Particles"]);
+    expect(scopeLevels(lv, "Calo", shared).map((l) => l.name)).toEqual(["Particles", "Clusters", "Superclusters", "Calo hits"]);
+    expect(scopeLevels(lv, null, shared)).toEqual(lv);
   });
 });

@@ -205,8 +205,6 @@ details { margin-top: 8px; } summary { cursor: pointer; color: var(--accent); fo
 .inspector .kind { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
 .inspector h2 { font-size: 18px; }
 .inspector > .hint { padding: 0 12px; }
-.inspector .tablist { padding: 0 8px; background: var(--surface); }
-.related { margin-bottom: 10px; }
 
 /* dialog and notifications */
 .backdrop { position: fixed; inset: 0; background: rgba(31, 35, 40, .35); display: flex; align-items: center; justify-content: center; z-index: 10; }
@@ -291,8 +289,7 @@ ul.matches li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 
 [data-theme="light"] .badge.truth { color: #7a3fb0; }
 .layer .sub { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); margin: 2px 0 4px 24px; }
 .layer .sub.wrap { flex-wrap: wrap; gap: 0 4px; }
-.relsection h4 { margin: 10px 0 2px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
-.truthline, .chainline { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px; margin: 0 0 6px; font-size: 12px; }
+.truthline { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px; margin: 0 0 6px; font-size: 12px; }
 .inspector .kind.truth { color: #d7a6ff; }
 [data-theme="light"] .inspector .kind.truth { color: #7a3fb0; }
 .layer .glyph { width: 14px; text-align: center; color: var(--muted); flex: none; }
@@ -310,9 +307,6 @@ ul.coverage .kindname { font-weight: 600; }
 ul.coverage li.none { opacity: 0.75; }
 .layer .sub.filter code { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .sidebar .tablist { background: var(--surface-2); z-index: 2; }
-.focusbar { position: absolute; top: 10px; left: 12px; max-width: max(46%, calc(100% - 420px)); background: var(--surface); border: 1px solid var(--accent); border-radius: 14px; padding: 3px 12px; font-size: 12px; display: flex; flex-direction: column; gap: 4px; box-shadow: 0 2px 10px rgba(0,0,0,0.25); z-index: 3; }
-.focusbar .row { display: flex; gap: 8px; align-items: baseline; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.focusbar .link { white-space: nowrap; }
 /* The colour key under the tabs: which object each colour stands for, or the selection's truth <-> reco pair. */
 .colourkey { flex: none; max-height: 45%; overflow-y: auto; margin: 0; padding: 8px 12px 10px; border-top: 1px solid var(--line-strong); background: var(--surface); }
 .colourkey > summary { color: var(--text); font-weight: 600; font-size: 12px; margin-bottom: 4px; }
@@ -336,21 +330,15 @@ ul.coverage li.none { opacity: 0.75; }
 .pairline { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 2px 0 6px; font-size: 12px; }
 .key li b { font-weight: 600; color: var(--text, inherit); }
 /* The focus's levels: pills from the largest objects down; the chosen one and the bottom one (always shown) are lit. */
-.focusbar .levels { flex-wrap: wrap; gap: 3px 4px; align-items: center; padding-bottom: 2px; }
 .level { padding: 0 8px; font-size: 11px; border-radius: 10px; }
 .level.on, .level.on:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
-.level.on .count { color: inherit; opacity: 0.85; }
-.level:disabled { cursor: default; }
 .level .count { font-size: 11px; }
-.level.part { border-style: dashed; } /* another part of the detector: a click looks at it */
 .badge.reco { display: inline-block; font-size: 10px; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; padding: 0 5px; margin: 0 6px 0 0; border-radius: 3px; border: 1px solid currentColor; color: var(--muted); }
 .badge.level { display: inline-block; font-size: 10px; padding: 0 4px; margin-left: 4px; border-radius: 3px; border: 1px dashed var(--line-strong); color: var(--muted); }
 .truthcard { margin: 0 0 8px; }
 .truthcard .kv { margin: 0 0 4px; }
 .lineage { margin: 0 0 8px; }
 .lineage li.here > .chip { outline: 1px dashed currentColor; }
-ul.quality { list-style: none; margin: 0 0 6px; padding: 0; font-size: 12px; font-variant-numeric: tabular-nums; }
-ul.quality li { margin: 1px 0; }
 
 /* Inspector: a reco object's energy fractions, one bar in a neutral ramp. */
 .fractions { margin: 6px 0 8px; }
@@ -438,7 +426,6 @@ details.gaps summary, details.allcolumns summary { cursor: pointer; color: var(-
 .meter .mbar i.ok { background: #3fb950; } .meter .mbar i.warn { background: #d29922; }
 .meter .mbar u { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--text); opacity: 0.7; }
 .meter .mnote { grid-column: 1 / -1; font-size: 11px; }
-.pair .pairline { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px; margin: 0 0 6px; font-size: 12px; }
 .pairhead { font-size: 12px; margin: 6px 0 3px; }
 .pairbar { display: flex; height: 10px; border-radius: 5px; overflow: hidden; background: var(--surface-2); border: 1px solid var(--line); }
 .pairbar span { min-width: 2px; }
@@ -466,3 +453,8 @@ table.score .num { min-width: 34px; padding: 0 6px; border-radius: 8px; font-siz
 table.score .num.zero { color: var(--muted); border-color: transparent; background: none; cursor: default; }
 table.score .num[aria-expanded=true] { border-color: currentColor; }
 table.score tr.list td { text-align: left; padding: 3px 0 6px; }
+.viewlevels .levelrow { display: flex; flex-wrap: wrap; gap: 3px 4px; }
+.level:disabled { cursor: default; }
+.level.on .count { color: inherit; opacity: 0.85; }
+.associations summary { cursor: pointer; font-size: 12px; color: var(--muted); }
+.associations .related { margin: 6px 0 8px; }

@@ -10,6 +10,11 @@ describe("object rows", () => {
     expect(topRows(t, "pt", pass, 10)).toEqual([1, 2, 0]);
     expect(topRows(t, "pt", pass, 2)).toEqual([1, 2]);
   });
+  it("keeps a short list's largest rows in one pass, in the order a sort gives (equal ones in row order)", () => {
+    const big = { n: 200, columns: { e: Float32Array.from({ length: 200 }, (_, i) => (i * 37) % 23) } }, all = () => true;
+    expect(topRows(big, "e", all, 8)).toEqual(topRows(big, "e", all, 1000).slice(0, 8));
+    expect(topRows(big, "e", (i) => i % 3 === 0, 5)).toEqual(topRows(big, "e", (i) => i % 3 === 0, 1000).slice(0, 5));
+  });
   it("keeps row order without a sort column, and passes everything without cut or filter", () => {
     expect(topRows(t, undefined, passes({}, t, 0, null), 3)).toEqual([0, 1, 2]);
     expect(topRows(t, "missing", passes({}, t, 0, null), 10)).toEqual([0, 1, 2, 3, 4]);

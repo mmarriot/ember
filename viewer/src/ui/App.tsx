@@ -4,7 +4,7 @@ import { useEffect } from "preact/hooks";
 import { blobSource } from "../io/bundle";
 import type { ViewName } from "../render/engine";
 import { startDomain } from "../model/domains";
-import { activeMode, bundle, bundleName, catalogue, colourChoice, dialog, domain, event, eventIndex, focusLevel, highlight, labelsOn, openBundle, refreshCatalogue, selection, shownLevel, solo, stepEvent, stepFocusLevel, truthColours, view } from "../model/store";
+import { activeMode, bundle, bundleName, catalogue, colourChoice, dialog, domain, event, eventIndex, focusLevel, highlight, labelsOn, openBundle, refreshCatalogue, selection, shownLevel, solo, soloKey, stepEvent, stepFocusLevel, truthColours, view } from "../model/store";
 import { SYNTAX } from "./ExprForm";
 import { Header } from "./Header";
 import { Navigator } from "./Navigator";
@@ -33,7 +33,7 @@ export function App() {
       const v = url.get("v") as ViewName | null;
       if (v && Object.values(VIEW_KEYS).includes(v)) view.value = v;
       const only = url.get("only"); // one kind alone
-      if (only && bundle.peek()?.header.display.some((l) => l.group === only)) solo.value = only;
+      if (only && bundle.peek()?.header.display.some((l) => soloKey(l) === only)) solo.value = only;
       const [table, row] = (url.get("s") ?? "").split(":");
       // A link made before the data set was re-converted may name a row that no longer exists.
       if (table && row && Number(row) < (event.peek()?.tables[table]?.n ?? 0)) selection.value = { table, row: Number(row) };
@@ -168,7 +168,7 @@ function HelpDialog() {
         unrelated fades.</p>
       <h3>Expressions</h3>
       <p class="hint">A filter or a new column (⋯ on a row) is an expression of the table's columns: {SYNTAX}. A filter hides the rows where
-        it is 0; a new column is shown in the inspector and can colour or filter.</p>
+        it is 0; a new column is shown in the object's card and can colour or filter.</p>
       <h3>Sharing</h3>
       <p class="hint">The address bar keeps the data set, event, view, part of the detector, a kind looked at alone, selection, the level
         shown and the truth colours; the share button copies it.</p>

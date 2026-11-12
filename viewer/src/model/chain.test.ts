@@ -58,27 +58,40 @@ describe("recoLadder", () => {
     expect(l.below[0]).toBe("PF candidates 2");
     expect(l.below).toContain("Tracks 2");
   });
-  it("finds the later steps holding an object that no relation names, by vote, and marks them", () => {
+  it("finds the later steps holding an object that no relation names, and says how many of its parts they hold", () => {
     const up = ladder("T", 1).above;
-    expect(up.map((r) => [r.kind, r.groups[0].rows, r.voted])).toEqual([["Candidates", [0], 1], ["Interpretations", [0], 1]]);
+    expect(up.map((r) => [r.kind, r.groups[0].rows, r.groups[0].held])).toEqual([["Candidates", [0], [2, 2]], ["Interpretations", [0], [2, 2]]]);
   });
-  it("gives every step its truth link: matches counted, facts as shares per detector, gaps with their reason", () => {
+  it("does not call a later step that holds less than half of an object's parts its holder", () => {
+    // trackster 0 is made of cluster 1 alone, which no candidate or interpretation holds
+    expect(ladder("T", 0).above).toEqual([]);
+  });
+  it("under a kind with no truth of its own, counts its parts' own matches but ranks no particle through them", () => {
     const l = ladder("Jet", 0), link = (kind: string) => l.below.find((r) => r.kind === kind)!.links;
-    expect(link("Tracks")).toEqual([{ kind: "match", truth: "P", measure: "hits", good: 0.75, of: 2, matched: 1, clean: 1, partners: [[0, 1]], purity: undefined }]);
-    const [fact] = link("Hits");
-    expect(fact).toMatchObject({ kind: "fact", in: "HGCal", truth: "P", total: 7 });
-    expect(fact.kind === "fact" && fact.particles.map(([p, s]) => [p, Math.round(s * 100)])).toEqual([[0, 57], [1, 43]]);
+    expect(link("Tracks")).toEqual([{ kind: "match", truth: "P", measure: "hits", good: 0.75, of: 2, matched: 1, clean: 1, partners: [], purity: undefined }]);
+    expect(link("Hits")).toEqual([{ kind: "fact", in: "HGCal", truth: "P", total: 0, particles: [], unranked: true }]);
     expect(link("PF candidates")).toEqual([{ kind: "none", reason: "no PF associator", gap: 20 }]);
     expect(l.self.links).toEqual([{ kind: "none", reason: "no jet associator", gap: 21 }]);
+  });
+  it("gives a kind with truth of its own its statement: a hit's particles by their share, a track's match and purity", () => {
+    const [fact] = ladder("Hit", 1).self.links;
+    expect(fact).toMatchObject({ kind: "fact", in: "HGCal", truth: "P", total: 2 });
+    expect(fact.kind === "fact" && fact.particles).toEqual([[0, 0.5], [1, 0.5]]);
+    expect(ladder("Trk", 0).self.links).toEqual([{ kind: "match", truth: "P", measure: "hits", good: 0.75, of: 1, matched: 1, clean: 1, partners: [[0, 1]], purity: expect.closeTo(0.8) }]);
+    // one part alone speaks for itself, also under a kind with no truth (a candidate's track)
+    expect(ladder("Cand", 0).below.find((r) => r.kind === "Tracks")!.links[0]).toMatchObject({ kind: "match", matched: 1, partners: [[0, 1]] });
+  });
+  it("says so where a hit has no simulated energy from an exported particle", () => {
+    expect(ladder("Hit", 2).self.links).toEqual([{ kind: "fact", in: "HGCal", truth: "P", total: 0, particles: [] }]);
   });
 });
 
 describe("recoLadder without display layers", () => {
-  it("keeps a related table the bundle does not draw as a step under its table's name (a hit's digi)", () => {
+  it("lists a related table the bundle does not draw apart, under its table's name (a hit's digi)", () => {
     const dev = { id: [1, 1, 1], tables: { Hit: table(2), Digi: table(2) }, relations: { hitDigi: csr([[1], [0]]) } } as unknown as EventData;
     const dh = { relations: { hitDigi: plain("Hit", "Digi") }, display: [layer("Hit", "Hits", { repr: "cells" })] } as unknown as Header;
     const l = recoLadder(dev, dh, { table: "Hit", row: 0 }, relatedParts(dev, dh, { table: "Hit", row: 0 }), new Map());
-    expect(l.below.map((r) => [r.kind, r.groups])).toEqual([["Digi", [{ table: "Digi", rows: [1] }]]]);
+    expect([l.below, l.other.map((r) => [r.kind, r.groups])]).toEqual([[], [["Digi", [{ table: "Digi", rows: [1] }]]]]);
     const up = recoLadder(dev, dh, { table: "Digi", row: 1 }, relatedParts(dev, dh, { table: "Digi", row: 1 }), new Map());
     expect([up.self.kind, up.above.map((r) => r.kind)]).toEqual(["Digi", ["Hits"]]);
   });
@@ -87,7 +100,7 @@ describe("recoLadder without display layers", () => {
 describe("recoOfTruth", () => {
   it("lists what was reconstructed from a particle with its completeness, and the hits it left per detector", () => {
     expect(recoOfTruth(ev, header, { table: "P", row: 0 })).toEqual({
-      reco: [{ table: "Trk", measure: "hits", in: "tracker", partners: [{ row: 0, completeness: expect.closeTo(0.6), best: true }] }],
+      reco: [{ table: "Trk", measure: "hits", in: "tracker", partners: [{ row: 0, completeness: expect.closeTo(0.6), best: true, unmatched: false }] }],
       hits: [{ in: "HGCal", hits: 2, energy: 4, weight: "simEnergy" }] });
   });
   it("keeps an empty entry where nothing of a matched kind was reconstructed", () => {

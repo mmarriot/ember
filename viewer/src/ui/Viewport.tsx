@@ -40,6 +40,7 @@ const replaying = signal(false);
 export function replayEvent(): Plan | null {
   if (!engine) return null;
   engine.stopReplay(); // a running replay ends first (its end resets `replaying`), so the rebuild below sticks
+  solo.value = null; // the replay builds the whole event up, not one kind
   replaying.value = true; // rebuilds the layers at once (an effect), including the hidden stages
   if (!entries.length) return null;
   hover.value = null;
@@ -324,7 +325,7 @@ export function Viewport() {
       <Labels />
       <Tooltip />
       <ReplayCaption />
-      {solo.value && <div class="solobar" role="status">Only <b>{solo.value}</b> <button class="link" title="Draw everything ticked again" onClick={() => (solo.value = null)}>show everything</button></div>}
+      {solo.value && <div class="solobar" role="status">Only <b>{solo.value.split("|").filter(Boolean).reverse().join(" · ")}</b> <button class="link" title="Draw everything ticked again" onClick={() => (solo.value = null)}>show everything</button></div>}
       {(bundle.value?.header.domains?.length ?? 0) >= 2 && <Views />}
       <div class="hintbar">Drag to rotate · right-drag to pan · scroll to zoom · click to inspect · double-click to zoom in · <kbd>?</kbd> help</div>
     </div>

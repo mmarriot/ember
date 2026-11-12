@@ -6,7 +6,7 @@ import { type DisplayLayer, kindName } from "../io/bundle";
 import { filterMask, filters } from "../model/custom";
 import { rowsInDomain, stepDomain, withFocus } from "../model/domains";
 import { passes, stepRow, topRows } from "../model/objects";
-import { bundle, cuts, domain, drawnLayers, event, focus, focusBack, focusOn, highlight, ladder, layerKey, layerOf, openTab, reconstructed, selection, shared, sizeColumn, tabOfDomain, toast, view } from "../model/store";
+import { bundle, cuts, domain, drawnLayers, event, focus, focusBack, focusOn, highlight, ladder, layerKey, layerOf, modes, openTab, reconstructed, selection, shared, sizeColumn, tabOfDomain, toast, view } from "../model/store";
 import type { Ref } from "../model/relations";
 import { engine } from "./Viewport";
 
@@ -23,16 +23,20 @@ export function back() {
   engine?.frame(highlight.peek() ?? undefined, true, 800);
 }
 
-/** Across the reco ↔ truth link (keyboard: X): from a reco object to its best truth match; from a truth object to the
- *  reco object of the latest reconstruction step whose own best match it is (else the one holding most of it). Says
- *  so when there is nothing on the other side. */
+/** Across the reco ↔ truth link (keyboard: X): from a reco object to its best truth match (a hit or a layer cluster:
+ *  the particle with the most simulated energy in it); from a truth object to the reco object of the latest
+ *  reconstruction step whose own best match it is (else the one holding most of it). Says so when there is nothing on
+ *  the other side; does nothing in a bundle without truth. */
 export function cross() {
   const sel = selection.peek(), l = ladder.peek(), rec = reconstructed.peek();
-  if (!sel) return;
+  if (!sel || !modes.peek().roots.truth) return;
   if (l) {
-    const m = l.self.links.find((x) => x.kind === "match");
-    if (m?.kind === "match" && m.partners.length) return jump({ table: m.truth, row: m.partners[0][0] });
-    return toast(m ? "No truth match for this object" : "No truth link for this kind: step to one of its parts");
+    for (const x of l.self.links) {
+      if (x.kind === "match" && x.partners.length) return jump({ table: x.truth, row: x.partners[0][0] });
+      if (x.kind === "fact" && x.particles.length) return jump({ table: x.truth, row: x.particles[0][0] });
+      if (x.kind === "derived" && x.partners.length) return jump({ table: x.truth, row: x.partners[0][0] });
+    }
+    return toast(l.self.links.some((x) => x.kind === "none" || x.kind === "container") ? "No truth link for this kind: step to one of its parts" : "No truth particle for this object");
   }
   const all = (rec?.reco ?? []).filter((r) => r.partners.length), own = all.find((r) => r.partners.some((p) => p.best)) ?? all[0];
   if (!own) return toast("Nothing reconstructed is linked to this truth object");
@@ -91,9 +95,9 @@ export function ranked(d: DisplayLayer, max = Infinity): number[] {
 }
 
 /** Select the next (`by` 1) or previous (-1) object of the selected one's kind, largest first (keyboard: N, Shift+N);
- *  without a selection, the leading object of the first drawn layer with labels (or object rows). Only kinds with
- *  object rows (`list`: jets, leptons, vertices...): stepping through a hit table (400k HGCal cells at PU200) costs
- *  ~70 ms a press (measured) and leads nowhere. */
+ *  without a selection, the leading object of the first drawn layer with labels (or object rows). Not for hits, which
+ *  lead nowhere (400k HGCal cells at PU200). A press ranks the kind's passing rows: a sort of the table, ~40 ms for the
+ *  110k layer clusters of a PU200 event, under 2 ms for its tracks (measured). */
 export function nextObject(by = 1) {
   const b = bundle.peek(), sel = selection.peek();
   if (!b) return;

@@ -11,7 +11,7 @@ import { columnName, passes, topRows } from "../model/objects";
 import { PALETTES, relatedColourText, type Legend } from "../render/colour";
 import {
   activeMode, bundle, cutGroups, cuts, describe, event, noTruth, truthStatuses, focusHidden, focusLayers, focusLevel, labelOf, layerKey, layerName, legends, levels, modes, pairView,
-  selection, short, showAll, shown, shownLayer, sizeColumn, solo, theme, visible,
+  selection, short, showAll, shown, shownLayer, sizeColumn, solo, soloKey, theme, visible,
 } from "../model/store";
 import { ExprForm } from "./ExprForm";
 import { rowHover } from "./Labels";
@@ -34,13 +34,15 @@ export function Collections({ layers }: { layers: DisplayLayer[] }) {
       <Headline layers={main} />
       {[...groups].map(([group, ls]) => {
         const id = layerKey(ls[0]), shut = folded.value.has(id), drawn = ls.filter((d) => visible.value[layerKey(d)]).length;
+        // Not for a kind drawn only for a selection (track hits): alone, it would show nothing to click.
+        const key = soloKey(ls[0]), alone = solo.value === key, canSolo = ls.some((d) => !d.onSelection);
         return (
           <section class={shut ? "kind folded" : "kind"} key={group}>
             <h3><button class="fold" aria-expanded={!shut} title={shut ? "Show this kind's collections" : "Fold this kind"} onClick={() => fold(id)}>{group}</button>
               {sameTruth(ls) && <TruthWord table={ls[0].table} />}{shut && <span class="count"> {drawn} of {ls.length} drawn</span>}
-              <button class={solo.value === group ? "only on" : "only"} aria-pressed={solo.value === group}
-                title={solo.value === group ? "Back to everything ticked" : `Look at only the ${group.toLowerCase()}: nothing else is drawn until you select one, which brings its parts and its truth`}
-                onClick={() => (solo.value = solo.value === group ? null : group)}>only</button></h3>
+              {canSolo && <button class={alone ? "only on" : "only"} aria-pressed={alone}
+                title={alone ? "Back to everything ticked" : `Look at only the ${group.toLowerCase()}: nothing else is drawn until you select one, which brings its parts and its truth`}
+                onClick={() => (solo.value = alone ? null : key)}>only</button>}</h3>
             {/* each slider just before the first row it cuts (a kind can have several, e.g. one per calorimeter) */}
             {!shut && ls.map((d) => <Fragment key={layerKey(d)}>{cutsOf([d]).map((name) => <CutRow name={name} here={ls} named={new Set(ls.flatMap((x) => (x.cut ? [x.cut.group] : []))).size > 1} />)}<LayerRow d={d} label={d.label} /></Fragment>)}
           </section>

@@ -23,7 +23,7 @@ export function Menu() {
   }, [open]);
 
   const parts = (bundle.value?.header.domains?.length ?? 0) >= 2, f = focus.value;
-  const levels = !!f && focusBar.value.bar.some((l) => !l.always);
+  const levels = !!f && focusBar.value.some((l) => !l.always);
   const groups: [string, Item[]][] = [
     ["View", [
       ...VIEWS.map(([v, name, key]): Item => ({ label: name, keys: key, on: view.value === v, run: () => (view.value = v) })),

@@ -39,16 +39,18 @@ export const DETECTOR = "Detector";
 /** Whether a layer belongs in the current domain's view: its own domain's layers, those without a domain and those of
  *  a shared domain. */
 export const inDomain = (d: DisplayLayer, current = domain.value) => drawsLayer(d, current, shared.value);
-/** One kind of object looked at alone (its heading's "only", e.g. "Tracks", "Jets"): only its collections are drawn,
- *  whatever the part of the detector looked at; null: everything ticked. A view, like `domain`: the ticks are kept,
- *  and a selection still draws its own objects of other kinds (its parts, its truth). */
+/** One kind of object looked at alone (its heading's "only", e.g. the tracks, the jets), as `soloKey` names it: only
+ *  its collections are drawn, whatever the part of the detector looked at; null: everything ticked. A view, like
+ *  `domain`: the ticks are kept, and a selection still draws its own objects of other kinds (its parts, its truth). */
 export const solo = signal<string | null>(null);
+/** A side-panel heading: a kind in one part of the detector ("HGCal|Hits" is not "Calo|Hits"). */
+export const soloKey = (d: Pick<DisplayLayer, "domain" | "group">) => `${d.domain ?? ""}|${d.group}`;
 /** The layers drawn: ticked and in the domain's view (display layer key -> drawn); with a kind alone (`solo`), its
- *  collections (those ticked, and its preferred reconstruction path's whether ticked or not). */
+ *  ticked collections, or with none ticked those of its preferred reconstruction path. */
 export const drawnLayers = computed(() => {
-  const vis = visible.value, d = domain.value, only = solo.value;
-  return Object.fromEntries((bundle.value?.header.display ?? []).map((l) => [layerKey(l),
-    only ? l.group === only && (!!vis[layerKey(l)] || !l.alternative) : !!vis[layerKey(l)] && inDomain(l, d)]));
+  const vis = visible.value, d = domain.value, only = solo.value, all = bundle.value?.header.display ?? [];
+  const alone = only ? all.filter((l) => soloKey(l) === only) : [], ticked = alone.some((l) => vis[layerKey(l)]);
+  return Object.fromEntries(all.map((l) => [layerKey(l), only ? alone.includes(l) && (ticked ? !!vis[layerKey(l)] : !l.alternative) : !!vis[layerKey(l)] && inDomain(l, d)]));
 });
 export const legends = signal<Record<string, Legend>>({}); // display layer key -> legend of the drawn layer
 export const shown = signal<Record<string, number>>({}); // display layer key -> objects passing the cuts
@@ -89,6 +91,11 @@ export const stepName = (table: string) => {
   const all = bundle.value?.header.display.filter((l) => !l.alternative && kindOf(l.table) === kindOf(table)) ?? [];
   return new Set(all.map((l) => l.table)).size > 1 ? `${kindOf(table)} · ${layerOf(table)?.label}` : kindOf(table);
 };
+/** Rows of `table`, largest first by its size column (e.g. energy), if it has one. */
+export function largestFirst(table: string, rows: number[]) {
+  const t = event.value?.tables[table], c = t && sizeColumn(table, t), key = c ? t!.columns[c] : undefined;
+  return key ? [...rows].sort((a, b) => Number(key[b]) - Number(key[a])) : rows;
+}
 /** Whether a layer shows detector hits: drawn as cells, and not a background layer. */
 export const isHitLayer = (d: DisplayLayer | undefined) => d?.repr === "cells" && !d.context;
 /** The column that says how big an object of `table` is (e.g. its energy), to rank objects: its layer's cut column,
@@ -172,7 +179,7 @@ export const noTruth = (table: string) => truthStatuses.peek().get(table)?.kind 
 describeNoLink((d) => {
   const s = activeMode.peek() === "truth" ? truthStatuses.peek().get(d.table) : undefined;
   if (s?.kind === "none") return `no truth for ${truthName(d.table).split(" ").map((w) => (/^[A-Z][a-z]/.test(w) ? w.toLowerCase() : w)).join(" ")}${s.gap !== undefined ? ` (gap ${s.gap})` : ""}`;
-  if (s?.kind === "match") return "matched to truth, not to a particle: no particle colour (inspector)";
+  if (s?.kind === "match") return "matched to truth, not to a particle: no particle colour (its card)";
   return "one colour: no link to the colour's source";
 });
 
@@ -324,9 +331,9 @@ export const levels = computed(() => {
   // Looking at everything in a bundle with parts of the detector: same-depth levels of different parts become one.
   return !domain.value && (b.header.domains?.length ?? 0) >= 2 ? mergeAcrossDomains(lv, shared.value) : lv;
 });
-/** The levels ↓ ↑ step through and the card's chain offers to show (`bar`): those the current domain draws as its own or shares; and (`chips`) one per other part of the
- *  detector the focus has levels in (model/levels.ts scopeLevels). */
-export const focusBar = computed(() => scopeLevels(levels.value, domain.value, shared.value, (bundle.value?.header.domains ?? []).map((d) => d.name)));
+/** The levels ↓ ↑ step through and the card's chain offers to show: those the current domain draws as its own or
+ *  shares (model/levels.ts scopeLevels). */
+export const focusBar = computed(() => scopeLevels(levels.value, domain.value, shared.value));
 /** The chosen level, if the focus has it and it is not one drawn anyway (the bottom ones, lines); else null. */
 export const shownLevel = computed(() => {
   const c = focusLevel.value;
@@ -335,7 +342,7 @@ export const shownLevel = computed(() => {
 /** Step the shown level down (+1) or up (-1) among the current domain's (focusBar); false (and nothing changes) if it has none to step
  *  through. */
 export function stepFocusLevel(by: number) {
-  const bar = focusBar.peek().bar; // the levels of the current domain (and the shared ones)
+  const bar = focusBar.peek(); // the levels of the current domain (and the shared ones)
   if (!bar.some((l) => !l.always)) return false;
   focusLevel.value = stepLevel(bar, focusLevel.peek(), by);
   return true;

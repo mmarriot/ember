@@ -247,6 +247,8 @@ table.kv.keys td:nth-child(2) { text-align: left; }
 }
 
 @media (max-width: 900px) {
+  /* the top bar wraps, so the menu button may be anywhere on it: the menu opens as a sheet at the bottom */
+  .menupanel { position: fixed; left: 8px; right: 8px; top: auto; bottom: 8px; max-height: 75vh; overflow: auto; justify-content: center; }
   .app { grid-template-columns: 1fr; grid-template-rows: auto 40vh 1fr; }
   .topbar { flex-wrap: wrap; padding: 8px; gap: 8px; }
   .eventnav { margin-left: 0; }

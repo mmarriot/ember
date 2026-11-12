@@ -32,9 +32,11 @@ const items = computed<Item[]>(() => {
     if (!seen.has(k)) { seen.add(k); out.push(item); }
   };
   if (h && layerOf(h.table)) add({ ref: h, text: text(layerOf(h.table)!, h.row, true), kind: "hover" });
-  if (!labelsOn.value) return out;
-  // The selected object, marked so it is found at once; and the focus, when the selection is one of its parts.
+  // The selected object, marked so it is found at once, whatever the labels (L): every kind gets this mark, also those
+  // the renderer cannot make stand out (a line one pixel wide).
   if (sel && layerOf(sel.table)) add({ ref: sel, text: text(layerOf(sel.table)!, sel.row, true), kind: "selected" });
+  if (!labelsOn.value) return out;
+  // The focus, when the selection is one of its parts.
   if (f && layerOf(f.table)) add({ ref: f, text: text(layerOf(f.table)!, f.row, true), kind: "focus" });
   // The leading objects: in a shared domain's view, or in a bundle without domains; not while a focus is shown elsewhere.
   const lead = (domain.value ? shared.value.has(domain.value) : !(b.header.domains?.length)) && !f;

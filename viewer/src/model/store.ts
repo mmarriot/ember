@@ -249,9 +249,10 @@ export const relatives = computed(() => (sameRef(selection.value, focus.value) ?
 // Looking at an object from another's card (ui/Navigator.tsx): a click on an object in the card selects it, so the
 // view shows it as any selection (with its parts, its pair), while the card stays on the object it was opened for,
 // the `anchor`. Any other selection (a click in the view, a list, N) ends it: the card follows the selection again,
-// and the anchor is kept for "back".
+// and the way back is the card's object, shown as it was (in its own focus), never the object looked at.
 export const anchor = signal<Ref | null>(null);
 let looking: Ref | null = null; // the selection made by `look`, which keeps the anchor
+let anchorFocus: Ref | null = null; // the focus the card's object was shown in: itself, or what it is a part of
 /** The object the card describes: the anchor while another is looked at, else the selection. */
 export const subject = computed(() => anchor.value ?? selection.value);
 /** Look at `ref` in the view, keeping the card on its object; on the card's own object, back to it. */
@@ -260,31 +261,26 @@ export function look(ref: Ref) {
   if (sameRef(sel, ref)) return;
   if (sameRef(a, ref)) return unlook();
   batch(() => { // the focus moves there without history: "back" is the card's object
-    if (!a && sel) anchor.value = sel;
+    if (!a && sel) { anchor.value = sel; anchorFocus = focus.peek(); }
     looking = { ...ref };
     focus.value = looking;
     selection.value = looking;
   });
 }
-/** Back to the card's own object. */
+/** Back to the card's own object, in the focus it was shown in. */
 export function unlook() {
-  const a = anchor.peek();
+  const a = anchor.peek(), f = anchorFocus ?? a;
   if (!a) return;
-  batch(() => { anchor.value = null; looking = null; focus.value = a; selection.value = a; });
+  batch(() => { anchor.value = null; looking = null; anchorFocus = null; focus.value = f; selection.value = a; });
 }
 /** Open the card of `ref` (the object looked at, or another): the card's object so far is kept for "back". */
 export function openCard(ref: Ref) {
-  const a = anchor.peek();
+  const a = anchor.peek(), home = anchorFocus ?? a;
   batch(() => {
-    if (a) { focusHistory.value = [...focusHistory.peek(), a]; anchor.value = null; looking = null; }
+    if (home) { focusHistory.value = [...focusHistory.peek(), home]; anchor.value = null; looking = null; anchorFocus = null; }
     if (!sameRef(selection.peek(), ref)) { if (!a) focusOn(ref); else focus.value = { ...ref }; selection.value = { ...ref }; }
   });
 }
-effect(() => { // a selection made elsewhere ends the look; its card's object is kept for "back"
-  const sel = selection.value, a = anchor.peek();
-  if (!a || sameRef(sel, looking)) return;
-  batch(() => { anchor.value = null; looking = null; if (sel && !sameRef(sel, a)) focusHistory.value = [...focusHistory.peek(), a]; });
-});
 const subjectParts = computed(() => (anchor.value ? partsOf(anchor.value) : relatives.value));
 /** The ladder of the card's object (model/chain.ts): for a reco object, what it is part of, itself and what it is made
  *  of, each step with its link to the truth; null for a truth object. */
@@ -339,9 +335,9 @@ export const inFocus = (table: string, row: number) => {
 
 /** Focus on `ref`, keeping the current focus for back. */
 export function focusOn(ref: Ref) {
-  const f = focus.peek();
+  const f = focus.peek(), from = anchor.peek() ? anchorFocus ?? anchor.peek() : f; // while looking: back is the card's object
   if (sameRef(f, ref)) return;
-  if (f) focusHistory.value = [...focusHistory.peek(), f];
+  if (from) focusHistory.value = [...focusHistory.peek(), from];
   focus.value = { ...ref };
 }
 /** Back to the previous focus; returns it (null if there is none). */
@@ -353,7 +349,15 @@ export function focusBack(): Ref | null {
   return prev;
 }
 effect(() => {
-  const sel = selection.value;
+  const sel = selection.value, a = anchor.peek();
+  if (a && !sameRef(sel, looking)) { // a selection made elsewhere ends the look; the card's object is kept for "back"
+    const home = anchorFocus ?? a, h = focusHistory.peek(), inView = !!sel && !!highlight.peek()?.get(sel.table)?.has(sel.row);
+    anchor.value = null; looking = null; anchorFocus = null;
+    if (sel && !sameRef(sel, a) && !sameRef(h.at(-1) ?? null, home)) focusHistory.value = [...h, home];
+    if (sameRef(sel, a)) focus.value = home;
+    else if (sel && !inView) focus.value = { ...sel }; // not through focusOn, which would keep the object looked at for back
+    if (sel) return;
+  }
   if (sel && !highlight.peek()?.get(sel.table)?.has(sel.row)) focusOn(sel);
   else if (!sel) { focus.value = null; focusLevel.value = null; if (focusHistory.peek().length) focusHistory.value = []; }
 });

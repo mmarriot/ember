@@ -60,11 +60,12 @@ vec3 projectRZ(vec3 c, float depth, float side) { return vec3(c.z, length(c.xy) 
 // Selection, cross-faded between the previous and the current one: selActive = something selected, s = this one is.
 float selActive() { return mix(uAct0, uAct1, uMix); }
 float selected(float before, float now) { return mix(before, now, uMix); }
-// The selected object (the pinned instances, see CULL) stands out from its own parts: its colour is pulled most of the
-// way to the rim colour (near white on the dark theme, near black on the light one), a line is three times as wide and
-// a marker larger.
+// The selected object (the pinned instances, see CULL) stands out from its own parts: its colour is pulled halfway
+// to the rim colour (near white on the dark theme, near black on the light one), which keeps its hue (what it is); a
+// line drawn as a ribbon is three times as wide and a marker larger.
 float gPin = 0.0;
-vec3 fade(vec3 col, float s) { return mix(mix(col, uBg, 0.85 * selActive() * (1.0 - s)), uRim, 0.7 * gPin); }
+const float PIN = 0.55;
+vec3 fade(vec3 col, float s) { return mix(mix(col, uBg, 0.85 * selActive() * (1.0 - s)), uRim, PIN * gPin); }
 float pop(float t) { return exp(-max(uClock - t, 0.0) * 6.0); } // 1 when an object appears, then decays in ~0.3 s
 // 1 until the layer retires in a replay, then down to 0 over 0.6 s (always 1 outside a replay).
 float remaining() { return uClock > 1e29 ? 1.0 : clamp(1.0 - (uClock - uRetire) / 0.6, 0.0, 1.0); }
@@ -217,8 +218,8 @@ export function cells(input: LayerInput): Layer {
         // cell, no normals), the flash, selection fade and replay fade here: mix(fade(mix(icol * light, 1, f), s), bg, g).
         float f = uFlash * p, k = 0.85 * selActive() * (1.0 - s), g = faded();
         vCol = icol;
-        vA = (1.0 - g) * (1.0 - k) * (1.0 - f);
-        vB = (1.0 - g) * ((1.0 - k) * vec3(f) + k * uBg) + g * uBg;
+        vA = (1.0 - g) * (1.0 - k) * (1.0 - f) * (1.0 - PIN * gPin);
+        vB = ((1.0 - g) * ((1.0 - k) * vec3(f) + k * uBg) + g * uBg) * (1.0 - PIN * gPin) + PIN * gPin * uRim; // the selected cell: as fade()
       }`,
     // The face's normal from the screen derivatives of the surface point: flat shading without per-face vertices.
     fragmentShader: /* glsl */ `
@@ -485,6 +486,7 @@ export function ellipsoids(input: LayerInput): Layer {
     transparent: shape !== "core", depthWrite: shape === "core", side: shape === "shell" || shape === "cage" ? THREE.DoubleSide : THREE.FrontSide,
   });
   let core = shape === "core" ? 0.55 : 1; // a candidate is a compact core inside the shower it stands for
+  let pinned = -1; // the selected row
   const mesh = new THREE.InstancedMesh(geometry, material, Math.max(t.n, 1));
   mesh.count = t.n;
   mesh.frustumCulled = false;
@@ -534,7 +536,8 @@ export function ellipsoids(input: LayerInput): Layer {
       else if (hasAxis && !rz) s.set(sigma(1, i), sigma(2, i), sigma(0, i));
       else s.set(1, 1, 1);
       mesh.setMatrixAt(i, m.compose(project(p.set(x[i], y[i], z[i])), q, s.multiplyScalar(2 * g * core)));
-      mesh.setColorAt(i, c.setRGB(rgb[3 * i], rgb[3 * i + 1], rgb[3 * i + 2]));
+      const pin = i === pinned ? 0.55 : 0, rim = input.pal.rim; // the selected one: halfway to the rim colour, as the shader layers
+      mesh.setColorAt(i, c.setRGB(rgb[3 * i] + pin * (rim[0] - rgb[3 * i]), rgb[3 * i + 1] + pin * (rim[1] - rgb[3 * i + 1]), rgb[3 * i + 2] + pin * (rim[2] - rgb[3 * i + 2])));
     }
     mesh.instanceMatrix.needsUpdate = true;
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
@@ -548,7 +551,7 @@ export function ellipsoids(input: LayerInput): Layer {
     ...identity(input, 14), object: group, x, y, z, segment: { a: pickA, b: pickB }, pickBias: shape === "core" ? 0.3 : 0.45,
     passes: (i) => cut.passes(i) && shown(highlighted, i) === 1, // showers hidden by a selection cannot be picked
     setCut: cut.setCut, setColours(c) { rgb = c; update(); },
-    setPinned(row) { cut.pin(row); update(); },
+    setPinned(row) { pinned = row; cut.pin(row); update(); },
     setOutline(on, envelope = false) {
       material.uniforms.uStyle.value = on || envelope ? SHOWER_STYLES.shell : style;
       material.side = on || envelope ? THREE.DoubleSide : material.side;

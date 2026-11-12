@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { DisplayLayer, EventData, Header } from "../io/bundle";
-import { matchTally, recoLadder, recoOfTruth, type Ladder } from "./chain";
+import { matchClass, matchTally, recoLadder, recoOfTruth, type Ladder } from "./chain";
 import { truthStatus, type TruthStatus } from "./match";
 import { relatedParts } from "./relations";
 
@@ -130,6 +130,11 @@ describe("matchTally", () => {
   });
   it("counts only the objects that pass the layer's cut and filter", () => {
     expect(matchTally(tev, header, "trkTruth", (r) => r !== 1)).toMatchObject({ clean: [0], impure: [2], unmatched: [] });
+  });
+  it("says the same of one object, and only that it is matched for a kind without a clean threshold", () => {
+    expect([0, 1, 2].map((r) => matchClass(tev, header, "trkTruth", r))).toEqual(["clean", "unmatched", "impure"]);
+    const loose = { ...header, relations: { ...header.relations, trkTruth: { ...header.relations.trkTruth, match: { measure: "hits", in: "tracker", shared: "shared", over: ["nhits"] } } } } as unknown as Header;
+    expect([0, 1, 2].map((r) => matchClass(tev, loose, "trkTruth", r))).toEqual(["matched", "unmatched", "matched"]);
   });
   it("has nothing to say without the association in the event, or without a match contract", () => {
     expect(matchTally({ ...tev, relations: {} } as unknown as EventData, header, "trkTruth", () => true)).toBeNull();

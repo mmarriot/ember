@@ -2,7 +2,7 @@
 // them have no button of their own (labels, replay, next object, levels), so the menu is where they can be found.
 import { signal } from "@preact/signals";
 import { useEffect, useRef } from "preact/hooks";
-import { bundle, colourChoice, dialog, focus, focusBar, focusHistory, following, highlight, labelsOn, selection, stepEvent, stepFocusLevel, theme, toggleTheme, touring, truthColours, view } from "../model/store";
+import { anchor, bundle, colourChoice, dialog, focus, focusBar, focusHistory, following, highlight, labelsOn, selection, stepEvent, stepFocusLevel, theme, toggleTheme, touring, truthColours, view } from "../model/store";
 import { toggleLive } from "./live";
 import { back, cross, nextDomain, nextObject, showWhole } from "./navigate";
 import { stopTour, toggleTour } from "./tour";
@@ -41,7 +41,7 @@ export function Menu() {
       { label: "Next object, largest first", keys: "N", run: () => nextObject(1) },
       { label: "Previous object", keys: "⇧N", run: () => nextObject(-1) },
       { label: "Across to its truth or reco match", keys: "X", off: !selection.value, run: cross },
-      { label: "Back to the previous object", keys: "B", off: !focusHistory.value.length, run: back },
+      { label: "Back to the previous object", keys: "B", off: !anchor.value && !focusHistory.value.length, run: back },
       { label: "One level down", keys: "↓", off: !levels, run: () => stepFocusLevel(1) },
       { label: "One level up", keys: "↑", off: !levels, run: () => stepFocusLevel(-1) },
       { label: "Leave the selection", keys: "Esc", off: !selection.value, run: () => { selection.value = null; showWhole(true); } },

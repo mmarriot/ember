@@ -27,9 +27,11 @@ export function Collections({ layers }: { layers: DisplayLayer[] }) {
   const main = layers.filter((l) => !l.alternative), alternatives = layers.filter((l) => l.alternative);
   const groups = new Map<string, DisplayLayer[]>();
   for (const d of main) groups.set(d.group, [...(groups.get(d.group) ?? []), d]);
-  // A kind with one cut carries it on its heading; with several (one per calorimeter), each on the first row it cuts.
+  // A kind whose collections share one cut carries it on its heading; otherwise (one per calorimeter; particles cut,
+  // vertices not) each cut is on the first row it applies to.
   const cutsOf = (ls: DisplayLayer[]) => [...new Set(ls.flatMap((d) => (d.cut ? [d.cut.group] : [])))];
-  const rowCut = (d: DisplayLayer, ls: DisplayLayer[]) => (d.cut && cutsOf(ls).length > 1 && ls.find((x) => x.cut?.group === d.cut!.group) === d ? d.cut.group : undefined);
+  const onHeading = (ls: DisplayLayer[]) => cutsOf(ls).length === 1 && ls.every((d) => d.cut);
+  const rowCut = (d: DisplayLayer, ls: DisplayLayer[]) => (d.cut && !onHeading(ls) && ls.find((x) => x.cut?.group === d.cut!.group) === d ? d.cut.group : undefined);
   return (
     <>
       <Headline layers={main} />
@@ -41,7 +43,7 @@ export function Collections({ layers }: { layers: DisplayLayer[] }) {
           <section class={shut ? "kind folded" : "kind"} key={group}>
             <h3><button class="fold" aria-expanded={!shut} title={shut ? "Show this kind's collections" : "Fold this kind"} onClick={() => fold(id)}>{group}</button>
               {sameTruth(ls) && <TruthWord table={ls[0].table} />}{shut && <span class="count"> {drawn} of {ls.length} drawn</span>}
-              {!shut && cutsOf(ls).length === 1 && <CutChip name={cutsOf(ls)[0]} here={ls} />}
+              {!shut && onHeading(ls) && <CutChip name={cutsOf(ls)[0]} here={ls} />}
               {canSolo && <button class={alone ? "only on" : "only"} aria-pressed={alone}
                 title={alone ? "Back to everything ticked" : `Look at only the ${group.toLowerCase()}: nothing else is drawn until you select one, which brings its parts and its truth`}
                 onClick={() => (solo.value = alone ? null : key)}>only</button>}</h3>
@@ -88,7 +90,7 @@ function CutChip({ name, here }: { name: string; here: DisplayLayer[] }) {
   const cut = g.layers[0].cut!, v = cuts.value[name] ?? g.default, what = cut.label ?? cut.column;
   return (
     <button class={v !== g.default ? "cutchip changed" : "cutchip"} title={`${name}: the minimum drawn. Click to change it`}
-      onClick={(e) => togglePopover(e, () => <CutRow name={name} here={here} />, name)}>{v > 0 ? `${what} ≥ ${short(v)}${g.unit ? ` ${g.unit}` : ""}` : `no ${what} cut`}</button>
+      onClick={(e) => togglePopover(e, () => <CutRow name={name} here={here} />, name, true)}>{v > 0 ? `${what} ≥ ${short(v)}${g.unit ? ` ${g.unit}` : ""}` : `no ${what} cut`}</button>
   );
 }
 
@@ -168,6 +170,7 @@ function LayerRow({ d, label, cut, here = [] }: { d: DisplayLayer; label: string
         {on && d.onSelection && <button class={showAll.value[key] ? "rowchip" : "rowchip on"} aria-pressed={!showAll.value[key]}
           title={showAll.value[key] ? "All of them are drawn. Click to draw only those of the selected object" : "Drawn only for the selected object. Click to draw all of them"}
           onClick={() => (showAll.value = { ...showAll.value, [key]: !showAll.value[key] })}>{showAll.value[key] ? "all" : "selected"}</button>}
+        {!on && focusLayers.value.has(key) && <span class="rowchip on" title="Not ticked, but drawn now: it holds objects of the selection">shown</span>}
         {on && focusHidden.value.has(key) && <button class="rowchip" title="Hidden while an object is selected: one of its levels is drawn at a time. Click to draw this one" onClick={showLevel}>show</button>}
         {cut && <CutChip name={cut} here={here} />}
         {canList ? <button class="count listbtn" aria-expanded={listed} title="List its largest objects: click one to select it (N steps through them)" onClick={() => setListed(!listed)}>{count} {listed ? "▾" : "▸"}</button>

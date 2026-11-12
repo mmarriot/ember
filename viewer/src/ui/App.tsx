@@ -52,12 +52,12 @@ export function App() {
     });
 
     const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && popover.value) return void (popover.value = null); // also from a control inside it (a cut's slider)
       if (["SELECT", "INPUT"].includes((e.target as HTMLElement).tagName) || e.ctrlKey || e.metaKey || e.altKey) return;
       if (e.key === "p" || e.key === "P") return toggleTour();
       stopTour(); // any other key takes over from the tour
       if (e.key === "Escape") { // close a dialog; else back to the normal view: no selection, the whole event
-        if (popover.value) popover.value = null;
-        else if (menuOpen.value) menuOpen.value = false;
+        if (menuOpen.value) menuOpen.value = false;
         else if (dialog.value) dialog.value = null;
         else if (anchor.value) unlook(); // back to the card's own object
         else { selection.value = null; showWhole(true); }
@@ -73,7 +73,7 @@ export function App() {
       else if (e.key === "l" || e.key === "L") labelsOn.value = !labelsOn.value;
       else if (e.key === "n" || e.key === "N") nextObject(e.shiftKey ? -1 : 1);
       else if (e.key === "x" || e.key === "X") cross();
-      else if (e.key === "b" || e.key === "B") { if (anchor.value) unlook(); else back(); }
+      else if (e.key === "b" || e.key === "B") back();
       else if (e.key === "Home") showWhole();
       else if (e.key === "r" || e.key === "R") void replayEvent();
     };

@@ -6,7 +6,7 @@ import { type DisplayLayer, kindName } from "../io/bundle";
 import { filterMask, filters } from "../model/custom";
 import { rowsInDomain, stepDomain, withFocus } from "../model/domains";
 import { passes, stepRow, topRows } from "../model/objects";
-import { bundle, cuts, domain, drawnLayers, event, focus, focusBack, focusOn, highlight, ladder, layerKey, layerOf, modes, openTab, reconstructed, selection, shared, sizeColumn, tabOfDomain, toast, view } from "../model/store";
+import { anchor, bundle, cuts, domain, drawnLayers, event, focus, focusBack, focusOn, highlight, ladder, layerKey, layerOf, modes, openCard, openTab, reconstructed, selection, shared, sizeColumn, tabOfDomain, toast, unlook, view } from "../model/store";
 import type { Ref } from "../model/relations";
 import { engine } from "./Viewport";
 
@@ -16,10 +16,14 @@ export function jump(ref: Ref) {
   engine?.frame(highlight.peek() ?? undefined, true, 800);
 }
 
+/** Back (keyboard: B): while another object is looked at, to the card's own object; else to the previous card. */
 export function back() {
-  const prev = focusBack();
-  if (!prev) return;
-  selection.value = { ...prev };
+  if (anchor.peek()) unlook();
+  else {
+    const prev = focusBack();
+    if (!prev) return;
+    selection.value = { ...prev };
+  }
   engine?.frame(highlight.peek() ?? undefined, true, 800);
 }
 
@@ -28,8 +32,9 @@ export function back() {
  *  reconstruction step whose own best match it is (else the one holding most of it). Says so when there is nothing on
  *  the other side; does nothing in a bundle without truth. */
 export function cross() {
-  const sel = selection.peek(), l = ladder.peek(), rec = reconstructed.peek();
-  if (!sel || !modes.peek().roots.truth) return;
+  if (!selection.peek() || !modes.peek().roots.truth) return;
+  if (anchor.peek()) openCard(selection.peek()!); // across from what the view shows: the object looked at
+  const l = ladder.peek(), rec = reconstructed.peek();
   if (l) {
     for (const x of l.self.links) {
       if (x.kind === "match" && x.partners.length) return jump({ table: x.truth, row: x.partners[0][0] });

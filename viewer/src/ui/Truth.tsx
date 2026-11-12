@@ -140,7 +140,8 @@ function Constituent({ table, row, truth }: { table: string; row: number; truth:
       const r = ev.relations[name];
       if (!r || m.to !== truth) continue;
       const { partner } = bestPartners(r, m, true, ev.tables[info.to]?.n ?? 0);
-      if (partner[part] >= 0) return <p class="hint" title={`The associator's answer for that ${one(info.to)}, not for this ${one(table)}`}>its {one(info.to)} {chip(info.to, part)} is matched to {chip(truth, partner[part])}</p>;
+      if (partner[part] >= 0) return <p class="hint">its {one(info.to)} {chip(info.to, part)} is matched to {chip(truth, partner[part])} <Info title={`Its ${one(info.to)}'s match`}>
+        <p>This is the associator's answer for that {one(info.to)}, not for this {one(table)}: CMSSW has no match for the {one(table)} itself, and evd builds none from its parts.</p></Info></p>;
     }
   }
   return null;

@@ -14,7 +14,7 @@ import { ColourKey } from "./Key";
 import { Collections, tabOf } from "./Layers";
 import { Truth, treeRelations } from "./Tree";
 import { stopTour } from "./tour";
-import { Tabs } from "./widgets";
+import { Icon, Tabs } from "./widgets";
 
 export function Sidebar() {
   const b = bundle.value, display = b?.header.display ?? [], presets = b?.header.presets ?? [];
@@ -39,9 +39,11 @@ export function Sidebar() {
         {presets.length > 1 && (
           <label class="presets" title="Presets: which rows are drawn and how they are coloured">
             <span class="barlabel">Preset</span>
-            <select aria-label="Preset" value={activePreset.value} onChange={(e) => applyPreset(Number((e.target as HTMLSelectElement).value))}>
+            {/* blurred once chosen: a focused list would take the view's keys (arrows, letters) */}
+            <select aria-label="Preset" value={activePreset.value} onChange={(e) => { applyPreset(Number((e.target as HTMLSelectElement).value)); (e.target as HTMLSelectElement).blur(); }}>
               {presets.map((p, i) => <option value={i}>{p.name}</option>)}
             </select>
+            <button class="icon-button small" title="Apply this preset again: undoes filters and colours changed by hand" onClick={(e) => { e.preventDefault(); applyPreset(activePreset.value); }}><Icon name="reset" /></button>
           </label>
         )}
         <Tabs tabs={tabs} open={openTab.value} />

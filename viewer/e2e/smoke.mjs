@@ -474,7 +474,7 @@ async function checkLevels(page, h, target, fail, shot, tag) {
   const fromTruth = await looks();
   log(`${tag}: the pair from its particle, a level shown: ${fromTruth === fromCandidate ? "the same picture" : `differs: ${fromTruth} vs ${fromCandidate}`}`);
   if (fromTruth !== fromCandidate) fail("the pair's particle and candidate draw different pictures");
-  await page.locator(".inspector .looking h4 .link").click({ timeout: 120000 }); // stop looking at the particle
+  await page.locator(".inspector .looking .lookhead .link").click({ timeout: 120000 }); // stop looking at the particle
   await page.keyboard.press("ArrowUp");
   await page.waitForTimeout(600);
 }

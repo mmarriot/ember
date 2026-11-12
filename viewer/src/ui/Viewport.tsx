@@ -15,9 +15,9 @@ import { builders, type Layer } from "../render/layers";
 import { growIn, planReplay, type Parts, type Plan } from "../render/replay";
 import { jump } from "./navigate";
 import {
-  activeMode, bundle, cuts, describe, domain, drawnLayers, event, focus, focusHidden, focusIsTruth, focusLayers, focusLinked, following,
+  activeMode, anchor, bundle, cuts, describe, domain, drawnLayers, event, focus, focusHidden, focusIsTruth, focusLayers, focusLinked, following,
   highlight, hover, inDomain, noTruth, inFocus, isHitLayer, labelOf, layerKey, layerOf, legends, levelTop, pairView, rawEvent, replayCaption, selection, short,
-  showAll, shown, shownLayer, shownLevel, solo, theme, touring, view,
+  showAll, shown, shownLayer, shownLevel, solo, theme, touring, unlook, view,
 } from "../model/store";
 import { PAIR } from "../model/pair";
 import { stopTour, tourCaption } from "./tour";
@@ -202,6 +202,7 @@ export function Viewport() {
       const raw = rawEvent.peek(); // not `ev`: adding a custom column makes a new event object for the same event
       if (raw !== lastEvent && !touring.peek() && !following.peek()) eng.frame(); // tour and Live fly there themselves
       lastEvent = raw;
+      pinSelection(); // the new layers know the selected object: drawn whatever the cut, and standing out
       showFocus(0);
     });
 
@@ -228,6 +229,7 @@ export function Viewport() {
         layer.setHighlightMix(1);
       }
       entries = [...entries, ...fresh];
+      pinSelection();
       legends.value = drawn;
       applyCuts(false);
     });
@@ -306,6 +308,8 @@ export function Viewport() {
     // An object linked to the focus (its truth particle; a truth particle's reco objects), other than single hits:
     // the focus moves there, keeping the way back.
     if (hit && !isHitLayer(layerOf(hit.table)) && focusLinked.peek()?.get(hit.table)?.has(hit.row)) return jump({ table: hit.table, row: hit.row });
+    // A click on nothing while another object is looked at from a card: back to the card's object, which is not lost.
+    if (!hit && anchor.peek()) return unlook();
     selection.value = hit ? { table: hit.table, row: hit.row } : null;
   };
   const onDoubleClick = (e: MouseEvent) => {

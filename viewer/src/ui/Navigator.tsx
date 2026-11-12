@@ -18,7 +18,7 @@ import { bestFirst, sameRef, type Ref } from "../model/relations";
 import { PALETTES } from "../render/colour";
 import {
   anchor, bundle, describe, domain, event, focus, focusBar, focusHistory, focusLevel, full, highlight, kindOf, labelOf, ladder, largestFirst, layerKey, layerOf, levelTop, modes,
-  openCard, pairView, reconstructed, selection, shared, short, shownLevel, sizeColumn, stepName, subject, theme, truthName, truthStatuses, unlook,
+  openCard, pairView, reconstructed, selection, shared, short, shownLevel, sizeColumn, stepName, subject, theme, truthName, truthStatuses,
 } from "../model/store";
 import { facts, unitOf as factUnit } from "../model/facts";
 import { ObjChip } from "./chips";
@@ -54,13 +54,13 @@ export function Navigator() {
       </header>
       <div class="navbody">
         {truth ? <TruthSide table={sel.table} row={sel.row} /> : <Chain />}
-        <Looking />
         <ViewLevels />
         <PairBars />
         {!truth && <section class="matchcard"><TruthCard table={sel.table} row={sel.row} /></section>}
         <Associations table={sel.table} row={sel.row} />
         <Properties table={table} name={sel.table} row={sel.row} />
       </div>
+      <Looking />
     </div>
   );
 }
@@ -165,8 +165,8 @@ function LinkLine({ link, single, several, at }: { link: Link; single: boolean; 
     );
     return (
       <div class="rlink match"><Tag word="match">{help}</Tag>{label}
-        {single && link.matched > 0 && <>{chip(link.truth, link.partners[0][0])}{link.purity !== undefined && <span class={`q q-${impure ? "impure" : "clean"}`} title="Purity: the share of it that comes from its match">{percent(link.purity)} pure</span>}</>}
-        {!single && clean > 0 && <span class="q q-clean"><i class="qdot q-clean" />{clean} {link.good !== undefined ? "clean" : "matched"}</span>}
+        {single && link.matched > 0 && <>{chip(link.truth, link.partners[0][0])}{link.purity !== undefined && <span class={link.good === undefined ? "q" : `q q-${impure ? "impure" : "clean"}`} title="Purity: the share of it that comes from its match">{percent(link.purity)} pure</span>}</>}
+        {!single && clean > 0 && (link.good !== undefined ? <span class="q q-clean"><i class="qdot q-clean" />{clean} clean</span> : <span class="q">{clean} matched</span>)}
         {!single && impure > 0 && <span class="q q-impure"><i class="qdot q-impure" />{impure} impure</span>}
         {none > 0 && <span class="q q-unmatched">{!single && <i class="qdot q-unmatched" />}{single ? "no match" : `${none} no match`}</span>}</div>
     );
@@ -182,12 +182,14 @@ function LinkLine({ link, single, several, at }: { link: Link; single: boolean; 
         <p>It is the energy deposited in the sensors, not calibrated: compare it only within one detector.</p>
         {unit && <p>The simulation records it per {unit}, not per hit: every hit there shares these particles.</p>}
         {link.unranked && <p>This object's kind has no truth of its own, so no particle is ranked through its hits: that would be a match built in evd. Select a hit for its particles.</p>}
+        {!link.unranked && !shown.length && <p>No exported particle left energy here: it is noise, out-of-time pile-up, or a particle the export left out. The file cannot tell which.</p>}
       </>
     );
     return (
       <div class="rlink fact"><Tag word="fact">{help}</Tag>{label}{several && link.in && <span class="muted">{link.in}</span>}
-        {link.unranked ? <span class="muted">per hit</span> : !shown.length ? <span class="muted">no particle</span>
-          : <>{shown.slice(0, 3).map(([p, share]) => <>{chip(link.truth, p)}<span class="muted">{percent(share)}</span></>)}{shown.length > 3 && <span class="muted">+{shown.length - 3}</span>}</>}</div>
+        {link.unranked ? <span class="muted">per hit</span> : !shown.length ? <span class="muted">no exported particle</span>
+          : <>{shown.slice(0, 3).map(([p, share]) => <>{chip(link.truth, p)}<span class="muted">{percent(share)}</span></>)}{shown.length > 3 && <span class="muted">+{shown.length - 3}</span>}
+            {unit && <span class="muted">per {unit}</span>}</>}</div>
     );
   }
   if (link.kind === "derived") return (
@@ -223,16 +225,19 @@ function Rows({ name, table, row, columns }: { name: string; table: Table; row: 
 }
 
 /** The object looked at from this card (a click on one of its objects): what it is, its own truth match and its main
- *  numbers, with the way into its own card and back. The view shows it as a selection. */
+ *  numbers, with the way into its own card and back. The view shows it as a selection. It sits at the bottom edge of
+ *  the card, over its content: nothing in the card moves when it appears, so the second click of a double click
+ *  lands on the same name. */
 function Looking() {
   const a = anchor.value, sel = selection.value, t = sel && event.value?.tables[sel.table];
   if (!a || !sel || !t) return null;
   const truth = !!layerOf(sel.table)?.truth;
   return (
     <section class="looking" aria-label="Looking at">
-      <h4>Looking at <button class="link" title="Back to this card's object (Esc)" onClick={unlook}>✕ stop</button></h4>
+      <h4>Looking at</h4>
       <div class="lookhead"><b class={truth ? "kind truth" : undefined}>{name(sel)}</b>
-        <button class="open" title="Open its card (double click does the same)" onClick={() => { openCard(sel); engine?.frame(highlight.peek() ?? undefined, true, 800); }}>Open →</button></div>
+        <span><button class="link" title="Back to this card's object (Esc)" onClick={back}>✕ stop</button>
+          <button class="open" title="Open its card (double click does the same)" onClick={() => { openCard(sel); engine?.frame(highlight.peek() ?? undefined, true, 800); }}>Open →</button></span></div>
       {truth ? sel.table === modes.value.roots.truth && <Lineage row={sel.row} compact /> : <TruthCard table={sel.table} row={sel.row} />}
       <Rows name={sel.table} table={t} row={sel.row} columns={keyColumns(sel.table, t).slice(0, 5)} />
     </section>
@@ -336,8 +341,8 @@ function PairBars() {
       <h4>View colours: the pair <span class="lanes"><Info title="The truth ↔ reco pair">{help}</Info></span></h4>
       <p class="pairline"><span class="badge truth">truth</span> {c(pair.truth, pair.particle) ?? <span class="muted">no particle</span>}
         <span aria-hidden="true">↔</span> <span class="badge reco">reco</span> {c(pair.reco, pair.candidate) ?? <span class="muted">no candidate</span>}</p>
-      {eff && effTotal > 0 && <div><div class="pairhead"><b>Particle's energy</b></div>{bar(effParts, effTotal)}{legend(effParts, effTotal)}</div>}
-      {pur && purTotal > 0 && <div><div class="pairhead"><b>Candidate's energy</b></div>{bar(purParts, purTotal)}{legend(purParts, purTotal)}</div>}
+      {eff && effTotal > 0 && <div><div class="pairhead"><b>Particle's energy</b> <span class="muted">{where ? `in ${where} · ` : ""}{short(effTotal)} GeV in the sensors</span></div>{bar(effParts, effTotal)}{legend(effParts, effTotal)}</div>}
+      {pur && purTotal > 0 && <div><div class="pairhead"><b>Candidate's energy</b>{where && <span class="muted"> in {where}</span>}</div>{bar(purParts, purTotal)}{legend(purParts, purTotal)}</div>}
       {pair.particle >= 0 && pair.matched >= 0 && pair.matched !== pair.particle &&
         <p class="hint">{c(pair.truth, pair.matched)} is part of the generator particle {c(pair.truth, pair.particle)}: the pair is the whole of it.</p>}
       {pair.merged.length > 0 && <p class="hint">{c(pair.truth, pair.particle)} decayed in the generator: the pair stands for the {pair.merged.length} generator particle{pair.merged.length > 1 ? "s" : ""} it

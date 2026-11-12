@@ -20,7 +20,8 @@ not repeating the study.
    or above its kind's threshold). Otherwise it is grey. Without any truth it is neutral, never the "shared" green.
    A kind with no truth of its own is drawn faint, so it cannot be read as an unmatched (fake) object of a matched kind.
 5. **Numbers are linear and say what they divide by**: purity and completeness as percentages with the counted
-   quantity and detector named ("21 of its 21 hits", "of the particle's energy in HGCal"). The associator's score is a
+   quantity and detector named ("21 of 21 hits", "of the particle's energy in HGCal"); how each is counted is behind the
+   **i** next to it. The associator's score is a
    ranking (0 best), shown as such, never as a fraction.
 
 ## Two levels: the particle, and each kind's target
@@ -104,7 +105,7 @@ test in truth mode, the units and wording.
 | primary / secondary vertices | the collision their tracks come from / their immediate production vertex, aiming at b and c hadron decays (a truth **vertex**) | pT² of tracks (tracks with score ≤ 0.25 vote) | the weight is the purity (`match.purity`) | 0.5 | TruthToReco fraction (of the truth vertex's findable tracks' pT²) | match; drawn neutral by truth (a vertex has no particle colour); the card names the collision (signal or pile-up) or the vertex, and its distance |
 | HGCal hits | — (simulation fact) | simulated energy per particle, HGCal | — | — | — | fact |
 | ECAL barrel, HCAL HB / HO, HF hits | — (simulation fact) | simulated energy per particle, ECAL / HCAL / HF (HF: photoelectrons) | — | — | — | fact |
-| muon hits (DT, CSC, RPC, GEM) | — (simulation fact) per unit the simulation records: DT wire, CSC layer, RPC roll, GEM partition (`fact.unit`) | simulated energy loss per particle, muon system | — | — | — | fact; the hit's line names the unit ("in this CSC layer": every hit there shares these particles) |
+| muon hits (DT, CSC, RPC, GEM) | — (simulation fact) per unit the simulation records: DT wire, CSC layer, RPC roll, GEM partition (`fact.unit`) | simulated energy loss per particle, muon system | — | — | — | fact; the hit's line names the unit ("per CSC layer"), and the fact tag says every hit there shares these particles |
 | MTD hits | — (simulation fact) with sim time | — | — | — | — | none: not exported (only 60% of PU200 MTD cells are under particles that entered the calorimeter; gap 19) |
 | HGCal layer clusters | caloBoundary | energy, HGCal | — | — | — | derived in evd (no associator: gap 1; `truthGap.derived`) |
 | HF, HO PF clusters | caloBoundary | energy, HCAL | raw energy | 0.5 | — | none: no associator configured in CMSSW (gap 15) |
@@ -147,10 +148,11 @@ this order: **match** (its own reco -> truth relation with a `match` hint), **fa
 association exported for this kind"), or, for a part drawn with what contains it (a track's hits), its container's.
 The same words appear in three places:
 
-- the selection's card, on the object's step of its chain: "no truth · no jet associator in CMSSW, and no
-  generator-jet level in the truth graph · gap 21", plus at most one constituent's own match (below); every other step
-  of the chain carries its own kind's status the same way ([viewer.md](viewer.md#the-selections-card));
-- the truth colour key: one line, "faint: no truth for this kind: Jets, MET, … (why: Truth tab)";
+- the selection's card, on the object's step of its chain: the tag "no truth", and behind it (a click) "no jet
+  associator in CMSSW, and no generator-jet level in the truth graph (gap 21)", plus at most one constituent's own
+  match (below); every other step of the chain carries its own kind's status the same way
+  ([viewer.md](viewer.md#the-selections-card));
+- the truth colour key: "faint: no truth for that kind", with the kinds and the reason behind its **i**;
 - the Truth tab, which opens with the event's scorecard of the matched kinds (clean, impure, no match) and a "Truth
   coverage" list of every drawn kind.
 
@@ -167,7 +169,8 @@ the layer-cluster stand-in applies where it did, so they look as before.
 ### Constituents
 
 A composite (jet, muon, PF candidate, electron) may show one constituent's **own** association, named as the
-constituent's: "Its track #212 is matched to μ⁻ #301 (the associator's answer for that track, not for this muon)".
+constituent's: "its track #212 is matched to μ⁻ #301", with behind its **i** "the associator's answer for that track,
+not for this muon".
 Only where a made-of relation gives exactly one part (not an association, not a pointer back up, not a "closest
 track" link), never aggregated over several parts ("80% of its tracks are from the b" is a match built in evd; the
 card's chain counts each part's own match on the parts' step, "9 of 9 matched", and leaves the composite's step at "no truth"), and

@@ -234,10 +234,10 @@ const inflate = (buf: ArrayBuffer) =>
   new Response(new Blob([buf]).stream().pipeThrough(new DecompressionStream("gzip"))).arrayBuffer();
 // Inflating a PU200 record (~35 MB to ~100 MB) blocks the thread that does it for a few hundred ms: a worker does it,
 // so the view keeps responding, also while the next event is read ahead. Without workers (tests), it is done here.
-let worker: Worker | null = null, jobs = 0;
+let worker: Worker | null = null, jobs = 0, noWorker = false;
 const waiting = new Map<number, { done: (buf: ArrayBuffer) => void; fail: (e: Error) => void }>();
 function gunzip(buf: ArrayBuffer): Promise<ArrayBuffer> {
-  if (typeof Worker === "undefined") return inflate(buf);
+  if (typeof Worker === "undefined" || noWorker) return inflate(buf);
   if (!worker) {
     worker = new Worker(new URL("./gunzip.worker.ts", import.meta.url), { type: "module" });
     worker.onmessage = ({ data }: MessageEvent<{ id: number; buf?: ArrayBuffer; error?: string }>) => {
@@ -246,10 +246,12 @@ function gunzip(buf: ArrayBuffer): Promise<ArrayBuffer> {
       if (data.buf) job?.done(data.buf);
       else job?.fail(new Error(data.error));
     };
-    worker.onerror = () => { // it could not start (e.g. its file is missing): the reads waiting on it fail
-      for (const job of waiting.values()) job.fail(new Error("the decompression worker failed"));
+    worker.onerror = () => { // it could not start (e.g. its file is missing): the reads waiting on it fail, later
+      for (const job of waiting.values()) job.fail(new Error("the decompression worker failed")); // ones inflate here
       waiting.clear();
+      worker?.terminate();
       worker = null;
+      noWorker = true;
     };
   }
   const id = jobs++;

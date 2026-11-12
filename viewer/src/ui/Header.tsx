@@ -1,8 +1,10 @@
-// Top bar: data set, event navigation (with jump-to), the parts of the detector (or the view switcher), share and help.
+// Top bar: data set, event navigation (with jump-to), the parts of the detector (or the view switcher), the menu of
+// every control, share and help.
 import logo from "../../logo.svg";
 import type { Domain } from "../io/bundle";
-import { bundle, bundleName, catalogue, dialog, domain, eventIndex, following, loading, openBundle, showEvent, theme, toast, toggleTheme, touring, type Listed } from "../model/store";
+import { bundle, bundleName, catalogue, dialog, domain, eventIndex, following, loading, openBundle, showEvent, toast, touring, type Listed } from "../model/store";
 import { toggleLive } from "./live";
+import { Menu } from "./Menu";
 import { chooseDomain, showWhole } from "./navigate";
 import { toggleTour } from "./tour";
 import { Views } from "./Viewport";
@@ -53,10 +55,10 @@ export function Header() {
         title={`Live: play new data as it arrives, event by event${catalogue.value.updated ? `; index updated ${new Date(catalogue.value.updated).toLocaleString()}` : ""}`}>
         <i class="dot" />Live
       </button>
+      <Menu />
       <div class="actions">
         <button class="icon-button" title="Show the whole event (Home)" onClick={() => showWhole()}><Icon name="reset" /></button>
         <button class="icon-button" title="Copy a link to this view" onClick={share}><Icon name="share" /></button>
-        <button class="icon-button" title={theme.value === "dark" ? "Light theme" : "Dark theme"} onClick={toggleTheme}><Icon name={theme.value === "dark" ? "sun" : "moon"} /></button>
         <button class="icon-button" title="Help (?)" onClick={() => (dialog.value = "help")}><Icon name="help" /></button>
       </div>
       {loading.value && <div class="progress" />}
@@ -73,7 +75,8 @@ function Domains() {
   const tip = (d: Domain) => d.shared ? `${d.name}: its layers only, which every part of the detector also draws (D)`
     : `${d.name}: its layers and those shared by every part, in its region and view (D)`;
   return (
-    <>
+    <div class="domainbar">
+      <span class="barlabel" aria-hidden="true">Look at</span>
       <div class="segmented domains" role="group" aria-label="Detector part">
         {list.map((d) => (
           <button class={current === d.name ? "on" : ""} title={tip(d)} onClick={() => chooseDomain(d.name)}>{d.name}</button>
@@ -85,6 +88,6 @@ function Domains() {
         {list.map((d) => <option value={d.name}>{d.name}</option>)}
         <option value={ALL}>All</option>
       </select>
-    </>
+    </div>
   );
 }

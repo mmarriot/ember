@@ -72,13 +72,16 @@ function PidKey() {
         {pid?.kind === "category" && pid.items?.map((it) => <li><i style={{ background: it.colour }} />{it.label}</li>)}
         <li><i class="small" style={{ background: pal.unassigned }} />in no candidate</li>
       </ul>
-      <p class="hint">The reconstruction's particle type: everything a candidate is made of takes its colour. Select anything for its truth ↔ reco pair.</p>
+      <details class="howto" open={howTo.value} onToggle={(e) => remember((e.currentTarget as HTMLDetailsElement).open)}>
+        <summary>How to read this</summary>
+        <p class="hint">The reconstruction's particle type: everything a candidate is made of takes its colour. Select anything for its truth ↔ reco pair.</p>
+      </details>
     </>
   );
 }
 
 /** Everything by the generator particle it comes from; reco objects only where they are a clean match. */
-// The truth key's explanation, folded unless the reader opened it (remembered per browser).
+// The keys' explanations, folded unless the reader opened one (remembered per browser).
 const HOWTO = "evd.truthKeyHelp";
 const howTo = signal((() => { try { return localStorage.getItem(HOWTO) === "1"; } catch { return false; } })());
 const remember = (open: boolean) => {

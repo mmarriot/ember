@@ -320,7 +320,7 @@ export function Viewport() {
   );
 }
 
-const VIEWS: [ViewName, string, string][] = [["3d", "3D", "1"], ["front", "Front", "2"], ["side", "Side", "3"], ["rz", "ρ–z", "4"]];
+export const VIEWS: [ViewName, string, string][] = [["3d", "3D", "1"], ["front", "Front", "2"], ["side", "Side", "3"], ["rz", "ρ–z", "4"]];
 /** The views (3D, front, side, ρ–z): on the canvas for a bundle with a domain bar (which takes their place in the top
  *  bar), else in the top bar. */
 export function Views() {

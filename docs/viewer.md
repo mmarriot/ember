@@ -7,7 +7,9 @@ bundle's display hints ([format.md](format.md)).
 
 ## Controls
 
-The same list is in the viewer's help (`?`).
+The same list is in the viewer's help (`?`), grouped with a key column, and the top bar's **Menu** has every control
+of the view in one place, grouped (View, Event, Selection, Colours, Play), with its key and whether it is on; the theme
+is there too. Esc closes it.
 
 | action | how |
 |---|---|
@@ -20,8 +22,8 @@ The same list is in the viewer's help (`?`).
 | back to the normal view, close a dialog | Esc, or click on empty space |
 | previous / next event | ← / →, or the arrows at the top |
 | views: 3D, front, side, ρ–z | 1, 2, 3, 4, or the buttons at the bottom left of the view (in the top bar for bundles without parts of the detector) |
-| one part of the detector, or all | D (Shift+D backwards), or Physics · Tracker · … · All at the top (bundles with `domains`; a drop-down list below 1100 px): the part's layers, those of shared domains (e.g. the physics objects) and those of none (truth), framed on its region, in its view, and its layers' tab opens in the side panel (choosing a tab does not change the view); the side panel keeps your ticks. A shared domain (e.g. **Physics**) draws only its own layers and those of none. A bundle opens on its `view.domain`. With something selected it stays selected: the view frames its objects in that part, and D skips the parts it has nothing in |
-| what the colours show | T, or Reco · Truth in the colour key: the reconstruction (candidate types), or the truth (each generator particle in its own colour, reco objects only where they are a clean match); see [Colours](#colours-and-the-truth--reco-pair) |
+| one part of the detector, or all | D (Shift+D backwards), or the **Look at** bar at the top, Physics · Tracker · … · All (bundles with `domains`; a drop-down list below 1100 px): the part's layers, those of shared domains (e.g. the physics objects) and those of none (truth), framed on its region, in its view, and its layers' tab opens in the side panel (choosing a tab does not change the view); the side panel keeps your ticks. A shared domain (e.g. **Physics**) draws only its own layers and those of none. A bundle opens on its `view.domain`. With something selected it stays selected: the view frames its objects in that part, and D skips the parts it has nothing in |
+| what the colours show | T, or Reco · Truth in the colour key or the Menu: the reconstruction (candidate types), or the truth (each generator particle in its own colour, reco objects only where they are a clean match); see [Colours](#colours-and-the-truth--reco-pair) |
 | next / previous object | N / Shift+N: the next object of the selected one's kind, largest first (the order of its object rows, e.g. the next jet by pT), for kinds with object rows (`list`) only; with nothing selected, the leading object of the first layer with labels |
 | labels | L: labels on the leading objects of the layers with a `labels` hint (e.g. the 4 leading jets, MET) in a shared domain's view (Physics), and on the selection in any view; at the far end of a line or cone (where a jet meets the calorimeter), else at the object. Pointing at an object row in the side panel rings its object in the view |
 | replay | R: hits appear at their arrival time (display hint `time`, else time of flight, or the bundle's `replay` order), then paths are built from their hits (display hint `grow`: tracks seeded, built outwards, fitted), then each reconstruction stage in turn; a caption says what is happening |
@@ -32,13 +34,14 @@ The same list is in the viewer's help (`?`).
 
 ## Side panel
 
-Preset buttons when the bundle has more than one preset; then tabs; then the colour key.
+Preset chips (under a **Preset** caption) when the bundle has more than one preset; then tabs; then the colour key.
 
 - **One tab per part of the detector** (display hint `domain`, e.g. **HGCal**; **Objects** for bundles made before
   layers had one), in the order of the header's `domains`, as the top bar's buttons: its collections by kind of object.
   With two or more `domains`, a shared domain (e.g. **Physics**) keeps a tab of its own and the other parts share one,
   **Detector**, which follows the domain bar: a section per part, the one looked at open and first, the others folded
-  (in All all open, in a shared domain's view all folded)
+  (in All all open, in a shared domain's view all folded), each saying whether it is drawn (looked at, drawn, not in
+  this view; what that means on hover)
   (their cuts still apply to a selection's objects there). Each kind lists its `cut` slider (log scale over the group's
   values in the shown event; the lowest position is no cut; it applies to every layer of the group, also those listed
   elsewhere, which it names; it is named by the cut's `label`, else its column), just before the first row it cuts, and then one row per layer: visibility and count, the layer's filter, "only for the
@@ -50,16 +53,19 @@ Preset buttons when the bundle has more than one preset; then tabs; then the col
   (e.g. jets by pT, with pT, η, φ); a click selects one. The tab opens with a headline: how many objects of each such
   layer pass (or the value of a one-object table, e.g. MET). In the truth colours each kind's heading gets one word
   for what the truth graph says about it (match, fact, derived, no truth; the reason on hover; on each row where a
-  kind's layers differ), and the rows of kinds without truth are faint. On a phone the panel is a sheet under the view, folded to
+  kind's layers differ), and the rows of kinds without truth are faint. A kind's heading folds it, then says how many of its collections
+  are drawn (for the page's life; a slider it shares with a later kind moves there). On a phone the panel is a sheet under the view, folded to
   its tabs until one is chosen.
-- **Truth** (named **Tree** for a tree without truth layers): the truth collections with their cut, what became of
+- **Truth** (named **Tree** for a tree without truth layers): the truth coverage, folded to one line of counts (e.g.
+  "9 matched · 2 fact · 18 no truth"; open, each kind's answer and, where there is none, why); the truth collections with their cut, what became of
   each particle that left hits (its best candidate, or not reconstructed), and objects linked to objects of the same
   table, e.g. truth-graph particles and their children, as a collapsible tree.
 - **Event**: run and event information, the bundle's `summaries` charts, and the source with every table of the event.
 
 ### Colours and the truth ↔ reco pair
 
-Colour means one thing at a time, and the title of the colour key (bottom of the side panel) says which. The rules
+Colour means one thing at a time, and the title of the colour key (bottom of the side panel) says which; its "How to
+read this" (folded until opened, remembered per browser) explains it. The rules
 behind the truth colours and numbers, and what each kind of object is compared with, are in [truth.md](truth.md).
 
 - **Reco** (the default with candidates): candidates by the particle type the reconstruction gave them, and

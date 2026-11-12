@@ -5,7 +5,7 @@
 // a selection draws its objects that a layer's filter hides and its levels of lines (a vertex's tracks),
 // selecting an object shows what is related and only its bottom level (↓ ↑ step through the others), a related
 // object can be jumped to and back, Esc leaves. One bundle (`--deep`, default the smallest with reconstruction
-// stages) also gets: themes, help, a rotate drag keeping the selection, a custom column used for colour and a filter,
+// stages) also gets: the menu, themes, help, a rotate drag keeping the selection, a custom column used for colour and a filter,
 // the replay and the tour; the replay also for any bundle whose paths are built from their parts (`grow`: captions in order, paths complete by the fit). Any console error, or a bundle taking over BUNDLE_TIMEOUT (three times that for files over
 // BIG_FILE or events over BIG_EVENT: software WebGL takes seconds per frame on their scenes, and clicks wait for frames), fails.
 // Screenshots: <dir>/<bundle>_*.png (one small one for scenes over BIG objects). Progress: one timestamped line per step.
@@ -74,8 +74,8 @@ async function checkBundle(file, tag, state) {
   await checkDomains(page, h, fail, shot, tag);
   await checkObjectRows(page, h, fail, shot, tag);
 
-  for (const name of await page.$$eval(".segmented.presets button", (b) => b.map((x) => x.textContent))) {
-    const button = page.locator(".segmented.presets button", { hasText: name });
+  for (const name of await page.$$eval(".sidebar .presets button", (b) => b.map((x) => x.textContent))) {
+    const button = page.locator(".sidebar .presets button", { hasText: name });
     await button.click({ timeout: 120000 });
     if (!(await button.getAttribute("class"))?.includes("on")) fail(`preset ${name} did not apply`);
   }
@@ -409,9 +409,27 @@ async function checkLevels(page, h, target, fail, shot, tag) {
 }
 
 async function deepChecks(page, h, fail, shot) {
-  await page.getByTitle("Light theme").click();
+  // The menu: every control with its key; an item acts and closes it; Esc closes it and keeps the selection.
+  const menu = page.locator(".menubutton"), item = (name) => page.locator(".menupanel [role^=menuitem]", { hasText: name });
+  await menu.click();
+  const items = await page.locator(".menupanel [role^=menuitem]").count(), keyed = await page.locator(".menupanel kbd").count();
+  const labels = await item("Labels").getAttribute("aria-checked");
+  await shot("5_menu");
+  await item("Labels").click();
+  await menu.click();
+  const labelsAfter = await item("Labels").getAttribute("aria-checked");
+  await page.keyboard.press("Escape");
+  const closed = !(await page.locator(".menupanel").count()), kept = await page.locator(".inspector").count();
+  log(`  menu: ${items} items, ${keyed} with a key; Labels ${labels} -> ${labelsAfter}; Esc closes it: ${closed}, keeps the selection: ${!!kept}`);
+  if (items < 10 || keyed < 8) fail(`the menu lists ${items} items, ${keyed} with a key`);
+  if (labels === labelsAfter) fail("the menu's Labels item did not toggle the labels");
+  if (!closed || !kept) fail("Esc did not close the menu alone");
+  await page.keyboard.press("l"); // labels back on
+  await menu.click();
+  await item("Light theme").click();
   await shot("5_light");
-  await page.getByTitle("Dark theme").click();
+  await menu.click();
+  await item("Dark theme").click();
   // A press-drag-release rotates; it is not a click, so the selection stays.
   await page.mouse.move(700, 600); await page.mouse.down(); await page.mouse.move(780, 560, { steps: 8 }); await page.mouse.up();
   if (!(await page.locator(".inspector").count())) fail("a rotate drag cleared the selection");

@@ -8,6 +8,7 @@ import { activeMode, bundle, bundleName, catalogue, colourChoice, dialog, domain
 import { SYNTAX } from "./ExprForm";
 import { Header } from "./Header";
 import { Inspector } from "./Inspector";
+import { menuOpen } from "./Menu";
 import { Sidebar } from "./Sidebar";
 import { chooseDomain, nextDomain, nextObject, showWhole } from "./navigate";
 import { stopTour, toggleTour } from "./tour";
@@ -52,7 +53,8 @@ export function App() {
       if (e.key === "p" || e.key === "P") return toggleTour();
       stopTour(); // any other key takes over from the tour
       if (e.key === "Escape") { // close a dialog; else back to the normal view: no selection, the whole event
-        if (dialog.value) dialog.value = null;
+        if (menuOpen.value) menuOpen.value = false;
+        else if (dialog.value) dialog.value = null;
         else { selection.value = null; showWhole(true); }
       }
       else if (e.key === "?") dialog.value = dialog.value ? null : "help";
@@ -94,29 +96,51 @@ export function App() {
 function HelpDialog() {
   // The tab with the object rows: the shared domain's (e.g. Physics), named as the bundle names it.
   const h = bundle.value?.header, listTab = h?.domains?.find((d) => d.shared && h.display.some((l) => l.list && l.domain === d.name))?.name;
-  const rows: [string, string][] = [
-    ["Rotate", "drag"], ["Pan", "right-drag (or shift + drag)"], ["Zoom", "scroll, towards the cursor"],
-    ["Inspect an object", "click it: it is shown with its smallest parts (e.g. hits), and further clicks pick among its parts"],
-    ["See what it is made of, level by level", "↓ / ↑, or click a level in the bar at the top left of the view (e.g. its tracksters, then their layer clusters); a part of the detector named there (e.g. Calo 9) shows its objects in that part"],
-    ["Objects on top of each other", "click again on the same spot for the next one"],
-    ["Go to a related object", "click it in the inspector or the tree, or click an object linked to the one shown (e.g. its truth-graph particle)"],
-    ["Back to the previous object", "← in the bar at the top left of the view"],
-    ["Zoom to the selection", "double-click it, or F"], ["Show the whole event", "Home, or the reset button"],
-    ["Leave the object", "click on empty space; Esc also shows the whole event (and closes this dialog)"],
-    ["Previous / next event", "← / →, or the arrows at the top"], ["Views: 3D, front, side, ρ–z", "1, 2, 3, 4, or the buttons in the top bar (with parts of the detector: at the bottom left of the view)"],
-    ["One part of the detector (e.g. the tracker), or all", "D (Shift+D backwards), or the … · All buttons at the top (when the data has several parts); a selection stays selected, and D skips the parts it has nothing in"],
-    ["Colours: what the reconstruction made, or what was really there", "T, or Reco · Truth in the colour key"],
-    ["Next / previous object of the selected kind, largest first (e.g. the next jet)", "N / Shift+N; with nothing selected, the leading object"],
-    ["Labels on the leading objects and the selection", `L; pointing at an object's row in ${listTab ? `the ${listTab} tab` : "the side panel"} rings it in the view`],
-    ["Replay: how the event builds up, step by step", "R"],
-    ["Tour: replay, then visit the main showers (or the leading physics objects), event after event", "P, or the play button; any key or touch stops it"],
-    ["Live: play new data as it arrives", "the Live button"],
-    ["Colour, filter or a new column for a collection", "⋯ at the end of its row in the side panel"],
-    ["Open a local .evdb file", "drop it on the page"], ["Resize the side panel", "drag its edge; double-click to reset"],
+  // Grouped as the menu is; each row: its keys, the mouse or button that does it too, what it does.
+  const groups: [string, [string[], string, string][]][] = [
+    ["Look around", [
+      [[], "drag", "Rotate"], [[], "right-drag, or shift + drag", "Pan"], [[], "scroll", "Zoom, towards the cursor"],
+      [["1", "2", "3", "4"], "the view buttons (at the bottom left of the view with parts of the detector, else in the top bar)", "Views: 3D, front, side, ρ–z"],
+      [["F"], "double-click it", "Zoom to the selection"], [["Home"], "the reset button", "Show the whole event"],
+    ]],
+    ["Select and explore", [
+      [[], "click it", "Inspect an object: it is shown with its smallest parts (e.g. hits), and further clicks pick among its parts"],
+      [[], "click again on the same spot", "Objects on top of each other: the next one"],
+      [["↓", "↑"], "click a level in the bar at the top left of the view", "See what it is made of, level by level (e.g. its tracksters, then their layer clusters); a part of the detector named there (e.g. Calo 9) shows its objects in that part"],
+      [["N", "⇧N"], "", "Next / previous object of the selected kind, largest first (e.g. the next jet); with nothing selected, the leading object"],
+      [[], "click it in the inspector or the tree, or an object linked to the one shown", "Go to a related object (e.g. its truth-graph particle)"],
+      [[], "← in the bar at the top left of the view", "Back to the previous object"],
+      [["Esc"], "click on empty space", "Leave the object; Esc also shows the whole event (and closes this dialog or the menu)"],
+    ]],
+    ["Event and parts of the detector", [
+      [["←", "→"], "the arrows at the top", "Previous / next event"],
+      [["D", "⇧D"], "the Look at buttons at the top (when the data has several parts)", "One part of the detector (e.g. the tracker), or all; a selection stays selected, and D skips the parts it has nothing in"],
+    ]],
+    ["Colours and labels", [
+      [["T"], "Reco · Truth in the colour key or the menu", "Colours: what the reconstruction made, or what was really there"],
+      [["L"], `pointing at an object's row in ${listTab ? `the ${listTab} tab` : "the side panel"} rings it in the view`, "Labels on the leading objects and the selection"],
+    ]],
+    ["Play", [
+      [["R"], "", "Replay: how the event builds up, step by step"],
+      [["P"], "the play button; any key or touch stops it", "Tour: replay, then visit the main showers (or the leading physics objects), event after event"],
+      [[], "the Live button", "Live: play new data as it arrives"],
+    ]],
+    ["Side panel and files", [
+      [[], "⋯ at the end of its row in the side panel", "Colour, filter or a new column for a collection"],
+      [[], "drop it on the page", "Open a local .evdb file"], [[], "drag its edge; double-click to reset", "Resize the side panel"],
+      [[], "Menu in the top bar", "Every control and its key, in one place"],
+    ]],
   ];
   return (
     <Modal title="How to use the event display">
-      <table class="kv"><tbody>{rows.map(([what, how]) => <tr><td>{what}</td><td>{how}</td></tr>)}</tbody></table>
+      {groups.map(([name, rows]) => (
+        <>
+          <h3>{name}</h3>
+          <table class="kv keys"><tbody>{rows.map(([keys, mouse, what]) => (
+            <tr><td>{keys.map((k) => <kbd>{k}</kbd>)}</td><td>{what}{mouse && <span class="muted"> · {mouse}</span>}</td></tr>
+          ))}</tbody></table>
+        </>
+      ))}
       <h3>Side panel</h3>
       <p class="hint">One tab per part of the detector with its collections, by kind of object (with a domain bar: the physics objects in
         their own tab, with the event's headline and each kind's largest objects, a click selecting one; the parts of the detector

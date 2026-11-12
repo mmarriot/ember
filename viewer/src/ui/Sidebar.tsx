@@ -36,8 +36,9 @@ export function Sidebar() {
         <button class="sheet-handle" aria-expanded={sheetOpen.value} title="Show or hide the panel"
           onClick={() => (sheetOpen.value = !sheetOpen.value)}>{sheetOpen.value ? "▾ hide the panel" : "▴ show the panel"}</button>
         {presets.length > 1 && (
-          <div class="segmented presets" role="group" aria-label="Preset">
-            {presets.map((p, i) => <button class={activePreset.value === i ? "on" : ""} onClick={() => applyPreset(i)}>{p.name}</button>)}
+          <div class="presets" role="group" aria-label="Preset" title="Presets: which rows are shown and how they are coloured">
+            <span class="barlabel" aria-hidden="true">Preset</span>
+            {presets.map((p, i) => <button class={activePreset.value === i ? "on" : ""} aria-pressed={activePreset.value === i} onClick={() => applyPreset(i)}>{p.name}</button>)}
           </div>
         )}
         <Tabs tabs={tabs} open={openTab.value} />
@@ -58,7 +59,8 @@ function Detector({ names, layers }: { names: string[]; layers: DisplayLayer[] }
         const here = name === current, drawn = here || !current;
         return (
           <details class="part" open={here || !current} key={`${bundleName.value}|${name}|${current}`}>
-            <summary><b>{name}</b> <span class="muted">{drawn ? (here ? "drawn in this view" : "drawn in All") : "drawn in its view, and for a selection"}</span>
+            <summary><b>{name}</b> <span class="muted" title={drawn ? (here ? "Drawn: the part looked at" : "Drawn in All")
+              : "Not drawn in this view: drawn when it is looked at (show, or D), and its objects for a selection"}>{drawn ? (here ? "looked at" : "drawn") : "not in this view"}</span>
               {!here && <button class="link" title={`Look at ${name} (D)`} onClick={(e) => { e.preventDefault(); chooseDomain(name); }}>show</button>}</summary>
             <Collections key={`${bundleName.value}|${name}`} layers={layers.filter((d) => d.domain === name)} />
           </details>

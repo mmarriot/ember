@@ -28,8 +28,6 @@ const PATHS = {
   help: "M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM9.1 9a3 3 0 0 1 5.8 1c0 2-3 2.5-3 4.5M12 17.5h.01", share: "M4 12v7h16v-7M12 3v12M7 8l5-5 5 5",
   reset: "M3 12a9 9 0 1 0 3-6.7M3 4v5h5", focus: "M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5",
   play: "M7 4.5v15l12-7.5z", pause: "M8 5v14M16 5v14",
-  sun: "M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4M12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10z",
-  moon: "M20.5 14.5A8.5 8.5 0 1 1 9.5 3.5a7 7 0 0 0 11 11z",
 };
 export const Icon = ({ name }: { name: keyof typeof PATHS }) => (
   <svg class="icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">

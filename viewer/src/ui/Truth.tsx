@@ -232,17 +232,22 @@ export function Coverage() {
     : s.kind === "derived" ? ["derived in evd", `${s.reason}${gap(s.gap)}`]
     : s.kind === "container" ? ["with what contains it", "no truth of its own: drawn in the colour of the object it belongs to"]
     : ["no truth for this kind", `${s.reason}${gap(s.gap)}`];
+  // Folded to one line of counts (e.g. "7 matched · 9 no truth"): the list is long, and the collections come after it.
+  const counts = (["match", "fact", "derived", "container", "none"] as const).map((k) => [k, rows.filter(([, st]) => st.kind === k).length] as const).filter(([, n]) => n);
+  const SHORT = { match: "matched", fact: "fact", derived: "derived", container: "via container", none: "no truth" };
   return (
     <section class="coverage">
-      <h3>Truth coverage</h3>
-      <p class="hint">What the truth graph says about each kind: matched by CMSSW's associator, a simulation fact, or derived in evd. Where
-        it has no answer, evd builds none.</p>
-      <ul class="coverage">
-        {rows.map(([kind, s]) => {
-          const [word, detail] = what(s), why = s.kind === "none" || s.kind === "derived";
-          return <li class={s.kind === "none" ? "none" : undefined} title={detail}><span class="kindname">{kind}</span> {word}{why && <span class="muted">: {detail}</span>}</li>;
-        })}
-      </ul>
+      <details>
+        <summary><h3>Truth coverage</h3> <span class="count">{counts.map(([k, n]) => `${n} ${SHORT[k]}`).join(" · ")}</span></summary>
+        <p class="hint">What the truth graph says about each kind: matched by CMSSW's associator, a simulation fact, or derived in evd. Where
+          it has no answer, evd builds none.</p>
+        <ul class="coverage">
+          {rows.map(([kind, s]) => {
+            const [word, detail] = what(s), why = s.kind === "none" || s.kind === "derived";
+            return <li class={s.kind === "none" ? "none" : undefined} title={detail}><span class="kindname">{kind}</span> {word}{why && <span class="muted">: {detail}</span>}</li>;
+          })}
+        </ul>
+      </details>
     </section>
   );
 }

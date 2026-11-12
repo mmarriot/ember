@@ -2,7 +2,7 @@
 // cut slider, then the other reconstruction paths folded. A collection is one line (visibility, count); under it
 // only what is not said elsewhere: its filter, "only for the selection", and its colour scale when the colour key
 // does not explain it. Its ⋯ opens the colour choice, a filter and new columns for its table.
-import { computed } from "@preact/signals";
+import { computed, signal } from "@preact/signals";
 import { Fragment } from "preact";
 import { useState } from "preact/hooks";
 import { type DisplayLayer, kindName, unitOf } from "../io/bundle";
@@ -32,13 +32,17 @@ export function Collections({ layers }: { layers: DisplayLayer[] }) {
   return (
     <>
       <Headline layers={main} />
-      {[...groups].map(([group, ls]) => (
-        <section class="kind" key={group}>
-          <h3>{group}{sameTruth(ls) && <TruthWord table={ls[0].table} />}</h3>
-          {/* each slider just before the first row it cuts (a kind can have several, e.g. one per calorimeter) */}
-          {ls.map((d) => <Fragment key={layerKey(d)}>{cutsOf([d]).map((name) => <CutRow name={name} here={ls} named={new Set(ls.flatMap((x) => (x.cut ? [x.cut.group] : []))).size > 1} />)}<LayerRow d={d} label={d.label} /></Fragment>)}
-        </section>
-      ))}
+      {[...groups].map(([group, ls]) => {
+        const id = layerKey(ls[0]), shut = folded.value.has(id), drawn = ls.filter((d) => visible.value[layerKey(d)]).length;
+        return (
+          <section class={shut ? "kind folded" : "kind"} key={group}>
+            <h3><button class="fold" aria-expanded={!shut} title={shut ? "Show this kind's collections" : "Fold this kind"} onClick={() => fold(id)}>{group}</button>
+              {sameTruth(ls) && <TruthWord table={ls[0].table} />}{shut && <span class="count"> {drawn} of {ls.length} drawn</span>}</h3>
+            {/* each slider just before the first row it cuts (a kind can have several, e.g. one per calorimeter) */}
+            {!shut && ls.map((d) => <Fragment key={layerKey(d)}>{cutsOf([d]).map((name) => <CutRow name={name} here={ls} named={new Set(ls.flatMap((x) => (x.cut ? [x.cut.group] : []))).size > 1} />)}<LayerRow d={d} label={d.label} /></Fragment>)}
+          </section>
+        );
+      })}
       {alternatives.length > 0 && (
         <details class="others">
           <summary title="The same kinds of object from another reconstruction path; hidden by default">Other reconstruction paths ({alternatives.length})</summary>
@@ -49,6 +53,10 @@ export function Collections({ layers }: { layers: DisplayLayer[] }) {
     </>
   );
 }
+
+/** Kinds folded to their heading (by their first layer), for this page's life: a long tab (e.g. Physics) gets short. */
+const folded = signal(new Set<string>());
+const fold = (id: string) => { const f = new Set(folded.peek()); if (!f.delete(id)) f.add(id); folded.value = f; };
 
 /** Slider range per cut group, in log10: whole decades around the positive values of its layers in this event
  *  (at most 6 below the largest) and its default. The slider's lowest position means no cut. */

@@ -155,17 +155,22 @@ function linksOf(ev: EventData, header: Header, groups: Group[], statuses: Map<s
  *  threshold, any match), `impure` (a match below it) or `unmatched` (none). Rows in table order; null without the
  *  relation in this event. The event's list of fakes and merges for one kind. */
 export function matchTally(ev: EventData, header: Header, name: string, pass: (row: number) => boolean) {
+  const info = header.relations[name], n = ev.tables[info?.from]?.n ?? 0;
+  if (!info?.match || !ev.relations[name]) return null;
+  const out = { clean: [] as number[], impure: [] as number[], unmatched: [] as number[] };
+  for (let r = 0; r < n; r++) if (pass(r)) out[matchClass(ev, header, name, r)!].push(r);
+  return { ...out, good: info.match.good };
+}
+
+/** What the CMSSW associator says of object `row` of reco -> truth relation `name`'s table: `clean`, `impure` or
+ *  `unmatched` (see matchTally); undefined without the relation in this event. */
+export function matchClass(ev: EventData, header: Header, name: string, row: number): "clean" | "impure" | "unmatched" | undefined {
   const info = header.relations[name], rel = ev.relations[name];
-  if (!info?.match || !rel) return null;
-  const n = ev.tables[info.from]?.n ?? 0, { partner } = bestPartners(rel, info, true, n), purity = bestPurities(ev, header, name), good = info.match.good;
-  const clean: number[] = [], impure: number[] = [], unmatched: number[] = [];
-  for (let r = 0; r < n; r++) {
-    if (!pass(r)) continue;
-    if (partner[r] < 0) unmatched.push(r);
-    else if (good !== undefined && purity && !(purity[r] >= good)) impure.push(r);
-    else clean.push(r);
-  }
-  return { clean, impure, unmatched, good };
+  if (!info?.match || !rel) return undefined;
+  const p = bestPartners(rel, info, true, ev.tables[info.from]?.n ?? 0).partner[row], good = info.match.good;
+  if (p === undefined || p < 0) return "unmatched";
+  const purity = good !== undefined ? bestPurities(ev, header, name)?.[row] : undefined;
+  return purity !== undefined && !(purity >= good!) ? "impure" : "clean";
 }
 
 /** What was reconstructed from truth object `sel`, one entry per reco table with an association from its table (the

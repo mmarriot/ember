@@ -1,11 +1,13 @@
-// The card of the selected object, the one place that says where it sits and what the truth says about it:
+// The card of the selected object, the one place that says where it sits and what the truth says about it. It carries
+// names and numbers; what each thing is and how it is counted is behind an "i" or the tag itself (ui/Info.tsx).
 // - its chain (model/chain.ts): what it is part of, itself, what it is made of, each step with its link to the truth
-//   in the same words (match, fact, derived, no truth); a click on a step's object moves the selection there, "show"
-//   draws a step in the view (↓ ↑);
+//   as a tag (match, fact, derived, no truth). A click on an object in the card looks at it in the view while the
+//   card stays (store.ts look), a double click opens its card; "show" draws a step in the view (↓ ↑);
+// - the object looked at, with its own match and numbers;
 // - the truth ↔ reco pair the view is coloured by, as two bars in the view's colours;
-// - its match in numbers (purity and completeness as bars), the matched particle's place in the truth graph, and for
-//   a truth object what was reconstructed from it;
+// - its match (purity and completeness as bars), and for a truth object what was reconstructed from it;
 // - every association it has, with the relation's weights, and its columns.
+import type { ComponentChildren } from "preact";
 import { useState } from "preact/hooks";
 import { colourBy, customColumns, customDoc } from "../model/custom";
 import { type Table, unitOf } from "../io/bundle";
@@ -15,12 +17,14 @@ import { PAIR } from "../model/pair";
 import { bestFirst, sameRef, type Ref } from "../model/relations";
 import { PALETTES } from "../render/colour";
 import {
-  bundle, describe, domain, event, focus, focusBar, focusHistory, focusLevel, full, highlight, kindOf, labelOf, ladder, largestFirst, layerKey, layerOf, levelTop, modes, pairView,
-  reconstructed, selection, shared, short, shownLevel, sizeColumn, stepName, theme, truthName, truthStatuses,
+  anchor, bundle, describe, domain, event, focus, focusBar, focusHistory, focusLevel, full, highlight, kindOf, labelOf, ladder, largestFirst, layerKey, layerOf, levelTop, modes,
+  openCard, pairView, reconstructed, selection, shared, short, shownLevel, sizeColumn, stepName, subject, theme, truthName, truthStatuses, unlook,
 } from "../model/store";
 import { facts, unitOf as factUnit } from "../model/facts";
+import { ObjChip } from "./chips";
+import { Info, togglePopover } from "./Info";
 import { engine } from "./Viewport";
-import { back, chooseDomain, jump } from "./navigate";
+import { back, chooseDomain } from "./navigate";
 import { Lineage, TruthCard } from "./Truth";
 import { Icon } from "./widgets";
 
@@ -28,31 +32,29 @@ const INLINE = 3; // a step with at most this many objects names them; a longer 
 const LISTED = 40; // objects listed in an unfolded step
 
 const name = (r: Ref) => { const n = describe(r.table, r.row); return `${kindOf(r.table)}${n ? ` · ${n}` : ` #${r.row}`}`; };
-const chip = (t: string, r: number, title = "") => (
-  <button class="chip" title={`${labelOf(t)} #${r}${title && `: ${title}`}`} onClick={() => jump({ table: t, row: r })}>{describe(t, r) || `#${r}`}</button>
-);
+const chip = (t: string, r: number, title = "") => <ObjChip table={t} row={r} title={title} />;
 
 export function Navigator() {
-  const b = bundle.value, ev = event.value, sel = selection.value, hl = highlight.value;
+  const b = bundle.value, ev = event.value, sel = subject.value, hl = highlight.value;
   if (!b || !ev || !sel || !ev.tables[sel.table]) return null;
   const info = b.header.tables[sel.table], table = ev.tables[sel.table];
-  const d = layerOf(sel.table), truth = !!d?.truth, text = describe(sel.table, sel.row), prev = focusHistory.value.at(-1);
+  const d = layerOf(sel.table), truth = !!d?.truth, text = describe(sel.table, sel.row), prev = !anchor.value && focusHistory.value.at(-1);
   return (
     <div class="inspector" role="dialog" aria-label="Selected object">
       <header>
         <div>
           {prev && <button class="link backlink" onClick={back} title={`Back to ${name(prev)} (B)`}>← {name(prev)}</button>}
-          <div class={truth ? "kind truth" : "kind"}>{labelOf(sel.table)}{truth && " (simulation)"}</div>
+          <div class={truth ? "kind truth" : "kind"}>{labelOf(sel.table)}{truth && " (simulation)"} {info.doc && <Info title={labelOf(sel.table)}><p>{info.doc}</p></Info>}</div>
           <h2>#{sel.row}{text && <span class="describe"> · {text}</span>}</h2>
         </div>
         <div class="actions">
-          <button class="icon-button" title="Zoom to it and its related objects (F)" onClick={() => hl && engine?.frame(hl, true)}><Icon name="focus" /></button>
+          <button class="icon-button" title="Zoom to what the view shows (F)" onClick={() => hl && engine?.frame(hl, true)}><Icon name="focus" /></button>
           <button class="icon-button" title="Close (Esc)" onClick={() => (selection.value = null)}><Icon name="close" /></button>
         </div>
       </header>
-      <p class="hint">{info.doc}</p>
       <div class="navbody">
         {truth ? <TruthSide table={sel.table} row={sel.row} /> : <Chain />}
+        <Looking />
         <ViewLevels />
         <PairBars />
         {!truth && <section class="matchcard"><TruthCard table={sel.table} row={sel.row} /></section>}
@@ -63,23 +65,38 @@ export function Navigator() {
   );
 }
 
+/** What the chain's words mean, behind its "i". */
+const CHAIN_HELP = (
+  <>
+    <p>Where this object sits among the event's objects: what it is <b>part of</b>, and what it is <b>made of</b>, down to the hits.</p>
+    <p><b>Click</b> an object to look at it in the view; the card stays. <b>Double click</b> to open its card.</p>
+    <p>Each step says what the truth has for it:</p>
+    <ul>
+      <li><b>match</b>: CMSSW's associator matched it to a truth particle. <i class="qdot q-clean" /> clean, <i class="qdot q-impure" /> impure, <i class="qdot q-unmatched" /> no match.</li>
+      <li><b>fact</b>: from the simulation, the particles that left the energy in these hits.</li>
+      <li><b>derived</b>: worked out in evd, where CMSSW has no associator yet.</li>
+      <li><b>no truth</b>: CMSSW has no truth for this kind of object yet.</li>
+    </ul>
+    <p>Click a tag for what it means on that step.</p>
+  </>
+);
+
 /** A reco object's chain, with the truth link of every step. */
 function Chain() {
   const l = ladder.value;
   if (!l) return null;
   return (
     <section class="ladder" aria-label="Chain">
-      <h4 title="Where it sits among the event's objects, and what the truth says at each step. Click an object to go to it.">
-        Chain {modes.value.roots.truth && <span class="lanes"><span class="badge reco">reco</span>⇄<span class="badge truth">truth</span></span>}</h4>
+      <h4>Chain <span class="lanes">{modes.value.roots.truth && <><span class="badge reco">reco</span>⇄<span class="badge truth">truth</span></>}<Info title="The chain">{CHAIN_HELP}</Info></span></h4>
       <ol>
-        {l.above.length > 0 && <li class="part" title="The objects that contain it">part of</li>}
+        {l.above.length > 0 && <li class="part">part of</li>}
         {l.above.map((r) => <RungRow rung={r} role="above" key={`a|${r.kind}`} />)}
         <RungRow rung={l.self} role="self" />
-        {l.below.length > 0 && <li class="part" title="What it is built from, from the largest objects down to the hits">made of</li>}
+        {l.below.length > 0 && <li class="part">made of</li>}
         {l.below.map((r) => <RungRow rung={r} role="below" key={`b|${r.kind}`} />)}
         {l.beside.length > 0 && <li class="part" title="Other objects built only from its parts (e.g. a secondary vertex whose tracks are all in this jet). They are not parts of it.">also inside it</li>}
         {l.beside.map((r) => <RungRow rung={r} role="beside" key={`s|${r.kind}`} />)}
-        {l.other.length > 0 && <li class="part" title="Rows of tables this data set does not draw that are related to it: select one to read its columns">other tables</li>}
+        {l.other.length > 0 && <li class="part" title="Rows of tables this data set does not draw that are related to it">other tables</li>}
         {l.other.map((r) => <RungRow rung={r} role="other" key={`o|${r.kind}`} />)}
       </ol>
     </section>
@@ -91,8 +108,9 @@ function Chain() {
 function RungRow({ rung, role }: { rung: Rung; role: "above" | "self" | "below" | "beside" | "other" }) {
   const [open, setOpen] = useState(false);
   const tables = new Set(rung.groups.map((g) => g.table)), few = rung.count <= INLINE;
-  // The level of the focus this step is (store.ts levels): one drawn on request, or always (the smallest objects, lines).
-  const level = role === "below" || role === "beside" ? focusBar.value.find((lv) => lv.layers.some((x) => tables.has(x.table))) : undefined;
+  // The level of the focus this step is (store.ts levels): one drawn on request, or always (the smallest objects,
+  // lines). Not while another object is looked at: the view's levels are then that object's (ViewLevels).
+  const level = !anchor.value && (role === "below" || role === "beside") ? focusBar.value.find((lv) => lv.layers.some((x) => tables.has(x.table))) : undefined;
   const on = !!level && shownLevel.value === level.name;
   // A step in a part of the detector the view is not looking at: one click looks there, keeping the selection.
   const cur = domain.value, parts = [...new Set(rung.groups.map((g) => layerOf(g.table)?.domain).filter((x): x is string => !!x && !shared.value.has(x)))];
@@ -101,9 +119,9 @@ function RungRow({ rung, role }: { rung: Rung; role: "above" | "self" | "below" 
     <li class={`rung ${role}${on ? " shown" : ""}`}>
       <div class="rhead">
         <span class="rkind">{rung.kind}</span>
-        {role === "self" ? <span class="here">this one</span>
+        {role === "self" ? null
           : few ? rung.groups.map((g) => <>{g.rows.map((r) => chip(g.table, r))}
-            {g.held && <span class="muted" title={`No relation names it as containing this object: it holds ${g.held[0]} of this object's ${g.held[1]} parts (worked out in evd)`}>≈ holds {g.held[0]} of its {g.held[1]} parts</span>}</>)
+            {g.held && <span class="muted" title={`No relation names it as containing this object: it holds ${g.held[0]} of this object's ${g.held[1]} parts (worked out in evd)`}>≈ {g.held[0]} of {g.held[1]} parts</span>}</>)
           : <button class="link count" aria-expanded={open} title="List them" onClick={() => setOpen(!open)}>{rung.count.toLocaleString()} {open ? "▾" : "▸"}</button>}
         <span class="rtools">
           {elsewhere && <button class="link" title={`Look at ${elsewhere}, keeping the selection (D)`} onClick={() => chooseDomain(elsewhere)}>{elsewhere} ›</button>}
@@ -111,7 +129,7 @@ function RungRow({ rung, role }: { rung: Rung; role: "above" | "self" | "below" 
             onClick={() => (focusLevel.value = on ? null : level.name)}>{on ? "shown" : "show"}</button>}
         </span>
       </div>
-      {rung.links.map((link) => <LinkLine link={link} single={rung.count === 1} self={role === "self"} several={rung.links.filter((x) => x.kind === link.kind).length > 1} at={rung.groups[0]} />)}
+      {rung.links.map((link) => <LinkLine link={link} single={rung.count === 1} several={rung.links.filter((x) => x.kind === link.kind).length > 1} at={rung.groups[0]} />)}
       {open && !few && (
         <div class="rlist">
           {rung.groups.map((g) => (
@@ -125,26 +143,32 @@ function RungRow({ rung, role }: { rung: Rung; role: "above" | "self" | "below" 
 }
 
 const MEASURE: Record<string, string> = { hits: "hits", energy: "energy", pt2: "tracks' pT²" };
-const NO_MATCH = "The CMSSW associator matched no truth object to it: a fake, or an object the associator does not consider (e.g. a candidate without calorimeter energy)";
+/** A step's tag: the word, and behind it what it means on this step. */
+const Tag = ({ word, children }: { word: string; children: ComponentChildren }) => (
+  <button class="lk" title="What does this mean?" onClick={(e) => togglePopover(e, () => children, word)}>{word}</button>
+);
+const GAP = (gap?: number) => (gap !== undefined ? ` (docs/truth-graph.md, gap ${gap})` : "");
 
-/** What the truth says about one step, in one line. Every line is that step's own statement: its objects' own
- *  matches, counted; the simulated energy in its own hits; never a match of the selected object through its parts.
- *  `at`: the step's first collection and row, for the simulation's unit of a hit. */
-function LinkLine({ link, single, several, at, self = false }: { link: Link; single: boolean; several: boolean; at?: { table: string; rows: number[] }; self?: boolean }) {
-  const label = link.label && <span class="muted">{link.label}:</span>;
+/** What the truth says about one step, in one line: a tag and numbers. Every line is that step's own statement: its
+ *  objects' own matches, counted; the simulated energy in its own hits; never a match of the selected object through
+ *  its parts. `at`: the step's first collection and row, for the simulation's unit of a hit. */
+function LinkLine({ link, single, several, at }: { link: Link; single: boolean; several: boolean; at?: { table: string; rows: number[] } }) {
+  const label = link.label && <span class="muted">{link.label}</span>;
   if (link.kind === "match") {
-    const what = `${MEASURE[link.measure] ?? link.measure}`, rule = link.good !== undefined ? ` Clean: at least ${percent(link.good)} of its ${what} from the match.` : "";
-    if (single) return link.matched ? (
-      <div class="rlink match" title={`The CMSSW associator's best match for it.${rule}`}><span class="lk">match</span>{label}{chip(link.truth, link.partners[0][0])}
-        {link.purity !== undefined && <span class={link.good === undefined ? "" : link.clean ? "ok" : "warn"}>{percent(link.purity)} pure</span>}</div>
-    ) : <div class="rlink match" title={NO_MATCH}><span class="lk">match</span>{label}<span class="muted">no match</span></div>;
-    // The particles matched more than once (or all of them, for a few objects): a list of singles says nothing.
-    const top = link.partners.filter(([, n]) => n > 1 || link.of <= INLINE).slice(0, 3);
+    const impure = link.good !== undefined ? link.matched - link.clean : 0, clean = link.matched - impure, none = link.of - link.matched;
+    const help = (
+      <>
+        <p>CMSSW's associator gives each object at most one truth match, its best.</p>
+        {link.good !== undefined && <p><i class="qdot q-clean" /> <b>clean</b>: at least {percent(link.good)} of its {MEASURE[link.measure] ?? link.measure} comes from its match.<br /><i class="qdot q-impure" /> <b>impure</b>: less than that.</p>}
+        <p><i class="qdot q-unmatched" /> <b>no match</b>: a fake, or an object the associator does not consider (e.g. a candidate without calorimeter energy).</p>
+      </>
+    );
     return (
-      <div class="rlink match" title={`Each one's own best match from the CMSSW associator, counted.${rule} Without a match: a fake, or an object the associator does not consider (e.g. a candidate without calorimeter energy).`}><span class="lk">match</span>{label}
-        <span>{link.matched} of {link.of} matched</span>
-        {link.good !== undefined && link.matched > 0 && <span class={link.clean < link.matched ? "warn" : "ok"}>{link.clean} clean</span>}
-        {top.map(([p, n]) => <>{chip(link.truth, p)}{n > 1 && <span class="muted">×{n}</span>}</>)}</div>
+      <div class="rlink match"><Tag word="match">{help}</Tag>{label}
+        {single && link.matched > 0 && <>{chip(link.truth, link.partners[0][0])}{link.purity !== undefined && <span class={`q q-${impure ? "impure" : "clean"}`} title="Purity: the share of it that comes from its match">{percent(link.purity)} pure</span>}</>}
+        {!single && clean > 0 && <span class="q q-clean"><i class="qdot q-clean" />{clean} {link.good !== undefined ? "clean" : "matched"}</span>}
+        {!single && impure > 0 && <span class="q q-impure"><i class="qdot q-impure" />{impure} impure</span>}
+        {none > 0 && <span class="q q-unmatched">{!single && <i class="qdot q-unmatched" />}{single ? "no match" : `${none} no match`}</span>}</div>
     );
   }
   if (link.kind === "fact") {
@@ -152,33 +176,74 @@ function LinkLine({ link, single, several, at, self = false }: { link: Link; sin
     const f = at && bundle.value ? facts(bundle.value.header).find((x) => x.to === at.table) : undefined;
     const unit = f?.unit && at ? (single ? factUnit(f, event.value?.tables[at.table]?.columns, at.rows[0]) : "simulation unit") : undefined;
     const shown = link.particles.filter(([, share]) => share >= 0.005);
+    const help = (
+      <>
+        <p>From the simulation: the share of the simulated energy in {single ? "this hit" : "these hits"}{link.in ? ` (${link.in})` : ""} that each truth particle left, with its secondaries.</p>
+        <p>It is the energy deposited in the sensors, not calibrated: compare it only within one detector.</p>
+        {unit && <p>The simulation records it per {unit}, not per hit: every hit there shares these particles.</p>}
+        {link.unranked && <p>This object's kind has no truth of its own, so no particle is ranked through its hits: that would be a match built in evd. Select a hit for its particles.</p>}
+      </>
+    );
     return (
-      <div class="rlink fact" title={`Simulation: the share of the simulated energy in ${single ? "this hit" : "these hits"}${link.in ? ` (${link.in})` : ""} that each truth particle left, with its secondaries. Deposited in the sensors, not calibrated: compare only within one detector.${unit ? ` The simulation records it per ${unit}, not per hit: every hit there shares these particles.` : ""}`}>
-        <span class="lk">fact</span>{label}{several && link.in && <span class="muted">{link.in}</span>}
-        {link.unranked ? <span class="muted">on each hit: select one for its particles</span>
-          : !shown.length ? <span class="muted">no simulated energy from an exported particle</span>
-          : <>{shown.slice(0, 3).map(([p, share]) => <>{chip(link.truth, p)}<span class="muted">{percent(share)}</span></>)}{shown.length > 3 && <span class="muted"> +{shown.length - 3}</span>}</>}
-        {unit && !link.unranked && shown.length > 0 && <span class="muted">per {unit}</span>}</div>
+      <div class="rlink fact"><Tag word="fact">{help}</Tag>{label}{several && link.in && <span class="muted">{link.in}</span>}
+        {link.unranked ? <span class="muted">per hit</span> : !shown.length ? <span class="muted">no particle</span>
+          : <>{shown.slice(0, 3).map(([p, share]) => <>{chip(link.truth, p)}<span class="muted">{percent(share)}</span></>)}{shown.length > 3 && <span class="muted">+{shown.length - 3}</span>}</>}</div>
     );
   }
   if (link.kind === "derived") return (
-    <div class="rlink derived" title={`Derived in evd, not a CMSSW match: ${link.reason}${link.gap !== undefined ? ` (truth-graph.md gap ${link.gap})` : ""}`}><span class="lk">derived</span>{label}
-      {link.unranked ? <span class="muted">on each one: select one for its particle</span>
-        : link.partners.length ? <>{link.partners.slice(0, 3).map(([p, n]) => <>{chip(link.truth, p)}{!single && <span class="muted">×{n}</span>}</>)}{link.partners.length > 3 && <span class="muted"> +{link.partners.length - 3}</span>}</>
-        : <span class="muted">no particle in {single ? "its" : "their"} hits</span>}</div>
+    <div class="rlink derived"><Tag word="derived"><p>Worked out in evd, not a CMSSW match: {link.reason}{GAP(link.gap)}.</p>
+      {link.unranked && <p>This object's kind has no truth of its own, so no particle is ranked through its parts. Select one for its particle.</p>}</Tag>{label}
+      {link.unranked ? <span class="muted">per cluster</span>
+        : link.partners.length ? <>{link.partners.slice(0, 3).map(([p, n]) => <>{chip(link.truth, p)}{!single && <span class="muted">×{n}</span>}</>)}{link.partners.length > 3 && <span class="muted">+{link.partners.length - 3}</span>}</>
+        : <span class="muted">no particle</span>}</div>
   );
   if (link.kind === "none") return (
-    <div class="rlink none" title={`${link.reason}${link.gap !== undefined ? ` (truth-graph.md gap ${link.gap})` : ""}. evd builds no match of its own; the steps below speak for themselves.`}>
-      <span class="lk">no truth</span>{label}<span class="muted">{self ? link.reason : "for this kind yet"}{link.gap !== undefined && ` · gap ${link.gap}`}</span></div>
+    <div class="rlink none"><Tag word="no truth"><p>CMSSW has no truth for this kind of object yet: {link.reason}{GAP(link.gap)}.</p>
+      <p>evd builds no match of its own. The steps it is made of speak for themselves.</p></Tag>{label}</div>
   );
-  return <div class="rlink none" title="No truth of its own: it takes the colour of the object it belongs to"><span class="lk">no truth</span>{label}<span class="muted">of its own: with what contains it</span></div>;
+  return null; // no truth of its own (a track's hits): it goes with what contains it, and needs no line
 }
 
-/** The levels drawn on request (↓ ↑) when they are not the selection's own steps: those of the object the view is
- *  built around (the pair's candidate for a hit or a truth particle; the focus for one of its parts). */
+/** The summary's columns of an object: its layer's `inspect` columns (e.g. a jet's pT, η, φ), else what colours, places
+ *  and sizes it; then its custom columns. */
+function keyColumns(name: string, table: Table) {
+  const d = layerOf(name), custom = customColumns.value.filter((c) => c.table === name).map((c) => c.name);
+  const colour = d ? colourBy.value[layerKey(d)] ?? d.colour : undefined;
+  const category = d && typeof d.colourBy === "object" && "category" in d.colourBy ? d.colourBy.category : undefined;
+  return [...new Set([...(d?.inspect ?? [category, colour, ...(d?.position ?? []), sizeColumn(name, table)]), ...custom])].filter((c): c is string => !!c && c in table.columns);
+}
+/** Columns of one row as a table of name, value, unit. */
+function Rows({ name, table, row, columns }: { name: string; table: Table; row: number; columns: string[] }) {
+  const info = bundle.value!.header.tables[name], custom = customColumns.value.filter((c) => c.table === name).map((c) => c.name);
+  return (
+    <table class="kv"><tbody>
+      {columns.map((c) => <tr title={info.columns[c]?.doc ?? customDoc(name, c)}><td>{custom.includes(c) ? <i>{c}</i> : c}</td><td>{full(table.columns[c][row])}</td><td class="unit">{unitOf(info.columns[c]?.doc)}</td></tr>)}
+    </tbody></table>
+  );
+}
+
+/** The object looked at from this card (a click on one of its objects): what it is, its own truth match and its main
+ *  numbers, with the way into its own card and back. The view shows it as a selection. */
+function Looking() {
+  const a = anchor.value, sel = selection.value, t = sel && event.value?.tables[sel.table];
+  if (!a || !sel || !t) return null;
+  const truth = !!layerOf(sel.table)?.truth;
+  return (
+    <section class="looking" aria-label="Looking at">
+      <h4>Looking at <button class="link" title="Back to this card's object (Esc)" onClick={unlook}>✕ stop</button></h4>
+      <div class="lookhead"><b class={truth ? "kind truth" : undefined}>{name(sel)}</b>
+        <button class="open" title="Open its card (double click does the same)" onClick={() => { openCard(sel); engine?.frame(highlight.peek() ?? undefined, true, 800); }}>Open →</button></div>
+      {truth ? sel.table === modes.value.roots.truth && <Lineage row={sel.row} compact /> : <TruthCard table={sel.table} row={sel.row} />}
+      <Rows name={sel.table} table={t} row={sel.row} columns={keyColumns(sel.table, t).slice(0, 5)} />
+    </section>
+  );
+}
+
+/** The levels drawn on request (↓ ↑) when they are not the card's own steps: those of the object the view is built
+ *  around (the object looked at; the pair's candidate for a hit or a truth particle; the focus for one of its parts). */
 function ViewLevels() {
   const top = levelTop.value, bar = focusBar.value, chosen = shownLevel.value;
-  if (!top || sameRef(top, selection.value) || !bar.some((l) => !l.always)) return null;
+  if (!top || sameRef(top, subject.value) || !bar.some((l) => !l.always)) return null;
   return (
     <section class="viewlevels" aria-label="Levels in the view">
       <h4 title="The view is built around this object: its smallest parts are always drawn, one of the other levels on request (↓ ↑)">In the view <span class="lanes">{name(top)}</span></h4>
@@ -190,25 +255,34 @@ function ViewLevels() {
   );
 }
 
-/** A truth object: where it sits in the truth graph, what was reconstructed from it, and what has no link yet. */
+/** A truth object: where it sits in the truth graph, and what was reconstructed from it. */
 function TruthSide({ table, row }: { table: string; row: number }) {
   const rec = reconstructed.value, root = modes.value.roots.truth;
   const gaps = [...new Set([...truthStatuses.value].filter(([, s]) => s.kind === "none").map(([t, s]) => `${truthName(t)}${s.kind === "none" && s.gap !== undefined ? ` (gap ${s.gap})` : ""}`))];
   const found = rec?.reco.filter((r) => r.partners.length) ?? [], empty = rec?.reco.filter((r) => !r.partners.length) ?? [];
+  const help = (
+    <>
+      <p>The reco objects that share hits or energy with this truth object, from CMSSW's truth to reco maps, most complete first.</p>
+      <p><b>%</b>: the share of it that the object holds. <span class="ok">★</span>: it is that object's own best match.</p>
+      <p><b>Click</b> an object to look at it in the view; <b>double click</b> to open its card.</p>
+      {empty.length > 0 && <p>"None" is not by itself an inefficiency: the particle may never have reached that detector.</p>}
+      {rec && !rec.hits.length && <p>No hits are recorded on this particle itself; the simulation may record them on the particles it made.</p>}
+      {gaps.length > 0 && <p>No truth link yet for: {gaps.join(", ")}.</p>}
+    </>
+  );
   return (
     <>
       {table === root && <section class="matchcard"><Lineage row={row} /></section>}
       {rec && (rec.reco.length > 0 || rec.hits.length > 0) && (
         <section class="ladder" aria-label="Reconstructed as">
-          <h4 title="The reco objects that share hits or energy with it (CMSSW's truth to reco maps), most complete first, and the hits it left (simulation)">
-            Reconstructed as <span class="lanes"><span class="badge truth">truth</span>⇄<span class="badge reco">reco</span></span></h4>
+          <h4>Reconstructed as <span class="lanes"><span class="badge truth">truth</span>⇄<span class="badge reco">reco</span><Info title="Reconstructed as">{help}</Info></span></h4>
           <ol>
             {found.map((r) => {
               const of = r.measure === "hits" ? `hits${r.in ? ` in the ${r.in}` : ""} (with its secondaries')` : r.measure === "pt2" ? "findable tracks (pT²)" : `energy${r.in ? ` in ${r.in}` : ""}`;
               return (
                 <li class="rung below">
                   <div class="rhead"><span class="rkind">{stepName(r.table)}</span></div>
-                  <div class="rlink match">
+                  <div class="rlink">
                     {r.partners.slice(0, 4).map((p) => (
                       <span class="partner">{chip(r.table, p.row, `${p.completeness !== undefined ? `it holds ${percent(p.completeness)} of this one's ${of}; ` : ""}${p.best ? "this is its own best match" : p.unmatched ? "it has no best match of its own" : "its own best match is another truth object"}`)}
                         {p.completeness !== undefined && <span class="muted">{percent(p.completeness)}</span>}{p.best && <span class="ok" aria-label="its best match">★</span>}</span>
@@ -219,14 +293,10 @@ function TruthSide({ table, row }: { table: string; row: number }) {
               );
             })}
             {rec.hits.map((h) => (
-              <li class="rung below"><div class="rhead"><span class="rkind">Hits{h.in && ` · ${h.in}`}</span></div>
-                <div class="rlink fact" title="Simulation: the hits it (with its secondaries) left energy in"><span class="lk">fact</span><span>{h.hits.toLocaleString()} hits</span></div></li>
+              <li class="rung below"><div class="rhead"><span class="rkind">Hits{h.in && ` · ${h.in}`}</span><span class="count">{h.hits.toLocaleString()}</span></div></li>
             ))}
           </ol>
-          {empty.length > 0 && <p class="hint" title="No object of these kinds shares hits or energy with it. Not by itself an inefficiency: it may never have reached that detector">Nothing shared with: {empty.map((r) => stepName(r.table)).join(", ")}.</p>}
-          {!rec.hits.length && <p class="hint">No hits are recorded on this particle itself; the simulation may record them on the particles it made.</p>}
-          <p class="hint">% is the share of it the object holds; ★ marks an object whose own best match it is.</p>
-          {gaps.length > 0 && <details class="gaps"><summary>{gaps.length} kinds have no truth link yet</summary><p class="hint">{gaps.join(", ")}. See truth-graph.md; evd builds no match of its own.</p></details>}
+          {empty.length > 0 && <p class="hint">None: {empty.map((r) => stepName(r.table)).join(", ")}</p>}
         </section>
       )}
     </>
@@ -252,29 +322,26 @@ function PairBars() {
   );
   const effParts: [number, string, string][] = eff ? [[eff.candidate, pal.pair[PAIR.matched], "in its candidate"], [eff.others, pal.pair[PAIR.split], "split off"], [eff.missed, pal.pair[PAIR.missed], "missed"]] : [];
   const purParts: [number, string, string][] = pur ? [[pur.particle, pal.pair[PAIR.matched], "from the particle"], [pur.other, pal.pair[PAIR.contamination], "contamination"]] : [];
+  const help = (
+    <>
+      <p>With something selected, the view is coloured by its pair: a generator particle (the whole of it, with everything it made) and its best candidate, compared hit by hit{where ? ` in ${where}` : ""}.</p>
+      <p><b>Particle's energy</b>: where its simulated energy went{eff && effTotal > 0 ? ` (${short(effTotal)} GeV deposited in the sensors, not calibrated)` : ""}, each hit counted once.</p>
+      <p><b>Candidate's energy</b>: what the rechit energy of its hits is from; a hit counts for the particle that left the most simulated energy in it.</p>
+      <p>These are not the associator's purity and completeness of the selected object: those are under its match.</p>
+      {pair.particle < 0 && <p>{pair.truth ? "No truth particle is matched to this candidate" : "There is no truth in this file"}: its objects are shown as reconstructed, nothing is confirmed.</p>}
+    </>
+  );
   return (
     <section class="pair" aria-label="Truth and reco pair">
-      <h4 title="With something selected, the view is coloured by its pair: a generator particle and its best candidate, compared hit by hit">The view's colours: truth ↔ reco pair</h4>
+      <h4>View colours: the pair <span class="lanes"><Info title="The truth ↔ reco pair">{help}</Info></span></h4>
       <p class="pairline"><span class="badge truth">truth</span> {c(pair.truth, pair.particle) ?? <span class="muted">no particle</span>}
         <span aria-hidden="true">↔</span> <span class="badge reco">reco</span> {c(pair.reco, pair.candidate) ?? <span class="muted">no candidate</span>}</p>
-      {pair.particle < 0 && <p class="hint">{pair.truth ? "No truth particle is matched to this candidate" : "No truth in this file"}: its objects are shown as reconstructed
-        (<i class="sw" style={{ background: pal.pair[PAIR.reco] }} />), nothing confirmed.</p>}
-      {eff && effTotal > 0 && (
-        <div title="Simulated energy of the generator particle and everything it made, in the candidates' detector, each hit counted once. Energy deposited in the sensors, not calibrated: compare it only with itself">
-          <div class="pairhead"><b>Of the particle</b> <span class="muted">where its simulated energy{where ? ` in ${where}` : ""} went ({short(effTotal)} GeV in the sensors)</span></div>
-          {bar(effParts, effTotal)}{legend(effParts, effTotal)}
-        </div>
-      )}
-      {pur && purTotal > 0 && (
-        <div title="Rechit energy of the candidate's hits; each hit counted for the particle that left the most simulated energy in it">
-          <div class="pairhead"><b>Of the candidate</b> <span class="muted">what its hit energy{where ? ` in ${where}` : ""} is from</span></div>
-          {bar(purParts, purTotal)}{legend(purParts, purTotal)}
-        </div>
-      )}
+      {eff && effTotal > 0 && <div><div class="pairhead"><b>Particle's energy</b></div>{bar(effParts, effTotal)}{legend(effParts, effTotal)}</div>}
+      {pur && purTotal > 0 && <div><div class="pairhead"><b>Candidate's energy</b></div>{bar(purParts, purTotal)}{legend(purParts, purTotal)}</div>}
       {pair.particle >= 0 && pair.matched >= 0 && pair.matched !== pair.particle &&
-        <p class="hint">The selection's particle {c(pair.truth, pair.matched)} is part of the generator particle {c(pair.truth, pair.particle)}: the pair is the whole of it.</p>}
-      {pair.merged.length > 0 && <p class="hint">{selectedTruth ? "" : "The selection is matched to "}{c(pair.truth, pair.particle)}{selectedTruth ? " is" : ","} above the generator particles (it decayed in
-        the generator): the pair stands for the {pair.merged.length} generator particle{pair.merged.length > 1 ? "s" : ""} it decayed to{selectedTruth ? "" : ", which the candidate merges"}: {pair.merged.slice(0, 3).map((m) => <> {c(pair.truth, m)}</>)}{pair.merged.length > 3 ? " …" : "."}</p>}
+        <p class="hint">{c(pair.truth, pair.matched)} is part of the generator particle {c(pair.truth, pair.particle)}: the pair is the whole of it.</p>}
+      {pair.merged.length > 0 && <p class="hint">{c(pair.truth, pair.particle)} decayed in the generator: the pair stands for the {pair.merged.length} generator particle{pair.merged.length > 1 ? "s" : ""} it
+        decayed to{selectedTruth ? "" : ", which the candidate merges"}: {pair.merged.slice(0, 3).map((m) => <> {c(pair.truth, m)}</>)}{pair.merged.length > 3 ? " …" : ""}</p>}
     </section>
   );
 }
@@ -327,27 +394,15 @@ function Associations({ table, row }: { table: string; row: number }) {
 /** Its columns: the layer's `inspect` columns (e.g. a jet's pT, η, φ), else what colours, places and sizes it, and the
  *  custom ones; all of them folded under. */
 function Properties({ table, name, row }: { table: Table; name: string; row: number }) {
-  const info = bundle.value!.header.tables[name], d = layerOf(name);
-  const custom = customColumns.value.filter((c) => c.table === name).map((c) => c.name);
-  const colour = d ? colourBy.value[layerKey(d)] ?? d.colour : undefined;
-  const category = d && typeof d.colourBy === "object" && "category" in d.colourBy ? d.colourBy.category : undefined;
-  const key = [...new Set([...(d?.inspect ?? [category, colour, ...(d?.position ?? []), sizeColumn(name, table)]), ...custom])].filter((c): c is string => !!c && c in table.columns);
-  const doc = (c: string) => info.columns[c]?.doc ?? customDoc(name, c);
-  const rows = (cols: string[]) => (
-    <table class="kv"><tbody>
-      {cols.map((c) => <tr title={doc(c)}><td>{custom.includes(c) ? <i>{c}</i> : c}</td><td>{full(table.columns[c][row])}</td><td class="unit">{unitOf(info.columns[c]?.doc)}</td></tr>)}
-    </tbody></table>
-  );
-  const n = Object.keys(table.columns).length;
+  const d = layerOf(name), key = keyColumns(name, table), n = Object.keys(table.columns).length;
   return (
     <section class="props">
       {d?.fractions && <Fractions fractions={d.fractions} table={table} row={row} />}
-      {rows(key)}
-      {n > key.length && <details class="allcolumns"><summary>All {n} columns</summary>{rows(Object.keys(table.columns))}</details>}
+      <Rows name={name} table={table} row={row} columns={key} />
+      {n > key.length && <details class="allcolumns"><summary>All {n} columns</summary><Rows name={name} table={table} row={row} columns={Object.keys(table.columns)} /></details>}
     </section>
   );
 }
-
 /** A reco object's energy fractions (layer hint `fractions`, e.g. a jet's charged and neutral hadrons, photons...) as
  *  one bar, in a neutral ramp (a reconstruction quantity, not a colour of the views), with the shares named under it. */
 function Fractions({ fractions, table, row }: { fractions: Record<string, string>; table: Table; row: number }) {

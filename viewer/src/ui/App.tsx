@@ -4,9 +4,10 @@ import { useEffect } from "preact/hooks";
 import { blobSource } from "../io/bundle";
 import type { ViewName } from "../render/engine";
 import { startDomain } from "../model/domains";
-import { activeMode, bundle, bundleName, catalogue, colourChoice, dialog, domain, event, eventIndex, focusLevel, highlight, labelsOn, openBundle, refreshCatalogue, selection, shownLevel, solo, soloKey, stepEvent, stepFocusLevel, truthColours, view } from "../model/store";
+import { activeMode, anchor, bundle, bundleName, catalogue, colourChoice, dialog, domain, event, eventIndex, focusLevel, highlight, labelsOn, openBundle, refreshCatalogue, selection, shownLevel, solo, soloKey, stepEvent, stepFocusLevel, truthColours, unlook, view } from "../model/store";
 import { SYNTAX } from "./ExprForm";
 import { Header } from "./Header";
+import { Popover, popover } from "./Info";
 import { Navigator } from "./Navigator";
 import { menuOpen } from "./Menu";
 import { Sidebar } from "./Sidebar";
@@ -55,8 +56,10 @@ export function App() {
       if (e.key === "p" || e.key === "P") return toggleTour();
       stopTour(); // any other key takes over from the tour
       if (e.key === "Escape") { // close a dialog; else back to the normal view: no selection, the whole event
-        if (menuOpen.value) menuOpen.value = false;
+        if (popover.value) popover.value = null;
+        else if (menuOpen.value) menuOpen.value = false;
         else if (dialog.value) dialog.value = null;
+        else if (anchor.value) unlook(); // back to the card's own object
         else { selection.value = null; showWhole(true); }
       }
       else if (e.key === "?") dialog.value = dialog.value ? null : "help";
@@ -70,7 +73,7 @@ export function App() {
       else if (e.key === "l" || e.key === "L") labelsOn.value = !labelsOn.value;
       else if (e.key === "n" || e.key === "N") nextObject(e.shiftKey ? -1 : 1);
       else if (e.key === "x" || e.key === "X") cross();
-      else if (e.key === "b" || e.key === "B") back();
+      else if (e.key === "b" || e.key === "B") { if (anchor.value) unlook(); else back(); }
       else if (e.key === "Home") showWhole();
       else if (e.key === "r" || e.key === "R") void replayEvent();
     };
@@ -92,6 +95,7 @@ export function App() {
       <Sidebar />
       <main><Viewport /><Navigator /></main>
       {dialog.value === "help" && <HelpDialog />}
+      <Popover />
       <Toasts />
     </div>
   );

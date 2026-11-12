@@ -14,8 +14,9 @@ is there too. Esc closes it.
 | action | how |
 |---|---|
 | rotate, pan, zoom | drag; right-drag or shift + drag; scroll (zooms towards the cursor) |
-| select an object | click it: its card (right) shows its chain and what the truth says at every step (see [The selection's card](#the-selections-card)); the view shows it with its smallest parts, one kind per branch, and the parts drawn as lines, which do not hide them (e.g. a candidate with its calorimeter hits, its track and the track's hits; a vertex with its tracks and their hits), related objects highlighted (a track: its vertex and truth particle); its parts are drawn even where a layer's default filter would hide them (cuts and filters you set still apply; the object itself is drawn whatever the cut, and the hits of parts a cut hides are not); further clicks pick among its parts |
-| walk the chain | click an object on a step of the card's chain: up to what contains it, down to its parts; **B**, or ← at the top of the card, goes back |
+| select an object | click it: it stands out in the view (drawn towards white on the dark theme and black on the light one, a line three times as wide, its label filled), and its card (right) shows its chain and what the truth says at every step (see [The selection's card](#the-selections-card)); the view shows it with its smallest parts, one kind per branch, and the parts drawn as lines, which do not hide them (e.g. a candidate with its calorimeter hits, its track and the track's hits; a vertex with its tracks and their hits), related objects highlighted (a track: its vertex and truth particle); its parts are drawn even where a layer's default filter would hide them (cuts and filters you set still apply; the object itself is drawn whatever the cut, and the hits of parts a cut hides are not); further clicks pick among its parts |
+| look at an object of the chain | click its name in the card: the view shows it as a selection (with its parts, marked like any selected object), and the card stays on its own object, with a **Looking at** block for the one looked at (its truth match, its main numbers). Click another to look at that one instead; ✕ stop, Esc or B goes back to the card's object. Pointing at a name rings the object in the view |
+| open an object's card | double click its name, or **Open →** in the Looking at block: the card moves to it, and ← at the top of the card (or B) goes back |
 | across to the truth, or back to the reco | X, or the particle on a step's match line: from a reco object to the associator's best match (a hit or a layer cluster: the particle with the most simulated energy in it); from a truth object to the reco object of the latest reconstruction step whose own best match it is (else the one holding most of it) |
 | draw one step of what it is made of | ↓ / ↑, or **show** on a step of the chain: one step at a time between the object and its smallest parts (e.g. a candidate's interpretations, linked tracksters, tracksters, layer clusters), with the object drawn as an outline around it; a step with several layers (e.g. two linking algorithms) draws those ticked in Layers, or all of them if none is. With parts of the detector, ↓ / ↑ step through the steps of the part looked at (and of shared domains); a step in another part names it (e.g. **Tracker ›**): a click looks at that part, keeping the object. In All, steps of different parts at the same depth are drawn together (e.g. a jet's tracks and clusters) |
 | one kind of object alone | **only** on a kind's heading in the side panel (e.g. only the tracks, only the jets, only the PF candidates; a heading is a kind in one part of the detector: HGCal's hits, not the barrel's): its ticked collections (none ticked: those of its preferred reconstruction path) and nothing else are drawn, whatever the part of the detector looked at, until an object is selected, which brings its parts and its truth; "show everything" on the view goes back. The ticks are kept; a replay or a tour ends it. Not offered for kinds drawn only for a selection (track hits) |
@@ -27,7 +28,7 @@ is there too. Esc closes it.
 | views: 3D, front, side, ρ–z | 1, 2, 3, 4, or the buttons at the bottom left of the view (in the top bar for bundles without parts of the detector) |
 | one part of the detector, or all | D (Shift+D backwards), or the **Look at** bar at the top, Physics · Tracker · … · All (bundles with `domains`; a drop-down list below 1100 px): the part's layers, those of shared domains (e.g. the physics objects) and those of none (truth), framed on its region, in its view, and its layers' tab opens in the side panel (choosing a tab does not change the view); the side panel keeps your ticks. A shared domain (e.g. **Physics**) draws only its own layers and those of none. A bundle opens on its `view.domain`. With something selected it stays selected: the view frames its objects in that part, and D skips the parts it has nothing in |
 | what the colours show | T, or Reco · Truth in the colour key or the Menu: the reconstruction (candidate types), or the truth (each generator particle in its own colour, reco objects only where they are a clean match); see [Colours](#colours-and-the-truth--reco-pair) |
-| next / previous object | N / Shift+N: the next object of the selected one's kind, largest first (the order of its object rows, e.g. the next jet by pT, the next track), for every kind but hits; with nothing selected, the leading object of the first layer with labels |
+| next / previous object | N / Shift+N: the next object of the selected one's kind, largest first (the order of the list its row's count opens, e.g. the next jet by pT, the next track), for every kind but hits; with nothing selected, the leading object of the first layer with labels |
 | labels | L: labels on the leading objects of the layers with a `labels` hint (e.g. the 4 leading jets, MET) in a shared domain's view (Physics), and on the selection in any view; at the far end of a line or cone (where a jet meets the calorimeter), else at the object. Pointing at an object row in the side panel rings its object in the view |
 | replay | R: hits appear at their arrival time (display hint `time`, else time of flight, or the bundle's `replay` order), then paths are built from their hits (display hint `grow`: tracks seeded, built outwards, fitted), then each reconstruction stage in turn; a caption says what is happening |
 | tour | P, or the play button: each event built up step by step, outwards from the collision point and from the detector's hits to the physics objects (model/tour.ts): collision point, tracker hits, tracks, timing layer, calorimeter hits, clusters, HGCal showers, muon chambers, muon tracks, particle flow, jets, missing momentum, leptons and photons, b tagging. Each step shows the layers of its kinds (display hint `kind`; those shown by default, else all), grown in outwards while the camera frames them, with a caption in plain words; a step with nothing in the event is skipped. Then the bundle's own view (its starting domain), whose leading labelled objects (else main showers) are visited one by one, then the next event. A bundle with fewer than two such steps (test beam, cosmics) replays each event instead, then visits its main showers. Any key or touch stops it and brings back the user's layers |
@@ -37,7 +38,9 @@ is there too. Esc closes it.
 
 ## Side panel
 
-Preset chips (under a **Preset** caption) when the bundle has more than one preset; then tabs; then the colour key.
+The **Preset** list when the bundle has more than one preset; then tabs; then the colour key. The panel carries names,
+counts and state; what a thing is, and how a number is counted, is behind an **i** next to it (a pop-up: `viewer/src/ui/Info.tsx`),
+here as in the selection's card.
 
 - **One tab per part of the detector** (display hint `domain`, e.g. **HGCal**; **Objects** for bundles made before
   layers had one), in the order of the header's `domains`, as the top bar's buttons: its collections by kind of object.
@@ -45,16 +48,21 @@ Preset chips (under a **Preset** caption) when the bundle has more than one pres
   **Detector**, which follows the domain bar: a section per part, the one looked at open and first, the others folded
   (in All all open, in a shared domain's view all folded), each saying whether it is drawn (looked at, drawn, not in
   this view; what that means on hover)
-  (their cuts still apply to a selection's objects there). Each kind lists its `cut` slider (log scale over the group's
-  values in the shown event; the lowest position is no cut; it applies to every layer of the group, also those listed
-  elsewhere, which it names; it is named by the cut's `label`, else its column), just before the first row it cuts, and then one row per layer: visibility and count, the layer's filter, "only for the
-  selection" for `onSelection` layers, and its colour scale when the colour key does not already explain it. Other
+  (their cuts still apply to a selection's objects there). A kind's heading carries its `cut` as a chip ("pT ≥ 30
+  GeV", "no pT cut" at 0, in the accent colour when it is not the profile's): a click opens its slider in a pop-up
+  (log scale over the group's values in the shown event; the lowest position is no cut; it applies to every layer of
+  the group, also those listed elsewhere, which it names; it is named by the cut's `label`, else its column). A kind
+  with several cuts (one per calorimeter) carries each on the first row it cuts. Then one row per layer: visibility,
+  name, its state as chips, its count and ⋯; under it only its colour scale, when the colour key does not already
+  explain it. The chips: **filter** (a click shows the expression and removes it), **selected** / **all** for
+  `onSelection` layers (drawn only for the selected object, or all of them: a click switches), and **show** on a layer
+  hidden while something is selected (one of the selection's levels is drawn at a time: a click draws this one). Other
   reconstruction paths are folded at the end. **⋯** on a row: what colours the layer (any column, custom ones too,
   or a related object), an expression to filter its table or to add as a custom column (e.g. `snr = energy /
   sigmaNoise`, computed in the browser for every event and usable for colour and filters like stored columns), and the
   table's custom columns. A ticked layer with a `list` hint lists its largest objects that pass its cut and filter
-  (e.g. jets by pT, with pT, η, φ); a click selects one. **☰** on any other row but hits lists its eight largest the same way
-  (e.g. the tracksters by energy). The tab opens with a headline: how many objects of each such
+  (e.g. jets by pT, with pT, η, φ); a click selects one. On any other row but hits, a click on its count lists its eight
+  largest the same way (e.g. the tracksters by energy). The tab opens with a headline: how many objects of each such
   layer pass (or the value of a one-object table, e.g. MET). In the truth colours each kind's heading gets one word
   for what the truth graph says about it (match, fact, derived, no truth; the reason on hover; on each row where a
   kind's layers differ), and the rows of kinds without truth are faint. A kind's heading folds it, then says how many of its collections
@@ -71,8 +79,8 @@ Preset chips (under a **Preset** caption) when the bundle has more than one pres
 
 ### Colours and the truth ↔ reco pair
 
-Colour means one thing at a time, and the title of the colour key (bottom of the side panel) says which; its "How to
-read this" (folded until opened, remembered per browser) explains it. The rules
+Colour means one thing at a time, and the title of the colour key (bottom of the side panel) says which; its **i**
+explains it. The rules
 behind the truth colours and numbers, and what each kind of object is compared with, are in [truth.md](truth.md).
 
 - **Reco** (the default with candidates): candidates by the particle type the reconstruction gave them, and
@@ -126,7 +134,15 @@ use each hit's dominant particle. Truth layers show the pair's particle and the 
 
 ### The selection's card
 
-One card, the same for every kind of object, in this order (`viewer/src/ui/Navigator.tsx`):
+One card, the same for every kind of object, in this order (`viewer/src/ui/Navigator.tsx`). It carries names, bars and
+numbers: the table's description is behind the **i** by its title, what the chain's words mean behind the chain's
+**i**, and what a step's tag means on that step behind the tag itself (a click on "match", "fact", "derived" or "no
+truth").
+
+**Names of objects** in the card are buttons: a click looks at the object, a double click opens its card (Controls,
+above). For a kind the CMSSW associator matches, each name carries a dot for what the associator says of that object:
+filled green for a clean match, half amber for an impure one, hollow grey for none (`matchClass`,
+`viewer/src/model/chain.ts`), so an unfolded step shows at a glance which of its objects are which.
 
 **The chain** (`viewer/src/model/chain.ts`). A reco object is shown between what it is **part of** (the objects that
 contain it, outermost first) and what it is **made of** (from the largest objects down to the hits), with what is
@@ -143,10 +159,10 @@ bundle does not draw (a hit's digi) are listed last, as **other tables**.
 
 | tag | the step shows |
 |---|---|
-| match | for one object, the associator's best match and its purity (green from the kind's clean threshold, amber below), or "no match" (a fake, or an object the associator does not consider, e.g. a candidate without calorimeter energy); for several, "N of M matched · K clean" and the particles matched more than once |
+| match | for one object, the associator's best match and its purity (green from the kind's clean threshold, amber below), or "no match" (a fake, or an object the associator does not consider, e.g. a candidate without calorimeter energy); for several, their counts in the colours of their dots: "11 clean · 4 impure · 1 no match" |
 | fact | the particles that left the simulated energy in the step's hits, with their shares, one line per detector (never summed across detectors); "per CSC layer" where the simulation records a coarser unit than the hit |
 | derived | evd's stand-in (layer clusters): the particles with the most simulated energy in their hits |
-| no truth | no truth for this kind yet, with the gap number of [truth-graph.md](truth-graph.md); on the selected object's own step, the reason |
+| no truth | the tag alone; behind it, why CMSSW has no truth for the kind, with the gap number of [truth-graph.md](truth-graph.md). A part with no truth of its own that goes with its container (a track's hits) has no line |
 
 Each line is that step's own statement, and no match is built through the parts ([truth.md](truth.md#constituents)).
 Under an object whose kind has no truth of its own (a jet, a PF candidate), a step of several parts counts their own
@@ -161,11 +177,12 @@ gets its `match` relation in the profile, and its steps then show the match with
 hit or a truth particle; the focus for one of its parts), a line under the chain lists that object's levels, with the
 one drawn lit: a click, or ↓ ↑, draws another.
 
-**The match.** A reco object whose association has a `match` contract shows what its kind reconstructs (e.g. "the
-particle that entered the calorimeter"), the associator's best match, its purity and its completeness as bars (linear,
-with the counted amounts under them: "21 of its 21 hits", and the clean threshold marked), the associator's score ("0
-best; not a fraction"), the generator particle the match belongs to, and the match's chain in the truth graph on one
-line, from the collision down. Without a match it says so, and gives the match of a single part (a track-only
+**The match.** A reco object whose association has a `match` contract shows the associator's best match, its purity
+and its completeness as bars (linear, with what they count under them: "21 of 21 hits · clean", "of the particle's
+energy in HGCal", and the clean threshold marked), the generator particle the match belongs to, and the match's chain
+in the truth graph on one line, from the collision down. Behind its **i**: what the kind reconstructs (e.g. "the
+particle that entered the calorimeter"), how purity and completeness are counted, and the associator's score ("0 best;
+not a fraction"). Without a match it says so, and gives the match of a single part (a track-only
 candidate's track) as that part's.
 
 **A truth object** shows its lineage (its ancestors, the generator's quarks and gluons folded into one line, itself,

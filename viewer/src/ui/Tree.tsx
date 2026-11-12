@@ -8,6 +8,7 @@ import { filterMask, filters } from "../model/custom";
 import { bundle, describe, event, isHitLayer, labelOf, layerOf, selection, short, sizeColumn, theme } from "../model/store";
 import { factIn } from "../model/facts";
 import { bestPartners } from "../model/relations";
+import { Info } from "./Info";
 import { Coverage, Scorecard } from "./Truth";
 import { Collections } from "./Layers";
 import { jump } from "./navigate";
@@ -63,9 +64,9 @@ function Outcome({ table }: { table: string }) {
   );
   return (
     <section class="outcome">
-      <h3>What became of each {layerOf(table)?.truth ? "particle" : "object"}</h3>
-      <p class="hint">{withHits.length} left hits{keep ? ` (filter: ${filters.value[table]})` : ""}: {matched.length} reconstructed as {final.group.toLowerCase()},
-        best match by {info.best?.weight ?? "order"}{w ? " (right)" : ""}, from the associations in the file.</p>
+      <h3>What became of each {layerOf(table)?.truth ? "particle" : "object"} <Info title="What became of each one">
+        <p>{withHits.length} left hits{keep ? ` (filter: ${filters.value[table]})` : ""}: {matched.length} reconstructed as {final.group.toLowerCase()}.</p>
+        <p>Each one with its best match by {info.best?.weight ?? "order"}{w ? " (the number on the right)" : ""}, from the associations in the file.</p></Info></h3>
       <table class="kv outcome"><tbody>
         {matched.slice(0, MAX).map((r) => {
           const k = best[r];

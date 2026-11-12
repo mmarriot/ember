@@ -1,5 +1,5 @@
 // Application state. Components and the renderer react to these signals.
-import { computed, effect, signal } from "@preact/signals";
+import { batch, computed, effect, signal } from "@preact/signals";
 import { around, Bundle, type DisplayLayer, type EventData, type Header, httpSource, kindName, REPRS, type Table, unitOf } from "../io/bundle";
 import { describeNoLink, type Legend, type ThemeName } from "../render/colour";
 import type { Caption } from "../render/replay";
@@ -11,7 +11,7 @@ import { modeColouring, modeRoots, recoColourOf } from "./modes";
 import { opensPair, truthStatus, type TruthStatus } from "./match";
 import { PAIR, type Pair, pairFor, pairShows } from "./pair";
 import { levelsOf, type Related, relatedParts, sameRef, type Ref } from "./relations";
-import { recoLadder, recoOfTruth } from "./chain";
+import { matchClass, recoLadder, recoOfTruth } from "./chain";
 
 /** One entry of the site's index.json (written by `evdtools sync`; hand-written ones need only file and title). */
 export interface Listed { file: string; title: string; campaign?: string; campaign_title?: string; events?: number; data_time?: string }
@@ -245,16 +245,63 @@ const partsOf = (ref: Ref | null) => {
 const focusParts = computed(() => partsOf(focus.value));
 /** The selection's relatives: what it is made of, what it is part of, what is linked to it (e.g. its truth particle). */
 export const relatives = computed(() => (sameRef(selection.value, focus.value) ? focusParts.value : partsOf(selection.value)));
-/** The selection's ladder (model/chain.ts): for a reco object, what it is part of, itself and what it is made of,
- *  each step with its link to the truth; null for a truth object. */
+
+// Looking at an object from another's card (ui/Navigator.tsx): a click on an object in the card selects it, so the
+// view shows it as any selection (with its parts, its pair), while the card stays on the object it was opened for,
+// the `anchor`. Any other selection (a click in the view, a list, N) ends it: the card follows the selection again,
+// and the anchor is kept for "back".
+export const anchor = signal<Ref | null>(null);
+let looking: Ref | null = null; // the selection made by `look`, which keeps the anchor
+/** The object the card describes: the anchor while another is looked at, else the selection. */
+export const subject = computed(() => anchor.value ?? selection.value);
+/** Look at `ref` in the view, keeping the card on its object; on the card's own object, back to it. */
+export function look(ref: Ref) {
+  const a = anchor.peek(), sel = selection.peek();
+  if (sameRef(sel, ref)) return;
+  if (sameRef(a, ref)) return unlook();
+  batch(() => { // the focus moves there without history: "back" is the card's object
+    if (!a && sel) anchor.value = sel;
+    looking = { ...ref };
+    focus.value = looking;
+    selection.value = looking;
+  });
+}
+/** Back to the card's own object. */
+export function unlook() {
+  const a = anchor.peek();
+  if (!a) return;
+  batch(() => { anchor.value = null; looking = null; focus.value = a; selection.value = a; });
+}
+/** Open the card of `ref` (the object looked at, or another): the card's object so far is kept for "back". */
+export function openCard(ref: Ref) {
+  const a = anchor.peek();
+  batch(() => {
+    if (a) { focusHistory.value = [...focusHistory.peek(), a]; anchor.value = null; looking = null; }
+    if (!sameRef(selection.peek(), ref)) { if (!a) focusOn(ref); else focus.value = { ...ref }; selection.value = { ...ref }; }
+  });
+}
+effect(() => { // a selection made elsewhere ends the look; its card's object is kept for "back"
+  const sel = selection.value, a = anchor.peek();
+  if (!a || sameRef(sel, looking)) return;
+  batch(() => { anchor.value = null; looking = null; if (sel && !sameRef(sel, a)) focusHistory.value = [...focusHistory.peek(), a]; });
+});
+const subjectParts = computed(() => (anchor.value ? partsOf(anchor.value) : relatives.value));
+/** The ladder of the card's object (model/chain.ts): for a reco object, what it is part of, itself and what it is made
+ *  of, each step with its link to the truth; null for a truth object. */
 export const ladder = computed(() => {
-  const b = bundle.value, ev = event.value, sel = selection.value, parts = relatives.value;
+  const b = bundle.value, ev = event.value, sel = subject.value, parts = subjectParts.value;
   if (!b || !ev || !sel || !parts || layerOf(sel.table)?.truth) return null;
   return recoLadder(ev, b.header, sel, parts, truthStatuses.value, modes.value.roots.truth);
 });
-/** For a selected truth object: what was reconstructed from it, per reco kind, and the hits it left (model/chain.ts). */
+/** What the CMSSW associator says of a reco object of a matched kind: clean, impure or unmatched (model/chain.ts
+ *  matchClass); undefined for any other kind. The colour of its name in lists. */
+export function matchOf(table: string, row: number) {
+  const b = bundle.value, ev = event.value, s = truthStatuses.value.get(table);
+  return b && ev && s?.kind === "match" ? matchClass(ev, b.header, s.relation, row) : undefined;
+}
+/** For a truth object in the card: what was reconstructed from it, per reco kind, and the hits it left (model/chain.ts). */
 export const reconstructed = computed(() => {
-  const b = bundle.value, ev = event.value, sel = selection.value;
+  const b = bundle.value, ev = event.value, sel = subject.value;
   if (!b || !ev || !sel || !layerOf(sel.table)?.truth || sel.row >= (ev.tables[sel.table]?.n ?? 0)) return null;
   return recoOfTruth(ev, b.header, sel);
 });

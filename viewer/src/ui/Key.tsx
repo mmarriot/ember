@@ -3,11 +3,11 @@
 // they are made of in the same colour), the truth (everything by the generator particle it comes from), or, with
 // something selected, its truth <-> reco pair. The Reco | Truth switch (key T) chooses between the first two. Bundles
 // without candidates or truth, and a domain coloured layer by layer, have no key: each layer shows its own colours.
-import { signal } from "@preact/signals";
 import { PAIR, type PairClass } from "../model/pair";
 import { percent } from "../model/match";
 import { PALETTES } from "../render/colour";
 import { activeMode, bundle, colourChoice, describe, drawnLayers, layerKey, layerOf, legends, modes, pairView, theme, truthColours, truthName, truthStatuses } from "../model/store";
+import { Info } from "./Info";
 import { jump } from "./navigate";
 
 /** The pair view's classes, as the regions of the particle and the candidate: colour, name, meaning. */
@@ -55,24 +55,13 @@ function PidKey() {
         {pid?.kind === "category" && pid.items?.map((it) => <li><i style={{ background: it.colour }} />{it.label}</li>)}
         <li><i class="small" style={{ background: pal.unassigned }} />in no candidate</li>
       </ul>
-      <details class="howto" open={howTo.value} onToggle={(e) => remember((e.currentTarget as HTMLDetailsElement).open)}>
-        <summary>How to read this</summary>
-        <p class="hint">The reconstruction's particle type: everything a candidate is made of takes its colour. Select anything for its truth ↔ reco pair.</p>
-      </details>
+      <p class="hint keyhelp">Select anything for its truth ↔ reco pair <Info title="Colour = candidate type">
+        <p>The reconstruction's particle type: everything a candidate is made of takes its colour.</p></Info></p>
     </>
   );
 }
 
 /** Everything by the generator particle it comes from; reco objects only where they are a clean match. */
-// The keys' explanations, folded unless the reader opened one (remembered per browser).
-const HOWTO = "evd.truthKeyHelp";
-const howTo = signal((() => { try { return localStorage.getItem(HOWTO) === "1"; } catch { return false; } })());
-const remember = (open: boolean) => {
-  if (open === howTo.peek()) return;
-  howTo.value = open;
-  try { localStorage.setItem(HOWTO, open ? "1" : "0"); } catch { /* not remembered */ }
-};
-
 function TruthKey() {
   const { roots } = modes.value, pal = PALETTES[theme.value], b = bundle.value!;
   const truthLayer = roots.truth ? layerOf(roots.truth) : undefined, legend = truthLayer ? legends.value[layerKey(truthLayer)] : undefined;
@@ -96,15 +85,11 @@ function TruthKey() {
         <li><i class="small" style={{ background: pal.pileup }} />pile-up</li>
         <li><i class="small" style={{ background: pal.unassigned }} />no truth, or no clean match</li>
       </ul>
-      {faint.length > 0 && <p class="hint faintkinds" title="The truth graph has no answer for these kinds (no associator in CMSSW, or none exported): they are drawn faint and never take a particle's colour. The Truth tab lists every kind's truth.">
-        faint: no truth for this kind: {faint.join(", ")} (why: Truth tab)</p>}
-      <details class="howto" open={howTo.value} onToggle={(e) => remember((e.currentTarget as HTMLDetailsElement).open)}>
-        <summary>How to read this</summary>
-        <p class="hint" title="Hits take the particle that left the most simulated energy in them. No truth: noise, out-of-time pile-up, or a particle the export left out.">
-          Hits and truth lines: the generator particle they come from (secondaries, conversions and decays in the detector
-          included). A reco object takes its particle's colour only when at least {[...rules.values()].join(", or ")} is from it; otherwise grey.
-          Pile-up is drawn small.</p>
-      </details>
+      <p class="hint keyhelp">{faint.length > 0 && <span class="faintkinds">faint: no truth for that kind </span>}<Info title="Colour = generator particle">
+        <p>Hits and truth lines take the colour of the generator particle they come from (secondaries, conversions and decays in the detector included). A hit takes the particle that left the most simulated energy in it.</p>
+        <p>A reco object takes its particle's colour only when at least {[...rules.values()].join(", or ")} is from it; otherwise it is grey. Pile-up is drawn small.</p>
+        <p>No truth: noise, out-of-time pile-up, or a particle the export left out.</p>
+        {faint.length > 0 && <p>Faint: kinds the truth graph has no answer for ({faint.join(", ")}). They never take a particle's colour; the Truth tab says why.</p>}</Info></p>
     </>
   );
 }

@@ -12,6 +12,8 @@ import { signal } from "@preact/signals";
 import { matchTally } from "../model/chain";
 import { bundle, describe, event, kindOf, labelOf, largestFirst, layerOf, modes, short, stepName, truthName, truthStatuses } from "../model/store";
 import { passing } from "./Layers";
+import { ObjChip } from "./chips";
+import { Info } from "./Info";
 import { jump } from "./navigate";
 
 /** Names of truth::LevelFlag bits worth showing on a particle (SimDataFormats/TruthInfo ParticleData.h). */
@@ -23,7 +25,7 @@ const LEVELS: [number, string, string][] = [
 ];
 const ANCESTORS = 4; // ancestors listed above the particle; higher ones are folded into one line
 
-const chip = (t: string, r: number) => <button class="chip" onClick={() => jump({ table: t, row: r })}>{describe(t, r) || named(t, r) || `#${r}`}</button>;
+const chip = (t: string, r: number) => <ObjChip table={t} row={r} text={describe(t, r) || named(t, r) || undefined} />;
 /** An object's name from its layer's categorical colouring (e.g. a truth vertex's reason: "decay"), for layers without
  *  a `describe` hint. */
 function named(t: string, r: number) {
@@ -32,7 +34,7 @@ function named(t: string, r: number) {
   const names = Array.isArray(c.names) ? Object.fromEntries(c.names) : c.names, name = names[String(v)];
   return name ? `${name} #${r}` : "";
 }
-const chipAs = (t: string, r: number, text: string) => <button class="chip" onClick={() => jump({ table: t, row: r })}>{text}</button>;
+const chipAs = (t: string, r: number, text: string) => <ObjChip table={t} row={r} text={text} />;
 /** A collision's truth vertex, by whether it is the signal (the truth particles' `first` column, e.g. isSignal, on the
  *  vertex table too): what a primary vertex's match means, not its generator step (e.g. "shower branching"). */
 function collision(truth: string, t: string, r: number) {
@@ -75,27 +77,31 @@ export function TruthCard({ table, row }: { table: string; row: number }) {
   const amount = (x: number) => (m.measure === "hits" ? `${Math.round(x)}` : short(x));
   const c = p >= 0 ? completeness(ev, b.header, target, p, table, row) : undefined;
   const particles = target === truth, generator = p >= 0 && particles ? generatorOf(truth, p) : -1;
+  const what = m.measure === "hits" ? "hits" : m.measure === "pt2" ? "tracks (weighted by pT²)" : `rechit energy in ${m.in}`;
+  const help = (
+    <>
+      {m.target && <p>{labelOf(table)} reconstruct {TARGETS[m.target]}.</p>}
+      <p>The match is the best one CMSSW's associator found for this object (AdaptiveNominal working point){particles ? ": a truth particle with everything it made" : ""}.</p>
+      <p><b>Purity</b>: the share of this object's {what} that comes from its match.{m.good !== undefined && ` Clean from ${percent(m.good)} (the mark on the bar).`}</p>
+      {c && <p><b>Completeness</b>: the share of the match's {c.match.measure === "hits" ? "tracker hits, its secondaries' included," : c.match.measure === "pt2" ? "findable tracks (pT²)" : `energy in ${c.match.in}`} that this object has.</p>}
+      {q?.score !== undefined && <p>The associator's own score is {short(q.score)}: a ranking, 0 best, not a fraction.</p>}
+      {p < 0 && <p>No match: a fake, or an object the associator does not consider (e.g. a candidate without calorimeter energy).</p>}
+    </>
+  );
   return (
     <section class="truthcard">
-      {m.target && <p class="hint"><span class="badge reco">reco</span> {labelOf(table)} reconstruct {TARGETS[m.target]}.</p>}
-      {p < 0 ? <NoMatch table={table} row={row} truth={truth} /> : (
+      <p class="truthline"><span class="badge truth">truth</span> {p < 0 ? <span class="q q-unmatched">no match</span>
+        : <>match {particles ? chip(target, p) : chipAs(target, p, m.target === "interaction" ? collision(truth, target, p) : vertexName(truth, target, p))}</>}
+        {p >= 0 && !particles && distance(table, row, target, p) !== undefined && <span class="muted">{short(distance(table, row, target, p)!)} cm away</span>}
+        <Info title="Truth match">{help}</Info></p>
+      {p < 0 ? <Constituent table={table} row={row} truth={truth} /> : (
         <>
-          <p class="truthline" title={`The truth-graph ${particles ? "particle (with everything it made)" : "vertex"} that the CMSSW associator picked for this object: AdaptiveNominal working point`}>
-            <span class="badge truth">truth</span> associator's best match {particles ? chip(target, p) : <>truth vertex {chipAs(target, p, m.target === "interaction" ? collision(truth, target, p) : vertexName(truth, target, p))}</>}
-            {!particles && distance(table, row, target, p) !== undefined && <span class="muted">{short(distance(table, row, target, p)!)} cm away</span>}</p>
           <div class="meters">
-            {q?.purity !== undefined && (m.purity
-              ? <Meter name="purity" value={q.purity} good={m.good} title="Share of this object's tracks (weighted by pT²) from the matched truth vertex" note={unit} />
-              : <Meter name="purity" value={q.purity} good={m.good} title={`Share of this object's ${m.measure === "hits" ? "hits" : "rechit energy"} (${m.in}) that came from the particle`}
-                  note={`${amount(q.shared)} of its ${amount(q.over!)} ${unit} from it`} />)}
-            {c && <Meter name="completeness" value={c.value} title={m.measure === "hits" ? "Share of the particle's tracker hits, its secondaries' included, that are on this track" : `Share of the ${particles ? "particle's energy" : "truth vertex's tracks"} in ${c.match.in} that this object has`}
-              note={`of the ${particles ? "particle's" : "truth vertex's"} ${c.match.measure === "hits" ? "tracker hits (with its secondaries')" : c.match.measure === "pt2" ? "findable tracks (pT²)" : `energy in ${c.match.in}`}`} />}
-            {q?.score !== undefined && <p class="hint" title="The associator's ranking value: 0 is best. For calorimeter objects it is squared and energy weighted, so 1 − score is not a purity">
-              score {short(q.score)} <span class="muted">· the associator's ranking, 0 best; not a fraction</span></p>}
+            {q?.purity !== undefined && <Meter name="purity" value={q.purity} good={m.good} note={m.purity ? "of its tracks' pT²" : `${amount(q.shared)} of ${amount(q.over!)} ${unit}`} />}
+            {c && <Meter name="completeness" value={c.value} note={`of the ${particles ? "particle's" : "truth vertex's"} ${c.match.measure === "hits" ? "tracker hits" : c.match.measure === "pt2" ? "tracks (pT²)" : `energy in ${c.match.in}`}`} />}
           </div>
-          {generator >= 0 && generator !== p && <p class="hint">The match is part of the generator particle {chip(truth, generator)}, whose colour it takes.</p>}
-          {particles && generator === p && aboveLevel(truth, p) && <p class="hint">The match is above the generator particles (it decayed in the generator, e.g. a π⁰):
-            this object merges the particles it decayed to.</p>}
+          {generator >= 0 && generator !== p && <p class="hint">part of generator particle {chip(truth, generator)}</p>}
+          {particles && generator === p && aboveLevel(truth, p) && <p class="hint" title="The match decayed in the generator (e.g. a π⁰): it is above the generator particles">merges the generator particles its match decayed to</p>}
           {particles && <Lineage row={p} compact />}
         </>
       )}
@@ -103,28 +109,17 @@ export function TruthCard({ table, row }: { table: string; row: number }) {
   );
 }
 
-/** A purity or completeness as a bar (linear, 0 to 100%), with what it counts; `good`: the kind's clean-match
+/** A purity or completeness as a bar (linear, 0 to 100%), with what it counts under it; `good`: the kind's clean-match
  *  threshold, marked on the bar, which is green from there and amber below. */
-function Meter({ name, value, good, title, note }: { name: string; value: number; good?: number; title: string; note: string }) {
-  const state = good === undefined ? "" : value >= good ? "ok" : "warn";
+function Meter({ name, value, good, note }: { name: string; value: number; good?: number; note: string }) {
+  const state = good === undefined ? "" : value >= good ? "clean" : "impure";
   return (
-    <div class="meter" title={`${title}${good !== undefined ? `. Clean from ${percent(good)}` : ""}`}>
+    <div class="meter">
       <span class="mname">{name}</span>
-      <span class="mbar"><i class={state} style={{ width: `${Math.round(100 * Math.min(1, Math.max(0, value)))}%` }} />{good !== undefined && <u style={{ left: `${100 * good}%` }} />}</span>
+      <span class="mbar"><i class={state && `q-${state}`} style={{ width: `${Math.round(100 * Math.min(1, Math.max(0, value)))}%` }} />{good !== undefined && <u style={{ left: `${100 * good}%` }} />}</span>
       <b>{percent(value)}</b>
-      <span class="muted mnote">{note}{good !== undefined && ` · ${value >= good ? "clean match" : "impure"} (clean from ${percent(good)})`}</span>
+      <span class="muted mnote">{note}{state && <> · <span class={`q q-${state}`}>{state}</span></>}</span>
     </div>
-  );
-}
-
-/** No match for the object itself: say so, and give the match of its single part (e.g. a track-only candidate's
- *  track), which is the associator's answer for that part, not for the object. */
-function NoMatch({ table, row, truth }: { table: string; row: number; truth: string }) {
-  return (
-    <>
-      <p class="truthline"><span class="badge truth">truth</span> no match from the associator</p>
-      <Constituent table={table} row={row} truth={truth} />
-    </>
   );
 }
 
@@ -145,7 +140,7 @@ function Constituent({ table, row, truth }: { table: string; row: number; truth:
       const r = ev.relations[name];
       if (!r || m.to !== truth) continue;
       const { partner } = bestPartners(r, m, true, ev.tables[info.to]?.n ?? 0);
-      if (partner[part] >= 0) return <p class="hint">Its {one(info.to)} {chip(info.to, part)} is matched to {chip(truth, partner[part])} (the associator's answer for that {one(info.to)}, not for this {one(table)}).</p>;
+      if (partner[part] >= 0) return <p class="hint" title={`The associator's answer for that ${one(info.to)}, not for this ${one(table)}`}>its {one(info.to)} {chip(info.to, part)} is matched to {chip(truth, partner[part])}</p>;
     }
   }
   return null;
@@ -205,9 +200,11 @@ export function Lineage({ row, compact = false }: { row: number; compact?: boole
   const entered = flags ? children.filter((c) => (Number(flags[c]) >>> 3) & 1).length : 0;
   return (
     <div class="lineage" title="Where it sits in the truth graph: its ancestors, itself and its daughters (simulation); the reco objects whose best match a particle is (associator)">
-      <p class="truthline"><span class="badge truth">truth</span> lineage in the truth graph</p>
+      <p class="truthline"><span class="badge truth">truth</span> lineage <Info title="Lineage">
+        <p>Where the particle sits in the truth graph (simulation): its ancestors, itself, its daughters.</p>
+        <p>The tags are the levels a particle belongs to; the objects named beside a particle are the reco objects whose best match it is (CMSSW's associator).</p></Info></p>
       <ul class="matches">
-        {folded > 0 && <li class="muted">… {folded} earlier step{folded > 1 ? "s" : ""} up to the collision{lastParton >= 0 ? " (quarks and gluons of the generator)" : ""}</li>}
+        {folded > 0 && <li class="muted" title={`Up to the collision${lastParton >= 0 ? ": the generator's quarks and gluons" : ""}`}>… {folded} earlier step{folded > 1 ? "s" : ""}</li>}
         {shown.map((r, k) => line(r, k))}
         {children.length > 0 && <li class="muted" style={{ paddingLeft: `${shown.length * 10}px` }}>└ {children.length} daughter{children.length > 1 ? "s" : ""}
           {entered > 0 && `, ${entered} entered the calorimeter`} {children.slice(0, 4).map((c) => chip(truth, c))}{children.length > 4 && " …"}</li>}
@@ -230,8 +227,8 @@ function claimsOf(header: Header, truth: string, rows: Set<number>) {
 
 /** The count unfolded in the scorecard: "<table>|<class>". */
 const opened = signal<string | null>(null);
-const CLASSES = [["clean", "ok", "a best match with purity at or above the kind's threshold"], ["impure", "warn", "a best match below the threshold: merged with, or mostly from, something else"],
-  ["unmatched", "", "no match from the associator: a fake, or an object the associator does not consider (e.g. a candidate without calorimeter energy)"]] as const;
+const CLASSES = [["clean", "q-clean", "a best match with purity at or above the kind's threshold"], ["impure", "q-impure", "a best match below the threshold: merged with, or mostly from, something else"],
+  ["unmatched", "q-unmatched", "no match from the associator: a fake, or an object the associator does not consider (e.g. a candidate without calorimeter energy)"]] as const;
 
 /** The Truth tab's scorecard: for each reco kind the CMSSW associator matches, how many of the objects that pass their
  *  cuts and filters are a clean match, an impure one, or unmatched (model/chain.ts matchTally). A count unfolds to its
@@ -246,7 +243,10 @@ export function Scorecard() {
   if (!rows.length) return null;
   return (
     <section class="scorecard">
-      <h3 title="For each kind of reco object that CMSSW's associator matches to the truth: what it says of the objects in this event. Kinds without an associator are listed under Truth coverage.">Reco ↔ truth in this event</h3>
+      <h3>Reco ↔ truth in this event <Info title="Reco ↔ truth in this event">
+        <p>For each kind of reco object that CMSSW's associator matches to the truth: how many of the objects drawn (passing their cuts and filters) are a clean match, an impure one, or have none.</p>
+        <p>Click a number to list those objects, largest first; click one to select it.</p>
+        <p>Kinds without an associator are under Truth coverage.</p></Info></h3>
       <table class="score">
         <thead><tr><th />{CLASSES.map(([name, , what]) => <th title={what}>{name === "unmatched" ? "no match" : name}</th>)}</tr></thead>
         <tbody>
@@ -262,13 +262,12 @@ export function Scorecard() {
                       onClick={() => (opened.value = opened.value === k ? null : k)}>{n.toLocaleString()}</button></td>;
                   })}
                 </tr>
-                {open && <tr class="list"><td colSpan={4}>{list.slice(0, 40).map((r) => chip(d.table, r))}{list.length > 40 && <span class="muted"> … {list.length - 40} more</span>}</td></tr>}
+                {open && <tr class="list"><td colSpan={4}>{list.slice(0, 40).map((r) => <button class={`chip q-${open}`} onClick={() => jump({ table: d.table, row: r })}>{describe(d.table, r) || `#${r}`}</button>)}{list.length > 40 && <span class="muted"> … {list.length - 40} more</span>}</td></tr>}
               </>
             );
           })}
         </tbody>
       </table>
-      <p class="hint">Objects passing their cuts and filters, by the CMSSW associator's best match. Click a number to list its objects, largest first.</p>
     </section>
   );
 }

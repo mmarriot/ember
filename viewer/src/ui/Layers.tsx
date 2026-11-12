@@ -1,9 +1,9 @@
-// The collections of one side-panel tab (a part of the detector, or the truth): by kind of object, each kind with its
-// cut slider, then the other reconstruction paths folded. A collection is one line (visibility, count); under it
-// only what is not said elsewhere: its filter, "only for the selection", and its colour scale when the colour key
-// does not explain it. Its ⋯ opens the colour choice, a filter and new columns for its table.
+// The collections of one side-panel tab (a part of the detector, or the truth): by kind of object, then the other
+// reconstruction paths folded. A kind's heading carries its cut as a chip ("pT ≥ 30 GeV": a click opens its slider) and
+// "only". A collection is one line: visibility, name, its state as chips (a filter, drawn for the selection only,
+// hidden while something is selected), its count (a click lists its largest objects) and ⋯ (colour, filter, new
+// columns). Under it only its colour scale, when the colour key does not explain it.
 import { computed, signal } from "@preact/signals";
-import { Fragment } from "preact";
 import { useState } from "preact/hooks";
 import { type DisplayLayer, kindName, unitOf } from "../io/bundle";
 import { colourBy, customColumns, filterMask, filters, RELATION, removeFilter } from "../model/custom";
@@ -14,6 +14,7 @@ import {
   selection, short, showAll, shown, shownLayer, sizeColumn, solo, soloKey, theme, visible,
 } from "../model/store";
 import { ExprForm } from "./ExprForm";
+import { popover, togglePopover } from "./Info";
 import { rowHover } from "./Labels";
 import { jump } from "./navigate";
 import { Icon } from "./widgets";
@@ -26,9 +27,9 @@ export function Collections({ layers }: { layers: DisplayLayer[] }) {
   const main = layers.filter((l) => !l.alternative), alternatives = layers.filter((l) => l.alternative);
   const groups = new Map<string, DisplayLayer[]>();
   for (const d of main) groups.set(d.group, [...(groups.get(d.group) ?? []), d]);
-  // Each cut slider once, with the first kind it applies to.
-  const placed = new Set<string>();
-  const cutsOf = (ls: DisplayLayer[]) => [...new Set(ls.flatMap((d) => (d.cut ? [d.cut.group] : [])))].filter((g) => !placed.has(g) && !!placed.add(g));
+  // A kind with one cut carries it on its heading; with several (one per calorimeter), each on the first row it cuts.
+  const cutsOf = (ls: DisplayLayer[]) => [...new Set(ls.flatMap((d) => (d.cut ? [d.cut.group] : [])))];
+  const rowCut = (d: DisplayLayer, ls: DisplayLayer[]) => (d.cut && cutsOf(ls).length > 1 && ls.find((x) => x.cut?.group === d.cut!.group) === d ? d.cut.group : undefined);
   return (
     <>
       <Headline layers={main} />
@@ -40,19 +41,19 @@ export function Collections({ layers }: { layers: DisplayLayer[] }) {
           <section class={shut ? "kind folded" : "kind"} key={group}>
             <h3><button class="fold" aria-expanded={!shut} title={shut ? "Show this kind's collections" : "Fold this kind"} onClick={() => fold(id)}>{group}</button>
               {sameTruth(ls) && <TruthWord table={ls[0].table} />}{shut && <span class="count"> {drawn} of {ls.length} drawn</span>}
+              {!shut && cutsOf(ls).length === 1 && <CutChip name={cutsOf(ls)[0]} here={ls} />}
               {canSolo && <button class={alone ? "only on" : "only"} aria-pressed={alone}
                 title={alone ? "Back to everything ticked" : `Look at only the ${group.toLowerCase()}: nothing else is drawn until you select one, which brings its parts and its truth`}
                 onClick={() => (solo.value = alone ? null : key)}>only</button>}</h3>
-            {/* each slider just before the first row it cuts (a kind can have several, e.g. one per calorimeter) */}
-            {!shut && ls.map((d) => <Fragment key={layerKey(d)}>{cutsOf([d]).map((name) => <CutRow name={name} here={ls} named={new Set(ls.flatMap((x) => (x.cut ? [x.cut.group] : []))).size > 1} />)}<LayerRow d={d} label={d.label} /></Fragment>)}
+            {!shut && ls.map((d) => <LayerRow key={layerKey(d)} d={d} label={d.label} cut={rowCut(d, ls)} here={ls} />)}
           </section>
         );
       })}
       {alternatives.length > 0 && (
         <details class="others">
           <summary title="The same kinds of object from another reconstruction path; hidden by default">Other reconstruction paths ({alternatives.length})</summary>
-          {cutsOf(alternatives).map((name) => <CutRow name={name} here={alternatives} />)}
-          {alternatives.map((d) => <LayerRow key={layerKey(d)} d={d} label={`${d.group} · ${d.label}`} />)}
+          {alternatives.map((d) => <LayerRow key={layerKey(d)} d={d} label={`${d.group} · ${d.label}`} here={alternatives}
+            cut={d.cut && alternatives.find((x) => x.cut?.group === d.cut!.group) === d ? d.cut.group : undefined} />)}
         </details>
       )}
     </>
@@ -79,10 +80,21 @@ const sliderRanges = computed(() => {
   return out;
 });
 
-/** A cut group's minimum: log slider and exact value, labelled by its `label` or the column it cuts (the group's name
- *  is in its tooltip, and, without a label, above it when its kind has several cuts, e.g. one per calorimeter: `named`). It applies to every layer
- *  of the group, also those listed elsewhere (named under it). */
-function CutRow({ name, here, named = false }: { name: string; here: DisplayLayer[]; named?: boolean }) {
+/** A cut group's minimum as one chip, "pT ≥ 30 GeV" ("no cut" at 0; marked when it is not the profile's): a click
+ *  opens its slider in a pop-up. */
+function CutChip({ name, here }: { name: string; here: DisplayLayer[] }) {
+  const g = cutGroups.value.get(name);
+  if (!g) return null;
+  const cut = g.layers[0].cut!, v = cuts.value[name] ?? g.default, what = cut.label ?? cut.column;
+  return (
+    <button class={v !== g.default ? "cutchip changed" : "cutchip"} title={`${name}: the minimum drawn. Click to change it`}
+      onClick={(e) => togglePopover(e, () => <CutRow name={name} here={here} />, name)}>{v > 0 ? `${what} ≥ ${short(v)}${g.unit ? ` ${g.unit}` : ""}` : `no ${what} cut`}</button>
+  );
+}
+
+/** A cut group's minimum (in the pop-up of its chip): log slider and exact value, labelled by its `label` or the
+ *  column it cuts. It applies to every layer of the group, also those listed elsewhere (named under it). */
+function CutRow({ name, here }: { name: string; here: DisplayLayer[] }) {
   const g = cutGroups.value.get(name);
   if (!g) return null;
   const cut = g.layers[0].cut!, v = cuts.value[name] ?? g.default, [lo, hi] = sliderRanges.value.get(name) ?? [-4, 2];
@@ -91,7 +103,6 @@ function CutRow({ name, here, named = false }: { name: string; here: DisplayLaye
   const elsewhere = g.layers.filter((d) => !here.includes(d));
   return (
     <div class="cut" title={`Minimum ${name.toLowerCase()} for ${g.layers.map(layerName).join(", ")}`}>
-      {named && !cut.label && <div class="cutgroup">{name}</div>}
       <div class="cutrow">
         <span class="cutname">{cut.label ?? cut.column} ≥</span>
         <input type="range" aria-label={name} min={lo} max={hi} step={0.01} value={toSlider(v)} onInput={(e) => set(fromSlider(Number((e.target as HTMLInputElement).value)))} />
@@ -126,41 +137,43 @@ const glyph = (d: DisplayLayer) =>
     : d.repr === "polyline" ? "⟋" : d.repr === "cones" ? "◺"
     : d.shape === "shell" ? "◯" : d.shape === "cage" ? "⊕" : d.shape === "core" ? "●" : "⬮";
 
-function LayerRow({ d, label }: { d: DisplayLayer; label: string }) {
+/** A layer's filter (in the pop-up of its chip): the expression, and its removal. */
+function FilterPop({ table }: { table: string }) {
+  const filter = filters.value[table];
+  return filter ? (
+    <div class="filterpop"><p>Only the rows where this holds are drawn:</p><code>{filter}</code>
+      <button class="remove" onClick={() => { removeFilter(table); popover.value = null; }}>Remove the filter</button></div>
+  ) : <p>No filter.</p>;
+}
+
+function LayerRow({ d, label, cut, here = [] }: { d: DisplayLayer; label: string; cut?: string; here?: DisplayLayer[] }) {
   const b = bundle.value!, key = layerKey(d), n = event.value?.tables[d.table]?.n ?? 0, legend = legends.value[key];
   const on = !!visible.value[key], s = shown.value[key], filter = filters.value[d.table];
   const [open, setOpen] = useState(false), [listed, setListed] = useState(false);
   // Its largest objects can be listed (those with a `list` hint always are); not hits, which lead nowhere.
   const t = event.value?.tables[d.table], canList = !d.list && !d.context && d.repr !== "cells" && n > 0 && !!t;
-  // A layer of one of the focus's levels: ticking it (or the link under it) shows that level.
+  const count = `${on && s !== undefined && s !== n ? `${s.toLocaleString()} / ` : ""}${n.toLocaleString()}`;
+  // A layer of one of the focus's levels: ticking it (or its "show") draws that level.
   const level = levels.value.find((l) => l.layers.includes(d))?.name, showLevel = () => level && (focusLevel.value = level);
   return (
-    <div class={`layer${on ? "" : " off"}${activeMode.value === "truth" && noTruth(d.table) ? " faint" : ""}`}>
+    <div class={`layer${on || focusLayers.value.has(key) ? "" : " off"}${activeMode.value === "truth" && noTruth(d.table) ? " faint" : ""}`}>
       <div class="row">
         <label title={`${d.table}${b.header.tables[d.table]?.doc ? `: ${b.header.tables[d.table].doc}` : ""}`}>
           <input type="checkbox" checked={on} disabled={!n} onChange={() => { visible.value = { ...visible.value, [key]: !on }; if (!on) showLevel(); }} />
           <span class="glyph" aria-hidden="true">{glyph(d)}</span>
           <span class="name">{label}</span>{d.source && <span class="tag" title="Reconstruction path">{d.source}</span>}
           {!sameTruth(kindLayers(d)) && <TruthWord table={d.table} />}
-          <span class="count">{on && s !== undefined && s !== n ? `${s.toLocaleString()} / ` : ""}{n.toLocaleString()}</span>
         </label>
-        {canList && <button class={listed ? "lister on" : "lister"} aria-expanded={listed} title="List its largest objects: click one to select it (N steps through them)" onClick={() => setListed(!listed)}>☰</button>}
+        {filter && <button class="rowchip on filter" title={`Filtered: ${filter}. Click to see or remove the filter`} onClick={(e) => togglePopover(e, () => <FilterPop table={d.table} />, "Filter")}>filter</button>}
+        {on && d.onSelection && <button class={showAll.value[key] ? "rowchip" : "rowchip on"} aria-pressed={!showAll.value[key]}
+          title={showAll.value[key] ? "All of them are drawn. Click to draw only those of the selected object" : "Drawn only for the selected object. Click to draw all of them"}
+          onClick={() => (showAll.value = { ...showAll.value, [key]: !showAll.value[key] })}>{showAll.value[key] ? "all" : "selected"}</button>}
+        {on && focusHidden.value.has(key) && <button class="rowchip" title="Hidden while an object is selected: one of its levels is drawn at a time. Click to draw this one" onClick={showLevel}>show</button>}
+        {cut && <CutChip name={cut} here={here} />}
+        {canList ? <button class="count listbtn" aria-expanded={listed} title="List its largest objects: click one to select it (N steps through them)" onClick={() => setListed(!listed)}>{count} {listed ? "▾" : "▸"}</button>
+          : <span class="count">{count}</span>}
         <button class={open ? "more on" : "more"} aria-expanded={open} title="Colour, filter and new columns" onClick={() => setOpen(!open)}>⋯</button>
       </div>
-      {!on && focusLayers.value.has(key) && <div class="sub muted">shown for the focus</div>}
-      {on && focusHidden.value.has(key) && (
-        <div class="sub muted wrap" title="A focus shows one of its levels at a time">hidden for the focus · <button class="link" onClick={showLevel}>show {level}</button></div>
-      )}
-      {filter && (
-        <div class="sub filter" title="Only the rows where this holds are shown">filter <code>{filter}</code>
-          <button class="icon-button small" title="Remove filter" onClick={() => removeFilter(d.table)}><Icon name="close" /></button></div>
-      )}
-      {on && d.onSelection && (
-        <label class="sub" title="Ticked: only the objects related to what you click; unticked: all of them">
-          <input type="checkbox" checked={!showAll.value[key]} onChange={() => (showAll.value = { ...showAll.value, [key]: !showAll.value[key] })} />
-          only for the selection{!showAll.value[key] && !s ? " (click something)" : ""}
-        </label>
-      )}
       {open ? <Options d={d} legend={on ? legend : undefined} /> : on && legend && !keyed(d) && <div class="legend"><Scale d={d} legend={legend} /></div>}
       {on && d.list && <ObjectRows d={d} />}
       {listed && canList && <ObjectRows d={d} list={{ columns: [sizeColumn(d.table, t!)].filter((c): c is string => !!c), max: 8 }} />}

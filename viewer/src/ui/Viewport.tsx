@@ -327,7 +327,7 @@ export function Viewport() {
       <ReplayCaption />
       {solo.value && <div class="solobar" role="status">Only <b>{solo.value.split("|").filter(Boolean).reverse().join(" · ")}</b> <button class="link" title="Draw everything ticked again" onClick={() => (solo.value = null)}>show everything</button></div>}
       {(bundle.value?.header.domains?.length ?? 0) >= 2 && <Views />}
-      <div class="hintbar">Drag to rotate · right-drag to pan · scroll to zoom · click to inspect · double-click to zoom in · <kbd>?</kbd> help</div>
+      <div class="hintbar">Click an object to select it · <kbd>?</kbd> help</div>
     </div>
   );
 }

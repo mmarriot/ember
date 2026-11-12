@@ -4,7 +4,8 @@
 // bar's chips keep the selection, the URL keeps the level and the truth colours, presets apply, a bundle with candidates has a colour key, T colours by generator particle where there is truth, summary charts show where the profile defines them,
 // a selection draws its objects that a layer's filter hides and its levels of lines (a vertex's tracks),
 // selecting an object shows its chain (what it is part of and made of, each step with its truth link) and only its
-// bottom level (↓ ↑ step through the others), an object of the chain can be jumped to and back, X crosses to its truth
+// bottom level (↓ ↑ step through the others), a click on an object of the chain looks at it and keeps the card, Open
+// goes into it and back returns, a description opens on request, X crosses to its truth
 // match and B comes back, Esc leaves, "only" draws one kind alone, the Truth tab has the event's scorecard. One bundle (`--deep`, default the smallest with reconstruction
 // stages) also gets: the menu, themes, help, a rotate drag keeping the selection, a custom column used for colour and a filter,
 // the replay and the tour; the replay also for any bundle whose paths are built from their parts (`grow`: captions in order, paths complete by the fit). Any console error, or a bundle taking over BUNDLE_TIMEOUT (three times that for files over
@@ -75,10 +76,10 @@ async function checkBundle(file, tag, state) {
   await checkDomains(page, h, fail, shot, tag);
   await checkObjectRows(page, h, fail, shot, tag);
 
-  for (const name of await page.$$eval(".sidebar .presets button", (b) => b.map((x) => x.textContent))) {
-    const button = page.locator(".sidebar .presets button", { hasText: name });
-    await button.click({ timeout: 120000 });
-    if (!(await button.getAttribute("class"))?.includes("on")) fail(`preset ${name} did not apply`);
+  const preset = page.locator(".sidebar .presets select");
+  for (const [i, name] of (await preset.locator("option").allInnerTexts()).entries()) {
+    await preset.selectOption(String(i), { timeout: 120000 });
+    if ((await preset.inputValue()) !== String(i)) fail(`preset ${name} did not apply`);
   }
 
   // With reconstruction stages (so candidates), the colour key under the tabs names the particle types.
@@ -104,7 +105,7 @@ async function checkBundle(file, tag, state) {
     await page.waitForTimeout(1500);
     if ((await title()).includes("generator particle")) fail("T again did not go back to the reco colours");
   }
-  if ((h.presets?.length ?? 0) > 1) await page.getByRole("group", { name: "Preset" }).getByRole("button").first().click({ timeout: 120000 }); // the default filters
+  if ((h.presets?.length ?? 0) > 1) await preset.selectOption("0", { timeout: 120000 }); // the default filters
   await checkFocusFilters(page, h, fail, tag);
 
   await page.getByRole("tab", { name: "Event", exact: true }).click();
@@ -151,17 +152,28 @@ async function checkBundle(file, tag, state) {
     if (bad.length || !/^3 of|· 3 of/.test(at.trim())) fail(`a ${query ? "query" : "hash"} link did not reopen its state: ${bad.join(", ") || at}`);
   }
   const focused = async () => `${(await page.locator(".inspector h2").innerText().catch(() => "")).replace(/\s+/g, " ")} (${decodeURIComponent(new URL(page.url()).hash.match(/s=([^&]+)/)?.[1] ?? "")})`;
-  const first = await focused();
-  // A step of the chain names its objects when few; a longer one unfolds to them.
+  const first = await focused(), card = (x) => x.split(" (")[0];
+  // A step of the chain names its objects when few; a longer one unfolds to them. A click looks at one: the view (and
+  // the URL's selection) moves to it and the card stays; "Open" goes into its card; back returns to the first.
   if (!(await page.locator(".inspector .ladder .rhead .chip").count())) await page.locator(".inspector .ladder .rhead .count").first().click();
   await page.locator(".inspector .ladder .rhead .chip, .inspector .ladder .rlist .chip").first().click({ timeout: 120000 });
   await page.waitForTimeout(900);
+  const looked = await focused(), looking = await page.locator(".inspector .looking").count();
+  if (!looking || card(looked) !== card(first) || looked === first) fail(`a click on a chain object did not look at it and keep the card (${first} -> ${looked})`);
+  await shot("4_looking");
+  await page.locator(".inspector .looking .open").click({ timeout: 120000 }).catch(() => fail("no way into the object looked at"));
+  await page.waitForTimeout(900);
   const jumped = await focused();
   await shot("4_jumped");
-  await page.locator(".inspector .backlink").click({ timeout: 120000 }).catch(() => fail("no way back after a jump"));
+  await page.locator(".inspector .backlink").click({ timeout: 120000 }).catch(() => fail("no way back after opening an object's card"));
   const back = await focused();
-  log(`${tag}: focus ${first} -> ${jumped} -> back to ${back}`);
-  if (first.startsWith(" ") || jumped === first || back !== first) fail("jumping to a related object and back did not move the focus");
+  log(`${tag}: card ${first} -> looks at ${looked.split(" (")[1]} -> opens ${jumped} -> back to ${back}`);
+  if (first.startsWith(" ") || card(jumped) === card(first) || back !== first) fail("opening a chain object's card and going back did not move the card");
+  // What a word means is one click away, and Esc closes the description alone.
+  await page.locator(".inspector .ladder h4 .info").click();
+  const described = await page.locator(".popover").count();
+  await page.keyboard.press("Escape");
+  if (!described || (await page.locator(".popover").count()) || !(await page.locator(".inspector").count())) fail("the chain's description did not open, or Esc did not close it alone");
   await checkCross(page, h, fail, tag);
   await page.keyboard.press("Escape");
   if (await page.locator(".inspector").count()) fail("Esc did not leave the selection");
@@ -461,7 +473,7 @@ async function checkLevels(page, h, target, fail, shot, tag) {
   const fromTruth = await looks();
   log(`${tag}: the pair from its particle, a level shown: ${fromTruth === fromCandidate ? "the same picture" : `differs: ${fromTruth} vs ${fromCandidate}`}`);
   if (fromTruth !== fromCandidate) fail("the pair's particle and candidate draw different pictures");
-  await page.locator(".inspector .backlink").click({ timeout: 120000 });
+  await page.locator(".inspector .looking h4 .link").click({ timeout: 120000 }); // stop looking at the particle
   await page.keyboard.press("ArrowUp");
   await page.waitForTimeout(600);
 }
@@ -511,13 +523,14 @@ async function deepChecks(page, h, fail, shot) {
   const before = await count();
   await firstLayer.locator(".exprform .expr").fill("r < 0");
   await firstLayer.getByRole("button", { name: "Filter", exact: true }).click();
-  if (!(await firstLayer.locator(".sub.filter").count())) fail("the filter is not shown on the layer's row");
+  if (!(await firstLayer.locator(".rowchip.filter").count())) fail("the filter is not shown on the layer's row");
   const after = await count();
   log(`  first layer: ${before} without the filter, ${after} with r < 0`);
   if (!after.startsWith("0 /")) fail("the filter did not hide the rows");
   await shot("7_filter");
   // Remove it again: the replay below builds this layer's objects too (e.g. tracks, when the first layer is theirs).
-  await firstLayer.locator(".sub.filter .icon-button").click({ timeout: 120000 });
+  await firstLayer.locator(".rowchip.filter").click({ timeout: 120000 }); // its chip opens the filter, with its removal
+  await page.locator(".popover .remove").click({ timeout: 120000 });
   if ((await count()).startsWith("0 /")) fail(`removing the filter did not bring the rows back (${await count()})`); // the layer's default filter goes too
 
   await page.keyboard.press("Escape"); // the replay and tour start from the whole event

@@ -60,7 +60,11 @@ vec3 projectRZ(vec3 c, float depth, float side) { return vec3(c.z, length(c.xy) 
 // Selection, cross-faded between the previous and the current one: selActive = something selected, s = this one is.
 float selActive() { return mix(uAct0, uAct1, uMix); }
 float selected(float before, float now) { return mix(before, now, uMix); }
-vec3 fade(vec3 col, float s) { return mix(col, uBg, 0.85 * selActive() * (1.0 - s)); }
+// The selected object (the pinned instances, see CULL) stands out from its own parts: its colour is pulled most of the
+// way to the rim colour (near white on the dark theme, near black on the light one), a line is three times as wide and
+// a marker larger.
+float gPin = 0.0;
+vec3 fade(vec3 col, float s) { return mix(mix(col, uBg, 0.85 * selActive() * (1.0 - s)), uRim, 0.7 * gPin); }
 float pop(float t) { return exp(-max(uClock - t, 0.0) * 6.0); } // 1 when an object appears, then decays in ~0.3 s
 // 1 until the layer retires in a replay, then down to 0 over 0.6 s (always 1 outside a replay).
 float remaining() { return uClock > 1e29 ? 1.0 : clamp(1.0 - (uClock - uRetire) / 0.6, 0.0, 1.0); }
@@ -68,6 +72,7 @@ float remaining() { return uClock > 1e29 ? 1.0 : clamp(1.0 - (uClock - uRetire) 
 float faded() { return uClock > 1e29 ? 0.0 : uFade.z * smoothstep(uFade.x, uFade.y, uClock); }`;
 // Instances (markers: vertices) uPin0 <= id < uPin1 are the pinned object's: drawn whatever the cut.
 const CULL = (id = "gl_InstanceID") => `float pinned = float(${id}) >= uPin0 && float(${id}) < uPin1 ? 1.0 : 0.0;
+  gPin = pinned;
   if ((icut < uCut && pinned < 0.5) || iT > uClock || remaining() <= 0.0) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }`;
 // Colours go to the shaders as raw sRGB values, like the per-object colours (no linear conversion).
 const raw = (c: number | string) => (typeof c === "number" ? new THREE.Color().setHex(c, THREE.LinearSRGBColorSpace) : new THREE.Color().setStyle(c, THREE.LinearSRGBColorSpace));
@@ -387,7 +392,7 @@ export function markers(input: LayerInput): Layer {
         float s = selected(ipsel, isel), chosen = selActive() * s; // 0..1 while a selection fades in or out
         float emph = linked ? iemph : 0.0, p = max(pop(iT), linked ? pop(iL) : 0.0);
         float big = uSized > 0.5 ? mix(5.0, 14.0, isize) : 7.0;
-        gl_PointSize = mix(emph > 0.5 ? big : 4.0, max(10.0, big), chosen) * (1.0 + 1.2 * p) * uPx * remaining();
+        gl_PointSize = mix(emph > 0.5 ? big : 4.0, max(10.0, big), chosen) * (1.0 + 1.2 * p) * (1.0 + 0.6 * gPin) * uPx * remaining();
         vec3 col = linked ? icol : uGrey;
         col = mix(col, uBg, 0.45 * (1.0 - chosen) * (1.0 - emph)); // objects in no group are background
         vCol = fade(mix(col, vec3(1.0), uFlash * p), s);
@@ -658,7 +663,7 @@ function wideSegments(input: LayerInput, start: Vec3s, end: Vec3s): Layer {
         vec4 A = projectionMatrix * modelViewMatrix * vec4(a, 1.0), B = projectionMatrix * modelViewMatrix * vec4(b, 1.0);
         vec2 along = (B.xy / B.w - A.xy / A.w) * uRes, across = length(along) > 1e-6 ? normalize(vec2(-along.y, along.x)) : vec2(0.0, 1.0);
         vec4 P = mix(A, B, position.x);
-        P.xy += across * position.y * uWidth * (1.0 + 0.5 * s * selActive()) / uRes * P.w; // half the width each side, in NDC
+        P.xy += across * position.y * uWidth * (1.0 + 0.5 * s * selActive() + 2.0 * gPin) / uRes * P.w; // half the width each side, in NDC
         gl_Position = P;
         vCol = fade(mix(icol, vec3(1.0), uFlash * pop(iT)), s) * remaining() + uBg * (1.0 - remaining());
       }`,
@@ -819,7 +824,7 @@ export function helices(input: LayerInput): Layer {
         vec4 nb = placed(back > 0.5 ? min(position.x, 1.0) - step : position.x + step, grow, s * 2.0, ignored);
         vec2 dir = (nb.xy / nb.w - gl_Position.xy / gl_Position.w) * uRes * (back > 0.5 ? -1.0 : 1.0);
         vec2 across = length(dir) > 1e-6 ? normalize(vec2(-dir.y, dir.x)) : vec2(0.0, 1.0);
-        gl_Position.xy += across * position.y * uWidth * (1.0 + 0.5 * s * selActive()) / uRes * gl_Position.w;
+        gl_Position.xy += across * position.y * uWidth * (1.0 + 0.5 * s * selActive() + 2.0 * gPin) / uRes * gl_Position.w;
         #endif
         // A selected line is lifted towards white: a thin line in a dark colour (a low-pT track) would be hard to see.
         // It flashes as it appears and, when built, as it is complete.
@@ -1044,7 +1049,7 @@ export function pointPaths(input: LayerInput): Layer {
         gl_Position = mix(A, B, position.x);
         #ifdef WIDE
         vec2 along = (B.xy / B.w - A.xy / A.w) * uRes, across = length(along) > 1e-6 ? normalize(vec2(-along.y, along.x)) : vec2(0.0, 1.0);
-        gl_Position.xy += across * position.y * uWidth * (1.0 + 0.5 * s * selActive()) / uRes * gl_Position.w;
+        gl_Position.xy += across * position.y * uWidth * (1.0 + 0.5 * s * selActive() + 2.0 * gPin) / uRes * gl_Position.w;
         #endif
         vCol = fade(mix(mix(icol, vec3(1.0), 0.3 * s * selActive()), vec3(1.0), uFlash * pop(iT)), s) * remaining() + uBg * (1.0 - remaining());
       }`,

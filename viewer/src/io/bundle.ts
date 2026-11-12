@@ -246,6 +246,11 @@ function gunzip(buf: ArrayBuffer): Promise<ArrayBuffer> {
       if (data.buf) job?.done(data.buf);
       else job?.fail(new Error(data.error));
     };
+    worker.onerror = () => { // it could not start (e.g. its file is missing): the reads waiting on it fail
+      for (const job of waiting.values()) job.fail(new Error("the decompression worker failed"));
+      waiting.clear();
+      worker = null;
+    };
   }
   const id = jobs++;
   return new Promise((done, fail) => {

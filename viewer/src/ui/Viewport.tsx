@@ -4,28 +4,32 @@
 // freeing the layers its levels show or hide).
 // Hover shows a tooltip, click selects, double-click zooms to the selection.
 import { effect, signal } from "@preact/signals";
+import { Color, LinearSRGBColorSpace } from "three";
 import { useEffect, useRef } from "preact/hooks";
 import { type DisplayLayer, type EventData, type Header, type Table, unitOf } from "../io/bundle";
 import { colourBy, filterMask, filters } from "../model/custom";
-import { cutMin, cutValues, rescued } from "../model/cuts";
+import { cutMin, cutValues, HIDDEN, rescued } from "../model/cuts";
 import { colours, type LayerFor, type Legend, PALETTES, valueRange, type Pal, type Range } from "../render/colour";
-import { Engine, MIN_RADIUS } from "../render/engine";
+import { Engine, MIN_RADIUS, type ViewName } from "../render/engine";
 import { builders, type Layer } from "../render/layers";
-import { planReplay, type Parts, type Plan } from "../render/replay";
-import { back, jump } from "./navigate";
+import { growIn, planReplay, type Parts, type Plan } from "../render/replay";
+import { back, chooseDomain, jump } from "./navigate";
 import {
-  activeMode, bundle, cuts, describe, domain, drawnLayers, event, focus, focusHidden, focusHistory, focusIsTruth, focusLayers, focusLevel, focusLinked, following,
-  highlight, hover, inDomain, inFocus, isHitLayer, kindOf, labelOf, layerKey, layerOf, legends, levels, levelTop, pairView, rawEvent, replayCaption, selection, short,
+  activeMode, bundle, cuts, describe, domain, drawnLayers, event, focus, focusBar, focusHidden, focusHistory, focusIsTruth, focusLayers, focusLevel, focusLinked, following,
+  highlight, hover, inDomain, noTruth, inFocus, isHitLayer, kindOf, labelOf, layerKey, layerOf, legends, levelTop, pairView, rawEvent, replayCaption, selection, short,
   showAll, shown, shownLayer, shownLevel, theme, touring, view,
 } from "../model/store";
 import { PAIR } from "../model/pair";
 import type { Ref } from "../model/relations";
-import { stopTour } from "./tour";
+import { stopTour, tourCaption } from "./tour";
+import { Labels } from "./Labels";
 
 export let engine: Engine | null = null;
 
 /** `keep`: the layer's filter (null: none); `rescued`: the focus's rows it hides, drawn anyway (see cutValues). */
-interface Entry { d: DisplayLayer; t: Table; key: string; cut?: Float32Array; keep: Float32Array | null; rescued: string; rgb: Float32Array; emphasis?: Uint8Array; layer: Layer }
+/** `uncoloured`: nothing of it is drawn yet (e.g. truth particles before a selection), so its colours wait (see build). */
+/** `limited`: built with only the focus's rows (an onSelection layer), so showing them all again rebuilds it. */
+interface Entry { d: DisplayLayer; t: Table; key: string; cut?: Float32Array; keep: Float32Array | null; rescued: string; rgb: Float32Array; emphasis?: Uint8Array; layer: Layer; uncoloured?: boolean; limited?: boolean }
 let entries: Entry[] = []; // what is drawn now
 
 let plan: Plan | null = null;
@@ -54,6 +58,18 @@ export function replayEvent(): Plan | null {
   engine.replay(plan.seconds);
   if (import.meta.env.DEV) Object.assign(window, { evdPlan: plan }); // for the e2e tests
   return plan;
+}
+
+/** The tour: grow in the drawn layers of these tables over `seconds` (render/replay.ts growIn), the others staying as
+ *  they are. Unlike replayEvent, nothing is rebuilt: the tour has drawn the layers it shows. */
+export function growTables(tables: Set<string>, seconds: number) {
+  if (!engine) return;
+  engine.stopReplay(); // the previous step's objects in their final state
+  plan = null; // no replay captions: the tour has its own
+  const layers = entries.filter((e) => tables.has(e.d.table)).map((e) => e.layer);
+  if (!layers.length) return;
+  growIn(layers, seconds);
+  engine.replay(seconds + 0.6, layers); // + the last objects' growth (render/layers.ts: 0.5 s)
 }
 
 export function Viewport() {
@@ -94,15 +110,24 @@ export function Viewport() {
       const hl = highlight.peek(), f = filters.peek(), pal = PALETTES[theme.peek()], b = bundle.peek();
       for (const e of entries) {
         const only = onlyFor(e.d, e.key, hl), focusRows = bypassing(e.d, f, hl), again = rescued(e.keep, focusRows);
-        if (cutsOnly ? !only : !only && again === e.rescued) continue;
-        const cut = cutValues(e.d, e.t, f[e.d.table], only, focusRows);
-        const next = builders[e.d.repr]({ key: e.key, d: e.d, t: e.t, pal, rgb: e.rgb, emphasis: e.emphasis, cut, field: b?.header.field });
+        // Rebuilt: a layer of the focus's rows (on a new focus, or a cut), one that goes back to all its rows ("only for
+        // the selection" unticked), and a filtered one whose rescued focus rows changed.
+        if (cutsOnly ? !only : !only && !e.limited && again === e.rescued) continue;
+        const cut = cutValues(e.d, e.t, f[e.d.table], only, focusRows), ev = event.peek();
+        if (e.uncoloured && b && ev && !nothingDrawn(cut)) { // its first rows: its colours now
+          const [{ rgb, emphasis, legend }] = colourEntries([{ ...e, cut }], ev, b.header, cuts.peek(), pal, entries);
+          Object.assign(e, { rgb, emphasis, uncoloured: false });
+          legends.value = { ...legends.peek(), [e.key]: legend };
+        }
+        const next = builders[e.d.repr]({ key: e.key, d: e.d, t: e.t, pal, rgb: e.rgb, emphasis: e.emphasis, cut, field: b?.header.field, relation: relationOf(b?.header, event.peek()) });
         eng.replaceLayer(e.layer, next);
         next.setHighlight(hl ? hl.get(next.table) ?? new Set() : null);
+        next.setOutline?.(truthOutline() || sharedOutline(next) || faintOutline(next), isEnvelope(next)); // as drawn before
         next.setHighlightMix(1);
         e.layer = next;
         e.cut = cut;
         e.rescued = again;
+        e.limited = !!only;
       }
       pinSelection();
     };
@@ -135,17 +160,23 @@ export function Viewport() {
       const f = filters.peek(), hl = highlight.peek(), pal = PALETTES[theme.peek()];
       const items = layers.map((d0) => {
         const key = layerKey(d0), d = shownLayer(d0), t = ev.tables[d.table], keep = filterMask(t, f[d.table]), focusRows = bypassing(d, f, hl);
-        return { d, t, key, keep, rescued: rescued(keep, focusRows), cut: cutValues(d, t, f[d.table], onlyFor(d, key, hl), focusRows) };
+        const only = onlyFor(d, key, hl);
+        return { d, t, key, keep, rescued: rescued(keep, focusRows), cut: cutValues(d, t, f[d.table], only, focusRows), limited: !!only };
       });
-      const coloured = colourEntries(items, ev, header, cuts.peek(), pal, [...pool, ...items]);
-      return items.map((s, i) => {
-        const { rgb, emphasis, legend } = coloured[i];
-        drawn[s.key] = legend;
-        return { ...s, rgb, emphasis, layer: builders[s.d.repr]({ ...s, pal, rgb, emphasis, field: header.field }) };
+      // A layer with nothing drawn yet (truth particles before a selection: identity colours of 100k particles cost
+      // ~20-50 ms per event) is coloured when it gets rows (rebuildForFocus); the truth colours always need its legend.
+      const later = (s: (typeof items)[number]) => nothingDrawn(s.cut) && activeMode.peek() !== "truth";
+      const now = items.filter((s) => !later(s)), done = colourEntries(now, ev, header, cuts.peek(), pal, [...pool, ...items]);
+      const coloured = new Map(now.map((s, i) => [s, done[i]]));
+      return items.map((s) => {
+        const c = coloured.get(s), rgb = c?.rgb ?? new Float32Array(3 * s.t.n), emphasis = c?.emphasis;
+        if (c) drawn[s.key] = c.legend;
+        return { ...s, rgb, emphasis, uncoloured: !c, layer: builders[s.d.repr]({ ...s, pal, rgb, emphasis, field: header.field, relation: relationOf(header, ev) }) };
       });
     };
 
     let builtFor: EventData | null = null; // the event the layers were built for
+    let outlinesFor: unknown[] = []; // the bundle and palette the detector outlines were drawn for
     let lastPair = pairView.peek(); // the pair whose colours the layers have (recoloured when it changes)
     // What every layer was built with: a change rebuilds them all. Which layers are drawn (ticks, domain, focus) is not
     // in it: those changes only build or free the layers concerned (stopForced).
@@ -157,6 +188,10 @@ export function Viewport() {
       builtWith = settings();
       if (!b || !ev) return;
       eng.setBackground(pal.background);
+      if (outlinesFor[0] !== b || outlinesFor[1] !== pal) { // their geometry: once per bundle and theme
+        eng.setOutlines(b.header.outlines ?? [], new Color().setStyle(pal.unassigned, LinearSRGBColorSpace), new Color().setHex(pal.background, LinearSRGBColorSpace));
+        outlinesFor = [b, pal];
+      }
       const drawn: Record<string, Legend> = {};
       entries = build(wanted(b.header, ev), b.header, ev, drawn);
       builtFor = ev;
@@ -189,7 +224,7 @@ export function Viewport() {
       for (const { layer } of fresh) {
         eng.addLayer(layer);
         layer.setHighlight(hl ? hl.get(layer.table) ?? new Set() : null);
-        layer.setOutline?.(outline, isEnvelope(layer));
+        layer.setOutline?.(outline || sharedOutline(layer) || faintOutline(layer), isEnvelope(layer));
         layer.setHighlightMix(1);
       }
       entries = [...entries, ...fresh];
@@ -213,6 +248,7 @@ export function Viewport() {
         colourEntries(recolour, ev, b.header, cuts.peek(), pal).forEach(({ rgb, legend }, i) => {
           recolour[i].layer.setColours(rgb);
           recolour[i].rgb = rgb;
+          recolour[i].uncoloured = false;
           drawn[recolour[i].key] = legend;
         });
         legends.value = drawn;
@@ -223,9 +259,9 @@ export function Viewport() {
     });
     // A level shown inside the focus turns the focus into an outline around it (see isEnvelope).
     const stopEnvelope = effect(() => {
-      shownLevel.value;
+      shownLevel.value; domain.value;
       const outline = truthOutline();
-      for (const { layer } of entries) layer.setOutline?.(outline, isEnvelope(layer));
+      for (const { layer } of entries) layer.setOutline?.(outline || sharedOutline(layer) || faintOutline(layer), isEnvelope(layer));
       eng.requestRender();
     });
     const stopView = effect(() => eng.setView(view.value, highlight.peek() ?? undefined));
@@ -286,10 +322,25 @@ export function Viewport() {
   return (
     <div class="viewport">
       <canvas ref={canvas} onPointerDown={onDown} onPointerUp={onUp} onPointerMove={onMove} onPointerLeave={() => (hover.value = null)} onClick={onClick} onDblClick={onDoubleClick} />
+      <Labels />
       <Tooltip />
       <FocusBar />
       <ReplayCaption />
+      {(bundle.value?.header.domains?.length ?? 0) >= 2 && <Views />}
       <div class="hintbar">Drag to rotate · right-drag to pan · scroll to zoom · click to inspect · double-click to zoom in · <kbd>?</kbd> help</div>
+    </div>
+  );
+}
+
+export const VIEWS: [ViewName, string, string][] = [["3d", "3D", "1"], ["front", "Front", "2"], ["side", "Side", "3"], ["rz", "ρ–z", "4"]];
+/** The views (3D, front, side, ρ–z): on the canvas for a bundle with a domain bar (which takes their place in the top
+ *  bar), else in the top bar. */
+export function Views() {
+  return (
+    <div class="segmented views" role="group" aria-label="View">
+      {VIEWS.map(([v, name, key]) => (
+        <button class={view.value === v ? "on" : ""} title={`${name} view (${key})`} onClick={() => (view.value = v)}>{name}</button>
+      ))}
     </div>
   );
 }
@@ -315,10 +366,12 @@ function FocusBar() {
 }
 
 /** The kinds of object the focus is made of, top first: the last ones (its smallest objects, e.g. hits) are always
- *  shown, one of the others on request (a click, or ↓ ↑), so they do not cover each other. */
+ *  shown, one of the others on request (a click, or ↓ ↑), so they do not cover each other. With parts of the detector,
+ *  the levels of the domain looked at (and the shared ones), and a chip for each other part the focus has objects in:
+ *  a click there looks at that part, keeping the focus. */
 function Levels() {
-  const lv = levels.value, chosen = focusLevel.value;
-  if (!lv.some((l) => !l.always)) return null;
+  const { bar: lv, chips } = focusBar.value, chosen = focusLevel.value;
+  if (!lv.some((l) => !l.always) && !chips.length) return null;
   return (
     <div class="row levels" title="What it is made of, from the largest objects down: click one to show it as well (↓ ↑)">
       {pairView.value && <span class="muted" title="Counts: the pair's objects (its candidate's, and its particle's in other candidates or none)">truth ↔ reco pair:</span>}
@@ -332,13 +385,18 @@ function Levels() {
           </>
         );
       })}
+      {chips.length > 0 && <span class="muted chipsin">{lv.length ? "· in" : "in"}</span>}
+      {chips.map(({ domain: name, level }) => (
+        <button class="level part" title={`Look at it in ${name}, keeping the focus (D): its ${level.name.toLowerCase()} and what they are made of`}
+          onClick={() => chooseDomain(name)}>{name} <span class="count">{level.count.toLocaleString()}</span></button>
+      ))}
     </div>
   );
 }
 
 function ReplayCaption() {
-  const c = replayCaption.value;
-  return c ? <div class="caption" aria-live="polite"><b>{c.title}</b>{c.detail && <small>{c.detail}</small>}</div> : null;
+  const tour = tourCaption.value, c = tour ?? replayCaption.value;
+  return c ? <div class={tour ? "caption tour" : "caption"} aria-live="polite"><b>{c.title}</b>{c.detail && <small>{c.detail}</small>}</div> : null;
 }
 
 function Tooltip() {
@@ -397,6 +455,15 @@ function belowCut(table: string, hl: Map<string, Set<number>>) {
   return hidden;
 }
 
+/** A layer's cut values hide every row (a layer drawn only for a selection, without one). */
+const nothingDrawn = (cut?: Float32Array) => !!cut && !cut.some((v) => v > HIDDEN);
+
+/** An event's relation with its `to` table, for layers drawn through one (e.g. a polyline's points). */
+const relationOf = (header: Header | undefined, ev: EventData | null) => (name: string) => {
+  const info = header?.relations[name], rel = ev?.relations[name], to = info && ev?.tables[info.to];
+  return rel && to ? { offsets: rel.offsets, indices: rel.indices, to } : undefined;
+};
+
 /** Pin the selected object in its layer (drawn whatever the cut); unpin elsewhere. */
 function pinSelection() {
   const sel = selection.peek();
@@ -447,6 +514,16 @@ const hexRgb = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2
  *  from either side. */
 const truthOutline = () => focusIsTruth.peek() && !pairView.peek();
 
+/** A layer of a shared domain (header `domains[i].shared`, e.g. physics objects) seen from another domain's view (a
+ *  detector's) is drawn as an outline (cones: their rim), so it does not cover that detector's objects. */
+const sharedOutline = (layer: Layer) => {
+  const d = layerOf(layer.table), current = domain.peek(), domains = bundle.peek()?.header.domains;
+  return !!d?.domain && !!current && d.domain !== current && !!domains?.find((x) => x.name === d.domain && x.shared);
+};
+/** By truth, a kind with no truth of its own drawn as cones (jets) is an outline, so it never looks like a matched
+ *  object (docs/truth.md "Where truth stops"). */
+const faintOutline = (layer: Layer) => activeMode.peek() === "truth" && layerOf(layer.table)?.repr === "cones" && noTruth(layer.table);
+
 /** While a level is shown inside the focus (e.g. a candidate's tracksters), the focus's layer draws it as a
  *  full-size outline around them: the largest object, without covering what is inside. */
 const isEnvelope = (layer: Layer) => !!shownLevel.peek() && layer.table === levelTop.peek()?.table;
@@ -457,7 +534,7 @@ function showFocus(ms: number) {
   const hl = highlight.peek(), outline = truthOutline();
   for (const { layer } of entries) {
     layer.setHighlight(hl ? hl.get(layer.table) ?? new Set() : null);
-    layer.setOutline?.(outline, isEnvelope(layer));
+    layer.setOutline?.(outline || sharedOutline(layer) || faintOutline(layer), isEnvelope(layer));
   }
   if (ms > 0) engine?.fadeHighlight(ms);
   else for (const { layer } of entries) layer.setHighlightMix(1);

@@ -3,9 +3,11 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import type { Layer } from "./layers";
+import { outlineObject } from "./outlines";
 import { REPLAY_OFF } from "./replay";
+import type { Outline, ViewName } from "../io/bundle";
 
-export type ViewName = "3d" | "front" | "side" | "rz";
+export type { ViewName };
 export interface Hit { table: string; row: number; layer: string }
 type Rows = Map<string, Iterable<number>>;
 type Pose = [position: THREE.Vector3, target: THREE.Vector3, zoom: number];
@@ -16,6 +18,32 @@ export const MIN_RADIUS = 70;
 const DIRECTIONS: Record<Exclude<ViewName, "rz">, [number, number, number]> = {
   "3d": [0.62, 0.32, 0.72], front: [0, 0, 1], side: [1, 0, 0], // camera direction from the target
 };
+
+/** The 2D views (front, side, rho-z) are orthographic, seen along a fixed direction with y up (rho-z: its shaders put
+ *  (z, rho) in the xy plane): the camera direction from the target, and the width and height on screen of a box of
+ *  `size` (view coordinates). */
+export function flatView(view: Exclude<ViewName, "3d">) {
+  const dir = view === "side" ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 0, 1);
+  const extent = (size: THREE.Vector3): [number, number] => [Math.abs(view === "side" ? size.z : size.x), Math.abs(size.y)];
+  return { dir, extent };
+}
+
+/** Orthographic zoom that fits a width x height (cm) into a camera whose frustum at zoom 1 is frustumW x frustumH,
+ *  with a margin. */
+export const flatZoom = (frustumW: number, frustumH: number, w: number, h: number) =>
+  0.85 * Math.min(frustumW / Math.max(w + 30, 80), frustumH / Math.max(h + 30, 80));
+
+/** A 2D view's zoom and target: a width x height (cm) around `ctr` fitted into the part of the view a panel on the
+ *  right leaves free (`free`: its share of the width, at least 0.4) and centred there, so the target moves right on
+ *  screen by half the covered width. */
+export function flatAim(ctr: THREE.Vector3, dir: THREE.Vector3, frustumW: number, frustumH: number, w: number, h: number, free: number) {
+  const f = Math.min(1, Math.max(0.4, free)), zoom = flatZoom(f * frustumW, frustumH, w, h);
+  const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), dir).normalize();
+  return { zoom, target: ctr.clone().addScaledVector(right, (0.5 * (1 - f) * frustumW) / zoom) };
+}
+
+/** A camera distance far enough that the orthographic camera's depth range (+-5000 cm around it) holds the detector. */
+const FLAT_DISTANCE = 1000;
 
 // Tour camera (beam tours).
 const TOUR_SWAY = 0.35, TOUR_PERIOD = 30; // rad, s: close-ups sway around their view
@@ -33,10 +61,14 @@ export class Engine {
   private width = 1;
   private height = 1;
   private layers: Layer[] = [];
+  /** Layers taken out of the scene, freed after the next draw: by then the layers that replaced them have their shader
+   *  programs, which three.js frees with the last material using one (a new event would compile them all again). */
+  private retired: Layer[] = [];
+  private outlines: ReturnType<typeof outlineObject> | null = null; // the detector's outlines (header `outlines`)
   private view: ViewName = "3d";
   private dirty = true;
   private flight: { t0: number; ms: number; swing: number; from: Pose; to: Pose } | null = null;
-  private replayClock: { t0: number; seconds: number } | null = null;
+  private replayClock: { t0: number; seconds: number; only?: Layer[] } | null = null;
   private highlightFade: { t0: number; ms: number } | null = null;
   private orbit = 0; // auto-rotation, turns per minute (3D)
   /** Tour camera: looks at a target from a 3/4 angle, turning slowly (whole event) or swaying (close-ups). Angle,
@@ -57,6 +89,8 @@ export class Engine {
   onReplayTick: (t: number | null) => void = () => {};
   /** Called when the user starts rotating, panning or zooming. */
   onInteract = () => {};
+  /** Called after every frame drawn (only when something changed), e.g. to move HTML labels with the objects. */
+  onDraw = () => {};
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -98,11 +132,14 @@ export class Engine {
   private draw() {
     const r = this.renderer;
     r.setViewport(0, 0, this.width, this.height);
+    this.outlines?.setReach(this.ctl3d.target, this.cam3d.position.distanceTo(this.ctl3d.target) / this.cam3d.zoom); // 3D: what it looks at
     r.render(this.scene, this.camera);
+    for (const l of this.retired.splice(0)) l.dispose();
+    this.onDraw();
     if (this.rz) return;
     const size = 110;
-    this.gizmo.camera.position.copy(this.cam3d.position).sub(this.ctl3d.target).setLength(3);
-    this.gizmo.camera.up.copy(this.cam3d.up);
+    this.gizmo.camera.position.copy(this.camera.position).sub(this.controls.target).setLength(3);
+    this.gizmo.camera.up.copy(this.camera.up);
     this.gizmo.camera.lookAt(0, 0, 0);
     r.autoClear = false;
     r.clearDepth();
@@ -113,8 +150,13 @@ export class Engine {
   }
 
   private get rz() { return this.view === "rz"; }
-  private get camera(): THREE.PerspectiveCamera | THREE.OrthographicCamera { return this.rz ? this.camRZ : this.cam3d; }
-  private get controls() { return this.rz ? this.ctlRZ : this.ctl3d; }
+  /** A 2D view (front, side, rho-z): the orthographic camera, pan and zoom only. */
+  private get flat() { return this.view !== "3d"; }
+  private get camera(): THREE.PerspectiveCamera | THREE.OrthographicCamera { return this.flat ? this.camRZ : this.cam3d; }
+  private get controls() { return this.flat ? this.ctlRZ : this.ctl3d; }
+  /** The layers drawn in the current view (display hint `views`). */
+  private get drawn() { return this.layers.filter((l) => l.object.visible); }
+  private showIn(layer: Layer) { layer.object.visible = !layer.views || layer.views.includes(this.view); layer.setView?.(this.view); }
   requestRender() { this.dirty = true; }
 
   setBackground(colour: number) {
@@ -122,11 +164,12 @@ export class Engine {
     this.requestRender();
   }
 
-  /** Run the replay set up with planReplay() over `seconds`, from an empty view. */
-  replay(seconds: number) {
-    for (const l of this.layers) l.setClock(0);
+  /** Run the replay set up with planReplay() over `seconds`, from an empty view; `only`: just these layers replay,
+   *  the others stay in their final state (e.g. the tour growing in one step's objects). */
+  replay(seconds: number, only?: Layer[]) {
+    for (const l of only ?? this.layers) l.setClock(0);
     this.draw(); // the first draw uploads the rebuilt layers to the GPU: the clock starts after it, not during it
-    this.replayClock = { t0: performance.now(), seconds };
+    this.replayClock = { t0: performance.now(), seconds, only };
   }
 
   stopReplay() {
@@ -142,7 +185,7 @@ export class Engine {
   private tick(now: number) {
     const t = (now - this.replayClock!.t0) / 1000;
     if (t >= this.replayClock!.seconds) return this.stopReplay();
-    for (const l of this.layers) l.setClock(t);
+    for (const l of this.replayClock!.only ?? this.layers) l.setClock(t);
     this.onReplayTick(t);
     this.requestRender();
   }
@@ -151,7 +194,7 @@ export class Engine {
    *  (the optical zoom is turned into distance). */
   tourCamera(on: boolean) {
     if (on && !this.tour) {
-      if (this.rz) this.setView("3d");
+      if (this.flat) this.setView("3d");
       const target = this.ctl3d.target.clone(), off = this.cam3d.position.clone().sub(target);
       const ld = Math.log(Math.max(off.length() / this.cam3d.zoom, 50)), az = Math.atan2(off.x, off.z), el = Math.asin(THREE.MathUtils.clamp(off.y / off.length(), -1, 1));
       this.tour = { t: 0, az, el, ld, target, spin: 0, spinW: 1, v: { az: 0, el: 0, ld: 0, target: new THREE.Vector3() },
@@ -165,7 +208,7 @@ export class Engine {
       this.cam3d.zoom = 1;
       this.cam3d.updateProjectionMatrix();
       this.ctl3d.target.copy(target);
-      this.ctl3d.enabled = !this.rz;
+      this.ctl3d.enabled = !this.flat;
       this.ctl3d.update();
     }
   }
@@ -205,7 +248,7 @@ export class Engine {
     s.spin += dt * TOUR_SPIN * s.spinW;
     const az = s.az + s.spin + (1 - s.spinW) * TOUR_SWAY * Math.sin((2 * Math.PI * s.t) / TOUR_PERIOD);
     const dir = new THREE.Vector3(Math.cos(s.el) * Math.sin(az), Math.sin(s.el), Math.cos(s.el) * Math.cos(az));
-    this.envelope ??= envelopeOf(this.layers);
+    this.envelope ??= envelopeOf(this.drawn);
     const dist = Math.exp(s.ld), along = Math.max(dist, exitDistance(this.envelope, s.target, dir) + 20);
     this.cam3d.position.copy(s.target).addScaledVector(dir, along);
     this.cam3d.up.set(0, 1, 0);
@@ -219,7 +262,7 @@ export class Engine {
   /** Back to the normal view, animated: the whole event from the current preset's direction (3D: the standard 3/4
    *  view). */
   home(ms = 700) {
-    this.fit(undefined, true, ms, 0, this.rz ? undefined : presetDirection(this.view));
+    this.fit(undefined, true, ms, 0, this.flat ? undefined : presetDirection(this.view));
   }
 
   /** Orbit the 3D view around its target; `speed` in turns per minute, 0 stops. Flights keep orbiting. */
@@ -243,18 +286,34 @@ export class Engine {
     this.requestRender();
   }
 
+  /** Draw faint outlines of the detector's parts (header `outlines`), in `colour` mixed towards `background`; none
+   *  for an empty list. */
+  setOutlines(outlines: readonly Outline[], colour: THREE.Color, background: THREE.Color) {
+    if (this.outlines) { this.scene.remove(this.outlines.object); this.outlines.dispose(); }
+    this.outlines = outlines.length ? outlineObject(outlines, colour, background) : null;
+    if (this.outlines) { this.outlines.setView(this.view); this.scene.add(this.outlines.object); }
+    this.requestRender();
+  }
+
+  /** The layer drawn for a table, if any (e.g. for HTML labels: its objects' positions and ends). */
+  drawnLayer(table: string): Layer | undefined { return this.layers.find((l) => l.table === table); }
+
   setLayers(layers: Layer[]) {
     if (this.replayClock) { this.replayClock = null; this.onReplayTick(null); } // new layers start in their final state
-    for (const l of this.layers) { this.scene.remove(l.object); l.dispose(); }
+    // Layers retired without a draw since (a background tab draws nothing, e.g. in Live mode) go now, so at most one
+    // event's layers wait.
+    for (const l of this.retired.splice(0)) l.dispose();
+    for (const l of this.layers) { this.scene.remove(l.object); this.retired.push(l); }
     this.layers = layers;
     this.envelope = null;
-    for (const l of layers) { l.setProjection(this.rz); this.scene.add(l.object); }
+    for (const l of layers) { l.setProjection(this.rz); this.showIn(l); this.scene.add(l.object); }
     this.requestRender();
   }
 
   /** Draw one more layer (e.g. a hidden layer the focus has objects in). */
   addLayer(layer: Layer) {
     layer.setProjection(this.rz);
+    this.showIn(layer);
     this.scene.add(layer.object);
     this.layers.push(layer);
     this.envelope = null;
@@ -266,7 +325,7 @@ export class Engine {
     const i = this.layers.indexOf(layer);
     if (i < 0) return;
     this.scene.remove(layer.object);
-    layer.dispose();
+    this.retired.push(layer);
     this.layers.splice(i, 1);
     this.envelope = null;
     this.requestRender();
@@ -277,8 +336,9 @@ export class Engine {
     const i = this.layers.indexOf(old);
     if (i < 0) return;
     this.scene.remove(old.object);
-    old.dispose();
+    this.retired.push(old);
     next.setProjection(this.rz);
+    this.showIn(next);
     this.scene.add(next.object);
     this.layers[i] = next;
     this.envelope = null;
@@ -288,10 +348,17 @@ export class Engine {
   /** Switch camera preset or projection, keeping `selection` (if given) in frame. */
   setView(view: ViewName, selection?: Rows) {
     this.view = view;
-    this.ctl3d.enabled = !this.rz;
-    this.ctlRZ.enabled = this.rz;
-    for (const l of this.layers) l.setProjection(this.rz);
-    if (!this.rz) {
+    this.ctl3d.enabled = !this.flat;
+    this.ctlRZ.enabled = this.flat;
+    for (const l of this.layers) { l.setProjection(this.rz); this.showIn(l); }
+    this.outlines?.setView(view);
+    this.envelope = null;
+    if (view !== "3d") { // look along the view's axis; frame() below moves the target
+      this.camRZ.position.copy(this.ctlRZ.target).addScaledVector(flatView(view).dir, FLAT_DISTANCE);
+      this.camRZ.up.set(0, 1, 0);
+      this.camRZ.lookAt(this.ctlRZ.target);
+      this.ctlRZ.update();
+    } else {
       const dist = Math.max(this.cam3d.position.distanceTo(this.ctl3d.target), 100);
       this.cam3d.position.copy(this.ctl3d.target).addScaledVector(presetDirection(view), dist);
       this.cam3d.up.set(0, 1, 0);
@@ -312,26 +379,28 @@ export class Engine {
     if (!box) return;
     const [lo, hi] = box;
     const ctr = lo.clone().add(hi).multiplyScalar(0.5), size = hi.clone().sub(lo);
-    if (this.rz) return this.aimRZ(ctr, size, animate, ms);
+    if (this.view !== "3d") { // 2D: a margin, and at least the smallest radius framed, as in 3D (a jet's calorimeter part)
+      const [w, h] = flatView(this.view).extent(size), least = 2 * this.minRadius;
+      return this.aimFlat(ctr, Math.max(1.2 * w, least), Math.max(1.2 * h, least), animate, ms);
+    }
     const radius = Math.max(0.68 * size.length() + 0.22 * this.minRadius, this.minRadius); // cm: conservative
     this.aim(ctr, radius, animate, ms, swing, dir);
   }
 
   /** Frame a cylinder around the beam axis (radius rMax, |z| up to zMax; cm), e.g. a part of the detector, from the
-   *  current direction: whole in the 3D view; in the front and side views, its section through the beam line across
-   *  the line of sight (the disc of radius rMax end-on, the 2 zMax x 2 rMax rectangle from the side), which then fills
-   *  the view: framing the near rim of a long cylinder seen end-on in perspective would leave its middle small. */
+   *  current direction: whole in the 3D view; in the 2D views, its section (the disc of radius rMax end-on, the
+   *  2 zMax x 2 rMax rectangle from the side and in rho-z), which then fills the view. */
   frameRegion(rMax: number, zMax: number, animate = true, ms = 700) {
-    if (this.rz) return this.aimRZ(new THREE.Vector3(), new THREE.Vector3(2 * zMax, 2 * rMax, 0), animate, ms);
+    if (this.view === "rz") return this.aimFlat(new THREE.Vector3(), 2 * zMax, 2 * rMax, animate, ms);
+    if (this.view !== "3d") return this.aimFlat(new THREE.Vector3(), ...flatView(this.view).extent(new THREE.Vector3(2 * rMax, 2 * rMax, 2 * zMax)), animate, ms);
     // The camera distance that keeps each point of its rims in view, in perspective: a point `a` nearer the camera
     // than the centre and `r` off the line of sight needs r / (distance - a) <= tan(fov / 2).
     const dir = this.direction(), p = new THREE.Vector3(), tan = Math.tan(THREE.MathUtils.degToRad(this.cam3d.fov / 2));
-    const section = this.view === "front" || this.view === "side";
     let need = 0;
     for (let i = 0; i < 32; i++)
       for (const z of [-zMax, zMax]) {
         p.set(rMax * Math.cos((i * Math.PI) / 16), rMax * Math.sin((i * Math.PI) / 16), z);
-        const a = section ? 0 : p.dot(dir), off = p.addScaledVector(dir, -p.dot(dir)).length();
+        const a = p.dot(dir), off = p.addScaledVector(dir, -p.dot(dir)).length();
         need = Math.max(need, a + off / tan);
       }
     this.aim(new THREE.Vector3(), 1.05 * need * Math.sin(THREE.MathUtils.degToRad(this.cam3d.fov / 2)), animate, ms, 0, dir);
@@ -343,10 +412,11 @@ export class Engine {
     return dir.lengthSq() < 1e-6 ? presetDirection(this.view) : dir.normalize(); // no direction yet: the preset's
   }
 
-  /** ρ-z view: centre on `ctr` and fit `size` (view coordinates). */
-  private aimRZ(ctr: THREE.Vector3, size: THREE.Vector3, animate: boolean, ms: number) {
-    const c = this.camRZ, zoom = 0.85 * Math.min((c.right - c.left) / Math.max(size.x + 30, 80), (c.top - c.bottom) / Math.max(size.y + 30, 80));
-    this.go([new THREE.Vector3(ctr.x, ctr.y, 1000), new THREE.Vector3(ctr.x, ctr.y, 0), zoom], animate, ms, 0);
+  /** A 2D view: centre on `ctr` (view coordinates) and fit a width x height (cm on screen). */
+  private aimFlat(ctr: THREE.Vector3, w: number, h: number, animate: boolean, ms: number) {
+    const c = this.camRZ, dir = flatView(this.view as Exclude<ViewName, "3d">).dir;
+    const { zoom, target } = flatAim(ctr, dir, c.right - c.left, c.top - c.bottom, w, h, 1 - this.insetRight / this.width);
+    this.go([target.clone().addScaledVector(dir, FLAT_DISTANCE), target, zoom], animate, ms, 0);
   }
 
   /** 3D: look at a sphere around `ctr` of this radius along `dir` (default: the current direction), filling the view
@@ -364,6 +434,16 @@ export class Engine {
   /** Camera distance at which a sphere of this radius fills the height of the 3D view. */
   private distanceFor(radius: number) {
     return radius / Math.sin(THREE.MathUtils.degToRad(this.cam3d.fov / 2));
+  }
+
+  /** Where a point (cm) is drawn, in CSS pixels from the canvas's top left (rho-z: on its own side of the axis), or
+   *  null behind the camera. For HTML overlays (labels): call from `onDraw`, which follows every camera move. */
+  project(x: number, y: number, z: number): [number, number] | null {
+    const v = this.rz ? new THREE.Vector3(z, Math.hypot(x, y) * (y >= 0 ? 1 : -1), 0) : new THREE.Vector3(x, y, z);
+    v.applyMatrix4(this.camera.matrixWorldInverse);
+    if (!this.flat && v.z >= 0) return null; // behind the perspective camera
+    v.applyMatrix4(this.camera.projectionMatrix);
+    return [((v.x + 1) / 2) * this.width, ((1 - v.y) / 2) * this.height];
   }
 
   /** The object closest to a screen point (see pickAll), or null. */
@@ -409,7 +489,7 @@ export class Engine {
       }
       return best;
     };
-    for (const layer of this.layers) {
+    for (const layer of this.drawn) {
       const X = layer.x, Y = layer.y, Z = layer.z, seg = layer.segment, path = layer.path, bias = layer.pickBias ?? 1;
       const scale = (bias * bias) / (layer.pickRadius * layer.pickRadius);
       let best = -1, bestScore = 1;
@@ -438,46 +518,9 @@ export class Engine {
     return (fg.length ? fg : found).sort((a, c) => a.score - c.score).map((f) => f.hit);
   }
 
-  /** Bounding box (view coordinates) of the bulk of the drawn objects, or of the given rows: 2nd to 98th
-   *  percentile per axis, from at most ~20k objects. Context layers count only when nothing else is drawn. */
+  /** Bounding box (view coordinates) of the bulk of the drawn objects, or of the given rows (see boxOf). */
   private box(selection?: Rows): [THREE.Vector3, THREE.Vector3] | null {
-    const fg = this.layers.some((l) => !l.context && l.x.length);
-    const layers = this.layers.filter((l) => (selection ? selection.has(l.table) : !l.context || !fg));
-    const step = Math.max(1, Math.floor(layers.reduce((s, l) => s + l.x.length, 0) / 20000));
-    const pts: number[][] = [[], [], []], p = new THREE.Vector3();
-    let k = 0;
-    const add = (l: Layer, i: number) => {
-      if (!l.passes(i) || k++ % step) return;
-      this.toView(l.x, l.y, l.z, i, p);
-      pts[0].push(p.x); pts[1].push(p.y); pts[2].push(p.z);
-    };
-    for (const l of layers) {
-      const rows = selection?.get(l.table);
-      if (rows) for (const i of rows) add(l, i);
-      else for (let i = 0; i < l.x.length; i++) add(l, i);
-    }
-    if (!pts[0].length) return null;
-    const sorted = pts.map((a) => Float64Array.from(a).sort());
-    const q = (f: number) => new THREE.Vector3(...sorted.map((a) => a[Math.floor(f * (a.length - 1))]));
-    const trim = pts[0].length > 50 ? 0.02 : 0;
-    const lo = q(trim), hi = q(1 - trim);
-    // A selection's lines (e.g. a candidate's track, from the vertex) stay in view whole: their start points are
-    // few, so the trimming above would drop them.
-    for (const l of layers) {
-      if (!selection || !l.line) continue;
-      const rows = selection.get(l.table) ?? [], path = l.path;
-      if (path) {
-        for (const i of rows) {
-          if (!l.passes(i)) continue;
-          path.fill(i);
-          for (let j = i * path.points; j < (i + 1) * path.points; j++) { this.toView(path.x, path.y, path.z, j, p, l.y[i]); lo.min(p); hi.max(p); }
-        }
-      } else if (l.segment) {
-        const [X, Y, Z] = l.segment.a;
-        for (const i of rows) if (l.passes(i)) { this.toView(X, Y, Z, i, p, l.y[i]); lo.min(p); hi.max(p); }
-      }
-    }
-    return [lo, hi];
+    return boxOf(this.drawn, selection, (X, Y, Z, i, out, sideY) => this.toView(X, Y, Z, i, out, sideY));
   }
 
   /** A point in view coordinates. ρ-z: ρ signed by the side of y, or of `sideY` (a line's end, so a line crossing
@@ -502,7 +545,7 @@ export class Engine {
     const b = new THREE.Spherical().setFromVector3(f.to[0].clone().sub(f.to[1]));
     const turn = THREE.MathUtils.euclideanModulo(b.theta - a.theta + Math.PI, 2 * Math.PI) - Math.PI + f.swing;
     // An orbit in progress carries on through the flight at its own speed, so the motion never stops and restarts.
-    const spin = this.rz ? 0 : -((2 * Math.PI * this.orbit) / 60) * ((now - f.t0) / 1000);
+    const spin = this.flat ? 0 : -((2 * Math.PI * this.orbit) / 60) * ((now - f.t0) / 1000);
     const r0 = Math.max(a.radius, 1e-3), r = r0 * (Math.max(b.radius, 1e-3) / r0) ** e;
     const offset = new THREE.Vector3().setFromSpherical(new THREE.Spherical(r, a.phi + (b.phi - a.phi) * e, a.theta + turn * e + spin));
     this.place(target.clone().add(offset), target, f.from[2] + (f.to[2] - f.from[2]) * e);
@@ -537,6 +580,51 @@ export class Engine {
 }
 
 const presetDirection = (view: ViewName) => new THREE.Vector3(...DIRECTIONS[view as Exclude<ViewName, "rz">]).normalize();
+
+type ToView = (X: Float32Array, Y: Float32Array, Z: Float32Array, i: number, out: THREE.Vector3, sideY?: number) => THREE.Vector3;
+/** Bounding box (view coordinates, from `toView`) of the bulk of the given layers' objects, or of the given rows: 2nd
+ *  to 98th percentile per axis, from at most ~20k objects. Context layers count only when nothing else is drawn. A
+ *  point that is not finite (a path with no points, a line without an end) is left out: it would make the box NaN. */
+export function boxOf(drawn: readonly Layer[], selection: Rows | undefined, toView: ToView): [THREE.Vector3, THREE.Vector3] | null {
+  const fg = drawn.some((l) => !l.context && l.x.length);
+  const layers = drawn.filter((l) => (selection ? selection.has(l.table) : !l.context || !fg));
+  const step = Math.max(1, Math.floor(layers.reduce((s, l) => s + l.x.length, 0) / 20000));
+  const pts: number[][] = [[], [], []], p = new THREE.Vector3(), finite = (v: THREE.Vector3) => Number.isFinite(v.x + v.y + v.z);
+  let k = 0;
+  const add = (l: Layer, i: number) => {
+    if (!l.passes(i) || k++ % step) return;
+    if (!finite(toView(l.x, l.y, l.z, i, p))) return;
+    pts[0].push(p.x); pts[1].push(p.y); pts[2].push(p.z);
+  };
+  for (const l of layers) {
+    const rows = selection?.get(l.table);
+    if (rows) for (const i of rows) add(l, i);
+    else for (let i = 0; i < l.x.length; i++) add(l, i);
+  }
+  if (!pts[0].length) return null;
+  const sorted = pts.map((a) => Float64Array.from(a).sort());
+  const q = (f: number) => new THREE.Vector3(...sorted.map((a) => a[Math.floor(f * (a.length - 1))]));
+  const trim = pts[0].length > 50 ? 0.02 : 0;
+  const lo = q(trim), hi = q(1 - trim);
+  // A selection's lines (e.g. a candidate's track, from the vertex) stay in view whole: their start points are
+  // few, so the trimming above would drop them.
+  const grow = () => { if (finite(p)) { lo.min(p); hi.max(p); } };
+  for (const l of layers) {
+    if (!selection || !l.line) continue;
+    const rows = selection.get(l.table) ?? [], path = l.path;
+    if (path) {
+      for (const i of rows) {
+        if (!l.passes(i)) continue;
+        path.fill(i);
+        for (let j = i * path.points; j < (i + 1) * path.points; j++) { toView(path.x, path.y, path.z, j, p, l.y[i]); grow(); }
+      }
+    } else if (l.segment) {
+      const [X, Y, Z] = l.segment.a;
+      for (const i of rows) if (l.passes(i)) { toView(X, Y, Z, i, p, l.y[i]); grow(); }
+    }
+  }
+  return [lo, hi];
+}
 
 /** An angle in (-pi, pi]. */
 const angle = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));

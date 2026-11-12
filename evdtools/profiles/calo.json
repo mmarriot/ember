@@ -1,0 +1,30 @@
+{
+  "name": "calo",
+  "note": "CMS Phase-2 barrel and forward calorimeters (Fireworks/EventExport preset calo): ECAL barrel, HCAL barrel (HB), outer (HO) and forward (HF) rechits, drawn as eta-phi towers from their front face (x y z is the cell's front-face centre). Phase 2 has no ECAL endcap, preshower or HCAL endcap (HGCal replaces them): EcalHits are all EB, HBHEHits all HB. Tower sizes come from the exporter's dEta dPhi thickness columns (the cell's corners; measured: EB 0.017-0.019 x 0.017, HB 0.087 x 0.087 and 1-64 cm deep per depth, HF 0.11-0.30 x 0.17-0.35 and 143-165 cm). Depth: EB and HO show energy as length (one layer each; 22 cm per decade of energy from 0.5 to 45 cm, log so an electron core and a soft crystal differ (linear saturates at a few GeV), and a crystal never reaches HB at r 181 cm), HB and HF a geometric depth (several depths or fibre lengths per tower). Cuts per subdetector, as the noise levels differ (measured on the ttbar samples: EB 1 GeV, as at 0PU half of the EB hits between 0.5 and 1 GeV have no simulated energy (likely noise, truth-graph.md gap 25) and every hit above 1 GeV has; HB 1 GeV, HF 3 GeV). HO and HF start hidden; HF (r 12-130 cm, |z| 1115-1280 cm) is not drawn in the front view, where it would sit inside the barrel. Domain Calo: the barrel region, front view.",
+  "kinds": {
+    "caloHit": {"label": "Hits", "domain": "Calo", "repr": "cells", "palette": "heat", "colour": "energy", "size": "halfWidth",
+                "time": "time", "visible": true, "describe": {"columns": ["energy", "layer"]}}
+  },
+  "display": [
+    {"table": "EcalHits", "kind": "caloHit", "label": "ECAL barrel", "position": ["x", "y", "z"],
+     "cell": {"shape": "tower", "face": "cylinder", "dEta": "dEta", "dPhi": "dPhi", "depth": {"column": "energy", "scale": 22, "log": true, "min": 0.5, "max": 45}},
+     "cut": {"group": "ECAL energy", "label": "ECAL barrel", "column": "energy", "unit": "GeV", "default": 1.0}, "describe": {"columns": ["energy"]}},
+    {"table": "HBHEHits", "kind": "caloHit", "label": "HCAL barrel", "position": ["x", "y", "z"],
+     "cell": {"shape": "tower", "face": "cylinder", "dEta": "dEta", "dPhi": "dPhi", "depth": "thickness"},
+     "cut": {"group": "HCAL barrel energy", "label": "HCAL barrel", "column": "energy", "unit": "GeV", "default": 1.0}},
+    {"table": "HOHits", "kind": "caloHit", "label": "HCAL outer", "position": ["x", "y", "z"], "visible": false,
+     "cell": {"shape": "tower", "face": "cylinder", "dEta": "dEta", "dPhi": "dPhi", "depth": {"column": "energy", "scale": 22, "log": true, "min": 0.5, "max": 45}},
+     "cut": {"group": "HCAL outer energy", "label": "HCAL outer", "column": "energy", "unit": "GeV", "default": 1.0}, "describe": {"columns": ["energy"]}},
+    {"table": "HFHits", "kind": "caloHit", "label": "HCAL forward", "position": ["x", "y", "z"], "visible": false,
+     "views": ["3d", "side", "rz"],
+     "cell": {"shape": "tower", "face": "disc", "dEta": "dEta", "dPhi": "dPhi", "depth": "thickness"},
+     "cut": {"group": "HCAL forward energy", "label": "HCAL forward", "column": "energy", "unit": "GeV", "default": 3.0}}
+  ],
+  "domains": [{"name": "Calo", "region": {"rMax": 420, "zMax": 450}, "view": "front", "colourMode": "layers"}],
+  "outlines": [
+    {"name": "ECAL barrel", "r": [129, 152], "z": [0, 291]},
+    {"name": "HCAL barrel", "r": [181, 289], "z": [0, 433]},
+    {"name": "HCAL outer", "r": [390, 414], "z": [0, 707]},
+    {"name": "HCAL forward", "r": [12, 130], "z": [1115, 1280]}
+  ]
+}

@@ -96,3 +96,16 @@ describe("category colouring", () => {
     expect(asObject.legend.kind === "category" && asObject.legend.items?.map((it) => it.label)).toEqual(["pixel barrel", "pixel endcap", "outer endcap", "outer barrel"]);
   });
 });
+
+describe("fixed colours", () => {
+  const jets = { ...layer("Cand", "none"), fixedColour: "#f0a830", colour: "pt" } as DisplayLayer;
+  it("give every row the kind's colour, over the old viewers' fallback 'none'", () => {
+    const c = colours(jets, ev.tables.Cand, ev, header, pal);
+    expect([0, 1].map((i) => hex(c.rgb, i))).toEqual(["#f0a830", "#f0a830"]);
+    expect(c.legend).toMatchObject({ kind: "category", items: [{ colour: "#f0a830" }] });
+    expect(hex(colours({ ...jets, colourBy: undefined }, ev.tables.Cand, ev, header, pal).rgb, 0)).toBe("#f0a830");
+  });
+  it("give way to a colour mode's colouring", () => {
+    expect(hex(colours({ ...jets, colourBy: "row" }, ev.tables.Cand, ev, header, pal).rgb, 1)).toBe(pal.categories[1]);
+  });
+});

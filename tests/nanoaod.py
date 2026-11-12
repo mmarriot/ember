@@ -26,9 +26,10 @@ def chunk(conv, *events, run=1):
     return out
 
 
-def write_nano(path, events, runs=None, first_event=0):
+def write_nano(path, events, runs=None, first_event=0, event_numbers=None):
     """A NanoAOD-like ROOT file: an Events tree with `events` (and a Runs tree with `runs`, keyed by run number).
-    All events are in run 1; event numbers count from `first_event`."""
+    All events are in run 1; event numbers count from `first_event`, or are `event_numbers` (e.g. out of order, as a
+    multi-threaded export writes them)."""
     import awkward as ak
     import uproot
 
@@ -39,7 +40,8 @@ def write_nano(path, events, runs=None, first_event=0):
     with uproot.recreate(path) as f:
         n = len(events)
         trees = {"Events": tree(events, {"run": np.ones(n, np.uint32), "luminosityBlock": np.ones(n, np.uint32),
-                                         "event": np.arange(first_event, first_event + n, dtype=np.uint64)})}
+                                         "event": np.asarray(np.arange(first_event, first_event + n)
+                                                             if event_numbers is None else event_numbers, np.uint64)})}
         if runs:
             trees["Runs"] = tree(list(runs.values()), {"run": np.array(list(runs), np.uint32)})
         for name, data in trees.items():

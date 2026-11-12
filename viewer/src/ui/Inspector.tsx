@@ -1,7 +1,9 @@
 // Floating card for the selected object: summary, all columns with documentation, related objects.
 import { colourBy, customColumns, customDoc } from "../model/custom";
-import { unitOf } from "../io/bundle";
-import { bundle, describe, event, full, highlight, isHitLayer, kindOf, labelOf, layerKey, layerOf, modes, relatives, selection, sizeColumn, drawnLayers } from "../model/store";
+import { type Table, unitOf } from "../io/bundle";
+import { bundle, describe, event, full, highlight, short, kindOf, labelOf, layerKey, layerOf, modes, relatives, selection, sizeColumn, drawnLayers, truthStatuses } from "../model/store";
+import { simEnergyByParticle } from "../model/match";
+import { facts, unitOf as factUnit } from "../model/facts";
 import { bestFirst, type Related } from "../model/relations";
 import { engine } from "./Viewport";
 import { jump } from "./navigate";
@@ -18,7 +20,8 @@ export function Inspector() {
   const custom = customColumns.value.filter((c) => c.table === sel.table).map((c) => c.name);
   const colour = d ? colourBy.value[layerKey(d)] ?? d.colour : undefined;
   const category = d && typeof d.colourBy === "object" && "category" in d.colourBy ? d.colourBy.category : undefined;
-  const key = [...new Set([category, colour, ...(d?.position ?? []), sizeColumn(sel.table, table), ...custom])]
+  // The summary's rows: the layer's `inspect` columns (e.g. pt, eta, phi of a jet), else what colours, places and sizes it.
+  const key = [...new Set([...(d?.inspect ?? [category, colour, ...(d?.position ?? []), sizeColumn(sel.table, table)]), ...custom])]
     .filter((c): c is string => !!c && c in table.columns);
   const doc = (c: string) => info.columns[c]?.doc ?? customDoc(sel.table, c);
   const rows = (cols: string[]) => (
@@ -41,8 +44,11 @@ export function Inspector() {
   const matches = associations(sel.table, sel.row);
   const truthMatch = truth ? undefined : matches.find((m) => isTruth(m.table)), best = truthMatch?.rows[0];
   // A kind whose association carries a `match` contract gets the truth card instead of the bare best-match line.
-  const hasCard = Object.entries(b.header.relations).some(([n, r]) => r.match?.shared && r.from === sel.table && r.to === modes.value.roots.truth && ev.relations[n]);
-  const content = !truth && parts ? truthInHits(parts.madeOf) : null;
+  const hasCard = Object.entries(b.header.relations).some(([n, r]) => (r.match?.shared ?? r.match?.purity) && r.from === sel.table && isTruth(r.to) && ev.relations[n]);
+  // What the particles left in its hits, per detector; only for a kind with a match, evd's stand-in or hits: for any other,
+  // a ranking of the particles in its hits would be a match through hits (docs/truth.md "Constituents"): the facts stay on the hits.
+  const status = truthStatuses.value.get(sel.table);
+  const content = !truth && parts && (status?.kind === "match" || status?.kind === "derived" || status?.kind === "fact") ? simEnergyByParticle(ev, b.header, parts.madeOf, drawn) : [];
   // What contains it, one object per kind, innermost first in display order: hit -> layer cluster -> trackster -> ...
   const order = (t: string) => b.header.display.findIndex((l) => l.table === t);
   const chain = [...(parts?.partOf ?? [])].filter(([t, set]) => set.size && order(t) >= 0 && !layerOf(t)?.alternative)
@@ -71,18 +77,20 @@ export function Inspector() {
             {chain.length > 0 && <p class="chainline" title="The objects that contain it, one per kind (Related tab: all of them)">
               Part of {chain.map(([t, r]) => <><span class="muted"> {kindOf(t)}</span> {chip(t, r)}</>)}</p>}
             {sel.table === modes.value.roots.truth ? <Lineage row={sel.row} /> : !truth && <TruthCard table={sel.table} row={sel.row} />}
-            {!truth && best && !hasCard && <p class="truthline" title="The truth-graph particle the association picked for it (best by its score); shared energy and score from CMSSW">
-              <span class="badge truth">truth</span> {isHitLayer(d) ? "most simulated energy from" : "associator's best match"} {chip(truthMatch!.table, best.row)}
-              <span class="muted">{weightsText(best.weights)}</span></p>}
-            {content && content.particles.length > 0 && (
-              <div class="truthcontent" title={`Each particle's ${content.weight} in this object's hits (sampling energy, not calibrated), summed over the hit layers shown; hits belong to the particles that entered the calorimeter, with their secondaries; only particles in the truth-graph export`}>
-                <p class="truthline"><span class="badge truth">truth</span> simulated energy in its hits, by particle that entered the calorimeter:</p>
-                <ul class="matches">{content.particles.slice(0, 5).map(([p, e]) => (
-                  <li>{chip(content.table, p)}<span class="muted">{(100 * e / content.total).toFixed(0)}%</span></li>
+            {!truth && best && !hasCard && (status?.kind === "fact" ? <FactLine table={sel.table} row={sel.row} chip={chip(truthMatch!.table, best.row)} weights={Object.entries(best.weights).map(([k, v]) => `${k} ${short(v)}`).join(" · ")} />
+              : <p class="truthline" title="The truth-graph particle the association picked for it (best by its score); shared energy and score from CMSSW">
+              <span class="badge truth">truth</span> associator's best match {chip(truthMatch!.table, best.row)}
+              <span class="muted">{weightsText(best.weights)}</span></p>)}
+            {content.map((g) => g.particles.length > 0 && (
+              <div class="truthcontent" title={`Each particle's ${g.weight} in this object's hits${g.in ? ` in ${g.in}` : ""} (deposited in the sensors, not calibrated: compare only within one detector), summed over the hit layers shown; each particle with its secondaries; only particles in the truth-graph export${g.unit ? `; the simulation records ${g.in || "these"} hits per ${typeof g.unit === "string" ? g.unit : Object.values(g.unit.names).join(", ")}, not per hit` : ""}`}>
+                <p class="truthline"><span class="badge truth">truth</span> simulated energy in its hits{content.length > 1 && g.in ? ` in ${g.in}` : ""}{g.unit ? " (per simulation unit)" : ""}, by particle with its secondaries:</p>
+                <ul class="matches">{g.particles.slice(0, 5).map(([p, e]) => (
+                  <li>{chip(g.table, p)}<span class="muted">{(100 * e / g.total).toFixed(0)}%</span></li>
                 ))}</ul>
-                {content.particles.length > 5 && <p class="hint">… and {content.particles.length - 5} more particles</p>}
+                {g.particles.length > 5 && <p class="hint">… and {g.particles.length - 5} more particles</p>}
               </div>
-            )}
+            ))}
+            {d?.fractions && <Fractions fractions={d.fractions} table={table} row={sel.row} />}
             {rows(key)}
           </div>
         )],
@@ -145,25 +153,16 @@ function associations(table: string, row: number) {
   return out;
 }
 
-/** What truth particles left in the given hits: per particle, the sum of the `best` weight of truth -> hit
- *  associations (e.g. simEnergy) over those hits, in drawn hit layers only (so a hit is not counted twice through
- *  two hit tables). Largest first. Null without such associations. */
-function truthInHits(objects: Related) {
-  const b = bundle.value, ev = event.value;
-  if (!b || !ev) return null;
-  const sums = new Map<number, number>();
-  let table = "", weight = "", total = 0;
-  for (const [name, info] of Object.entries(b.header.relations)) {
-    const rel = ev.relations[name], rows = objects.get(info.to), w = info.best ? rel?.weights[info.best.weight] : undefined;
-    if (!rel || !rows || !w || !info.association || !isTruth(info.from) || !drawn(info.to) || isTruth(info.to)) continue;
-    if (!isHitLayer(layerOf(info.to))) continue;
-    table = info.from;
-    weight = info.best!.weight;
-    for (let p = 0; p + 1 < rel.offsets.length; p++)
-      for (let k = rel.offsets[p]; k < rel.offsets[p + 1]; k++)
-        if (rows.has(rel.indices[k])) { sums.set(p, (sums.get(p) ?? 0) + w[k]); total += w[k]; }
-  }
-  return table ? { table, weight, total, particles: [...sums].sort((a, c) => c[1] - a[1]) } : null;
+/** A hit's simulation fact: the particle that left the most simulated energy in it, and, where the simulation records
+ *  a coarser unit than the hit (e.g. a CSC layer), that unit, which every hit in it shares. */
+function FactLine({ table, row, chip, weights }: { table: string; row: number; chip: preact.JSX.Element; weights: string }) {
+  const b = bundle.value!, f = facts(b.header).find((x) => x.to === table), unit = f && factUnit(f, event.value?.tables[table]?.columns, row);
+  const where = unit ? (typeof f!.unit === "string" ? ` (per ${unit})` : ` in this ${unit}`) : "";
+  return (
+    <p class="truthline" title={`Simulation: the truth-graph particle that left the most simulated energy ${unit ? `in the ${unit} of this hit (the simulation does not resolve it further: every hit there shares these particles)` : "in this hit"}`}>
+      <span class="badge truth">truth</span> most simulated energy{where} from {chip}
+      <span class="muted">{weights}</span></p>
+  );
 }
 
 function drawn(table: string) {
@@ -172,3 +171,18 @@ function drawn(table: string) {
 }
 
 const isTruth = (table: string) => !!layerOf(table)?.truth;
+
+/** A reco object's energy fractions (layer hint `fractions`, e.g. a jet's charged and neutral hadrons, photons...) as
+ *  one bar, in a neutral ramp (a reconstruction quantity, not a colour of the views), with the shares named under it. */
+function Fractions({ fractions, table, row }: { fractions: Record<string, string>; table: Table; row: number }) {
+  const parts = Object.entries(fractions).filter(([c]) => c in table.columns)
+    .map(([c, name]) => [name, Number(table.columns[c][row])] as const).filter(([, v]) => v >= 0.005);
+  if (!parts.length) return null;
+  const shade = (i: number) => `hsl(210, 8%, ${72 - (44 * i) / Math.max(1, parts.length - 1)}%)`;
+  return (
+    <div class="fractions" title="Energy fractions from the reconstruction (not truth)">
+      <div class="fbar">{parts.map(([name, v], i) => <span style={{ width: `${100 * v}%`, background: shade(i) }} title={`${name} ${(100 * v).toFixed(0)}%`} />)}</div>
+      <div class="flegend"><span class="badge reco">reco</span> energy:{parts.map(([name, v], i) => <span><i style={{ background: shade(i) }} />{name} {(100 * v).toFixed(0)}%</span>)}</div>
+    </div>
+  );
+}

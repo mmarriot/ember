@@ -54,8 +54,10 @@ def encode_record(event_id, tables, relations):
 class BundleWriter:
     """Writes a bundle to `path` atomically: readers never see a partial file."""
 
-    def __init__(self, path, header, compresslevel=6):
-        self._path, self._tmp, self._level = path, f"{path}.tmp{os.getpid()}", compresslevel
+    def __init__(self, path, header, compresslevel=6, sort=False):
+        """`sort`: list the events in (run, lumi, event) order in the index, whatever order they were added in (records
+        are found by offset, so this costs no I/O)."""
+        self._path, self._tmp, self._level, self._sort = path, f"{path}.tmp{os.getpid()}", compresslevel, sort
         self._file = open(self._tmp, "wb")
         head = _json(header, 12)
         self._file.write(MAGIC + struct.pack("<II", VERSION, len(head)) + head)
@@ -90,6 +92,8 @@ class BundleWriter:
         for run, info in self._run_info.items():
             runs.setdefault(run, {"run": run})["info"] = info
         runs = [runs[r] for r in sorted(runs)]
+        if self._sort:
+            self._events.sort(key=lambda e: (e["run"], e["lumi"], e["event"]))
         index = json.dumps({"events": self._events, **({"runs": runs} if runs else {})}, separators=(",", ":")).encode()
         offset = self._file.tell()
         self._file.write(index + struct.pack("<QI", offset, len(index)) + MAGIC)

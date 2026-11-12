@@ -176,6 +176,14 @@ def test_xy_from_eta_phi_z():
     assert {("H", "x"), ("H", "y")} <= conv.derived and "H_x" not in conv.branches()
 
 
+def test_row_index_derive():
+    """rowIndex: each row's number in the event, so a filter can pick the first row (the leading primary vertex)."""
+    conv = converter({"V": XYZE}, {"derive": [{"table": "V", "rowIndex": "index"}]})
+    assert conv.written()["V"]["columns"]["index"][0] == np.dtype("i4") and "V_index" not in conv.branches()
+    _, tables, _ = one_event(conv, {"V": {"x": [1, 2, 3], "y": [0, 0, 0], "z": [0, 0, 0], "e": [0, 0, 0]}})
+    assert tables["V"][1]["index"].tolist() == [0, 1, 2]
+
+
 def test_neighbour_distance_derive():
     derive = [{"table": "Hit", "column": "size", "neighbourDistance": ["x", "y"], "groupBy": "layer", "k": 1, "scale": 0.5}]
     conv = converter({"Hit": {"x": F4, "y": F4, "layer": I4}}, {"derive": derive})
@@ -270,12 +278,75 @@ def test_helix_columns_are_checked():
         converter({"T": {**XYZE, "px": F4, "py": F4}}, {"display": [layer]})
 
 
+def test_new_layer_hints_name_existing_columns():
+    """Columns named by the hints of the all-detectors format additions (cones, segments by direction, towers,
+    object lists, inspector rows) are checked like the others; constants and `{"to": ...}` lengths are not columns."""
+    ok = {"table": "J", "repr": "cones", "position": ["x", "y", "z"], "direction": ["eta", "phi"], "radius": 0.4,
+          "length": {"to": {"r": 129, "z": 320}}, "list": {"columns": ["pt", "eta"], "sort": "pt"}, "inspect": ["pt"],
+          "fractions": {"chf": "charged hadrons"}}
+    jets = {"J": {**XYZE, "eta": F4, "phi": F4, "pt": F4, "chf": F4}}
+    assert converter(jets, {"display": [ok]}).display[0]["radius"] == 0.4
+    with pytest.raises(ValueError, match="display J: no column mass, nhf"):
+        converter(jets, {"display": [{**ok, "fractions": {"nhf": "n"}, "inspect": ["mass"]}]})
+    tower = {"table": "H", "repr": "cells", "position": ["x", "y", "z"],
+             "cell": {"shape": "tower", "face": "disc", "dEta": "dEta", "dPhi": 0.087, "depth": {"column": "e", "scale": 4}}}
+    with pytest.raises(ValueError, match="display H: no column dEta"):
+        converter({"H": XYZE}, {"display": [tower]})
+    assert converter({"H": {**XYZE, "dEta": F4}}, {"display": [tower]}).display[0]["cell"]["shape"] == "tower"
+
+
+def test_relation_not_written_still_gathers():
+    """`"written": false`: a relation used only to gather columns (jets take the position of the vertex they are
+    drawn from) is built but not written to the header or the records."""
+    rel = {"name": "jetVertex", "kind": "index", "from": "J", "to": "V", "index": "J.v", "written": False}
+    profile = {"relations": [rel], "derive": [{"table": "J", "gather": [{"relation": "jetVertex", "columns": {"x": "x"}}]}]}
+    conv = converter({"J": {"v": I4}, "V": {"x": F4}}, profile)
+    assert "jetVertex" not in conv.header([], "t")["relations"]
+    _, tables, rels = one_event(conv, {"J": {"v": [0, 0]}, "V": {"x": [3]}})
+    assert tables["J"][1]["x"].tolist() == [3, 3] and "jetVertex" not in rels
+
+
+def test_gather_missing_fills_only_nan_values():
+    """`"missing": true`: a stored column keeps its finite values (and is still read from the file); only its NaN rows
+    take the gathered value, here a candidate's track's outermost state where it has no ECAL entrance point."""
+    profile = {"relations": [{"name": "candTrack", "kind": "index", "from": "C", "to": "T", "index": "C.t"}],
+               "derive": [{"table": "C", "missing": True, "gather": [{"relation": "candTrack", "columns": {"endX": "outerX"}}]}]}
+    conv = converter({"C": {"t": I4, "endX": F4}, "T": {"outerX": F4}}, profile)
+    assert "C_endX" in conv.branches()
+    _, tables, _ = one_event(conv, {"C": {"t": [0, 1, -1], "endX": [5, np.nan, np.nan]}, "T": {"outerX": [7, 8]}})
+    out = tables["C"][1]["endX"]
+    assert out[:2].tolist() == [5, 8] and np.isnan(out[2])  # kept, filled, no track: still NaN
+
+
+def test_relation_names_must_be_unique():
+    """Two relations with one name (e.g. from two included profiles) are an error, not a silent replacement."""
+    rel = {"name": "r", "kind": "index", "from": "A", "to": "B", "index": "A.k"}
+    with pytest.raises(ValueError, match="relation names used twice in the profile: r"):
+        converter({"A": {"k": I4}, "B": {}}, {"relations": [rel, {**rel, "to": "C"}]})
+
+
+def test_path_layer_without_its_points_relation_is_dropped():
+    """A polyline layer whose points relation is not built (its link table absent) is left out, not written broken."""
+    layer = {"table": "T", "repr": "polyline", "position": ["x", "y", "z"], "points": {"relation": "tPoints"}}
+    rel = {"name": "tPoints", "kind": "index", "from": "T", "to": "P", "index": "P.t"}
+    assert [x["table"] for x in converter({"T": XYZE, "P": {**XYZE, "t": I4}}, {"display": [layer], "relations": [rel]}).display] == ["T"]
+    assert converter({"T": XYZE}, {"display": [layer], "relations": [rel]}).display == []
+
+
+def test_fact_hint_is_passed_to_the_header():
+    """`fact` marks a truth -> hit relation as simulated energy per particle and cell (a fact, not a match)."""
+    rel = {"name": "truthHits", "kind": "index", "from": "P", "to": "H", "index": "H.p", "association": True,
+           "fact": {"in": "ECAL"}}
+    header = converter({"P": {}, "H": {"p": I4}}, {"relations": [rel]}).header([], "t")
+    assert header["relations"]["truthHits"]["fact"] == {"in": "ECAL"}
+
+
 def test_cms_profile_joins_hgcal_and_tracker():
     """cms = hgcal + tracker: HGCal kinds in the HGCal domain (from hgcal.json), truth particles as helices, the tracker's tracks with
     HGCalNanoAOD's GeneralTrack folded in (its HGCal entry taken over, its relations redirected); hgcal.json alone is
     unchanged."""
     p = load_profile("cms")
-    assert p["name"] == "cms" and [d["name"] for d in p["domains"]] == ["Tracker", "HGCal"] and p["field"]["bz"] == 3.8
+    assert p["name"] == "cms" and [d["name"] for d in p["domains"]] == ["Physics", "Tracker", "Calo", "HGCal", "Muons"] and p["field"]["bz"] == 3.8
     assert p["kinds"]["rechit"]["domain"] == "HGCal" and p["kinds"]["rechit"]["repr"] == "cells"
     assert p["kinds"]["truthParticle"]["repr"] == "helix" and "domain" not in p["kinds"]["truthParticle"]
     assert load_profile("hgcal")["kinds"]["rechit"] == p["kinds"]["rechit"]
@@ -285,7 +356,7 @@ def test_cms_profile_joins_hgcal_and_tracker():
              | {"charge": np.dtype("i2"), "highPurity": np.dtype("u1"), "vertexIdx": I4},
              "GeneralTrack": dict.fromkeys(("pt", "eta", "vz", "hgcal_x", "hgcal_y", "hgcal_z"), F4),
              "TrackHits": {**XYZE, "trackIdx": I4, "subdet": np.dtype("u1")},
-             "Vertices": {**XYZE, "sumPt2": F4}, "VertexTracks": {"vertexIdx": I4, "trackIdx": I4, "weight": F4},
+             "Vertices": {**XYZE, "sumPt2": F4, "nTracks": np.dtype("u2")}, "VertexTracks": {"vertexIdx": I4, "trackIdx": I4, "weight": F4},
              "TICLCandidates": {"trackIdx": I4, "time": F4, "energy": F4}}
     conv = converter(types, p)
     d = {x["table"]: x for x in conv.display}
@@ -309,20 +380,147 @@ def test_cms_profile_joins_hgcal_and_tracker():
     assert rels["trackVertex"]["indices"].tolist() == [0] and rels["vertexTracks"]["indices"].tolist() == [0]
 
 
+def test_calo_layers_in_cms():
+    """cms includes calo.json: the barrel and forward calorimeter hits as towers in the Calo domain, one cut group
+    per subdetector, HO and HF hidden, HF not drawn in the front view; HGCal truth -> hit relations are facts."""
+    p = load_profile("cms")
+    hit = {**XYZE, **dict.fromkeys(("energy", "time", "halfWidth", "dEta", "dPhi", "thickness"), F4), "layer": np.dtype("i2")}
+    conv = converter({t: hit for t in ("EcalHits", "HBHEHits", "HOHits", "HFHits")}, p)
+    d = {x["table"]: x for x in conv.display}
+    assert {x["domain"] for x in d.values()} == {"Calo"} and all(x["cell"]["shape"] == "tower" for x in d.values())
+    assert [t for t, x in d.items() if x["visible"]] == ["EcalHits", "HBHEHits"]
+    assert len({x["cut"]["group"] for x in d.values()}) == 4 and "front" not in d["HFHits"]["views"]
+    assert [x["name"] for x in conv.header([], "t")["domains"]] == ["Calo"]
+    assert {r["name"]: r["fact"]["in"] for r in p["relations"] if "fact" in r} == {
+        "truthHitsHGCal": "HGCal", "truthHitsSoAEE": "HGCal", "truthHitsSoAHSi": "HGCal", "truthHitsSoAHSci": "HGCal",
+        "truthHitsEcal": "ECAL", "truthHitsHBHE": "HCAL", "truthHitsHO": "HO", "truthHitsHF": "HF", "truthHitsMuon": "Muon"}
+    assert p["kinds"]["layerCluster"]["truthGap"]["derived"] == "content"
+
+
+def test_physics_and_pf_in_cms():
+    """cms includes physics.json and pf.json: Puppi jets as cones and MET as arrows from the leading vertex (its
+    position gathered through relations that are not written), PF MET a hidden alternative, PF candidates unticked
+    and filtered to what PUPPI kept, the vertices in the shared Physics domain where the event opens; kinds without an
+    associator carry their truthGap."""
+    p = load_profile("cms")
+    assert p["view"]["domain"] == "Physics" and p["domains"][0] == {"name": "Physics", "shared": True, "region": {"rMax": 180, "zMax": 350}, "view": "3d", "colourMode": "layers"}
+    met = dict.fromkeys(("pt", "phi", "sumEt", "px", "py", "pz"), F4) | {"vertexIdx": I4}
+    pf = dict.fromkeys(("vx", "vy", "vz", "px", "py", "pz", "endX", "endY", "endZ", "pt", "eta", "phi", "energy", "ecalEnergy",
+                        "hcalEnergy", "puppiWeight", "time"), F4) | {"charge": I4, "pdgId": I4, "trackIdx": I4, "ticlCandidateIdx": I4}
+    types = {"Jets": dict.fromkeys(("pt", "eta", "phi", "mass", "energy", "area", "chargedHadronEF", "neutralHadronEF", "photonEF",
+                                    "electronEF", "muonEF", "hfHadronEF", "hfEmEF"), F4) | {"nConstituents": np.dtype("u2"), "vertexIdx": I4},
+             "JetConstituents": {"jetIdx": I4, "candIdx": I4}, "PuppiMET": met, "PFMET": met, "PFCandidates": pf,
+             "Vertices": {**XYZE, "sumPt2": F4, "nTracks": np.dtype("u2")},
+             "PFClustersECAL": dict.fromkeys(("x", "y", "z", "energy", "eta", "phi", "time"), F4) | {"nHits": np.dtype("u2")},
+             "PFCandidateClustersECAL": {"candIdx": I4, "clusterIdx": I4}}
+    conv = converter(types, p)
+    d = {x["table"]: x for x in conv.display}
+    assert (d["Jets"]["repr"], d["Jets"]["domain"], d["Jets"]["cut"]["default"], d["Jets"]["labels"]) == ("cones", "Physics", 30, 4)
+    assert d["PuppiMET"]["visible"] and not d["PFMET"]["visible"] and d["PFMET"]["alternative"]
+    assert load_profile("cms")["prefer"].index("Puppi") < load_profile("cms")["prefer"].index("CHS")  # Puppi jets shown, CHS hidden
+    assert not d["PFCandidates"]["visible"] and d["PFCandidates"]["filter"] == "puppiWeight > 0"
+    assert d["Vertices"]["domain"] == "Physics" and d["PFClustersECAL"]["domain"] == "Calo"
+    assert d["Jets"]["truthGap"]["gap"] == 21 and d["PFCandidates"]["truthGap"]["gap"] == 20
+    assert "truthGap" not in d["PFClustersECAL"] and d["PFClustersECAL"]["cut"]["default"] == 1.0  # its truth comes from CMSSW
+    header = conv.header([], "t")
+    assert "jetVertex" not in header["relations"] and header["relations"]["jetConstituents"]["to"] == "PFCandidates"
+    assert [x["name"] for x in header["domains"]] == ["Physics", "Calo"]
+    one = lambda **c: {k: [v] for k, v in c.items()}
+    _, tables, rels = one_event(conv, {
+        "Jets": {**{k: [1, 2] for k in types["Jets"]}, "vertexIdx": [0, 0]}, "JetConstituents": {"jetIdx": [0, 1, 1], "candIdx": [0, 1, 0]},
+        "PuppiMET": one(**{k: 1 for k in met} | {"vertexIdx": 0}), "PFMET": one(**{k: 1 for k in met} | {"vertexIdx": 0}),
+        "PFCandidates": {k: [1, 1] for k in pf}, "Vertices": {"x": [0.1], "y": [0.2], "z": [3], "e": [0], "sumPt2": [9], "nTracks": [2]},
+        "PFClustersECAL": {k: [1] for k in types["PFClustersECAL"]}, "PFCandidateClustersECAL": {"candIdx": [1], "clusterIdx": [0]}})
+    assert tables["Jets"][1]["z"].tolist() == [3, 3] and tables["PuppiMET"][1]["x"].tolist() == [np.float32(0.1)]
+    assert rels["jetConstituents"]["offsets"].tolist() == [0, 1, 3] and rels["pfClustersECAL"]["indices"].tolist() == [0]
+    assert "jetVertex" not in rels and "JetConstituents" not in tables
+    rel = {r["name"]: r for r in p["relations"]}
+    assert rel["vertexTruth"]["match"] == {"measure": "pt2", "in": "tracker", "target": "interaction", "purity": "fraction", "good": 0.5}
+    assert rel["secondaryVertexTruth"]["match"]["target"] == "decayVertex" and "truthGap" not in p["kinds"]["vertex"]
+    assert {k: v["truthGap"]["gap"] for k, v in p["kinds"].items() if "truthGap" in v and k in ("electron", "photon", "tau", "met")} == \
+        {"electron": 23, "photon": 23, "tau": 24, "met": 22}
+
+
+def test_muon_layers_in_cms():
+    """cms includes muon.json: muons as a Physics kind (helix to their inner track's outermost state, gathered), their
+    standalone and global tracks as paths through their ordered hits, segments as centred lines, hits and the chambers
+    in use as boxes in the Muons domain, GE0 filtered out by default; muon-hit truth is a fact."""
+    p = load_profile("cms")
+    f4 = lambda *c: dict.fromkeys(c, F4)
+    u1, i2 = np.dtype("u1"), np.dtype("i2")
+    types = {"Muons": f4("pt", "eta", "phi", "px", "py", "pz", "vx", "vy", "vz", "relIso", "time")
+                      | {k: u1 for k in ("isGlobal", "isTracker", "isStandAlone", "isPF", "isLoose", "isMedium", "isTight", "nMatchedStations")}
+                      | {"charge": i2, "nValidMuonHits": i2, "trackIdx": I4, "ecalDetId": U4, "hcalDetId": U4},
+             "Tracks": f4("outerX", "outerY", "outerZ", "vx", "vy", "vz", "px", "py", "pz", "pt", "eta") | {"charge": i2, "highPurity": u1, "vertexIdx": I4},
+             "MuonTracks": f4("x", "y", "z", "pt", "eta", "phi", "chi2", "ndof") | {"muonIdx": I4, "kind": u1, "nMuonHits": i2},
+             "MuonTrackHits": f4("x", "y", "z") | {"trackIdx": I4, "subdet": u1, "station": i2},
+             "MuonSegments": f4("x", "y", "z", "dx", "dy", "dz", "halfLength", "chi2", "time") | {"subdet": u1, "station": i2, "nHits": u1, "ndof": u1, "chamberIdx": I4},
+             "MuonHits": f4("x", "y", "z", "time") | {"subdet": u1, "station": i2, "chamberIdx": I4, "bx": i2, "clusterSize": u1},
+             "MuonChambers": f4("x", "y", "z", "ux", "uy", "uz", "vx", "vy", "vz", "halfWidthBottom", "halfWidthTop", "halfLength", "halfThickness")
+                             | {"subdet": u1, "station": i2, "wheelOrRing": i2, "sector": u1},
+             "MuonSegmentMatches": {"muonIdx": I4, "segmentIdx": I4}}
+    conv = converter(types, p)
+    d = {x["table"]: x for x in conv.display}
+    assert (d["Muons"]["domain"], d["Muons"]["repr"], d["MuonTracks"]["repr"], d["MuonTracks"]["points"]) == ("Physics", "helix", "polyline", {"relation": "muonTrackHits"})
+    assert d["MuonChambers"]["cell"]["shape"] == "box" and not d["MuonChambers"].get("context") and d["MuonHits"]["filter"] == "subdet != 4 || station != 0" and d["MuonHits"]["onSelection"] and d["MuonChambers"]["onSelection"]
+    assert d["MuonSegments"]["centred"] and d["Muons"]["truthGap"]["gap"] == 18 and d["MuonSegments"]["truthGap"]["gap"] == 17
+    assert {r["name"]: r for r in p["relations"]}["truthHitsMuon"]["fact"]["unit"]["names"]["2"] == "CSC layer"
+    assert d["MuonTrackHits"]["truthGap"]["gap"] == 18 and "reason" in d["MuonChambers"]["truthGap"]
+    assert p["kinds"]["truthVertex"]["describe"]["columns"] == ["reason", "isSignal", "z"]
+    _, tables, rels = one_event(conv, {
+        "Muons": {**{k: [1] for k in types["Muons"]}, "trackIdx": [0]}, "Tracks": {**{k: [1] for k in types["Tracks"]}, "outerX": [5], "outerY": [6], "outerZ": [7]},
+        "MuonTracks": {**{k: [1, 1] for k in types["MuonTracks"]}, "muonIdx": [0, 0]},
+        "MuonTrackHits": {**{k: [1, 1, 1] for k in types["MuonTrackHits"]}, "trackIdx": [0, 1, 1]},
+        "MuonSegments": {**{k: [1] for k in types["MuonSegments"]}, "chamberIdx": [0]},
+        "MuonHits": {**{k: [1] for k in types["MuonHits"]}, "chamberIdx": [0]}, "MuonChambers": {k: [1] for k in types["MuonChambers"]},
+        "MuonSegmentMatches": {"muonIdx": [0], "segmentIdx": [0]}})
+    assert tables["Muons"][1]["endX"].tolist() == [5] and rels["muonTrackHits"]["offsets"].tolist() == [0, 1, 3]
+    assert rels["muonSegments"]["indices"].tolist() == [0] and rels["chamberHits"]["indices"].tolist() == [0]
+
+
+def test_hgcal_profile_alone_keeps_its_bundles():
+    """hgcal.json (main's HGCal-only bundles) gained only truth hints: `fact` on its truth -> hit relations and the
+    layer clusters' derived truthGap. No domain, outline, view or new kind reaches an hgcal bundle."""
+    p = load_profile("hgcal")
+    assert not {"domains", "outlines", "field"} & set(p) and "domain" not in p["view"] and len(p["display"]) == 16
+    assert sorted(p["kinds"]) == ["candidate", "interpretation", "layerCluster", "linkedTrackster", "rechit", "track",
+                                  "trackster", "truthParticle", "truthVertex"]
+    assert {r["name"] for r in p["relations"] if "fact" in r} == {"truthHitsHGCal", "truthHitsSoAEE", "truthHitsSoAHSi", "truthHitsSoAHSci"}
+    assert [k for k, v in p["kinds"].items() if "truthGap" in v] == ["layerCluster"]
+    header = converter({"HGCalHits": {**XYZE, "energy": F4, "halfWidth": F4, "time": F4}}, p).header([], "t")
+    assert not {"domains", "outlines"} & set(header) and [d["table"] for d in header["display"]] == ["HGCalHits"]
+
+
+def test_every_cms_module_is_included_once():
+    """cms = physics, hgcal, tracker, calo, pf, muon: each module's kinds are there once, domains in the contract order."""
+    p = load_profile("cms")
+    for module in ("physics", "hgcal", "tracker", "calo", "pf", "muon"):
+        assert set(load_profile(module).get("kinds", {})) <= set(p["kinds"]), module
+    names = [r["name"] for r in p["relations"]]
+    assert len(names) == len(set(names))  # no relation twice
+    assert [d["name"] for d in p["domains"]] == ["Physics", "Tracker", "Calo", "HGCal", "Muons"]
+    assert p["view"]["domain"] == "Physics" and len({o["name"] for o in p["outlines"]}) == len(p["outlines"])
+
+
 def test_tracker_profile_alone_and_tracker_only():
     """tracker.json alone has the field and the Tracker domain (cms.json has them once, through it), with trackVertex
     declared the inverse of vertexTracks; tracker_only.json (cms without the calorimeters) reads only the tracker
     tables (and truth, absent here), and its header keeps the Tracker domain alone."""
     t = load_profile("tracker")
-    assert t["field"] == load_profile("cms")["field"] and t["domains"] == [load_profile("cms")["domains"][0]]
+    assert {"name": "Track time", "colour": {"Tracks": "t0", "Vertices": "t", "MTDHits": "time"}} in t["presets"]
+    assert t["kinds"]["mtdHit"]["visible"] is False and t["kinds"]["mtdHit"]["truthGap"]["gap"] == 19
+    assert t["field"] == load_profile("cms")["field"] and t["domains"] == [load_profile("cms")["domains"][1]]
     assert t["domains"][0]["colourMode"] == "layers"
     types = {"Tracks": dict.fromkeys(("vx", "vy", "vz", "px", "py", "pz", "outerX", "outerY", "outerZ", "pt", "eta"), F4)
              | {"charge": np.dtype("i2"), "highPurity": np.dtype("u1"), "vertexIdx": I4},
              "TrackHits": {**XYZE, "trackIdx": I4, "subdet": np.dtype("u1")},
-             "Vertices": {**XYZE, "sumPt2": F4}, "VertexTracks": {"vertexIdx": I4, "trackIdx": I4, "weight": F4},
-             "TICLCandidates": {"trackIdx": I4, "time": F4, "energy": F4}, "HGCalHits": XYZE}
+             "Vertices": {**XYZE, "sumPt2": F4, "nTracks": np.dtype("u2")}, "VertexTracks": {"vertexIdx": I4, "trackIdx": I4, "weight": F4},
+             "TICLCandidates": {"trackIdx": I4, "time": F4, "energy": F4}, "HGCalHits": XYZE,
+             "MTDHits": {**XYZE, "time": F4, "timeError": F4, "energy": F4, "subdet": np.dtype("u1"), "row": np.dtype("i2"), "col": np.dtype("i2")},
+             **{t: XYZE for t in ("EcalHits", "PFCandidates", "Jets", "Muons", "MuonHits", "SecondaryVertices", "Electrons", "GsfTracks",
+                                  "PFClustersECAL", "EGammaSuperClusters", "Taus", "TruthMuonHits", "particleFlowClusterECALToTruth")}}
     conv = converter(types, load_profile("tracker_only"))
-    assert set(conv.written()) == {"Tracks", "TrackHits", "Vertices"}
+    assert set(conv.written()) == {"Tracks", "TrackHits", "Vertices", "MTDHits"}  # every other detector and object left out
     header = conv.header([], "t")
     assert [d["name"] for d in header["domains"]] == ["Tracker"] and header["field"]["bz"] == 3.8
     assert header["relations"]["trackVertex"]["inverseOf"] == "vertexTracks"

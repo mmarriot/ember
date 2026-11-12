@@ -3,11 +3,12 @@
 // one per branch: a candidate's hits and its track's hits), with the levels drawn as lines (its track: lines do not
 // hide the hits); the other levels in between are shown one at a time, on request, so they do not cover each other.
 import { type DisplayLayer, type Header, kindName } from "../io/bundle";
+import { ownDomains } from "./domains";
 import type { Related } from "./relations";
 
 /** `count`: the focus's objects in it; `leaf`: it holds no other level; `always`: drawn whenever the focus is (a leaf,
  *  or a level drawn as lines), not one at a time. */
-export interface Level { name: string; layers: DisplayLayer[]; count: number; leaf: boolean; always: boolean }
+export interface Level { name: string; layers: DisplayLayer[]; count: number; leaf: boolean; always: boolean; depth?: number }
 type Relations = Header["relations"];
 
 /** The levels below the focus (`focus`: its table) that `hl` (its highlight) has objects in, top first. `own`: whether
@@ -31,8 +32,8 @@ export function focusLevels(display: DisplayLayer[], focus: string, hl: Related,
     level.layers.push(d);
     if (!level.tables.has(d.table)) { level.tables.add(d.table); level.count += rows.size; }
   }
-  const lines = (l: { layers: DisplayLayer[] }) => l.layers.every((d) => d.repr === "helix" || d.repr === "segments");
-  if (!relations) return levels.map(({ name, layers, count }, i) => ({ name, layers, count, leaf: i === levels.length - 1, always: i === levels.length - 1 || lines({ layers }) }));
+  const lines = (l: { layers: DisplayLayer[] }) => l.layers.every((d) => d.repr === "helix" || d.repr === "segments" || d.repr === "polyline");
+  if (!relations) return levels.map(({ name, layers, count }, i) => ({ name, layers, count, leaf: i === levels.length - 1, always: i === levels.length - 1 || lines({ layers }), depth: i }));
   // What each level holds: the tables its objects lead to through plain relations, also through tables that are not
   // levels (a candidate's interpretations hold its hits through layer clusters missing from a pair view's levels). Not
   // through a relation that points back up (`inverseOf`: a track's vertex).
@@ -59,7 +60,18 @@ export function focusLevels(display: DisplayLayer[], focus: string, hl: Related,
     order.push(next);
     left.splice(left.indexOf(next), 1);
   }
-  const out = order.map((l) => { const leaf = !levels.some((o) => holds(l, o)); return { name: l.name, layers: l.layers, count: l.count, leaf, always: leaf || lines(l) }; });
+  // Depth: the longest chain of levels holding it (0: held by none), so levels of different branches can be compared.
+  const depth = new Map<typeof levels[number], number>();
+  const depthOf = (l: typeof levels[number], seen = new Set<typeof l>()): number => {
+    if (depth.has(l)) return depth.get(l)!;
+    seen.add(l);
+    const above = levels.filter((o) => !seen.has(o) && holds(o, l) && !holds(l, o)).map((o) => depthOf(o, seen) + 1);
+    seen.delete(l);
+    const d = Math.max(0, ...above);
+    depth.set(l, d);
+    return d;
+  };
+  const out = order.map((l) => { const leaf = !levels.some((o) => holds(l, o)); return { name: l.name, layers: l.layers, count: l.count, leaf, always: leaf || lines(l), depth: depthOf(l) }; });
   return [...out.filter((l) => !l.always), ...out.filter((l) => l.always)];
 }
 
@@ -81,4 +93,42 @@ export function stepLevel(levels: Level[], chosen: string | null, by: number): s
   const names = levels.filter((l) => !l.always).map((l) => l.name);
   const i = Math.min(Math.max((chosen ? names.indexOf(chosen) : -1) + by, -1), names.length - 1);
   return i < 0 ? null : names[i];
+}
+
+/** The parts of the detector (layer `domain`, not a shared one) a level's layers are in: none for shared or
+ *  domain-less layers (e.g. physics objects), which every domain draws. */
+const domainsOf = (l: Level, shared: Set<string>) => ownDomains(l.layers, shared);
+
+/** Levels at the same depth (see focusLevels) that lie in different parts of the detector become one level (e.g. a
+ *  jet's tracks and calorimeter clusters): they cannot cover each other, and the bar gets shorter. For the view of
+ *  everything; levels drawn always (leaves, lines) are left as they are. */
+export function mergeAcrossDomains(levels: Level[], shared: Set<string>): Level[] {
+  const out: Level[] = [], merged = new Map<number, Level>();
+  for (const l of levels) {
+    const ds = domainsOf(l, shared), same = l.always || l.depth === undefined || ds.size !== 1 ? undefined : merged.get(l.depth);
+    const other = same && domainsOf(same, shared);
+    if (same && other && ![...ds].some((d) => other.has(d))) {
+      const i = out.indexOf(same), m = { ...same, name: `${same.name} · ${l.name}`, layers: [...same.layers, ...l.layers], count: same.count + l.count };
+      out[i] = m;
+      merged.set(l.depth!, m);
+      continue;
+    }
+    out.push(l);
+    if (!l.always && l.depth !== undefined && ds.size === 1 && !merged.has(l.depth)) merged.set(l.depth, l);
+  }
+  return out;
+}
+
+/** What the focus bar shows in domain `current` (null: everything): the levels it draws as its own or shares with
+ *  every domain, and for each other part of the detector (`order`: the header's domains) that has levels, a chip
+ *  with its first level (the largest objects there) and their count. */
+export function scopeLevels(levels: Level[], current: string | null, shared: Set<string>, order: string[]) {
+  if (!current) return { bar: levels, chips: [] as { domain: string; level: Level }[] };
+  const here = (l: Level) => { const ds = domainsOf(l, shared); return !ds.size || (!shared.has(current) && ds.has(current)); };
+  const chips = order.filter((name) => name !== current && !shared.has(name)).flatMap((name) => {
+    const there = levels.filter((l) => domainsOf(l, shared).has(name));
+    const first = there.find((l) => !l.always) ?? there[0];
+    return first ? [{ domain: name, level: first }] : [];
+  });
+  return { bar: levels.filter(here), chips };
 }

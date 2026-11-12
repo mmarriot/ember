@@ -59,6 +59,24 @@ code { font: 11.5px ui-monospace, SFMono-Regular, Menlo, monospace; }
 .segmented button:last-child { border-right: none; }
 .segmented button.on { background: var(--accent); color: #fff; }
 .actions { flex: none; display: flex; gap: 2px; }
+/* The parts of the detector, under a caption: what the view looks at. */
+.domainbar { flex: none; display: flex; align-items: center; gap: 8px; }
+.barlabel { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); white-space: nowrap; }
+/* The menu (Menu.tsx): every control, grouped, with its key. */
+.menu { position: relative; flex: none; }
+.menubutton { font-size: 12px; padding: 4px 10px; }
+.menubutton.on { background: var(--accent-soft); border-color: var(--accent); }
+.menupanel { position: absolute; right: 0; top: calc(100% + 6px); z-index: 6; display: grid; grid-template-columns: repeat(2, 240px); gap: 4px 12px;
+  padding: 8px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow);
+  max-height: calc(100vh - var(--topbar) - 16px); overflow-y: auto; }
+.menugroup { display: flex; flex-direction: column; }
+.menuhead { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); padding: 6px 8px 2px; }
+.menuitem { display: flex; align-items: center; gap: 6px; border: none; background: none; text-align: left; padding: 4px 8px; border-radius: 4px; }
+.menuitem:hover:not(:disabled) { background: var(--surface-2); }
+.menuitem:disabled { color: var(--muted); opacity: .6; cursor: default; }
+.menuitem .check { width: 12px; flex: none; color: var(--accent); }
+.menuitem .what { flex: 1; min-width: 0; }
+.menuitem kbd { flex: none; color: var(--muted); }
 .live { flex: none; display: inline-flex; align-items: center; gap: 6px; font-size: 12px; padding: 4px 10px; }
 .live .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
 .live.on { border-color: var(--error); color: var(--error); }
@@ -71,7 +89,7 @@ code { font: 11.5px ui-monospace, SFMono-Regular, Menlo, monospace; }
 .sidebar { background: var(--surface-2); border-right: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
 .tabs { display: flex; flex-direction: column; }
 .sidebar > .tabs { flex: 1; min-height: 0; overflow-y: auto; }
-.sidebar > .segmented.presets { margin: 10px 12px 0; }
+.sidebar > .presets { margin: 10px 12px 0; }
 .tablist { display: flex; gap: 2px; padding: 8px 12px 0; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: inherit; z-index: 1; }
 .tab { border: none; border-bottom: 2px solid transparent; border-radius: 0; background: none; padding: 8px 10px; color: var(--muted); white-space: nowrap; }
 .tab:hover { background: none; color: var(--text); }
@@ -93,6 +111,7 @@ code { font: 11.5px ui-monospace, SFMono-Regular, Menlo, monospace; }
 .layer.off .row .name { color: var(--muted); }
 .tag { font-size: 10px; color: var(--muted); border: 1px solid var(--line-strong); border-radius: 4px; padding: 0 4px; margin-left: 6px; }
 .legend { margin: 3px 0 0 24px; font-size: 11px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; }
+.legend:empty { display: none; }
 .colourby { font-size: 11px; padding: 1px 4px; max-width: 130px; }
 .ramp { width: 56px; height: 8px; border-radius: 2px; flex: none; border: 1px solid rgba(0,0,0,.06); }
 .dots { display: flex; gap: 2px; } .dots i { width: 8px; height: 8px; border-radius: 50%; display: block; }
@@ -109,7 +128,33 @@ code { font: 11.5px ui-monospace, SFMono-Regular, Menlo, monospace; }
 .tabpanel section + section, .tabpanel section + details.others { border-top: 1px solid var(--line); margin-top: 8px; padding-top: 8px; }
 .tabpanel section > h3 { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin-bottom: 2px; }
 .tabpanel section > h3 .count { text-transform: none; letter-spacing: 0; font-weight: 400; }
+/* A kind's heading folds it (Layers.tsx). */
+.tabpanel section > h3 .fold { border: none; background: none; padding: 0; font: inherit; color: inherit; text-transform: inherit; letter-spacing: inherit; }
+.tabpanel section > h3 .fold::before { content: "▾ "; }
+.tabpanel section > h3 .fold[aria-expanded=false]::before { content: "▸ "; }
+.tabpanel section > h3 .fold:hover { color: var(--text); background: none; }
 details.others > summary { font-weight: 600; }
+.cutgroup { font-size: 11px; color: var(--muted); margin-top: 4px; }
+/* Physics tab: the event in one line, and each kind's largest objects. */
+.headline { margin: 0 0 10px; font-size: 12.5px; line-height: 1.6; }
+.headline b { font-variant-numeric: tabular-nums; }
+table.objects { width: calc(100% - 22px); margin: 2px 0 6px 22px; border-collapse: collapse; font-size: 11.5px; font-variant-numeric: tabular-nums; }
+table.objects th { font-weight: 500; color: var(--muted); text-align: right; padding: 0 4px; }
+table.objects td { text-align: right; padding: 1px 4px; white-space: nowrap; }
+table.objects th:first-child, table.objects td:first-child { text-align: left; width: 40%; overflow: hidden; text-overflow: ellipsis; max-width: 0; }
+table.objects tbody tr { cursor: pointer; }
+table.objects tbody tr:hover { background: var(--surface); }
+table.objects tbody tr.selected { background: var(--accent); color: #fff; }
+table.objects tr.more { cursor: default; color: var(--muted); }
+table.objects tr.more td { text-align: left; }
+/* Detector tab: one folded section per part of the detector. */
+details.part + details.part { border-top: 1px solid var(--line); margin-top: 6px; padding-top: 6px; }
+details.part > summary { display: flex; align-items: baseline; gap: 6px; cursor: pointer; padding: 2px 0 6px; font-size: 13px; color: inherit; }
+details.part > summary::before { content: "▸"; color: var(--muted); }
+details.part[open] > summary::before { content: "▾"; }
+details.part > summary::-webkit-details-marker { display: none; }
+details.part > summary .muted { font-size: 11px; }
+details.part > summary .link { margin-left: auto; }
 table.kv { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
 table.kv td { padding: 3px 4px; border-bottom: 1px solid var(--line); vertical-align: top; overflow-wrap: anywhere; }
 table.kv tr:last-child td { border-bottom: none; }
@@ -149,7 +194,8 @@ details { margin-top: 8px; } summary { cursor: pointer; color: var(--accent); fo
 @media (prefers-reduced-motion: reduce) { .inspector, .caption { animation: none; } }
 @keyframes fade-in { from { opacity: 0; } }
 .caption b { font-size: 14px; } .caption small { color: var(--muted); font-size: 11px; }
-.hintbar { position: absolute; bottom: 10px; left: 12px; font-size: 11px; color: var(--muted); background: var(--overlay); padding: 3px 8px; border-radius: 6px; }
+.caption.tour { white-space: normal; text-align: center; width: max-content; max-width: min(600px, calc(100% - 32px)); } .caption.tour small { font-size: 12px; line-height: 1.35; }
+.hintbar { position: absolute; bottom: 10px; left: 12px; max-width: calc(100% - 24px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 11px; color: var(--muted); background: var(--overlay); padding: 3px 8px; border-radius: 6px; }
 
 /* inspector card */
 .inspector { position: absolute; top: 12px; right: 12px; width: 340px; max-height: calc(100% - 24px); overflow-y: auto; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
@@ -164,14 +210,31 @@ details { margin-top: 8px; } summary { cursor: pointer; color: var(--accent); fo
 
 /* dialog and notifications */
 .backdrop { position: fixed; inset: 0; background: rgba(31, 35, 40, .35); display: flex; align-items: center; justify-content: center; z-index: 10; }
-.modal { width: min(560px, calc(100vw - 32px)); max-height: calc(100vh - 64px); overflow-y: auto; background: var(--surface); border-radius: 12px; box-shadow: var(--shadow); }
+.modal { width: min(640px, calc(100vw - 32px)); max-height: calc(100vh - 64px); overflow-y: auto; background: var(--surface); border-radius: 12px; box-shadow: var(--shadow); }
 .modal > header { display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; border-bottom: 1px solid var(--line); }
 .modal h2 { font-size: 15px; }
 .modal-body { padding: 12px 16px 16px; }
 .modal-body h3 { margin-top: 14px; }
+.modal-body h3:first-child { margin-top: 0; }
+/* Help: a key column, then what it does (and the mouse or button that does it too). */
+table.kv.keys { table-layout: fixed; }
+table.kv.keys td:first-child { width: 88px; white-space: nowrap; }
+table.kv.keys td:first-child kbd + kbd { margin-left: 3px; }
+table.kv.keys td:nth-child(2) { text-align: left; }
 .toasts { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 6px; z-index: 11; }
 .toast { background: #24292f; color: #fff; padding: 8px 14px; border-radius: 6px; box-shadow: var(--shadow); font-size: 12px; max-width: 70vw; }
 .toast.error { background: var(--error); }
+
+/* The parts of the detector: buttons, or a drop-down list below 1100 px; the views then sit on the canvas. */
+.domainlist { display: none; flex: none; }
+.viewport > .views { position: absolute; left: 12px; bottom: 8px; background: var(--overlay); z-index: 2; }
+.viewport > .views ~ .hintbar { left: 226px; max-width: calc(100% - 240px); } /* the inspector takes the right */
+.viewport > .views button { padding: 3px 9px; font-size: 12px; background: transparent; }
+.viewport > .views button.on { background: var(--accent); }
+@media (max-width: 1100px) {
+  .topbar.parts .domains { display: none; }
+  .topbar.parts .domainlist { display: inline-block; }
+}
 
 /* A bar with the domain buttons too (.parts): tighter before it wraps. */
 @media (max-width: 1300px) {
@@ -184,6 +247,8 @@ details { margin-top: 8px; } summary { cursor: pointer; color: var(--accent); fo
 }
 
 @media (max-width: 900px) {
+  /* the top bar wraps, so the menu button may be anywhere on it: the menu opens as a sheet at the bottom */
+  .menupanel { position: fixed; left: 8px; right: 8px; top: auto; bottom: 8px; max-height: 75vh; overflow: auto; justify-content: center; }
   .app { grid-template-columns: 1fr; grid-template-rows: auto 40vh 1fr; }
   .topbar { flex-wrap: wrap; padding: 8px; gap: 8px; }
   .eventnav { margin-left: 0; }
@@ -198,8 +263,11 @@ details { margin-top: 8px; } summary { cursor: pointer; color: var(--accent); fo
 .bar > span:last-child { text-align: right; }
 .bar .track { height: 10px; background: var(--surface-2); border-radius: 2px; overflow: hidden; }
 .bar .track > span { display: block; height: 100%; background: var(--accent); border-radius: 2px; }
-.segmented.presets { display: flex; margin-bottom: 10px; }
-.segmented.presets button { flex: 1; }
+/* Presets: a caption and a chip each, wrapping. */
+.presets { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.presets .barlabel { margin-right: 2px; }
+.presets button { font-size: 12px; padding: 2px 10px; border-radius: 12px; }
+.presets button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
 
 /* Object names next to row numbers; association matches with their weights; the tree tab. */
 .inspector h2 .describe { font-weight: 500; font-size: 0.8em; color: var(--muted); }
@@ -232,6 +300,14 @@ table.outcome td { padding: 2px 4px 2px 0; font-size: 12px; vertical-align: midd
 table.outcome td:nth-child(2) { text-align: left; white-space: nowrap; }
 table.outcome td:nth-child(3) { color: var(--muted); text-align: right; }
 .outcome .missed .chip { border-color: #e5534b; }
+section.coverage { margin: 0 0 12px; }
+section.coverage > details { margin: 0; }
+section.coverage > details > summary { color: inherit; }
+section.coverage > details > summary h3 { display: inline; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+ul.coverage { list-style: none; margin: 4px 0 0; padding: 0; font-size: 12px; }
+ul.coverage li { margin: 0 0 3px; }
+ul.coverage .kindname { font-weight: 600; }
+ul.coverage li.none { opacity: 0.75; }
 .layer .sub.filter code { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .sidebar .tablist { background: var(--surface-2); z-index: 2; }
 .focusbar { position: absolute; top: 10px; left: 12px; max-width: max(46%, calc(100% - 420px)); background: var(--surface); border: 1px solid var(--accent); border-radius: 14px; padding: 3px 12px; font-size: 12px; display: flex; flex-direction: column; gap: 4px; box-shadow: 0 2px 10px rgba(0,0,0,0.25); z-index: 3; }
@@ -241,6 +317,8 @@ table.outcome td:nth-child(3) { color: var(--muted); text-align: right; }
 .colourkey { flex: none; max-height: 45%; overflow-y: auto; margin: 0; padding: 8px 12px 10px; border-top: 1px solid var(--line-strong); background: var(--surface); }
 .colourkey > summary { color: var(--text); font-weight: 600; font-size: 12px; margin-bottom: 4px; }
 .colourkey .hint { margin: 4px 0 0; }
+.colourkey .howto { margin: 4px 0 0; font-size: 12px; }
+.colourkey .howto > summary { color: var(--muted); cursor: pointer; }
 .colourkey .switch { float: right; display: inline-flex; border: 1px solid var(--line-strong); border-radius: 4px; overflow: hidden; font-weight: 400; }
 .colourkey .switch button { border: 0; background: none; color: var(--muted); font: inherit; font-size: 11px; padding: 1px 7px; cursor: pointer; }
 .colourkey .switch button.on { background: var(--line-strong); color: var(--text); }
@@ -264,6 +342,7 @@ table.outcome td:nth-child(3) { color: var(--muted); text-align: right; }
 .level.on .count { color: inherit; opacity: 0.85; }
 .level:disabled { cursor: default; }
 .level .count { font-size: 11px; }
+.level.part { border-style: dashed; } /* another part of the detector: a click looks at it */
 .badge.reco { display: inline-block; font-size: 10px; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; padding: 0 5px; margin: 0 6px 0 0; border-radius: 3px; border: 1px solid currentColor; color: var(--muted); }
 .badge.level { display: inline-block; font-size: 10px; padding: 0 4px; margin-left: 4px; border-radius: 3px; border: 1px dashed var(--line-strong); color: var(--muted); }
 .truthcard { margin: 0 0 8px; }
@@ -272,3 +351,41 @@ table.outcome td:nth-child(3) { color: var(--muted); text-align: right; }
 .lineage li.here > .chip { outline: 1px dashed currentColor; }
 ul.quality { list-style: none; margin: 0 0 6px; padding: 0; font-size: 12px; font-variant-numeric: tabular-nums; }
 ul.quality li { margin: 1px 0; }
+
+/* Inspector: a reco object's energy fractions, one bar in a neutral ramp. */
+.fractions { margin: 6px 0 8px; }
+.fractions .fbar { display: flex; height: 10px; border-radius: 3px; overflow: hidden; background: var(--surface-2); }
+.fractions .fbar span { display: block; height: 100%; }
+.fractions .flegend { display: flex; flex-wrap: wrap; gap: 2px 10px; margin-top: 4px; font-size: 11px; color: var(--muted); align-items: center; }
+.fractions .flegend i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; }
+
+/* Labels on the leading objects, the focus, and the object under the pointer in the object rows. The element sits
+   at the anchor; its text is offset up and right, with a short leader. */
+.labels { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 1; }
+.labels .label { position: absolute; left: 0; top: 0; width: 0; height: 0; visibility: hidden; }
+.labels .label span { position: absolute; left: 6px; bottom: 4px; white-space: nowrap; font-size: 11px; font-variant-numeric: tabular-nums;
+  padding: 1px 6px; border-radius: 4px; background: var(--overlay); border: 1px solid var(--line); color: var(--text, inherit); }
+.labels .label::before { content: ""; position: absolute; left: -3px; top: -3px; width: 6px; height: 6px; border-radius: 50%; background: var(--muted); }
+.labels .label.focus span { border-color: var(--accent); }
+.labels .label.hover::before { left: -11px; top: -11px; width: 18px; height: 18px; background: none; border: 2px solid var(--accent); }
+.labels .label.hover span { border-color: var(--accent); }
+
+/* Phones: the panel is a sheet under the view, folded to its tabs and the colour key's title (Sidebar.tsx). */
+.sheet-handle { display: none; }
+@media (max-width: 700px) {
+  .app { grid-template-rows: auto 1fr auto; }
+  main { grid-row: 2; }
+  .sidebar { grid-row: 3; max-height: 55vh; border-right: none; border-top: 1px solid var(--line); }
+  .sheet-handle { display: block; border: none; border-radius: 0; background: none; color: var(--muted); font-size: 11px; padding: 4px; }
+  .sidebar.closed > .tabs { flex: none; }
+  .sidebar.closed > .tabs > .tabpanel, .sidebar.closed > .presets, .sidebar.closed .colourkey > :not(summary) { display: none; }
+  .viewport > .views ~ .hintbar { display: none; }
+  .topbar .barlabel { display: none; } /* keeps the bar to three rows */
+  .menupanel { position: fixed; left: 8px; right: 8px; top: auto; bottom: 8px; grid-template-columns: 1fr; max-height: 75vh; } /* a sheet */
+}
+
+/* Truth colours: one word on a kind's heading (or row), rows of kinds without truth faint. */
+.truthword { margin-left: 6px; font-size: 10px; font-weight: 500; letter-spacing: 0; text-transform: none; padding: 0 4px; border-radius: 3px;
+  border: 1px dashed var(--line-strong, var(--line)); color: var(--muted); vertical-align: 1px; }
+.truthword.match, .truthword.fact { border-style: solid; color: var(--text); }
+.layer.faint { opacity: .5; }

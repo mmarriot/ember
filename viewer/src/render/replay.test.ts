@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { DisplayLayer, Table } from "../io/bundle";
 import type { Layer } from "./layers";
-import { type Parts, planReplay, type ReplayItem } from "./replay";
+import { growIn, type Parts, planReplay, type ReplayItem } from "./replay";
 
 const C = 29.9792458; // cm/ns
 
@@ -158,5 +158,28 @@ describe("replay timeline", () => {
     const a = [...calo.appear()];
     expect(a[a.length - 2]).toBeLessThanOrEqual(plan.travel + 1e-6); // the bulk of the later hits within the window
     expect(partHits.appear()[0]).toBeLessThan(0.1 * plan.travel); // the parts arrive first
+  });
+});
+
+describe("tour grow-in", () => {
+  it("brings objects in outwards over the time, and grows paths from their starts at one speed", () => {
+    const got: Record<string, Float32Array[]> = {};
+    const fake = (name: string, x: number[], path?: Layer["path"]) => ({
+      x: Float32Array.from(x), y: new Float32Array(x.length), z: new Float32Array(x.length), path, passes: () => true,
+      setTimeline: (a: Float32Array, l: Float32Array) => (got[name] = [a, l]), setRetire: () => {},
+    }) as unknown as Layer;
+    // three paths along x, 100, 50 and 25 cm long (3 points each: the arc's two, then the end point)
+    const path = { points: 3, x: Float32Array.of(0, 100, 100, 0, 50, 50, 0, 25, 25), y: new Float32Array(9), z: new Float32Array(9), fill: () => {} };
+    growIn([fake("hits", [10, 200, 100, 50]), fake("tracks", [0, 0, 0], path)], 2);
+    const [appear, coloured] = got.hits;
+    expect(appear[0]).toBe(0); // nearest first
+    expect(appear[1]).toBe(2); // farthest at the end
+    expect(appear[3]).toBeGreaterThan(appear[0]);
+    expect(appear[3]).toBeLessThan(appear[2]);
+    expect([...coloured]).toEqual([...appear]); // in their colours as they appear
+    const [start, done] = got.tracks;
+    expect([...start]).toEqual([0, 0, 0]);
+    // one speed: a path as long as the longest tenth (here the 50 cm one) takes all of the time, one half as long half
+    expect([...done]).toEqual([2, 2, 1]);
   });
 });

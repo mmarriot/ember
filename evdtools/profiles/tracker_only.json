@@ -1,8 +1,13 @@
 {
   "name": "tracker_only",
-  "note": "The tracker part of cms.json alone: tracks, primary vertices, hits on tracks and the beam spot (tracker.json), with the truth graph's particles and vertices and the track <-> truth associations (in-time pile-up only, as in cms.json). Everything else is excluded, so it is not read. Truth is kept because the track <-> truth match is what tells a good track from a fake one in simulation; it is most of the bundle (ttbar 0PU, mean gzip record: 305 KB per event with it, 47 KB without; cms: 1541 KB). A file without the truth preset gives the bundle without truth, as entries for absent tables are dropped. GeneralTrack is read only to redirect the truth associations to Tracks (sameRows in cms.json). Opens in the front view, the tracker's.",
+  "note": "The tracker part of cms.json alone: tracks, primary vertices, hits on tracks, the beam spot and the MTD rechits (tracker.json; MTD: 35k rows, about 0.5 MB per PU200 event, unticked), with the truth graph's particles and vertices and the track <-> truth associations (in-time pile-up only, as in cms.json). Everything else is excluded, so it is not read. Truth is kept because the track <-> truth match is what tells a good track from a fake one in simulation; it is most of the bundle (ttbar 0PU, mean gzip record: 305 KB per event with it, 47 KB without; cms: 1541 KB). A file without the truth preset gives the bundle without truth, as entries for absent tables are dropped. GeneralTrack is read only to redirect the truth associations to Tracks (sameRows in cms.json). Opens in the front view, the tracker's; the primary vertices stay in the Tracker domain (cms.json moves them to Physics).",
   "include": ["cms"],
   "exclude": ["HGCal*", "TICL*", "ticl*", "EcalHits", "HBHEHits", "HFHits", "HOHits", "PFCandidates", "GSFTrack",
-              "TrackMuonInfo", "TruthHGCalHits", "TruthSoAHits*"],
-  "view": {"start": "front"}
+              "TrackMuonInfo", "TruthHGCalHits", "TruthSoAHits*",
+              "PFCandidate*", "PFCluster*", "Jets", "JetConstituents", "PuppiMET", "PFMET", "TruthEcalHits", "TruthHBHEHits",
+              "TruthHFHits", "TruthHOHits", "particleFlowCluster*",
+              "Muon*", "TruthMuonHits", "JetsCHS*", "Electrons*", "Photons*", "*SuperCluster*", "GsfTrack*", "Taus", "TauSignalCands",
+              "SecondaryVert*", "inclusiveSecondaryVertices*"],
+  "kinds": {"vertex": {"domain": "Tracker"}},
+  "view": {"start": "front", "domain": "Tracker"}
 }

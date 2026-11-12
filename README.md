@@ -28,7 +28,8 @@ NanoAOD ──► evdtools from-nano --profile P ──► .evdb bundle ──�
 - **Converter** (`evdtools/`, Python, numpy + uproot): discovers the NanoAOD tables, applies the profile (derived
   columns, relations normalised to CSR, row cuts, event selection), writes the bundle. Also `inspect`, `validate`,
   and the site tools `sync`, `publish`, `simulate`.
-- **Profiles** (`evdtools/profiles/*.json`): `hgcal`, `tracker`, `cms` (both), `tracker_only` (cms without the calorimeters), `mct`, `mct_diagnostics`, `testbeam`. A new data type
+- **Profiles** (`evdtools/profiles/*.json`): `cms` (the whole detector and the physics objects: the modules `physics`,
+  `hgcal`, `tracker`, `calo`, `pf`, `muon`), `hgcal`, `tracker`, `tracker_only`, `mct`, `mct_diagnostics`, `testbeam`. A new data type
   normally needs only a new profile. See [docs/profiles.md](docs/profiles.md).
 - **Bundle format**: one file, a JSON header and index plus gzip records of typed column arrays, readable with one
   ranged request per event. See [docs/format.md](docs/format.md).

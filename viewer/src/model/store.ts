@@ -1,12 +1,14 @@
 // Application state. Components and the renderer react to these signals.
 import { computed, effect, signal } from "@preact/signals";
-import { Bundle, type DisplayLayer, type EventData, httpSource, kindName, REPRS, type Table, unitOf } from "../io/bundle";
-import type { Legend, ThemeName } from "../render/colour";
+import { around, Bundle, type DisplayLayer, type EventData, type Header, httpSource, kindName, REPRS, type Table, unitOf } from "../io/bundle";
+import { describeNoLink, type Legend, type ThemeName } from "../render/colour";
 import type { Caption } from "../render/replay";
 import type { Hit, ViewName } from "../render/engine";
+import { drawsLayer, sharedDomains, startDomain } from "./domains";
 import { colourBy, type ColourMode, customColumns, loadCustom, withColour, withCustomColumns } from "./custom";
-import { focusLevels, levelLayers, stepLevel } from "./levels";
-import { modeColouring, modeRoots } from "./modes";
+import { focusLevels, levelLayers, mergeAcrossDomains, scopeLevels, stepLevel } from "./levels";
+import { modeColouring, modeRoots, recoColourOf } from "./modes";
+import { opensPair, truthStatus, type TruthStatus } from "./match";
 import { PAIR, type Pair, pairFor, pairShows } from "./pair";
 import { levelsOf, type Related, relatedParts, sameRef, type Ref } from "./relations";
 
@@ -27,8 +29,15 @@ export const visible = signal<Record<string, boolean>>({}); // display layer key
 export const domain = signal<string | null>(null);
 /** The side-panel tab to open: a domain's, when it is chosen (a new object each time, so choosing it again reopens it). */
 export const openTab = signal<{ name: string } | null>(null);
-/** Whether a layer belongs in the current domain's view: its own domain's layers and those without a domain. */
-export const inDomain = (d: DisplayLayer, current = domain.value) => !current || !d.domain || d.domain === current;
+/** The domains whose layers every domain draws (header `domains[].shared`, e.g. the physics objects). */
+export const shared = computed(() => sharedDomains(bundle.value?.header));
+/** The side-panel tab that lists a domain's layers: its own for a shared domain, else Detector (bundles with domains:
+ *  the Detector tab follows the domain bar). */
+export const tabOfDomain = (h: Pick<Header, "domains">, name: string) => (h.domains?.find((d) => d.name === name)?.shared ? name : DETECTOR);
+export const DETECTOR = "Detector";
+/** Whether a layer belongs in the current domain's view: its own domain's layers, those without a domain and those of
+ *  a shared domain. */
+export const inDomain = (d: DisplayLayer, current = domain.value) => drawsLayer(d, current, shared.value);
 /** The layers drawn: ticked and in the domain's view (display layer key -> drawn). */
 export const drawnLayers = computed(() => {
   const vis = visible.value, d = domain.value;
@@ -43,6 +52,8 @@ export const view = signal<ViewName>("3d");
 export const dialog = signal<"help" | null>(null);
 export const toasts = signal<{ id: number; text: string; kind: "info" | "error" }[]>([]);
 export const touring = signal(false);
+/** Labels on the leading objects (layer hint `labels`) and the focus (key L). */
+export const labelsOn = signal(true);
 export const replayCaption = signal<Caption | null>(null); // what the replay is showing now
 
 // Colour theme: dark unless the user picked light before (remembered in this browser when storage is available).
@@ -81,7 +92,7 @@ export const modes = computed(() => {
   const h = bundle.value?.header, roots = h ? modeRoots(h) : {};
   const colouring = {
     reco: h && roots.reco ? modeColouring(h, roots.reco) : undefined,
-    truth: h && roots.truth ? modeColouring(h, roots.truth) : undefined,
+    truth: h && roots.truth ? modeColouring(h, roots.truth, true) : undefined,
   };
   return { roots, colouring };
 });
@@ -104,26 +115,62 @@ export const activeMode = computed<ColourMode>(() => {
 });
 
 /** A layer's display hint as drawn. In the "pid" mode, the reconstruction root (candidates) keeps its own colouring
- *  (particle type) and every reco layer it reaches takes its candidate's colour; a categorical reco layer it cannot
- *  reach is drawn by its colour column if it has one (else it keeps its own colouring, e.g. one colour per vertex);
+ *  (particle type) and every reco layer whose colouring chain reaches it takes its candidate's colour; a categorical reco
+ *  layer it cannot reach is drawn by its colour column if it has one and no colour of its kind (`fixedColour`), else it
+ *  keeps its own colouring (e.g. one colour per vertex, a muon's kind colour);
  *  truth layers keep their own colouring (a particle is not a candidate). Then the user's choice for that layer. */
 export function shownLayer(d: DisplayLayer, mode = activeMode.peek(), by = colourBy.peek()): DisplayLayer {
   const { colouring, roots } = modes.peek();
   if (mode === "truth" && !d.context && !d.truth) { // by truth: the chain to the truth particles, else one neutral colour
     const c = colouring.truth?.[d.table];
-    return withColour({ ...d, colourBy: c ?? "none" }, by[layerKey(d)]);
+    // A kind with no truth of its own (docs/truth.md "Where truth stops") is also faint, so it never looks matched.
+    const faint = noTruth(d.table) ? { dim: Math.max(d.dim ?? 0, FAINT) } : {};
+    return withColour({ ...d, colourBy: c ?? "none", fixedColour: undefined, ...faint }, by[layerKey(d)]);
   }
   const pid = mode === "pid" && !d.context && !d.truth;
-  const c = pid && d.table !== roots.reco ? colouring.reco?.[d.table] : undefined;
-  const plain = pid && !c && d.table !== roots.reco && d.colourBy && d.colour;
+  // Only a chain that reaches the candidates: one that ends elsewhere (e.g. calorimeter hits through PF clusters to PF
+  // candidates) would show another table's categories under a key that describes candidate types.
+  const h = bundle.peek()?.header, c = pid && h && colouring.reco && roots.reco ? recoColourOf(h, colouring.reco, roots.reco, d.table) : undefined;
+  const plain = pid && !c && d.table !== roots.reco && d.colourBy && d.colour && !d.fixedColour; // a kind's own colour wins
   return withColour(c ? { ...d, colourBy: c } : plain ? { ...d, colourBy: undefined } : d, by[layerKey(d)]);
 }
 
+/** How far a kind with no truth is mixed towards the background in truth mode. */
+export const FAINT = 0.6;
+/** Each drawn table's truth status (model/match.ts), once per bundle. */
+export const truthStatuses = computed(() => {
+  const b = bundle.value, out = new Map<string, TruthStatus>();
+  if (!b) return out;
+  for (const d of b.header.display) {
+    const s = truthStatus(b.header, d.table, modes.value.colouring.truth);
+    if (s) out.set(d.table, s);
+  }
+  return out;
+});
+/** The name truth statements use for `table`: its kind ("Jets"), or its layer's name where layers of one kind differ
+ *  in truth ("PF clusters · HCAL forward" has none, the ECAL ones are matched). */
+export function truthName(table: string) {
+  const d = layerOf(table), st = truthStatuses.peek(), kind = kindOf(table);
+  const same = (bundle.peek()?.header.display ?? []).filter((l) => kindOf(l.table) === kind).every((l) => st.get(l.table)?.kind === st.get(table)?.kind);
+  return d && !same ? labelOf(table) : kind;
+}
+/** Whether `table` is a kind with no truth of its own (status none). */
+export const noTruth = (table: string) => truthStatuses.peek().get(table)?.kind === "none";
+// The words under a layer drawn in one neutral colour: by truth, why it has none (docs/truth.md "Where truth stops").
+describeNoLink((d) => {
+  const s = activeMode.peek() === "truth" ? truthStatuses.peek().get(d.table) : undefined;
+  if (s?.kind === "none") return `no truth for ${truthName(d.table).split(" ").map((w) => (/^[A-Z][a-z]/.test(w) ? w.toLowerCase() : w)).join(" ")}${s.gap !== undefined ? ` (gap ${s.gap})` : ""}`;
+  if (s?.kind === "match") return "matched to truth, not to a particle: no particle colour (inspector)";
+  return "one colour: no link to the colour's source";
+});
+
 /** In the "pid" and "truth" modes with something selected: its truth <-> reco pair, which colours every layer
- *  (Viewport); null when the pair has nothing to show (no candidate, and no hits of its particle). */
+ *  (Viewport); null when the pair has nothing to show (no candidate, and no hits of its particle), and for a kind with
+ *  no truth of its own (a jet never opens a pair; its constituents may). */
 export const pairView = computed<Pair | null>(() => {
   const f = focus.value, b = bundle.value, ev = event.value, { roots, colouring } = modes.value;
   if (activeMode.value === "layers" || !f || !b || !ev || !roots.reco || !colouring.reco || f.row >= (ev.tables[f.table]?.n ?? 0)) return null;
+  if (!opensPair(b.header, f.table, colouring.truth, colouring.reco)) return null;
   const truthLayer = roots.truth ? b.header.display.find((d) => d.table === roots.truth) : undefined;
   const pair = pairFor(ev, b.header, f, { truth: roots.truth, reco: roots.reco }, { truth: colouring.truth, reco: colouring.reco }, truthLayer);
   return pairShows(pair) ? pair : null;
@@ -135,11 +182,12 @@ export const short = (v: number) => (Number.isInteger(v) || Math.abs(v) >= 100 ?
 export const full = (v: number | bigint) =>
   typeof v === "bigint" ? v.toString() : Number.isInteger(v) ? v.toLocaleString() : Math.abs(v) >= 1e4 || (v !== 0 && Math.abs(v) < 1e-3) ? v.toExponential(3) : v.toFixed(3);
 
-/** A short name for one object, from its layer's `describe` hint (e.g. "π+ · 88.9 GeV"), or "" without one. */
-export function describe(table: string, row: number): string {
+/** A short name for one object, from its layer's `describe` hint (e.g. "π+ · 88.9 GeV"), or "" without one. `skip`:
+ *  columns to leave out (shown next to it anyway, e.g. in object rows). */
+export function describe(table: string, row: number, skip: string[] = []): string {
   const b = bundle.value, t = event.value?.tables[table], hint = layerOf(table)?.describe;
   if (!b || !t || !hint || row >= t.n) return "";
-  return hint.columns.filter((c) => c in t.columns).map((c) => {
+  return hint.columns.filter((c) => c in t.columns && !skip.includes(c)).map((c) => {
     const v = Number(t.columns[c][row]), name = hint.names?.[c]?.[String(v)];
     if (name) return name;
     const unit = unitOf(b.header.tables[table]?.columns[c]?.doc);
@@ -247,17 +295,24 @@ export const levels = computed(() => {
   const linked = pair ? focusParts.value?.linked : undefined;
   const unclassified = (t: string) => { const cls = pair!.classes.get(t); return [...linked!.get(t)!].every((r) => !cls || cls[r] === PAIR.other); };
   const own = (t: string) => parts.madeOf.has(t) || (!parts.linked.has(t) && !(linked?.has(t) && unclassified(t)));
-  return focusLevels(b.header.display, top.table, hl, own, b.header.relations);
+  const lv = focusLevels(b.header.display, top.table, hl, own, b.header.relations);
+  // Looking at everything in a bundle with parts of the detector: same-depth levels of different parts become one.
+  return !domain.value && (b.header.domains?.length ?? 0) >= 2 ? mergeAcrossDomains(lv, shared.value) : lv;
 });
+/** The focus bar: the levels the current domain draws as its own or shares, and a chip per other part of the
+ *  detector the focus has levels in (model/levels.ts scopeLevels). */
+export const focusBar = computed(() => scopeLevels(levels.value, domain.value, shared.value, (bundle.value?.header.domains ?? []).map((d) => d.name)));
 /** The chosen level, if the focus has it and it is not one drawn anyway (the bottom ones, lines); else null. */
 export const shownLevel = computed(() => {
   const c = focusLevel.value;
   return levels.value.some((l) => !l.always && l.name === c) ? c : null;
 });
-/** Step the shown level down (+1) or up (-1); false (and nothing changes) if the focus has no levels to step through. */
+/** Step the shown level down (+1) or up (-1) among the focus bar's; false (and nothing changes) if it has none to step
+ *  through. */
 export function stepFocusLevel(by: number) {
-  if (!levels.peek().some((l) => !l.always)) return false;
-  focusLevel.value = stepLevel(levels.peek(), focusLevel.peek(), by);
+  const bar = focusBar.peek().bar; // the levels of the current domain (and the shared ones)
+  if (!bar.some((l) => !l.always)) return false;
+  focusLevel.value = stepLevel(bar, focusLevel.peek(), by);
   return true;
 }
 
@@ -318,10 +373,12 @@ export async function openBundle(name: string, open = () => httpSource(name), st
     bundle.value = b;
     colourChoice.value = "reco";
     bundleName.value = name;
-    view.value = b.header.view?.start ?? "3d";
+    const first = startDomain(b.header); // the domain it opens on (e.g. the physics objects), in its view
+    view.value = b.header.domains?.find((d) => d.name === first)?.view ?? b.header.view?.start ?? "3d";
     loadCustom(b.header.profile, Object.fromEntries(b.header.display.filter((d) => d.filter).map((d) => [d.table, d.filter!])));
     visible.value = Object.fromEntries(b.header.display.map((d) => [layerKey(d), d.visible]));
-    domain.value = null;
+    domain.value = first;
+    if (first) openTab.value = { name: tabOfDomain(b.header, first) };
     cuts.value = Object.fromEntries([...cutGroups.value].map(([g, info]) => [g, info.default]));
     await showEvent(start);
   } catch (e) {
@@ -329,22 +386,43 @@ export async function openBundle(name: string, open = () => httpSource(name), st
   }
 }
 
+let wanted = 0; // the event asked for last: shown, or still to be read
+let reading: Bundle | null = null; // the bundle whose event is being read: one read at a time
+let shownOf: Bundle | null = null; // the bundle of the event shown
+/** The event `d` after the one asked for last (← / →), so presses while an event is read each move on one event. */
+export const stepEvent = (d: number) => showEvent(wanted + d);
+/** Show event `i` (wrapping around), then read the next one in the direction of travel ahead (io/bundle.ts around).
+ *  One event is read at a time: asked for others meanwhile, the read goes on to the last one asked for, skipping
+ *  those in between (holding → at PU200 never has more than one 35 MB read in flight). */
 export async function showEvent(i: number) {
   const b = bundle.value;
   if (!b || !b.events.length) return;
-  const index = ((i % b.events.length) + b.events.length) % b.events.length;
+  const n = b.events.length;
+  wanted = ((i % n) + n) % n;
+  if (reading === b) return; // the read in flight goes on to `wanted`
+  reading = b;
   loading.value = true;
-  const t0 = performance.now();
+  let index = wanted;
   try {
-    const ev = await b.event(index);
-    selection.value = null;
-    hover.value = null;
-    eventIndex.value = index;
-    rawEvent.value = ev;
-    loadMs.value = performance.now() - t0;
+    for (;;) {
+      const t0 = performance.now(), ev = await b.event(index);
+      if (bundle.peek() !== b) return; // another bundle opened meanwhile
+      if (index !== wanted) { index = wanted; continue; }
+      const from = shownOf === b ? eventIndex.peek() : index;
+      selection.value = null;
+      hover.value = null;
+      eventIndex.value = index;
+      rawEvent.value = ev;
+      shownOf = b;
+      loadMs.value = performance.now() - t0;
+      const { keep, next } = around(index, from, n);
+      b.keep(keep);
+      if (next !== null) b.event(next).catch(() => {}); // a failed read ahead is tried again when that event is shown
+      return;
+    }
   } catch (e) {
-    toast(`Could not read event ${index + 1}: ${e}`, "error");
+    if (bundle.peek() === b) { wanted = eventIndex.peek(); toast(`Could not read event ${index + 1}: ${e}`, "error"); }
   } finally {
-    loading.value = false;
+    if (reading === b) { reading = null; loading.value = false; }
   }
 }

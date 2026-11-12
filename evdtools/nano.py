@@ -122,6 +122,8 @@ def _derived_columns(d, tables):
             dtype, doc = source[col]
             out[new] = (_lookup_dtype(dtype), f"{doc} (from {d['lookup']}.{col} by {d['index']})")
         return out
+    if "rowIndex" in d:
+        return {d["rowIndex"]: (np.dtype("i4"), "row number in the event (0 first), e.g. the leading primary vertex")}
     if "gather" in d:
         names, doc = _gathered(d), f"copied through {', '.join(s['relation'] for s in d['gather'])} (first linked row)"
     elif "xyFromEtaPhiZ" in d:
@@ -134,9 +136,11 @@ def _derived_columns(d, tables):
 
 
 def _derive(d, tables):
-    """Add the columns of a lookup, xyFromEtaPhiZ or neighbourDistance derive to its table."""
+    """Add the columns of a lookup, rowIndex, xyFromEtaPhiZ or neighbourDistance derive to its table."""
     n, cols = tables[d["table"]]
-    if "lookup" in d:  # the lookup table's row named by the index column; none: NaN, or -1 for integers
+    if "rowIndex" in d:  # the row's number in the event, before cuts
+        cols[d["rowIndex"]] = np.arange(n, dtype=np.int32)
+    elif "lookup" in d:  # the lookup table's row named by the index column; none: NaN, or -1 for integers
         n_source, source = tables[d["lookup"]]
         idx = np.asarray(cols[d["index"]], np.int64)
         ok = (idx >= 0) & (idx < n_source)
@@ -168,7 +172,8 @@ def _neighbour_distance(d, cols):
 def _gather(d, tables, relations, profile_relations):
     """Columns copied from the first row each row of `table` points to through a relation; the sources are tried in
     order. A source that places a row sets the columns it does not name to 0; rows no source reaches get `fill`
-    (default NaN)."""
+    (default NaN). With `"missing": true`, a column the table already has keeps its finite values: only its NaN
+    values are filled (e.g. a PF candidate without an ECAL entrance point takes its track's outermost state)."""
     n, cols = tables[d["table"]]
     out = {c: np.full(n, d.get("fill", np.nan), np.float32) for c in _gathered(d)}
     placed = np.zeros(n, bool)
@@ -183,6 +188,8 @@ def _gather(d, tables, relations, profile_relations):
         for c in out:
             out[c][todo] = target[src["columns"][c]][rows] if c in src["columns"] else 0
         placed |= todo
+    if d.get("missing"):
+        out = {c: np.where(np.isnan(cols[c]), v, cols[c]).astype(np.float32) if c in cols else v for c, v in out.items()}
     cols.update(out)
 
 
@@ -356,10 +363,16 @@ class Converter:
                        if d["table"] in self.tables and d.get("lookup", d["table"]) in self.tables]
         for d in self.derive:
             for c, meta in _derived_columns(d, self.tables).items():
+                if d.get("missing") and c in self.tables[d["table"]]["columns"]:
+                    continue  # a gather that only fills a stored column's missing (NaN) values: it is still read
                 self.tables[d["table"]]["columns"][c] = meta
                 self.derived.add((d["table"], c))
 
         rename = {s["drop"]: s["keep"] for s in self.same}
+        names = [r["name"] for r in profile.get("relations", [])]
+        twice = sorted({n for n in names if names.count(n) > 1})
+        if twice:  # e.g. two included profiles naming different relations alike: the later would replace the earlier
+            raise ValueError(f"relation names used twice in the profile: {', '.join(twice)}")
         self.relations = {}
         for r in profile.get("relations", []):
             if r["kind"] == "compose":  # its ends are those of the chain
@@ -394,7 +407,10 @@ class Converter:
             for c in s.get("where", []):
                 self._check(s["table"], c)
 
-        self.display = _display(profile, self.written(), self.relations)
+        # A path layer (polyline) needs its points relation: without it (a table absent) the layer is dropped, as layers
+        # of absent tables are.
+        self.display = [layer for layer in _display(profile, self.written(), self.relations)
+                        if (layer.get("points") or {}).get("relation", None) in (None, *self.relations)]
         for layer in self.display:
             self._check_display(layer)
         self.viewer_hints = {k: v for k, v in profile.items() if k not in PROFILE_KEYS}
@@ -433,13 +449,25 @@ class Converter:
     def _check_display(self, layer):
         table = layer["table"]
         cut = layer.get("cut") or {}
+        cell, listing = layer.get("cell") or {}, layer.get("list") or {}
+        # A hint value naming a column: a string, or {"column": ...} (a scaled column); numbers are constants.
+        col = lambda v: v if isinstance(v, str) else v.get("column") if isinstance(v, dict) else None
         named = [*layer["position"], *layer.get("end", []), *layer.get("axis", []), *layer.get("extent", []),
                  *layer.get("momentum", []), *(layer.get(k) for k in ("colour", "size", "time", "charge")),
-                 cut.get("column")]
+                 cut.get("column"), *layer.get("direction", []), col(layer.get("radius")), col(layer.get("length")),
+                 *(col(cell.get(k)) for k in ("dEta", "dPhi", "depth")), *cell.get("u", []), *cell.get("v", []),
+                 *(map(col, cell["size"]) if isinstance(cell.get("size"), list) else ()),
+                 *listing.get("columns", []), listing.get("sort"), *layer.get("inspect", []), *layer.get("fractions", {})]
         missing = [c for c in named if c and c not in self.tables[table]["columns"]]
         if missing:
             raise ValueError(f"display {table}: no column {', '.join(missing)}; "
                              f"it has: {', '.join(self.tables[table]['columns'])}")
+
+    def _writes(self, name):
+        """A relation is written unless one of its tables is internal or the profile says `"written": false` (a
+        relation needed only to gather columns or to cut, e.g. jets -> the primary vertex they are drawn from)."""
+        rel = self.relations[name]
+        return rel.get("written", True) and not {rel["from"], rel["to"]} & self.internal
 
     def written(self):
         """Tables written to the bundle: all but the internal ones (read only to build relations or cuts)."""
@@ -447,7 +475,7 @@ class Converter:
 
     def header(self, files, profile_name):
         written = self.written()
-        relations = {n: r for n, r in self.relations.items() if r["from"] in written and r["to"] in written}
+        relations = {n: r for n, r in self.relations.items() if self._writes(n) and r["from"] in written and r["to"] in written}
         return {
             "schema": "evd/1",
             "source": {"files": [os.path.basename(f) for f in files], "converter": f"evdtools {__version__}",
@@ -458,7 +486,7 @@ class Converter:
                        for t, m in written.items()},
             "relations": {n: {"from": r["from"], "to": r["to"],
                               "weights": [_column(w)[1] for w in r.get("weights", [])],
-                              **{k: r[k] for k in ("association", "best", "match") if k in r},  # viewer hints
+                              **{k: r[k] for k in ("association", "best", "match", "fact") if k in r},  # viewer hints
                               **({"inverseOf": r["inverseOf"]} if r.get("inverseOf") in relations else {})}
                           for n, r in relations.items()},
             "display": self.display,
@@ -596,15 +624,17 @@ class Converter:
         self._renumber_index_columns(tables, masks)
         ends = {name: (rel["from"], rel["to"]) for name, rel in self.relations.items()}
         relations = {name: cut_relation(rel, masks.get(ends[name][0]), masks.get(ends[name][1]))
-                     for name, rel in relations.items() if not set(ends[name]) & self.internal}
+                     for name, rel in relations.items() if self._writes(name)}
         return event_id, self._cut_tables(tables, masks, skip=self.run_scope), relations
 
 
 def _open(path):
     """uproot.open; root:// URLs go through the XRootD bindings directly (fsspec-xrootd is not in CMSSW)."""
+    # No caches: entries read one at a time (--events) would otherwise keep every decompressed basket (~230 MB per
+    # PU200 event), and chunked reading does not reuse them.
     if path.startswith("root://"):
-        return uproot.open(path, handler=uproot.source.xrootd.XRootDSource)
-    return uproot.open(path)
+        return uproot.open(path, handler=uproot.source.xrootd.XRootDSource, object_cache=None, array_cache=None)
+    return uproot.open(path, object_cache=None, array_cache=None)
 
 
 def _run_tables(conv, f):
@@ -626,16 +656,17 @@ def parse_events(spec):
 
 def _entries(tree, conv, events, progress):
     """(arrays, i) of the entries of an Events tree to convert. `events`: only these event numbers, found from the
-    event branch alone and read one at a time, in event order. Otherwise, with an event selection on plain columns,
+    event branch alone and read one at a time, in event order (the file is opened without caches, so memory stays
+    flat). Otherwise, with an event selection on plain columns,
     a first pass reads only the branches that decide it, and an entry is read in full only if it passes;
     progress(entries scanned) is called after each chunk."""
     full = conv.branches()
     entry = lambda e: tree.arrays(full, entry_start=e, entry_stop=e + 1, library="np")
     if events is not None:
-        numbers = tree["event"].array(library="np")
+        numbers, runs = tree["event"].array(library="np"), tree["run"].array(library="np")
         chosen = np.flatnonzero(np.isin(numbers, list(events)))
         progress(len(chosen))
-        for e in chosen[np.argsort(numbers[chosen], kind="stable")]:  # before, during, after
+        for e in chosen[np.lexsort((numbers[chosen], runs[chosen]))]:  # before, during, after
             yield entry(e), 0
         return
     pre = conv.selection_branches()
@@ -670,11 +701,11 @@ def _records(conv, files, log, events=None, runs=None):
 
 
 def convert(files, output, profile_name="hgcal", max_events=None, log=sys.stderr, data_time=None, run_info=None,
-            events=None, run_tables=None):
+            events=None, run_tables=None, sort=False):
     """Write the (selected) events of `files` to the bundle `output`; `data_time`: when the input was produced;
     `run_info`: where to find information about the runs (see runinfo.load); `events`: only these event numbers;
     `run_tables`: a NanoAOD file whose Runs tree has the per-run tables (e.g. the channel table) of the same runs,
-    for inputs made without them."""
+    for inputs made without them. `sort`: the bundle lists the events in (run, lumi, event) order (index only)."""
     profile = load_profile(profile_name)
     with _open(files[0]) as f, _open(run_tables or files[0]) as r:
         conv = Converter(discover(f["Events"]), profile, discover(r["Runs"]) if "Runs" in r else None)
@@ -687,7 +718,7 @@ def convert(files, output, profile_name="hgcal", max_events=None, log=sys.stderr
     if data_time:
         header["source"]["data_time"] = data_time.isoformat(timespec="seconds")
     written, runs_written = 0, set()
-    with BundleWriter(output, header) as out:
+    with BundleWriter(output, header, sort=sort) as out:
         for record, per_run in itertools.islice(_records(conv, files, log, events, runs), max_events):
             run = int(record[0][0])
             if per_run and run not in runs_written:

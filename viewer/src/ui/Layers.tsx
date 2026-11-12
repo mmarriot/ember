@@ -2,16 +2,20 @@
 // cut slider, then the other reconstruction paths folded. A collection is one line (visibility, count); under it
 // only what is not said elsewhere: its filter, "only for the selection", and its colour scale when the colour key
 // does not explain it. Its ⋯ opens the colour choice, a filter and new columns for its table.
-import { computed } from "@preact/signals";
+import { computed, signal } from "@preact/signals";
+import { Fragment } from "preact";
 import { useState } from "preact/hooks";
-import type { DisplayLayer } from "../io/bundle";
-import { colourBy, customColumns, filters, RELATION, removeFilter } from "../model/custom";
+import { type DisplayLayer, kindName, unitOf } from "../io/bundle";
+import { colourBy, customColumns, filterMask, filters, RELATION, removeFilter } from "../model/custom";
+import { columnName, passes, topRows } from "../model/objects";
 import { PALETTES, relatedColourText, type Legend } from "../render/colour";
 import {
-  activeMode, bundle, cutGroups, cuts, event, focusHidden, focusLayers, focusLevel, labelOf, layerKey, layerName, legends, levels, modes, pairView, short,
-  showAll, shown, shownLayer, theme, visible,
+  activeMode, bundle, cutGroups, cuts, describe, event, noTruth, truthStatuses, focusHidden, focusLayers, focusLevel, labelOf, layerKey, layerName, legends, levels, modes, pairView,
+  selection, short, showAll, shown, shownLayer, sizeColumn, theme, visible,
 } from "../model/store";
 import { ExprForm } from "./ExprForm";
+import { rowHover } from "./Labels";
+import { jump } from "./navigate";
 import { Icon } from "./widgets";
 
 /** The tab a layer is listed in: its `domain`, or "Objects" for bundles made before layers had one. */
@@ -27,13 +31,18 @@ export function Collections({ layers }: { layers: DisplayLayer[] }) {
   const cutsOf = (ls: DisplayLayer[]) => [...new Set(ls.flatMap((d) => (d.cut ? [d.cut.group] : [])))].filter((g) => !placed.has(g) && !!placed.add(g));
   return (
     <>
-      {[...groups].map(([group, ls]) => (
-        <section class="kind" key={group}>
-          <h3>{group}</h3>
-          {cutsOf(ls).map((name) => <CutRow name={name} here={ls} />)}
-          {ls.map((d) => <LayerRow key={layerKey(d)} d={d} label={d.label} />)}
-        </section>
-      ))}
+      <Headline layers={main} />
+      {[...groups].map(([group, ls]) => {
+        const id = layerKey(ls[0]), shut = folded.value.has(id), drawn = ls.filter((d) => visible.value[layerKey(d)]).length;
+        return (
+          <section class={shut ? "kind folded" : "kind"} key={group}>
+            <h3><button class="fold" aria-expanded={!shut} title={shut ? "Show this kind's collections" : "Fold this kind"} onClick={() => fold(id)}>{group}</button>
+              {sameTruth(ls) && <TruthWord table={ls[0].table} />}{shut && <span class="count"> {drawn} of {ls.length} drawn</span>}</h3>
+            {/* each slider just before the first row it cuts (a kind can have several, e.g. one per calorimeter) */}
+            {!shut && ls.map((d) => <Fragment key={layerKey(d)}>{cutsOf([d]).map((name) => <CutRow name={name} here={ls} named={new Set(ls.flatMap((x) => (x.cut ? [x.cut.group] : []))).size > 1} />)}<LayerRow d={d} label={d.label} /></Fragment>)}
+          </section>
+        );
+      })}
       {alternatives.length > 0 && (
         <details class="others">
           <summary title="The same kinds of object from another reconstruction path; hidden by default">Other reconstruction paths ({alternatives.length})</summary>
@@ -44,6 +53,10 @@ export function Collections({ layers }: { layers: DisplayLayer[] }) {
     </>
   );
 }
+
+/** Kinds folded to their heading (by their first layer), for this page's life: a long tab (e.g. Physics) gets short. */
+const folded = signal(new Set<string>());
+const fold = (id: string) => { const f = new Set(folded.peek()); if (!f.delete(id)) f.add(id); folded.value = f; };
 
 /** Slider range per cut group, in log10: whole decades around the positive values of its layers in this event
  *  (at most 6 below the largest) and its default. The slider's lowest position means no cut. */
@@ -61,19 +74,21 @@ const sliderRanges = computed(() => {
   return out;
 });
 
-/** A cut group's minimum: log slider and exact value, labelled by the column it cuts (the group's name is in its
- *  tooltip). It applies to every layer of the group, also those listed elsewhere (named under it). */
-function CutRow({ name, here }: { name: string; here: DisplayLayer[] }) {
+/** A cut group's minimum: log slider and exact value, labelled by its `label` or the column it cuts (the group's name
+ *  is in its tooltip, and, without a label, above it when its kind has several cuts, e.g. one per calorimeter: `named`). It applies to every layer
+ *  of the group, also those listed elsewhere (named under it). */
+function CutRow({ name, here, named = false }: { name: string; here: DisplayLayer[]; named?: boolean }) {
   const g = cutGroups.value.get(name);
   if (!g) return null;
-  const v = cuts.value[name] ?? g.default, [lo, hi] = sliderRanges.value.get(name) ?? [-4, 2];
+  const cut = g.layers[0].cut!, v = cuts.value[name] ?? g.default, [lo, hi] = sliderRanges.value.get(name) ?? [-4, 2];
   const set = (x: number) => (cuts.value = { ...cuts.value, [name]: Math.max(0, x) });
   const toSlider = (x: number) => (x > 0 ? Math.log10(x) : lo), fromSlider = (s: number) => (s <= lo ? 0 : 10 ** s);
   const elsewhere = g.layers.filter((d) => !here.includes(d));
   return (
     <div class="cut" title={`Minimum ${name.toLowerCase()} for ${g.layers.map(layerName).join(", ")}`}>
+      {named && !cut.label && <div class="cutgroup">{name}</div>}
       <div class="cutrow">
-        <span class="cutname">{g.layers[0].cut!.column} ≥</span>
+        <span class="cutname">{cut.label ?? cut.column} ≥</span>
         <input type="range" aria-label={name} min={lo} max={hi} step={0.01} value={toSlider(v)} onInput={(e) => set(fromSlider(Number((e.target as HTMLInputElement).value)))} />
         <input type="number" class="cutvalue" min={0} step="any" value={short(v)} onChange={(e) => set(Number((e.target as HTMLInputElement).value))} />
         <span class="muted unit">{g.unit}</span>
@@ -84,9 +99,26 @@ function CutRow({ name, here }: { name: string; here: DisplayLayer[] }) {
   );
 }
 
+/** In the truth colours: what the truth graph says about a kind (docs/truth.md, model/match.ts truthStatus), in one
+ *  word on its heading, the reason on hover; on each row instead where its layers differ (e.g. ECAL PF clusters are
+ *  matched, HF ones have none). Nothing in the reco colours. */
+const WORDS = { match: ["match", "matched by CMSSW's associator"], fact: ["fact", "a simulation fact: simulated energy per particle in each hit"],
+  derived: ["derived", ""], none: ["no truth", ""] } as const;
+function TruthWord({ table }: { table: string }) {
+  const s = truthStatuses.value.get(table);
+  if (activeMode.value !== "truth" || !s || s.kind === "container") return null;
+  const [word, what] = WORDS[s.kind], why = "reason" in s ? `${s.reason}${s.gap !== undefined ? ` (truth-graph.md gap ${s.gap})` : ""}` : what;
+  return <span class={`truthword ${s.kind}`} title={why}>{word}</span>;
+}
+/** The layers of a kind (its heading's group) in the current bundle. */
+const kindLayers = (d: DisplayLayer) => (bundle.value?.header.display ?? []).filter((l) => l.group === d.group && !l.alternative);
+/** Whether the layers have one truth status (so one word on their heading). */
+const sameTruth = (ls: DisplayLayer[]) => new Set(ls.map((l) => truthStatuses.value.get(l.table)?.kind)).size <= 1;
+
 /** A symbol for how a layer is drawn, shown before its name. */
 const glyph = (d: DisplayLayer) =>
   d.repr === "cells" ? "⬢" : d.repr === "markers" ? "•" : d.repr === "segments" ? (d.truth ? "┄" : "─") : d.repr === "helix" ? (d.truth ? "┄" : "∿")
+    : d.repr === "polyline" ? "⟋" : d.repr === "cones" ? "◺"
     : d.shape === "shell" ? "◯" : d.shape === "cage" ? "⊕" : d.shape === "core" ? "●" : "⬮";
 
 function LayerRow({ d, label }: { d: DisplayLayer; label: string }) {
@@ -96,12 +128,13 @@ function LayerRow({ d, label }: { d: DisplayLayer; label: string }) {
   // A layer of one of the focus's levels: ticking it (or the link under it) shows that level.
   const level = levels.value.find((l) => l.layers.includes(d))?.name, showLevel = () => level && (focusLevel.value = level);
   return (
-    <div class={on ? "layer" : "layer off"}>
+    <div class={`layer${on ? "" : " off"}${activeMode.value === "truth" && noTruth(d.table) ? " faint" : ""}`}>
       <div class="row">
         <label title={`${d.table}${b.header.tables[d.table]?.doc ? `: ${b.header.tables[d.table].doc}` : ""}`}>
           <input type="checkbox" checked={on} disabled={!n} onChange={() => { visible.value = { ...visible.value, [key]: !on }; if (!on) showLevel(); }} />
           <span class="glyph" aria-hidden="true">{glyph(d)}</span>
           <span class="name">{label}</span>{d.source && <span class="tag" title="Reconstruction path">{d.source}</span>}
+          {!sameTruth(kindLayers(d)) && <TruthWord table={d.table} />}
           <span class="count">{on && s !== undefined && s !== n ? `${s.toLocaleString()} / ` : ""}{n.toLocaleString()}</span>
         </label>
         <button class={open ? "more on" : "more"} aria-expanded={open} title="Colour, filter and new columns" onClick={() => setOpen(!open)}>⋯</button>
@@ -121,7 +154,66 @@ function LayerRow({ d, label }: { d: DisplayLayer; label: string }) {
         </label>
       )}
       {open ? <Options d={d} legend={on ? legend : undefined} /> : on && legend && !keyed(d) && <div class="legend"><Scale d={d} legend={legend} /></div>}
+      {on && d.list && <ObjectRows d={d} />}
     </div>
+  );
+}
+
+/** A layer's rows that pass its cut and filter (model/objects.ts). */
+function passing(d: DisplayLayer) {
+  const t = event.value?.tables[d.table];
+  if (!t) return null;
+  return { t, pass: passes(d, t, d.cut ? cuts.value[d.cut.group] ?? 0 : 0, filterMask(t, filters.value[d.table])) };
+}
+
+/** The event in one line, from the ticked layers with object rows (`list`): how many objects of each kind pass the cuts
+ *  and filters ("Jets 4", the layers of a kind summed, e.g. barrel and endcap electrons), or the value of a one-object
+ *  table ("Puppi MET 42.2 GeV"). */
+function Headline({ layers }: { layers: DisplayLayer[] }) {
+  const parts = new Map<string, number | string>();
+  for (const d of layers.filter((l) => l.list && visible.value[layerKey(l)])) {
+    const p = passing(d);
+    if (!p) continue;
+    if (d.list!.headline === "value") {
+      const c = d.list!.columns[0], col = p.t.columns[c];
+      if (!col || !p.t.n) continue;
+      const unit = unitOf(bundle.value!.header.tables[d.table]?.columns[c]?.doc);
+      parts.set(d.label, `${short(Number(col[0]))}${unit ? ` ${unit}` : ""}`);
+      continue;
+    }
+    let n = 0;
+    for (let i = 0; i < p.t.n; i++) if (p.pass(i)) n++;
+    const name = kindName(d);
+    parts.set(name, (Number(parts.get(name)) || 0) + n);
+  }
+  return parts.size ? <p class="headline">{[...parts].map(([label, value], i) => <>{i > 0 && " · "}{label} <b>{typeof value === "number" ? value.toLocaleString() : value}</b></>)}</p> : null;
+}
+
+/** The largest objects of a layer with a `list` hint, one row each with its columns; a click selects (and frames) it,
+ *  the pointer over a row rings the object in the view. */
+function ObjectRows({ d }: { d: DisplayLayer }) {
+  const p = passing(d), sel = selection.value, list = d.list!;
+  if (!p) return null;
+  const cols = list.columns.filter((c) => c in p.t.columns);
+  const rows = topRows(p.t, list.sort ?? sizeColumn(d.table, p.t), p.pass, list.max ?? 10);
+  if (!rows.length) return null;
+  const more = (() => { let n = 0; for (let i = 0; i < p.t.n; i++) if (p.pass(i)) n++; return n - rows.length; })();
+  return (
+    <table class="objects">
+      <thead><tr><th />{cols.map((c) => <th title={bundle.value!.header.tables[d.table]?.columns[c]?.doc}>{columnName(c)}</th>)}</tr></thead>
+      <tbody>
+        {rows.map((r, k) => (
+          <tr class={sel?.table === d.table && sel.row === r ? "selected" : undefined} onClick={() => jump({ table: d.table, row: r })}
+            onMouseEnter={() => (rowHover.value = { table: d.table, row: r })} onMouseLeave={() => (rowHover.value = null)}
+            title={`${labelOf(d.table)} #${r}: select it (pointed at in the view)`}>
+            {/* its name without the columns shown next to it (a jet: none, so its rank; a PF candidate: its type) */}
+            <td>{describe(d.table, r, cols) || `${k + 1}`}</td>
+            {cols.map((c) => <td>{short(Number(p.t.columns[c][r]))}</td>)}
+          </tr>
+        ))}
+        {more > 0 && <tr class="more"><td colSpan={cols.length + 1}>… and {more.toLocaleString()} more</td></tr>}
+      </tbody>
+    </table>
   );
 }
 
@@ -180,6 +272,7 @@ function Scale({ d, legend, full = false }: { d: DisplayLayer; legend: Legend; f
   const pal = PALETTES[theme.value], shownD = shownLayer(d, activeMode.value, colourBy.value);
   // Identity colours (directly, or taken along a chain in the colour mode) show the identity palette.
   const identity = shownD.colourBy === "identity" || (typeof shownD.colourBy === "object" && shownD.colourBy !== d.colourBy);
+  if (shownD.fixedColour && (shownD.colourBy === undefined || shownD.colourBy === "none")) return null; // its kind's colour: nothing to explain
   if (shownD.colourBy === "none") return <><span class="dots"><i style={{ background: pal.other }} /></span>{legend.kind === "category" ? legend.text : ""}</>;
   if (legend.kind === "category" && legend.items && !legend.items.some((it) => it.ref))
     return <span class="items">{legend.items.map((it) => <span><i style={{ background: it.colour }} />{it.label}</span>)}</span>;

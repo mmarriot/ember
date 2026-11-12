@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { DisplayLayer } from "../io/bundle";
-import { focusLevels, levelLayers, stepLevel } from "./levels";
+import { focusLevels, levelLayers, mergeAcrossDomains, scopeLevels, stepLevel } from "./levels";
 
 // Display layers as a profile orders them, from the bottom up (hits first, candidates last), then truth.
 const layer = (table: string, group: string, extra: Partial<DisplayLayer> = {}) =>
@@ -58,6 +58,9 @@ describe("focusLevels with relations", () => {
     expect(levelLayers(lv, null, () => false).draw.map((d) => d.table).sort()).toEqual(["Hit", "TH", "Trk"]);
     expect(stepLevel(lv, "Layer clusters", 1)).toBe("Layer clusters"); // the leaves and lines are not stepped to
     expect(stepLevel(lv, null, 1)).toBe("Interpretations");
+    // depth: the longest chain of levels holding it; the track branch starts again at 0
+    expect(Object.fromEntries(lv.map((l) => [l.name, l.depth]))).toEqual(
+      { Interpretations: 0, "Linked tracksters": 1, Tracksters: 2, "Layer clusters": 3, Tracks: 0, "Track hits": 1, Hits: 4 });
   });
   it("finds what a level holds through a level the highlight lacks (a pair view without layer clusters)", () => {
     // A trackster's pair with no candidate: its interpretation and linked trackster reach the hits through layer
@@ -113,5 +116,29 @@ describe("stepLevel", () => {
   });
   it("has nothing to step to with a single level", () => {
     expect(stepLevel(lv.slice(-1), null, 1)).toBeNull();
+  });
+});
+
+describe("levels across parts of the detector", () => {
+  // A jet (shared Physics domain) made of particles (shared), whose tracks are in the Tracker and clusters in Calo,
+  // each down to its own hits.
+  const shared = new Set(["Physics"]);
+  const L = (name: string, domain: string | undefined, depth: number, always = false) =>
+    ({ name, layers: [layer(name, name, { domain })], count: 2, leaf: always, always, depth });
+  const lv = [L("Particles", "Physics", 0), L("Clusters", "Calo", 1), L("Superclusters", "Calo", 1), L("Seeds", "Tracker", 1),
+    L("Tracks", "Tracker", 1, true), L("Track hits", "Tracker", 2, true), L("Calo hits", "Calo", 2, true)];
+  it("merges same-depth levels of different parts into one, but not two of one part, nor lines and leaves", () => {
+    expect(mergeAcrossDomains(lv, shared).map((l) => `${l.name} ${l.count}`)).toEqual(
+      ["Particles 2", "Clusters · Seeds 4", "Superclusters 2", "Tracks 2", "Track hits 2", "Calo hits 2"]);
+  });
+  it("scopes the bar to the domain looked at, with a chip per other part holding its first level", () => {
+    const order = ["Physics", "Tracker", "Calo", "Muons"];
+    const physics = scopeLevels(lv, "Physics", shared, order);
+    expect(physics.bar.map((l) => l.name)).toEqual(["Particles"]);
+    expect(physics.chips.map((c) => `${c.domain}: ${c.level.name}`)).toEqual(["Tracker: Seeds", "Calo: Clusters"]);
+    const calo = scopeLevels(lv, "Calo", shared, order);
+    expect(calo.bar.map((l) => l.name)).toEqual(["Particles", "Clusters", "Superclusters", "Calo hits"]);
+    expect(calo.chips.map((c) => c.domain)).toEqual(["Tracker"]);
+    expect(scopeLevels(lv, null, shared, order)).toEqual({ bar: lv, chips: [] });
   });
 });

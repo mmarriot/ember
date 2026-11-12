@@ -17,6 +17,7 @@ python3 -m evdtools validate OUT.evdb     # structural checks of every record; e
 |---|---|
 | `--max-events N` | stop after N selected events |
 | `--events 416622,416619-416628` | only these event numbers, in event order (cuts and selection still apply) |
+| `--sorted` | the bundle lists its events in (run, lumi, event) order, across all input files. A multi-threaded export writes events in the order they finish, so two exports of one sample (or the 0PU and PU200 versions of the same events) differ in order without it. Only the index is sorted (records are found by offset): no extra reading |
 | `--run-tables FILE` | take the per-run tables from another NanoAOD file of the same runs, for inputs made without them. It must use the same channel mapping |
 | `--run-info SPEC` | add run information to the bundle index: a JSON file (`{"<run>": {...}}`, or a list of rows with `Run`), or `registry:<database>.<table>` (HGCal DPG run registry, read-only guest account, needs `mysql-connector-python`), e.g. `registry:RunRegistryP5.RunTable` (P5) or `registry:RunRegistry.SepTB2025` (2025 test beam) |
 
@@ -27,15 +28,20 @@ for uproot's many ranged reads.
 
 | profile | data |
 |---|---|
-| `cms` | `hgcal` and `tracker` together: the header `domains` `Tracker` (from `tracker`) then `HGCal` (its region and view), truth particles as helices and only in-time pile-up kept; HGCalNanoAOD's `GeneralTrack` folded into `Tracks` |
-| `tracker` | CMS Phase-2 tracker (Fireworks/EventExport preset `tracker`): tracks as helices in the solenoid field (`field`; high purity, pT slider at 1 GeV, filtered to the primary vertex; preset "All vertices" coloured by vertex), primary vertices, the hits on each track shown for a selection, the beam spot; all in the `Tracker` domain, coloured by layer when it is chosen. It reads every table of the file: for a tracker bundle use `tracker_only` |
-| `tracker_only` | `cms` without the calorimeters (excluded, so not read): the `tracker` layers with the truth graph and the track-truth associations |
-| `hgcal` | CMSSW step3 HGCal/TICL reconstruction (SoA and/or legacy): rechits, layer clusters, tracksters through candidates, tracks, the truth graph (particles, vertices, hits) with reco-truth associations, kept to in-time pile-up (bunch crossing 0); see [truth-graph.md](truth-graph.md) |
+| `cms` | The whole CMS Phase-2 step3 event (Fireworks/EventExport presets `calo,hgcal,reco,hgcalSoA,truth,tracker,pf,physics,muon,mtd`): the modules `physics`, `hgcal`, `tracker`, `calo`, `pf` and `muon` joined. Header `domains` in the order `Physics` (shared, the start domain `view.domain`, with the primary vertices), `Tracker`, `Calo`, `HGCal`, `Muons`; the detector `outlines` of every module; truth particles as helices, only in-time pile-up kept; HGCalNanoAOD's `GeneralTrack` folded into `Tracks` (and `GSFTrack` into `GsfTracks`) |
+| `physics` | module: physics objects (presets `pf`, `physics`). AK4 Puppi jets as `cones` from the leading vertex (AK4 CHS jets with their b-tags a hidden alternative), Puppi/PF MET as arrows, electrons (barrel and HGCal) as helices to their supercluster, photons as lines to theirs, superclusters with their hits, GSF tracks with their hits, taus (unticked, decay mode required), inclusive secondary vertices with their tracks; primary and secondary vertices matched to truth vertices. One `fixedColour` per kind. The `Physics` domain |
+| `tracker` | module (also alone): tracker (presets `tracker`, `mtd`). Tracks as helices in the solenoid field (`field`; high purity, pT ≥ 1 GeV, filtered to the primary vertex; preset "All vertices" coloured by vertex), primary vertices, the hits on each track for a selection, the beam spot, the MTD rechits (BTL and ETL, unticked, by time; preset "Track time": tracks by t0, vertices by t, MTD hits by time). The `Tracker` domain. Alone it reads every table of the file: for a tracker bundle use `tracker_only` |
+| `calo` | module: barrel and forward calorimeters (preset `calo`). ECAL barrel, HB, HO and HF rechits as η–φ towers (`cell` hint, sizes from the exporter's `dEta dPhi thickness`), one energy cut per subdetector, HO and HF hidden, HF not in the front view. The `Calo` domain |
+| `pf` | module: particle flow (presets `pf`, `truth`). PF candidates (unticked, filtered to `puppiWeight > 0`; preset "What PUPPI removed") with their track, GSF track, TICL candidate and PF clusters; PF clusters of ECAL, HB, HF, HO with their hits and the ECAL/HCAL truth associations; simulated energy in the barrel and forward calorimeter hits as facts |
+| `muon` | module: muon system (presets `muon`, `truth`). Muons as a Physics kind (inner-track helix), their standalone and global tracks as `polyline`s through their ordered hits, DT/CSC/GEM segments as centred lines, the rechits and the chambers in use (boxes: `cell` shape `box`) drawn for a selection, GE0 filtered out of "show all"; muon-hit truth as facts at the simulation's unit (`fact.unit`). `cms` declares the `Muons` domain after HGCal |
+| `tracker_only` | `cms` without the calorimeters, particle flow, physics objects and muon system (excluded, so not read): the `tracker` layers with the truth graph and the track-truth associations; vertices stay in the `Tracker` domain |
+| `hgcal` | CMSSW step3 HGCal/TICL reconstruction (SoA and/or legacy): rechits, layer clusters, tracksters through candidates, tracks, the truth graph (particles, vertices, hits) with reco-truth associations, kept to in-time pile-up (bunch crossing 0); see [truth-graph.md](truth-graph.md). It reads every table it does not exclude: on an all-detectors export it also writes about 80 tables it does not draw, so use `cms` (or a profile that includes `hgcal` and excludes the rest) for those files |
 | `mct` | multi-cassette test at P5, cosmic muons: hits and layer clusters, events with a hit above 6 sigma in two layers; the readout channels (per-run table) as background |
 | `mct_diagnostics` | the same data without event selection, for unusual events (e.g. splats), picked with `--events`; digi quantities on every hit, per-module charts |
 | `testbeam` | test-beam layer stacks: hits and layer clusters of beam showers, readout channels as background, energy and timing presets, run information from the run registry |
 
-Each profile's `note` explains its choices.
+Each profile's `note` explains its choices. A module is a profile meant to be included (`include`); the CMS modules
+are written for the step3 export and are used through `cms`.
 
 ## How a file is converted
 
@@ -72,8 +78,9 @@ A list, applied in order (so a later derive can override an earlier estimate). E
 | form | result |
 |---|---|
 | `"xyFromEtaPhiZ": [eta, phi, z]` | columns `x`, `y` |
+| `"rowIndex": column` | `column` = the row's number in the event (int32, before cuts), e.g. to filter the leading primary vertex (`index == 0`) |
 | `"column", "neighbourDistance": [cols], "k": 1, "groupBy": col, "scale": 1` | `column` = scale × distance to the k-th nearest other row with the same `groupBy` value (cell sizes from positions; needs scipy) |
-| `"gather": [{"relation", "columns": {new: col}}, ...], "fill": v` | columns copied from the first row each row points to through `relation` (a column of its `to` table). Sources are tried in order; a source that places a row sets the columns it does not name to 0; rows no source reaches get `fill` (default NaN, see the `defined` cut) |
+| `"gather": [{"relation", "columns": {new: col}}, ...], "fill": v` | columns copied from the first row each row points to through `relation` (a column of its `to` table). Sources are tried in order; a source that places a row sets the columns it does not name to 0; rows no source reaches get `fill` (default NaN, see the `defined` cut). With `"missing": true`, a column the table already has keeps its finite values and only its NaN values are filled (e.g. PF candidates without an ECAL entrance point end at their track's outermost state) |
 | `"lookup": T, "index": col, "columns": {new: col of T}` | columns copied from row `index` of table `T`, typically a per-run table; out of range: NaN, or -1 for integers. Integer columns become the narrowest signed type that also holds -1 (bool → i8, u8 → i16, u16 → i32, u32 and u64 → i64; signed types unchanged), so the viewer gets 64-bit (BigInt) arrays only where the values need them |
 
 ### `relations`
@@ -89,8 +96,9 @@ A list, applied in order (so a later derive can override an earlier estimate). E
 | `key` | `"fromKey"`, `"toKey"` columns: the `to` row with the same key (e.g. the same DetId in two hit tables); the first if several |
 | `compose` | `"via": [r1, r2]`: earlier relations chained; each row reaches the union of what its `r1` rows reach through `r2`. `from` and `to` are those of the chain |
 
-Optional: `"weights": ["T.col", ...]` (one per link, stored as f32), and the viewer hints `association`, `best`,
-`match` (how a reco <-> truth match is measured: [truth.md](truth.md#each-kinds-contract)) and `inverseOf`
+Optional: `"written": false` (the relation is built for derives and cuts but not written, e.g. jets -> the vertex
+whose position they gather), `"weights": ["T.col", ...]` (one per link, stored as f32), and the viewer hints `association`, `best`,
+`fact` (a truth -> hit relation: simulated energy per particle and cell, e.g. `{"in": "ECAL"}`; `unit` names a coarser simulation unit than the hit, e.g. the CSC layer of a muon hit), `match` (how a reco <-> truth match is measured: [truth.md](truth.md#each-kinds-contract)) and `inverseOf`
 ([format.md](format.md#relations)), copied to the header. `"inverseOf": r` says that this relation points
 from a part back up to its container, the reverse of relation `r` (e.g. `trackVertex`, the inverse of `vertexTracks`):
 the conversion stops if `r` does not have the opposite ends, and the hint is dropped when `r` is not written.
@@ -124,8 +132,12 @@ of layers 25 and 26.
 `display` is a list of layers. Their keys are the display hints of [format.md](format.md#display-hints) (`table`,
 `repr`, `position`, `end`, `momentum`, `charge`, `axis`, `extent`, `size`, `colour`, `palette`, `colourBy`, `time`,
 `group`, `label`, `visible`, `kind`, `source`, `domain`, `cut`, `filter`, `context`, `dim`, `shape`, `truth`,
-`particle`, `onSelection`, `describe`), copied to the bundle for the layers whose table is written; every column a layer names
-must exist. The converter also reads:
+`particle`, `onSelection`, `describe`, and the all-detectors additions `cell`, `direction`, `radius`, `length`, `arrow`,
+`width`, `views`, `labels`, `list`, `inspect`, `fractions`, `truthGap`, `fixedColour`, and `cut.label`), copied to the bundle for the layers whose table is
+written; every column a layer names must exist (also those named inside `cell`, `list`, `inspect`, `fractions`, and a
+`length` or `radius` given as a column). `truthGap: {"reason", "gap", "derived"?}` on a kind says why the kind has no
+truth association (the gap number in [truth-graph.md](truth-graph.md)); a relation with a `match` hint from the kind
+supersedes it. The converter also reads:
 
 | key | meaning |
 |---|---|

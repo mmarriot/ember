@@ -1,5 +1,6 @@
 // Navigation over the CSR relations of an event: what is related to a selected object.
 import type { DisplayLayer, EventData, Header, Relation, Table } from "../io/bundle";
+import { isFactTable } from "./facts";
 
 export interface Ref { table: string; row: number }
 export type Related = Map<string, Set<number>>; // table -> rows
@@ -164,7 +165,6 @@ function partnersOnce(rel: Relation, info: RelationInfo, forward: boolean, n: nu
   return { partner, entry };
 }
 
-const isHitTable = (header: Header, table: string) => header.display?.some((l) => l.table === table && l.repr === "cells" && !l.context);
 
 /** Identity colouring of a table (render/colour.ts): per object, the key whose colour it takes, and the keys that get
  *  a colour of their own (`top`, at most `slots`), largest first by the layer's colour column (else in row order).
@@ -196,7 +196,7 @@ function identityKeys(d: DisplayLayer, t: Table, ev: EventData, header: Header) 
     for (const [name, info] of Object.entries(header.relations)) {
       const rel = ev.relations[name];
       if (!rel) continue;
-      if (info.association && info.from === d.table && isHitTable(header, info.to)) {
+      if (info.association && info.from === d.table && isFactTable(header, info.to)) {
         for (let f = 0; f < n && f + 1 < rel.offsets.length; f++) if (rel.offsets[f + 1] > rel.offsets[f]) anchor[f] = 1;
       } else if (info.association && info.to === d.table) {
         for (const r of rel.indices) anchor[r] = 1;

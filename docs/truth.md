@@ -147,10 +147,12 @@ this order: **match** (its own reco -> truth relation with a `match` hint), **fa
 association exported for this kind"), or, for a part drawn with what contains it (a track's hits), its container's.
 The same words appear in three places:
 
-- the inspector's truth box: "no truth for Jets: no jet associator in CMSSW, and no generator-jet level in the truth
-  graph (truth-graph.md gap 21)", plus at most one constituent's own match (below);
+- the selection's card, on the object's step of its chain: "no truth · no jet associator in CMSSW, and no
+  generator-jet level in the truth graph · gap 21", plus at most one constituent's own match (below); every other step
+  of the chain carries its own kind's status the same way ([viewer.md](viewer.md#the-selections-card));
 - the truth colour key: one line, "faint: no truth for this kind: Jets, MET, … (why: Truth tab)";
-- the Truth tab, which opens with a "Truth coverage" list of every drawn kind.
+- the Truth tab, which opens with the event's scorecard of the matched kinds (clean, impure, no match) and a "Truth
+  coverage" list of every drawn kind.
 
 In truth mode a kind with status none is drawn neutral and faint (cones as outlines), never in a particle's colour; an
 object of a matched kind without a clean match stays the small grey. Such a kind never opens the truth ↔ reco pair,
@@ -167,7 +169,8 @@ the layer-cluster stand-in applies where it did, so they look as before.
 A composite (jet, muon, PF candidate, electron) may show one constituent's **own** association, named as the
 constituent's: "Its track #212 is matched to μ⁻ #301 (the associator's answer for that track, not for this muon)".
 Only where a made-of relation gives exactly one part (not an association, not a pointer back up, not a "closest
-track" link), never aggregated over several parts ("80% of its tracks are from the b" is a match built in evd), and
+track" link), never aggregated over several parts ("80% of its tracks are from the b" is a match built in evd; the
+card's chain counts each part's own match on the parts' step, "9 of 9 matched", and leaves the composite's step at "no truth"), and
 never as the composite's colour: by truth, an object takes a colour only across its own association, or from the
 container it is part of, never from its parts. With a jet in focus, its tracks show in their own particles' colours:
 each is the track's statement.

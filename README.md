@@ -17,6 +17,8 @@ the bundle, written from a JSON profile, so the same code serves very different 
 (Fireworks/EventExport) must change to write the tables the `hgcal` profile expects. MCT and test-beam data
 convert from hgcal-comm NanoAOD as they are.
 
+**Documentation:** https://mmarriot.github.io/evd/, built from `docs/`.
+
 ## Architecture
 
 ```
@@ -47,7 +49,7 @@ viewer/            the viewer (src/io: reader, src/model: state and expressions,
 viewer/e2e/        headless-browser checks
 tests/             Python tests
 golden/            one real TICL v6 event, used by the tests
-docs/              format, profiles, viewer, truth graph (what evd uses from it, what is missing)
+docs/              format, profiles, viewer, truth, truth graph: the pages of the documentation site (zensical.toml)
 service/           deployment and cron scripts for the CERN site
 data/              bundles for the development server, listed in data/index.json (not tracked)
 ```
@@ -74,6 +76,15 @@ presets and summaries apply, selection and navigation work, and nothing logs an 
 bundle for the interaction checks, further arguments limit the run to those bundles.
 
 From a laptop: `ssh -L 5173:127.0.0.1:5173 <host>`, then open http://localhost:5173.
+
+The documentation site builds with [Zensical](https://zensical.org) (Python 3.11 or later) and is published to GitHub
+Pages from main by `.github/workflows/docs.yml`:
+
+```bash
+python3 -m venv .venv && .venv/bin/pip install zensical==0.1.1
+.venv/bin/zensical serve     # http://127.0.0.1:8000, rebuilds on every change to docs/
+.venv/bin/zensical build --strict   # site/, as the workflow builds it: fails on a broken link or anchor
+```
 
 ## Roadmap
 

@@ -5,3 +5,6 @@ __pycache__/
 data/*.evdb
 viewer/e2e/shots/
 data/index.json
+/site/
+/.venv/
+/.cache/

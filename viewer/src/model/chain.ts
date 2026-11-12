@@ -47,9 +47,12 @@ export function recoLadder(ev: EventData, header: Header, sel: Ref, parts: { mad
     const groups = [...new Set(layers.map((d) => d.table))].map((table) => ({ table, rows: [...(from.get(table) ?? [])].sort((a, b) => a - b) })).filter((g) => g.rows.length);
     return { kind: name, groups, count: groups.reduce((s, g) => s + g.rows.length, 0), links: linksOf(ev, header, groups, statuses, truth) };
   };
-  // Holders before what they hold (model/levels.ts gives each kind its depth), so each list reads down the chain.
-  const rungs = (from: Related) => focusLevels(header.display, sel.table, from, () => true, header.relations)
-    .map((l, i) => ({ l, i })).sort((a, b) => (a.l.depth ?? 0) - (b.l.depth ?? 0) || a.i - b.i).map(({ l }) => rung(l.name, l.layers, from));
+  // Holders before what they hold (model/levels.ts gives each kind its depth), so each list reads down the chain. Then
+  // the related tables the bundle does not draw (a hit's digi), under their table's name: their columns can be read.
+  const undrawn = (from: Related): Rung[] => [...from].filter(([t, rows]) => rows.size && t !== sel.table && !layerOf(header, t))
+    .map(([t, rows]) => ({ kind: t, groups: [{ table: t, rows: [...rows].sort((a, b) => a - b) }], count: rows.size, links: [] }));
+  const rungs = (from: Related) => [...focusLevels(header.display, sel.table, from, () => true, header.relations)
+    .map((l, i) => ({ l, i })).sort((a, b) => (a.l.depth ?? 0) - (b.l.depth ?? 0) || a.i - b.i).map(({ l }) => rung(l.name, l.layers, from)), ...undrawn(from)];
   const own = layerOf(header, sel.table), self = rung(own ? kindName(own) : sel.table, own ? [own] : [], new Map([[sel.table, new Set([sel.row])]]));
   if (!self.groups.length) self.groups = [{ table: sel.table, rows: [sel.row] }], self.count = 1;
   return { above: [...voted(ev, header, sel, parts.partOf, statuses, truth), ...rungs(parts.partOf)], self, below: rungs(below), beside: rungs(beside) };

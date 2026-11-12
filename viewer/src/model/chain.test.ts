@@ -73,6 +73,17 @@ describe("recoLadder", () => {
   });
 });
 
+describe("recoLadder without display layers", () => {
+  it("keeps a related table the bundle does not draw as a step under its table's name (a hit's digi)", () => {
+    const dev = { id: [1, 1, 1], tables: { Hit: table(2), Digi: table(2) }, relations: { hitDigi: csr([[1], [0]]) } } as unknown as EventData;
+    const dh = { relations: { hitDigi: plain("Hit", "Digi") }, display: [layer("Hit", "Hits", { repr: "cells" })] } as unknown as Header;
+    const l = recoLadder(dev, dh, { table: "Hit", row: 0 }, relatedParts(dev, dh, { table: "Hit", row: 0 }), new Map());
+    expect(l.below.map((r) => [r.kind, r.groups])).toEqual([["Digi", [{ table: "Digi", rows: [1] }]]]);
+    const up = recoLadder(dev, dh, { table: "Digi", row: 1 }, relatedParts(dev, dh, { table: "Digi", row: 1 }), new Map());
+    expect([up.self.kind, up.above.map((r) => r.kind)]).toEqual(["Digi", ["Hits"]]);
+  });
+});
+
 describe("recoOfTruth", () => {
   it("lists what was reconstructed from a particle with its completeness, and the hits it left per detector", () => {
     expect(recoOfTruth(ev, header, { table: "P", row: 0 })).toEqual({

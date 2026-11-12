@@ -104,8 +104,8 @@ code { font: 11.5px ui-monospace, SFMono-Regular, Menlo, monospace; }
 .layer .row .tag { flex: none; margin-left: -2px; }
 .layer .row .count { margin-left: auto; }
 .layer .count { white-space: nowrap; }
-.more { flex: none; border: none; background: none; color: var(--muted); padding: 0 6px; line-height: 1.2; border-radius: 4px; }
-.more:hover, .more.on { background: var(--surface); color: var(--text); }
+.more, .lister { flex: none; border: none; background: none; color: var(--muted); padding: 0 6px; line-height: 1.2; border-radius: 4px; }
+.more:hover, .more.on, .lister:hover, .lister.on { background: var(--surface); color: var(--text); }
 .options { margin: 4px 0 6px 24px; padding: 6px 8px; border-left: 2px solid var(--line-strong); display: flex; flex-direction: column; gap: 2px; }
 .options .legend { margin: 0; }
 .layer.off .row .name { color: var(--muted); }
@@ -446,7 +446,7 @@ details.gaps summary, details.allcolumns summary { cursor: pointer; color: var(-
 .pairlegend i, .pair i.sw { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; }
 .pairlegend b { color: var(--text); font-weight: 600; }
 .props .kv { margin-top: 2px; }
-.inspector { z-index: 4; }
+.inspector { z-index: 2; } /* above the labels on the view, under the top bar's menu */
 .lineage.crumb { display: flex; flex-wrap: wrap; gap: 3px 4px; align-items: baseline; font-size: 12px; margin-top: 4px; }
 .lineage.crumb .chip, .lineage.crumb .badge { margin: 0; }
 .lineage span.here > .chip { outline: 1px dashed currentColor; }

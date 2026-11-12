@@ -142,7 +142,7 @@ function LayerRow({ d, label }: { d: DisplayLayer; label: string }) {
           {!sameTruth(kindLayers(d)) && <TruthWord table={d.table} />}
           <span class="count">{on && s !== undefined && s !== n ? `${s.toLocaleString()} / ` : ""}{n.toLocaleString()}</span>
         </label>
-        {canList && <button class={listed ? "more on" : "more"} aria-expanded={listed} title="List its largest objects: click one to select it (N steps through them)" onClick={() => setListed(!listed)}>☰</button>}
+        {canList && <button class={listed ? "lister on" : "lister"} aria-expanded={listed} title="List its largest objects: click one to select it (N steps through them)" onClick={() => setListed(!listed)}>☰</button>}
         <button class={open ? "more on" : "more"} aria-expanded={open} title="Colour, filter and new columns" onClick={() => setOpen(!open)}>⋯</button>
       </div>
       {!on && focusLayers.value.has(key) && <div class="sub muted">shown for the focus</div>}

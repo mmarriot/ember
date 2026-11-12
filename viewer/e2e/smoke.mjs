@@ -131,11 +131,11 @@ async function checkBundle(file, tag, state) {
     if (!pair) fail("no truth <-> reco pair for the selection");
   }
   await shot("3_selected");
-  // The levels need an object made of several kinds (row 0 may be e.g. a track-only candidate): the first such row.
-  const pills = () => page.locator(".inspector .rung.below").count();
+  // The levels need an object with a step that is drawn on request ("show"): row 0 may be e.g. a track-only candidate.
+  const pills = () => page.locator(".inspector .rung .level").count();
   let row = 0;
-  if (target.stage !== undefined) for (let r = 1; r < 6 && (await pills()) < 2; r++) await open(`b=${file}&e=1${all}&s=${target.table}:${(row = r)}`);
-  if (row && (await pills()) < 2) await open(`b=${file}&e=1${all}&s=${target.table}:${(row = 0)}`);
+  if (target.stage !== undefined) for (let r = 1; r < 6 && !(await pills()); r++) await open(`b=${file}&e=1${all}&s=${target.table}:${(row = r)}`);
+  if (row && !(await pills())) await open(`b=${file}&e=1${all}&s=${target.table}:${(row = 0)}`);
   await checkLevels(page, h, target, fail, shot, tag);
   await checkDomainFocus(page, h, fail, shot, tag);
   // A shared link reopens its state: data set, event (its place in the file), domain and selection, also written as a
@@ -428,7 +428,7 @@ async function checkLevels(page, h, target, fail, shot, tag) {
   const earlier = h.display.filter((d) => target.stage !== undefined && d.stage !== undefined && d.stage < target.stage).map((d) => d.table);
   const early = before.split(",").filter((t) => earlier.includes(t));
   if (early.length) fail(`focus on ${target.table} draws earlier stages by default: ${early.join(", ")}`);
-  if (pills.length < 2) return log(`${tag}: levels: ${pills.join(" › ") || "none"}`);
+  if (!(await page.locator(".inspector .rung .level").count())) return log(`${tag}: levels: ${pills.join(" › ") || "none"} (none drawn on request)`);
   await page.keyboard.press("ArrowDown");
   await page.waitForTimeout(600);
   const lit = await page.locator(".inspector .rung.shown .rkind").allInnerTexts(), down = await drawn();

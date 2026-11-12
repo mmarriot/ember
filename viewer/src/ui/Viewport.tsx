@@ -12,7 +12,7 @@ import { cutMin, cutValues, HIDDEN, rescued } from "../model/cuts";
 import { colours, type LayerFor, type Legend, PALETTES, valueRange, type Pal, type Range } from "../render/colour";
 import { Engine, MIN_RADIUS, type ViewName } from "../render/engine";
 import { builders, type Layer } from "../render/layers";
-import { planReplay, type Parts, type Plan } from "../render/replay";
+import { growIn, planReplay, type Parts, type Plan } from "../render/replay";
 import { back, chooseDomain, jump } from "./navigate";
 import {
   activeMode, bundle, cuts, describe, domain, drawnLayers, event, focus, focusBar, focusHidden, focusHistory, focusIsTruth, focusLayers, focusLevel, focusLinked, following,
@@ -21,7 +21,7 @@ import {
 } from "../model/store";
 import { PAIR } from "../model/pair";
 import type { Ref } from "../model/relations";
-import { stopTour } from "./tour";
+import { stopTour, tourCaption } from "./tour";
 import { Labels } from "./Labels";
 
 export let engine: Engine | null = null;
@@ -58,6 +58,18 @@ export function replayEvent(): Plan | null {
   engine.replay(plan.seconds);
   if (import.meta.env.DEV) Object.assign(window, { evdPlan: plan }); // for the e2e tests
   return plan;
+}
+
+/** The tour: grow in the drawn layers of these tables over `seconds` (render/replay.ts growIn), the others staying as
+ *  they are. Unlike replayEvent, nothing is rebuilt: the tour has drawn the layers it shows. */
+export function growTables(tables: Set<string>, seconds: number) {
+  if (!engine) return;
+  engine.stopReplay(); // the previous step's objects in their final state
+  plan = null; // no replay captions: the tour has its own
+  const layers = entries.filter((e) => tables.has(e.d.table)).map((e) => e.layer);
+  if (!layers.length) return;
+  growIn(layers, seconds);
+  engine.replay(seconds + 0.6, layers); // + the last objects' growth (render/layers.ts: 0.5 s)
 }
 
 export function Viewport() {
@@ -383,8 +395,8 @@ function Levels() {
 }
 
 function ReplayCaption() {
-  const c = replayCaption.value;
-  return c ? <div class="caption" aria-live="polite"><b>{c.title}</b>{c.detail && <small>{c.detail}</small>}</div> : null;
+  const tour = tourCaption.value, c = tour ?? replayCaption.value;
+  return c ? <div class={tour ? "caption tour" : "caption"} aria-live="polite"><b>{c.title}</b>{c.detail && <small>{c.detail}</small>}</div> : null;
 }
 
 function Tooltip() {

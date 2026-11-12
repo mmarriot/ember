@@ -122,7 +122,7 @@ function HelpDialog() {
     ]],
     ["Play", [
       [["R"], "", "Replay: how the event builds up, step by step"],
-      [["P"], "the play button; any key or touch stops it", "Tour: replay, then visit the main showers (or the leading physics objects), event after event"],
+      [["P"], "the play button; any key or touch stops it", "Tour: each event built up step by step, out from the collision point and from hits to physics objects, then its leading objects"],
       [[], "the Live button", "Live: play new data as it arrives"],
     ]],
     ["Side panel and files", [

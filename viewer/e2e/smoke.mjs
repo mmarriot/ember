@@ -465,17 +465,29 @@ async function deepChecks(page, h, fail, shot) {
   await page.keyboard.press("Escape"); // the replay and tour start from the whole event
   await checkReplay(page, h, fail);
 
-  // The tour replays the event, then selects its main showers one by one; any key stops it.
+  // The tour builds the event up step by step (ui/tour.ts: its captions in the order of the plan, window.evdTourPlan),
+  // or for a bundle without the kinds the steps name, replays it and selects its main showers; any key stops it.
   const cam = () => page.evaluate(() => window.evdEngine.cam3d.position.toArray().map(Math.round).join());
   const c0 = await cam();
+  await page.evaluate(() => {
+    window.tourCaptions = [];
+    new MutationObserver(() => {
+      const t = document.querySelector(".caption.tour b")?.textContent;
+      if (t && window.tourCaptions.at(-1) !== t) window.tourCaptions.push(t);
+    }).observe(document.querySelector(".viewport"), { subtree: true, childList: true, characterData: true });
+  });
   await page.keyboard.press("p");
-  const toured = await page.waitForSelector(".inspector", { timeout: 60000 }).then(() => true, () => false);
+  const staged = await page.waitForFunction(() => window.tourCaptions.length >= 3, null, { timeout: 90000 }).then(() => true, () => false);
+  const toured = staged || await page.waitForSelector(".inspector", { timeout: 60000 }).then(() => true, () => false);
   const c1 = await cam();
   await shot("8_tour");
+  const [shown, plan] = await page.evaluate(() => [window.tourCaptions, window.evdTourPlan ?? []]);
   await page.keyboard.press("Escape");
-  log(`  tour: camera ${c0} -> ${c1}, selected an object: ${toured}`);
-  if (c0 === c1 || !toured) fail("the tour did not move the camera or select a shower");
+  log(`  tour: camera ${c0} -> ${c1}; steps shown: ${shown.join(" | ") || "-"}; plan: ${plan.join(" | ") || "- (replay and showers)"}`);
+  if (c0 === c1 || !toured) fail("the tour did not move the camera, or show its steps or a shower");
+  if (plan.length && shown.some((c, k) => c !== plan[k])) fail("the tour's steps are not shown in the plan's order");
   if (await page.locator(".eventnav .icon-button.on").count()) fail("a key press did not stop the tour");
+  if (await page.locator(".caption.tour").count()) fail("the tour's caption stayed after it stopped");
   await page.keyboard.press("ArrowRight");
   await page.waitForTimeout(1500);
   await shot("9_next_event");

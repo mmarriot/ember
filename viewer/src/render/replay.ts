@@ -190,15 +190,10 @@ function buildPaths(items: ReplayItem[], growing: ReplayItem[], parts?: Parts) {
   const start = TRAVEL * LATE, build = seeded ? start + SEEDS + PAUSE : start, end = build + BUILD + FIT;
   const paths = new Map<number, { appear: Float32Array; done: Float32Array }>(), lit = new Map<number, Float32Array>();
   for (const [g, item] of growing.entries()) {
-    const { layer, d } = item, path = layer.path!, n = layer.x.length, P = path.points, { x, y, z } = path;
+    const { layer, d } = item, path = layer.path!, n = layer.x.length;
     // Arc length of each drawn path, from its polyline (the piece joining the arc to the end point is drawn last).
     const length = new Float32Array(n), drawn: number[] = [];
-    for (let i = 0; i < n; i++) {
-      if (!layer.passes(i)) continue;
-      drawn.push(i);
-      path.fill(i);
-      for (let j = i * P; j < i * P + P - 2; j++) length[i] += Math.hypot(x[j + 1] - x[j], y[j + 1] - y[j], z[j + 1] - z[j]);
-    }
+    for (let i = 0; i < n; i++) if (layer.passes(i)) { drawn.push(i); length[i] = arcLength(path, i); }
     const sorted = drawn.map((i) => length[i]).sort((a, b) => a - b), longest = sorted[Math.floor(0.9 * (sorted.length - 1))] || 1;
     const appear = new Float32Array(n).fill(build), done = new Float32Array(n).fill(build + BUILD);
     for (const i of drawn) done[i] = build + BUILD * Math.max(0.05, Math.min(1, length[i] / longest)); // one speed
@@ -219,6 +214,43 @@ function buildPaths(items: ReplayItem[], growing: ReplayItem[], parts?: Parts) {
     }
   }
   return { start, build, end, seed, seeded, partsName, paths, parts: lit };
+}
+
+/** The arc length of path i, from its polyline (the piece joining the arc to the end point is drawn last: not
+ *  counted). */
+function arcLength(path: NonNullable<Layer["path"]>, i: number) {
+  const P = path.points, { x, y, z } = path;
+  path.fill(i);
+  let length = 0;
+  for (let j = i * P; j < i * P + P - 2; j++) length += Math.hypot(x[j + 1] - x[j], y[j + 1] - y[j], z[j + 1] - z[j]);
+  return length;
+}
+
+/** The tour's grow-in (ui/tour.ts): the objects of `layers` appear over `seconds`, outwards from the collision point
+ *  (by distance: the bulk of them, 1st to 97th percentile, spread over the time), and paths grow from their starts at
+ *  one speed (a path as long as the longest tenth takes all of it). Only these layers' clocks should run
+ *  (Engine.replay `only`): the others stay as they are. */
+export function growIn(layers: Layer[], seconds: number) {
+  const sample: number[] = [], dist = (l: Layer, i: number) => Math.hypot(l.x[i], l.y[i], l.z[i]);
+  for (const l of layers)
+    if (!l.path) for (let i = 0; i < l.x.length; i += Math.max(1, Math.floor(l.x.length / 5000))) if (l.passes(i)) sample.push(dist(l, i));
+  sample.sort((a, b) => a - b);
+  const d0 = sample[Math.floor(0.01 * (sample.length - 1))] ?? 0, d1 = sample[Math.floor(0.97 * (sample.length - 1))] ?? 1;
+  for (const l of layers) {
+    const n = l.x.length, appear = new Float32Array(n), done = new Float32Array(n);
+    if (l.path) {
+      const length = new Float32Array(n), drawn: number[] = [];
+      for (let i = 0; i < n; i++) if (l.passes(i)) { drawn.push(i); length[i] = arcLength(l.path, i); }
+      const sorted = drawn.map((i) => length[i]).sort((a, b) => a - b), longest = sorted[Math.floor(0.9 * (sorted.length - 1))] || 1;
+      for (const i of drawn) done[i] = seconds * Math.max(0.05, Math.min(1, length[i] / longest));
+    } else {
+      for (let i = 0; i < n; i++) appear[i] = seconds * Math.min(1, Math.max(0, (dist(l, i) - d0) / (d1 - d0 || 1)));
+      done.set(appear); // in their colours as they appear
+    }
+    l.setTimeline(appear, done);
+    l.setRetire(REPLAY_OFF);
+    l.setFade?.(0, 1, 0);
+  }
 }
 
 /** How far along path i's arc (0 to 1) its polyline comes nearest to (x, y, z); the piece joining the arc to the end

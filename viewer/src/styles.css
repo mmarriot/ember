@@ -194,6 +194,7 @@ details { margin-top: 8px; } summary { cursor: pointer; color: var(--accent); fo
 @media (prefers-reduced-motion: reduce) { .inspector, .caption { animation: none; } }
 @keyframes fade-in { from { opacity: 0; } }
 .caption b { font-size: 14px; } .caption small { color: var(--muted); font-size: 11px; }
+.caption.tour { white-space: normal; text-align: center; width: max-content; max-width: min(600px, calc(100% - 32px)); } .caption.tour small { font-size: 12px; line-height: 1.35; }
 .hintbar { position: absolute; bottom: 10px; left: 12px; max-width: calc(100% - 24px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 11px; color: var(--muted); background: var(--overlay); padding: 3px 8px; border-radius: 6px; }
 
 /* inspector card */

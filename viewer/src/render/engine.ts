@@ -65,7 +65,7 @@ export class Engine {
   private view: ViewName = "3d";
   private dirty = true;
   private flight: { t0: number; ms: number; swing: number; from: Pose; to: Pose } | null = null;
-  private replayClock: { t0: number; seconds: number } | null = null;
+  private replayClock: { t0: number; seconds: number; only?: Layer[] } | null = null;
   private highlightFade: { t0: number; ms: number } | null = null;
   private orbit = 0; // auto-rotation, turns per minute (3D)
   /** Tour camera: looks at a target from a 3/4 angle, turning slowly (whole event) or swaying (close-ups). Angle,
@@ -160,11 +160,12 @@ export class Engine {
     this.requestRender();
   }
 
-  /** Run the replay set up with planReplay() over `seconds`, from an empty view. */
-  replay(seconds: number) {
-    for (const l of this.layers) l.setClock(0);
+  /** Run the replay set up with planReplay() over `seconds`, from an empty view; `only`: just these layers replay,
+   *  the others stay in their final state (e.g. the tour growing in one step's objects). */
+  replay(seconds: number, only?: Layer[]) {
+    for (const l of only ?? this.layers) l.setClock(0);
     this.draw(); // the first draw uploads the rebuilt layers to the GPU: the clock starts after it, not during it
-    this.replayClock = { t0: performance.now(), seconds };
+    this.replayClock = { t0: performance.now(), seconds, only };
   }
 
   stopReplay() {
@@ -180,7 +181,7 @@ export class Engine {
   private tick(now: number) {
     const t = (now - this.replayClock!.t0) / 1000;
     if (t >= this.replayClock!.seconds) return this.stopReplay();
-    for (const l of this.layers) l.setClock(t);
+    for (const l of this.replayClock!.only ?? this.layers) l.setClock(t);
     this.onReplayTick(t);
     this.requestRender();
   }

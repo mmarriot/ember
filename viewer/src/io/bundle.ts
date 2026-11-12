@@ -208,10 +208,15 @@ export function blobSource(blob: Blob): Source {
 }
 
 export async function httpSource(url: string): Promise<Source> {
-  const probe = await fetch(url, { headers: { Range: "bytes=0-0" } });
+  // A file replaced under the same name (a data set converted again) must not be read from the browser's cache of the
+  // old one: the probe bypasses the cache, and every read names the version it found (the server ignores the query),
+  // so cached ranges of another version are never used, while those of this one still are.
+  const probe = await fetch(url, { headers: { Range: "bytes=0-0" }, cache: "no-store" });
   if (!probe.ok) throw new Error(`${url}: HTTP ${probe.status}`);
   if (probe.status === 200) return blobSource(await probe.blob()); // server ignores Range: keep the whole file
   const size = Number(probe.headers.get("Content-Range")?.split("/")[1]);
+  const version = probe.headers.get("ETag") ?? probe.headers.get("Last-Modified");
+  const at = version ? `${url}${url.includes("?") ? "&" : "?"}v=${encodeURIComponent(version)}` : url;
   // Servers (or caches in between) may answer any range request with the whole file (HTTP 200): from then on
   // keep that copy and serve every read from it.
   let whole: Promise<Blob> | null = null;
@@ -219,7 +224,7 @@ export async function httpSource(url: string): Promise<Source> {
     size,
     async read(offset, length) {
       if (!whole) {
-        const r = await fetch(url, { headers: { Range: `bytes=${offset}-${offset + length - 1}` } });
+        const r = await fetch(at, { headers: { Range: `bytes=${offset}-${offset + length - 1}` } });
         if (r.status === 206) return r.arrayBuffer();
         if (!r.ok) throw new Error(`${url}: HTTP ${r.status}`);
         whole = r.blob();

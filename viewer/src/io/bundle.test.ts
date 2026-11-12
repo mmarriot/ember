@@ -56,6 +56,22 @@ describe("httpSource", () => {
     expect(calls).toBe(2); // the whole file was fetched once and reused
     vi.unstubAllGlobals();
   });
+
+  it("probes past the browser's cache, and names the version it found in every read", async () => {
+    const asked: [string, RequestInit][] = [];
+    vi.stubGlobal("fetch", async (url: string, init: RequestInit) => {
+      asked.push([url, init]);
+      const [, a, b] = (init.headers as Record<string, string>).Range.match(/bytes=(\d+)-(\d+)/)!.map(Number);
+      return new Response(new Uint8Array(b - a + 1), { status: 206, headers: { "Content-Range": `bytes ${a}-${b}/100`, ETag: '"5f-abc"' } });
+    });
+    const src = await httpSource("data/x.evdb");
+    await src.read(10, 3);
+    expect(asked[0][0]).toBe("data/x.evdb");
+    expect(asked[0][1].cache).toBe("no-store");
+    expect(asked[1][0]).toBe(`data/x.evdb?v=${encodeURIComponent('"5f-abc"')}`);
+    expect(asked[1][1].cache).toBeUndefined(); // this version's ranges may come from the cache
+    vi.unstubAllGlobals();
+  });
 });
 
 describe("event cache", () => {

@@ -1,0 +1,36 @@
+# The checks that need nothing from CERN: the Python tests (converter, format, command, site: synthetic NanoAOD and
+# stand-ins for xrdcp and cmsDriver) and the viewer's type check and unit tests (they read golden/v6_1event.evdb).
+# The browser checks (viewer/e2e/smoke.mjs) need a development server and bundles in data/, and are run by hand.
+name: Tests
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - run: pip install ".[test]"
+      - run: python3 -m pytest tests
+  viewer:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: viewer
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: viewer/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test

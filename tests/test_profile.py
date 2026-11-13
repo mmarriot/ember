@@ -384,9 +384,11 @@ def test_calo_layers_in_cms():
     """cms includes calo.json: the barrel and forward calorimeter hits as towers in the Calo domain, one cut group
     per subdetector, HO and HF hidden, HF not drawn in the front view; HGCal truth -> hit relations are facts."""
     p = load_profile("cms")
-    hit = {**XYZE, **dict.fromkeys(("energy", "time", "halfWidth", "dEta", "dPhi", "thickness"), F4), "layer": np.dtype("i2")}
+    # the tower tables as the exporter writes them: an eta-phi extent and a depth, no half-width (that is HGCal's)
+    hit = {**XYZE, **dict.fromkeys(("energy", "time", "dEta", "dPhi", "thickness"), F4), "layer": np.dtype("i2")}
     conv = converter({t: hit for t in ("EcalHits", "HBHEHits", "HOHits", "HFHits")}, p)
     d = {x["table"]: x for x in conv.display}
+    assert all(x["size"] is None for x in d.values())
     assert {x["domain"] for x in d.values()} == {"Calo"} and all(x["cell"]["shape"] == "tower" for x in d.values())
     assert [t for t, x in d.items() if x["visible"]] == ["EcalHits", "HBHEHits"]
     assert len({x["cut"]["group"] for x in d.values()}) == 4 and "front" not in d["HFHits"]["views"]

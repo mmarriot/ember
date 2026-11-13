@@ -5,8 +5,10 @@ writes the reconstructed event as flat tables: hits with their geometry, cluster
 objects, the links between them, and the truth graph. Nothing in it knows about the viewer: the file is plain NanoAOD
 and can be read with uproot or ROOT like any other.
 
-> **Not merged yet.** The package is a pull request against CMSSW_20_1_X. Until it is in a release, a CMSSW area
-> gets it with `git cms-merge-topic mmarriot:eventdisplay-nano` and `scram b` (see
+> **Not merged yet.** The package is two branches against CMSSW_20_1_X, to become two pull requests:
+> `eventdisplay-nano-generic` (the generic table producers) and, on top of it, `eventdisplay-nano` (the other
+> producers and the flavour). Neither is pushed yet. Until the package is in a release, a CMSSW area gets it with
+> `git cms-merge-topic mmarriot:eventdisplay-nano` and `scram b` (see
 > [Getting started](getting-started.md#before-you-start)). This page describes the branch as measured on
 > CMSSW_20_1_X_2026-11-12-2300; the package's own `README.md` in CMSSW has the full column lists.
 
@@ -139,7 +141,8 @@ collection yet. The TICL v6 development branch adds its own (HGCal SoA rechits, 
 2. **Schedule it**: add the module to the Task of its part of the detector in `eventDisplayNano_cff.py`. Module
    labels start with `evd` and end with `Table` (the output keeps `*Table*`).
 3. **Check it**: `test/validate_export.py evd_nano.root` runs the consistency checks (indices in range, positions
-   finite, link counts equal to the objects' counts); add the new table's.
+   finite, link counts equal to the objects' counts); add the new table's. The RelVal workflow of the flavour,
+   `runTheMatrix.py -w upgrade -l 29634.214` (`_EventDisplayNano`), must still pass.
 4. **Draw it**: a `display` entry, and relations for its links, in an evd profile ([Profiles](profiles.md)). A
    table no profile entry names is still converted and listed in the viewer's Event tab.
 

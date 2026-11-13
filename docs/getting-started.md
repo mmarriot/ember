@@ -20,8 +20,8 @@ Then [five things to try first](#4-five-things-to-try-first) in the viewer, [sha
 - **For your own events:** a CMSSW area with the event-display NanoAOD (the `NANO:@EVD` flavour, Phase-2 full
   simulation; see [CMSSW side](cmssw.md)), and the `evd` command.
 
-> **Until the CMSSW pull request is merged** (delete this box afterwards). `NANO:@EVD` is not in a release yet. In
-> your CMSSW area, once:
+> **Until the CMSSW pull requests are merged** (delete this box afterwards). `NANO:@EVD` is not in a release yet. In
+> your CMSSW area (CMSSW_20_1_X), once:
 >
 > ```bash
 > git cms-merge-topic mmarriot:eventdisplay-nano
@@ -83,7 +83,7 @@ Then:
 ```
 $ evd step3_inNANOAODSIM.root
 step3_inNANOAODSIM.root: NanoAOD from CMSSW_20_1_X_2026-11-12-2300, 20 events
-  48 tables, 80 relations, 42 display layers
+  46 tables, 82 relations, 42 display layers
   10 events of 20 (--max-events 0 for all), 8 MB, 1 s
 published step3_inNANOAODSIM: kept until 2026-12-13 (evd list, evd rm step3_inNANOAODSIM)
 
@@ -170,8 +170,8 @@ that the file is gone and whose it was.
 
 ## 6. Your files
 
-In the viewer, **My files** in the data set chooser lists what you published, newest first, with the number of
-events and when each expires. The site knows who you are from the sign-on; where it does not, the chooser asks for
+In the viewer, **My files** in the data set chooser lists what you published, most recently published first, with
+the number of events and when each expires. The site knows who you are from the sign-on; where it does not, the chooser asks for
 your CERN login once and remembers it in that browser. Other people's files are not listed anywhere: they are
 reached by link, and a link you opened is then under **Recent**.
 
@@ -187,14 +187,14 @@ removed step3_inNANOAODSIM
 ```
 
 A bundle is kept **30 days** after it was last published. Publishing the same name again replaces it and starts the
-30 days again; the link stays the same. There is no quota per person yet: please remove what you no longer need.
+30 days again; the link stays the same. With nothing published, `evd list` says so. There is no quota per person yet: please remove what you no longer need.
 
 ## 7. Keep it to yourself
 
 Nothing has to go to the site:
 
 ```bash
-evd step3_inNANOAODSIM.root -o mine.evdb     # or --no-publish: writes <name>.evdb here
+evd step3_inNANOAODSIM.root -o mine.evdb     # or --no-publish: writes step3_inNANOAODSIM.evdb here
 ```
 
 Then drop `mine.evdb` on the viewer's page (or **Open a local file…** in the chooser). The file is read where it is,
@@ -205,7 +205,7 @@ by your browser, and is not uploaded; it has no link, and the share button says 
 
 | | state |
 |---|---|
-| `NANO:@EVD` in CMSSW | a branch (`mmarriot:eventdisplay-nano`) for CMSSW_20_1_X, not merged; Phase-2 full simulation only. Run 3, FastSim, premixed pile-up and data are untested |
+| `NANO:@EVD` in CMSSW | two branches for CMSSW_20_1_X, to become two pull requests (generic table producers; the flavour, `eventdisplay-nano`), not pushed or merged yet. The RelVal workflow added for it (`29634.214`) passes. Phase-2 full simulation only: Run 3, FastSim, premixed pile-up and data are untested |
 | `evd` on NanoAOD and on step3 files | works; geometry detection covers Run4 geometries described by XML files |
 | the CMS site, `/eos/project/c/cms-evd/bin/evd`, shared RelVal samples | not set up yet: addresses provisional. Until then `evd FILE.root -o FILE.evdb` and a viewer you can reach (a development server, see the repository's README) |
 | the viewer | checked in Chromium (the browser tests run there); other current browsers are expected to work and are not tested. A PU200 event is an 18 MB download |

@@ -33,8 +33,10 @@ what has to be asked for.
     └── cmssw/<release>/      CMSSW areas for the RelVal campaigns
 ```
 
-A user's index is `{"updated", "bundles": [{"file", "title", "events", "size", "created", "expires"}]}`, newest
-first, `file` relative to the site, so a link is `<EVD_SITE_URL>/#b=<file>`. The site's own `index.json` never lists
+A user's index is `{"updated", "bundles": [{"file", "title", "events", "size", "created", "published",
+"expires"}]}`, most recently published first: `file` is relative to the site, so a link is
+`<EVD_SITE_URL>/#b=<file>`; `created` is when the bundle was converted, `published` when it was last put on the
+site, `expires` 30 days after that. The site's own `index.json` never lists
 `data/u/`: a user's bundle is seen by its owner and by whoever has its link.
 
 ## What to ask for
@@ -64,19 +66,26 @@ A checklist for the request to CERN IT and CMS. All of it **unverified** until d
 ## Users' areas and their access
 
 `evd FILE.root` creates `data/u/<login>/` on first use and writes the bundle and the index there, either through the
-mounted file system (lxplus) or through XRootD with the user's Kerberos ticket. So the EOS access rules of
-`www/data/u/` must let:
+mounted file system (lxplus) or through XRootD with the user's Kerberos ticket. To set up once on the site
+directory, with EOS ACLs:
 
-- every CMS member create their own folder and write in it;
-- the service account write and delete everywhere (it removes expired bundles and rewrites indexes);
-- everyone who can open the site read (the web server's account included).
+- everyone who may see the site reads (the web server's account included);
+- a CMS member can create their own folder under `data/u/` and write in it, **and in no one else's**;
+- the service account that runs the cron jobs can write everywhere (it removes expired bundles and rewrites the
+  lists).
 
-**Unverified:** the exact EOS ACL. The intent is an ACL on `data/u/` that grants the CMS members group write access
-and is inherited by new folders, set by the project's administrators with `eos attr set sys.acl=...`; whether a
-member can then be kept from deleting another member's files, and whether files a user writes count against the
-project's quota, are questions for EOS support when the space is requested. What the scripts assume is only the three
-points above. The login in the path is the account name on the machine that ran `evd` (`EVD_USER` overrides it), and
-nothing checks it: the site trusts its members.
+**This is the only thing that keeps one user from replacing or removing another's bundles.** `evd` writes as
+whoever runs it, with their own EOS rights, and the site has no server that could check anything: `--user` and
+`EVD_USER` name an area, they prove nothing. What `evd` does check is that a login and a bundle name are plain names
+(a login: a letter, then letters, digits, `-`, `_`, 2 to 32 characters, lower case), so that a path built from them
+stays inside `data/u/<login>/`; and `evd clean` leaves alone anything in `data/u/` that is a link.
+
+**Unverified:** the ACL that gives exactly this on an EOS project space (a folder its creator alone can write in,
+under a parent where every CMS member can create one, with deletion by the service account) has not been worked out
+or tried: the site does not exist yet. Whether files a user writes count against the project's quota is also a
+question for EOS support. Before the site is announced, test with two ordinary accounts that neither can write,
+replace or remove anything in the other's folder (`evd --user <the other> FILE.root`,
+`evd rm --user <the other> NAME`, and plain `cp` and `rm` on the mounted directory), and that the cron account can.
 
 ## Who is looking: `whoami`
 
@@ -122,7 +131,8 @@ Two entries in the service account's acrontab (step by step, with dry runs first
   times is left alone until its entry is removed from `state/failures.json`.
 - **clean** (`evd clean`): removes users' bundles published more than 30 days ago, files a publish left half-copied
   more than a day ago, and rewrites each user's index to list exactly the bundles present. It touches nothing outside
-  `data/u/`. `evd clean --dry-run` lists what it would remove.
+  `data/u/`, and nothing there that is a link. `evd clean --dry-run` lists what it would remove; `--days N` (1 or
+  more) changes the 30 days.
 
 ### Shared samples: RelVal campaigns
 

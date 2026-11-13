@@ -27,7 +27,8 @@ the same command. `-h` after any command prints its options.
 evd [view] FILE.root [FILE.root ...] [options]
 ```
 
-Converts the inputs to one bundle, copies it to `data/u/<login>/<name>.evdb` on the site, adds it to your list and
+Checks that the site is there and your area writable (before any work: an export takes minutes), converts the
+inputs to one bundle, copies it to `data/u/<login>/<name>.evdb` on the site, adds it to your list and
 prints the link on the last line, after an empty line (so `evd FILE.root | tail -1` is the link). Options may come
 before or after the files: `evd -o out.evdb FILE.root` is `evd FILE.root -o out.evdb`.
 
@@ -46,7 +47,7 @@ call.
 | `--max-events N` | at most N events. Default: 10; with `--events`, all of those asked for. `0`: all |
 | `--events 3,7-9` | only these event numbers (the profile's event selection still applies). A reconstruction file is exported in full to find them |
 | `-j N`, `--threads` | threads to read and compress with. Default: up to 4, never more than the process may use |
-| `--site DIR`, `--url URL`, `--user LOGIN` | the site's directory and address, and whose area (a CERN login: letters, digits, `-`, `_`). Default: the environment variables below, else the CMS site and your login |
+| `--site DIR`, `--url URL`, `--user LOGIN` | the site's directory and address, and whose area. A login is a letter, then letters, digits, `-` and `_`, 2 to 32 characters; it is made lower case. Default: the environment variables below, else the CMS site and your login |
 
 For reconstruction files:
 
@@ -66,7 +67,9 @@ evd list [-l]                 name, events, size, expiry and title of each of yo
 evd rm NAME [NAME ...]        remove them; exit code 1 if one of them does not exist
 ```
 
-Both take `--site`, `--url` and `--user`.
+Both take `--site`, `--url` and `--user`, and both end with exit code 1 when the site is not there or cannot be
+reached. With nothing published, `evd list` prints `<login> has no published bundle` and exits 0. The list is in
+the order of publishing, most recent first.
 
 ## `evd convert`, `evd inspect`, `evd validate`
 
@@ -92,6 +95,9 @@ evd simulate SRC.evdb [--campaign C] [--events N] [--interval S]  publish a bund
 evd clean [--days 30] [--dry-run] [--site DIR]                    remove users' bundles past their 30 days
 ```
 
+`clean --days` takes a whole number of 1 or more (anything else is a usage error, exit code 2), runs only where the
+site is a mounted directory, and leaves alone anything under `data/u/` that is a link.
+
 ## Environment variables
 
 | variable | meaning | default |
@@ -103,7 +109,8 @@ evd clean [--days 30] [--dry-run] [--site DIR]                    remove users' 
 | `EVD_DEBUG=1` | print the Python traceback of a failure instead of one line | off |
 
 On a machine where your account name is not your CERN login, set `EVD_USER` (or `--user`) to the CERN login: the
-viewer finds your files under it.
+viewer finds your files under it. Nothing checks that the login is yours: what keeps one person out of another's
+area is the access rights of the folders on the site ([Hosting](hosting.md#users-areas-and-their-access)).
 
 ## Exit codes
 
@@ -126,7 +133,8 @@ viewer finds your files under it.
 | `the inputs mix NanoAOD and CMSSW reconstruction files` | give one kind per call |
 | `no event was converted` | `--events` named events the file does not have, or the profile's selection kept none |
 | `'NAME' cannot be a bundle name` | give `--name` with letters, digits, `.`, `_`, `-` |
-| `the site directory DIR does not exist` | you are not where the site is mounted and the path is not on EOS; set `EVD_SITE_DIR`/`--site`, or write a file with `-o` |
+| `'X' cannot be a login: a letter, then letters, digits, '-' and '_', 2 to 32 characters` | your account name here is not a CERN login: give yours with `--user` or `EVD_USER` |
+| `the site directory DIR does not exist` (also `... on root://HOST/`) | you are not where the site is mounted and the path is not on EOS, or the site is not set up; set `EVD_SITE_DIR`/`--site`, or write a file with `-o`. `view`, `list` and `rm` all stop here, before any work |
 | `cannot write to DIR: Permission denied ...` | the users' areas are writable by CMS members; with `-o FILE` the bundle is written here instead |
 | `cannot write PATH: root://... refused (...)` | no valid Kerberos ticket: `kinit <login>@CERN.CH`, then again |
 | `xrdcp not found ...` | the site is not mounted on this machine and XRootD is not in `PATH`: run `cmsenv` first |
@@ -134,9 +142,10 @@ viewer finds your files under it.
 | `cmsDriver.py not found: run cmsenv first` | as above |
 | `FILE: cannot tell which geometry it was made with (...)` | give `--geometry`, e.g. `--geometry D110` |
 | `this release has no default for geometry G; give --era and --conditions` | give them |
-| the release has no `NANO:@EVD` | the CMSSW area lacks the event-display NanoAOD: see [until it is merged](getting-started.md#before-you-start), or use a release that has it |
-| `the export job failed (exit code N); the end of its output: ...` | the cmsRun job failed; its last lines follow. A wrong era or conditions for the file ends here: give `--era`, `--conditions` |
+| `this CMSSW release has no NANO:@EVD. The event-display NanoAOD is the package DPGAnalysis/EventDisplayNanoAOD ...` | the CMSSW area lacks the flavour: add it as [Getting started](getting-started.md#before-you-start) says, or use a release that has it, then `cmsenv` and again |
+| `the export job failed (exit code N); the end of its output (all of it: FILE): ...` | the cmsRun job failed; its last lines follow and the whole log is kept in the file named. A wrong era or conditions for the file ends here: give `--era`, `--conditions` |
 | `LOGIN has no bundle named NAME (evd list)` | `evd list` shows the names |
+| `argument --days: 'N' is not a whole number of 1 or more` (`evd clean`) | give at least 1 |
 | `no profile P: neither a file nor one of the built-in profiles (...)` | the built-in ones are listed in the message |
 
 Anything else is a bug: run again with `EVD_DEBUG=1` and report the traceback

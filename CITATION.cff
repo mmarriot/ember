@@ -1,0 +1,11 @@
+cff-version: 1.2.0
+message: "If you use evd, please cite it as below."
+title: "evd: a web event display for CMS"
+type: software
+authors:
+  - family-names: "Marriott-Clarke"
+    given-names: "Max"
+version: 0.2.0
+repository-code: "https://github.com/mmarriot/evd"
+url: "https://mmarriot.github.io/evd/"
+license: Apache-2.0

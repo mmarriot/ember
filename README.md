@@ -87,7 +87,7 @@ data/              bundles for the development server (not tracked)
 ## Development
 
 Python 3.9 or later with numpy and uproot (scipy for one derive, awkward for the tests); a CMSSW environment has all
-of them. Node 20 or later for the viewer.
+of them. Node 18 or later for the viewer.
 
 ```bash
 python3 -m pip install -e ".[test]"       # or, inside cmsenv, nothing: python3 -m evdtools ... works from the clone

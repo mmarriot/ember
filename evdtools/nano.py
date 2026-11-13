@@ -10,6 +10,7 @@ index columns and cut relations (links to removed rows dropped) -> drop internal
 import contextlib
 import datetime
 import fnmatch
+import importlib.resources
 import itertools
 import json
 import os
@@ -20,10 +21,11 @@ from collections import defaultdict
 import numpy as np
 import uproot
 
-from . import __version__
+from . import Problem, __version__
 from .bundle import BundleWriter, type_code
 
-PROFILES = os.path.join(os.path.dirname(__file__), "profiles")
+# The built-in profiles, read as package data so that they are also found when evdtools runs from a zip file.
+PROFILES = importlib.resources.files(__package__).joinpath("profiles")
 OPS = {"<": np.less, "<=": np.less_equal, ">": np.greater, ">=": np.greater_equal, "==": np.equal, "!=": np.not_equal}
 # Profile keys the converter acts on; every other top-level key is a viewer setting, copied to the header verbatim.
 PROFILE_KEYS = {"name", "note", "include", "exclude", "internal", "sameRows", "derive", "relations", "cuts", "select",
@@ -44,18 +46,22 @@ def load_profile(name_or_path, _within=()):
     """A profile with its `include`s resolved: the included profiles (by name or path, looked up next to the
     including profile first, then among the built-in ones) merged in order, then the profile's own keys over them.
     An included profile's `name` is not inherited."""
-    here = os.path.dirname(_within[-1]) if _within else ""
-    candidates = [os.path.join(here, name_or_path), os.path.join(here, f"{name_or_path}.json")] if here else \
-        [name_or_path]
-    path = next((c for c in candidates if os.path.isfile(c)), os.path.join(PROFILES, f"{name_or_path}.json"))
-    path = os.path.realpath(path)
-    if path in _within:
-        raise ValueError(f"profile {path} includes itself (through {' -> '.join(_within)})")
-    with open(path) as f:
-        profile = json.load(f)
+    # A profile is known by its real path, or as "builtin:<name>" (which has no directory to look beside).
+    here = os.path.dirname(_within[-1]) if _within and not _within[-1].startswith("builtin:") else None
+    candidates = [name_or_path] if not _within else \
+        [os.path.join(here, name_or_path), os.path.join(here, f"{name_or_path}.json")] if here else []
+    path = next((os.path.realpath(c) for c in candidates if os.path.isfile(c)), None)
+    builtin = PROFILES.joinpath(f"{name_or_path}.json")
+    if path is None and not builtin.is_file():
+        known = sorted(p.name[:-5] for p in PROFILES.iterdir() if p.name.endswith(".json"))
+        raise Problem(f"no profile {name_or_path}: neither a file nor one of the built-in profiles ({', '.join(known)})")
+    key = path or f"builtin:{name_or_path}"
+    if key in _within:
+        raise ValueError(f"profile {key} includes itself (through {' -> '.join(_within)})")
+    profile = json.loads(builtin.read_text() if path is None else open(path).read())
     merged = {}
     for name in profile.pop("include", []):
-        included = load_profile(name, (*_within, path))
+        included = load_profile(name, (*_within, key))
         included.pop("name", None)
         merged = _merge(merged, included)
     return _merge(merged, profile)
@@ -649,7 +655,7 @@ def written_by(f):
         history = b"".join(bytes(branch.basket(i).data) for i in range(branch.num_baskets))
     except Exception:  # no such tree (a NanoAOD-like file from elsewhere): the release is simply not recorded
         return None
-    releases = re.findall(rb"CMSSW_\d+_\d+_\w+", history)
+    releases = re.findall(rb"CMSSW_\d+_\d+_[\w-]+", history)
     return releases[-1].decode() if releases else None
 
 
@@ -744,6 +750,11 @@ def convert(files, output, profile_name="hgcal", max_events=None, log=sys.stderr
             print(f"per-run tables of run(s) {sorted(runs)} from {os.path.basename(run_tables)}", file=log)
         print(f"{len(conv.written())} tables, {len(conv.relations)} relations, {len(conv.display)} display layers",
               file=log)
+        if not conv.display:  # e.g. a physics NanoAOD: nothing of it would be drawn
+            has = ", ".join(sorted(conv.tables)[:12]) + (", ..." if len(conv.tables) > 12 else "")
+            raise Problem(f"{files[0]} has none of the tables that the profile {profile.get('name', profile_name)} "
+                          f"draws (it has: {has or 'no table'}). Event-display NanoAOD is written by CMSSW with "
+                          "NANO:@EVD; another kind of file needs its own --profile")
         header = conv.header(files, profile.get("name", profile_name), written_by(first))
         if data_time:
             header["source"]["data_time"] = data_time.isoformat(timespec="seconds")

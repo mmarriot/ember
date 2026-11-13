@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "evdtools"
+description = "Convert CMS NanoAOD event-display tables to .evdb bundles and publish them for the evd web event display"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = ["numpy", "uproot>=5"]
+dynamic = ["version"]
+
+[project.optional-dependencies]
+scipy = ["scipy"]                      # the neighbourDistance derive (cell sizes from the hits' spacing)
+runinfo = ["mysql-connector-python"]   # run information from the run registry
+test = ["pytest", "awkward", "scipy"]
+
+[project.scripts]
+evd = "evdtools.__main__:main"
+
+[tool.setuptools]
+packages = ["evdtools"]
+
+[tool.setuptools.package-data]
+evdtools = ["profiles/*.json"]
+
+[tool.setuptools.dynamic]
+version = { attr = "evdtools.__version__" }

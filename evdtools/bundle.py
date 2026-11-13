@@ -138,13 +138,19 @@ class BundleWriter:
         return self
 
     def __exit__(self, exc_type, *_):
-        if exc_type is None:
-            self.close()
-        else:
-            if self.pool:
-                self.pool.shutdown(cancel_futures=True)
-            self._file.close()
-            os.remove(self._tmp)
+        try:
+            if exc_type is None:
+                return self.close()  # a record that failed on a thread fails here
+        except BaseException:
+            self._abandon()
+            raise
+        self._abandon()
+
+    def _abandon(self):
+        if self.pool:
+            self.pool.shutdown(cancel_futures=True)
+        self._file.close()
+        os.remove(self._tmp)
 
 
 class Bundle:

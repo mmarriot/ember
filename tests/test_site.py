@@ -260,6 +260,78 @@ def test_clean_does_not_follow_a_symlinked_area_or_touch_what_is_not_a_plain_fil
     assert any("mallory" in line for line in said)
 
 
+def test_clean_never_writes_through_a_link_planted_in_an_area(tmp_path):
+    """A user cannot make the service account write elsewhere: neither a link at the index's place nor links at the
+    names the index used to be written under are written through; the link itself is replaced."""
+    root = tmp_path / "site"
+    root.mkdir()
+    site.publish(bundle(tmp_path / "a.evdb"), str(root), "bob", "his")
+    site.publish(bundle(tmp_path / "a.evdb"), str(root), "mallory", "hers")
+    victim = root / "data" / "u" / "bob" / "index.json"
+    before = victim.read_bytes()
+    area = root / "data" / "u" / "mallory"
+    (area / "index.json").unlink()
+    os.symlink(victim, area / "index.json")                                       # her index is bob's
+    for pid in range(os.getpid() - 2, os.getpid() + 3):                           # and the old temporary names
+        os.symlink(victim, area / f"index.json.tmp{pid}")
+    site.clean(str(root), log=lambda line: None)
+    assert victim.read_bytes() == before
+    assert not (area / "index.json").is_symlink() and [e["file"] for e in index(str(root), "mallory")["bundles"]] == \
+        ["data/u/mallory/hers.evdb"]
+
+
+def test_clean_keeps_a_bundle_published_anew_while_it_ran(tmp_path, monkeypatch):
+    """clean reads the folder, then removes what was expired then: a bundle published again in between stays."""
+    root = tmp_path / "site"
+    root.mkdir()
+    for name in ("a_old", "b_new"):  # read in this order
+        site.publish(bundle(tmp_path / "a.evdb"), str(root), "alice", name)
+    old = root / "data" / "u" / "alice" / "a_old.evdb"
+    age(old, 40)
+    entry = site._entry
+    def republish_meanwhile(path, *args):  # called for b_new.evdb, after a_old.evdb was found expired
+        os.utime(old)
+        return entry(path, *args)
+    monkeypatch.setattr(site, "_entry", republish_meanwhile)
+    assert site.clean(str(root), log=lambda line: None) == [] and old.exists()
+    assert sorted(e["file"] for e in index(str(root))["bundles"]) == ["data/u/alice/a_old.evdb", "data/u/alice/b_new.evdb"]
+
+
+def test_an_area_swapped_for_a_link_while_clean_runs_does_not_redirect_it(tmp_path, monkeypatch):
+    """Mallory's folder is read, then she puts a link to a campaign folder in its place: the campaign's old bundle stays
+    and no index is written there."""
+    root = tmp_path / "site"
+    campaign = root / "data" / "simulation"
+    campaign.mkdir(parents=True)
+    victim = bundle(campaign / "zz_old.evdb")
+    age(victim, 40)
+    for name in ("a_new", "zz_old"):
+        site.publish(bundle(tmp_path / "a.evdb"), str(root), "mallory", name)
+    area = root / "data" / "u" / "mallory"
+    age(area / "zz_old.evdb", 40)
+    entry = site._entry
+    def swap(path, *args):  # called for a_new.evdb, once the folder is read
+        if area.is_dir() and not area.is_symlink():
+            area.rename(root / "data" / "u" / "hidden")
+            os.symlink("../simulation", area)
+        return entry(path, *args)
+    monkeypatch.setattr(site, "_entry", swap)
+    site.clean(str(root), log=lambda line: None)
+    assert os.path.exists(victim) and not (campaign / "index.json").exists()
+    hidden = root / "data" / "u" / "hidden"
+    assert not (hidden / "zz_old.evdb").exists()  # her own expired bundle is removed
+    # her index is rewritten in her real folder; what the swap made unreadable is left out of it (her loss only)
+    assert all(e["file"].startswith("data/u/mallory/") for e in json.load(open(hidden / "index.json"))["bundles"])
+
+
+def test_files_written_to_the_site_are_readable_by_the_web_server(tmp_path):
+    root = tmp_path / "site"
+    root.mkdir()
+    site.publish(bundle(tmp_path / "a.evdb"), str(root), "alice", "a")
+    for f in ("a.evdb", "index.json"):
+        assert stat.S_IMODE(os.stat(root / "data" / "u" / "alice" / f).st_mode) & 0o044 == 0o044
+
+
 def test_clean_only_removes_the_temporary_files_a_publish_leaves(tmp_path):
     root = str(tmp_path / "site")
     os.makedirs(root)

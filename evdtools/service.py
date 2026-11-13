@@ -60,7 +60,7 @@ def _natural(path):
 
 
 def _write_json(path, data):
-    with replacing(path) as partial, open(partial, "w") as f:
+    with replacing(path, "w") as f:
         json.dump(data, f, indent=1)
 
 
@@ -244,8 +244,8 @@ def publish(bundle, site, campaign, title, name=None, file_title=None):
     stem = name or os.path.splitext(os.path.basename(bundle))[0]
     _remember_title(site, {"name": campaign, "title": title}, {stem: file_title} if file_title else None)
     target = os.path.join(site, "data", campaign, f"{stem}.evdb")
-    with replacing(target) as partial:
-        shutil.copyfile(bundle, partial)
+    with replacing(target) as out, open(bundle, "rb") as f:
+        shutil.copyfileobj(f, out)
     _write_json(os.path.join(site, "index.json"), build_index(site))
     log(f"published {os.path.relpath(target, site)}")
     return target

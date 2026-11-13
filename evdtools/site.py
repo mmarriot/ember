@@ -18,10 +18,12 @@ so that no path built from them leaves the user's area.
 """
 import contextlib
 import datetime
+import errno
 import getpass
 import json
 import os
 import re
+import secrets
 import shutil
 import stat
 import subprocess
@@ -40,7 +42,7 @@ KEEP_DAYS = 30
 USERS = "data/u"  # the per-user areas, relative to the site
 EOS = {"/eos/project/": "root://eosproject.cern.ch/", "/eos/user/": "root://eosuser.cern.ch/",
        "/eos/cms/": "root://eoscms.cern.ch/"}
-PARTIAL = re.compile(r"\.(evdb|json)\.tmp\d+$")  # a file being copied in (replacing() and _XRootD.put)
+PARTIAL = re.compile(r"\.(evdb|json)\.tmp\w+$")  # a file being copied in (replacing() and _XRootD.put)
 
 
 def site_dir(given=None):
@@ -86,17 +88,35 @@ def _iso(seconds):
 
 
 @contextlib.contextmanager
-def replacing(path):
-    """The name to write a new `path` under: renamed onto `path` when the block ends, removed if it fails, so that a
-    reader finds the old file or the complete new one."""
-    partial = f"{path}.tmp{os.getpid()}"
+def replacing(path, mode="wb", folder=None):
+    """A new file to write `path` into: renamed onto `path` when the block ends, removed if it fails, so that a reader
+    finds the old file or the complete new one. The file is created under a new random name (O_EXCL|O_NOFOLLOW, never
+    through a link) and written through this handle only, so a link planted in the folder is never written through: the
+    service account cleans folders their users can write in. With `folder` (an open directory descriptor) `path` is a
+    name in it, and every step goes through that descriptor, wherever the folder's path points by then."""
+    own = folder is None
+    name = os.path.basename(path) if own else path
+    if own:
+        folder = os.open(os.path.dirname(path) or ".", os.O_RDONLY | os.O_DIRECTORY)
     try:
-        yield partial
-        os.replace(partial, path)
-    except BaseException:
-        with contextlib.suppress(FileNotFoundError):
-            os.remove(partial)
-        raise
+        while True:
+            partial = f"{name}.tmp{secrets.token_hex(4)}"
+            try:  # 0o666 less the umask, as a plain open() would make it
+                fd = os.open(partial, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o666, dir_fd=folder)
+                break
+            except FileExistsError:
+                continue
+        try:
+            with os.fdopen(fd, mode) as f:
+                yield f
+            os.replace(partial, name, src_dir_fd=folder, dst_dir_fd=folder)
+        except BaseException:
+            with contextlib.suppress(FileNotFoundError):
+                os.remove(partial, dir_fd=folder)
+            raise
+    finally:
+        if own:
+            os.close(folder)
 
 
 class _Mounted:
@@ -121,20 +141,26 @@ class _Mounted:
                       "only; -o FILE writes the bundle here instead")
 
     def read(self, path):
-        """The bytes of <site>/path, or None if there is no such file."""
+        """The bytes of <site>/path, or None if there is no such file or it is a link (not followed: the next write
+        replaces the link itself)."""
         try:
-            with open(os.path.join(self.root, path), "rb") as f:
-                return f.read()
+            fd = os.open(os.path.join(self.root, path), os.O_RDONLY | os.O_NOFOLLOW)
         except FileNotFoundError:
             return None
+        except OSError as e:
+            if e.errno == errno.ELOOP:
+                return None
+            raise
+        with os.fdopen(fd, "rb") as f:
+            return f.read()
 
     def put(self, source, path):
         """Copy the local file `source` to <site>/path; it appears there complete or not at all."""
         target = os.path.join(self.root, path)
         try:
             os.makedirs(os.path.dirname(target), exist_ok=True)
-            with replacing(target) as partial:
-                shutil.copyfile(source, partial)
+            with replacing(target) as out, open(source, "rb") as f:
+                shutil.copyfileobj(f, out)
         except PermissionError as e:
             self._denied(os.path.dirname(target), e.strerror)
 
@@ -235,10 +261,14 @@ def listing(site, user):
     return _listing(files, user)
 
 
-def _write_index(files, user, entries):
+def _index(entries):
     entries = sorted(entries, key=lambda e: str(e.get("published") or e.get("created") or ""), reverse=True)
+    return {"updated": _iso(time.time()), "bundles": entries}
+
+
+def _write_index(files, user, entries):
     with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
-        json.dump({"updated": _iso(time.time()), "bundles": entries}, f, indent=1)
+        json.dump(_index(entries), f, indent=1)
     try:
         files.put(f.name, f"{USERS}/{user}/index.json")
     finally:
@@ -287,37 +317,61 @@ def remove(site, user, name):
 
 
 def _clean_area(site, area, user, days, dry_run, log, now, removed):
-    """clean() for one user's folder; the files removed are added to `removed`."""
+    """clean() for one user's folder; the files removed are added to `removed`.
+
+    The folder is opened once, not following a link, and files are looked at, removed and the index written through
+    that handle: a user who swaps their folder for a link while this runs cannot point any of it elsewhere."""
     files = _Mounted(site)
     try:
         listed = {e["file"]: e for e in _listing(files, user)}
     except OSError:  # e.g. a folder named index.json
         listed = {}
     old, entries = [], {}
-    for item in sorted(os.scandir(area), key=lambda item: item.name):
-        info = item.stat(follow_symlinks=False)
-        if not stat.S_ISREG(info.st_mode):
-            continue  # a link, a folder: not something a publish wrote
-        if PARTIAL.search(item.name):
-            if now - info.st_mtime > 86400:
-                old.append(item.path)
-        elif item.name.endswith(".evdb"):
-            file = os.path.relpath(item.path, site)
-            if now - info.st_mtime > days * 86400:
-                old.append(item.path)
-                continue
-            title = str(listed.get(file, {}).get("title") or item.name[:-5]).rsplit(" · ", 1)[0]
-            try:
-                entries[file] = _entry(item.path, file, title, info.st_mtime, days)
-            except (OSError, ValueError) as e:
-                log(f"leaving {file}: not a complete bundle ({e})")
-    for path in old:
-        log(f"{'would remove' if dry_run else 'removing'} {os.path.relpath(path, site)}")
-        if not dry_run:
-            os.remove(path)
-        removed.append(path)
-    if entries != listed and not dry_run:
-        _write_index(files, user, list(entries.values()))
+    folder = os.open(area, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        for item in sorted(os.scandir(folder), key=lambda item: item.name):
+            info = item.stat(follow_symlinks=False)
+            if not stat.S_ISREG(info.st_mode):
+                continue  # a link, a folder: not something a publish wrote
+            path = os.path.join(area, item.name)
+            if PARTIAL.search(item.name):
+                if now - info.st_mtime > 86400:
+                    old.append((item.name, 86400))
+            elif item.name.endswith(".evdb"):
+                file = os.path.relpath(path, site)
+                if now - info.st_mtime > days * 86400:
+                    old.append((item.name, days * 86400))
+                    continue
+                title = str(listed.get(file, {}).get("title") or item.name[:-5]).rsplit(" · ", 1)[0]
+                try:
+                    entries[file] = _entry(path, file, title, info.st_mtime, days)
+                except (OSError, ValueError) as e:
+                    log(f"leaving {file}: not a complete bundle ({e})")
+        for name, keep in old:
+            path = os.path.join(area, name)
+            if not dry_run:  # look again: the user may have removed it or published it anew since the folder was read
+                try:
+                    info = os.stat(name, dir_fd=folder, follow_symlinks=False)
+                except FileNotFoundError:
+                    continue
+                if not stat.S_ISREG(info.st_mode):
+                    continue
+                if now - info.st_mtime <= keep:  # published anew: listed as it is now
+                    if name.endswith(".evdb"):
+                        file = os.path.relpath(path, site)
+                        title = str(listed.get(file, {}).get("title") or name[:-5]).rsplit(" · ", 1)[0]
+                        with contextlib.suppress(OSError, ValueError):
+                            entries[file] = _entry(path, file, title, info.st_mtime, days)
+                    continue
+            log(f"{'would remove' if dry_run else 'removing'} {os.path.relpath(path, site)}")
+            if not dry_run:
+                os.remove(name, dir_fd=folder)
+            removed.append(path)
+        if entries != listed and not dry_run:
+            with replacing("index.json", "w", folder) as f:  # through the folder opened above, never its path again
+                json.dump(_index(list(entries.values())), f, indent=1)
+    finally:
+        os.close(folder)
 
 
 def clean(site, days=KEEP_DAYS, dry_run=False, log=print, now=None):

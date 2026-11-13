@@ -127,7 +127,7 @@ through the same cleanup.
   `evd publish ttbar.evdb --campaign simulation --title Simulation --file-title "ttbar 14 TeV · PU200"`
 - **Remove expired user bundles now:** `evd clean --dry-run` lists them, `evd clean` removes them (`--days N`
   changes the 30 days; at least 1). It only ever touches plain files directly in the folders of `data/u/`: expired
-  bundles, files a publish left half-copied more than a day ago (`*.evdb.tmp<pid>`, `index.json.tmp<pid>`), and the
+  bundles, files a publish left half-copied more than a day ago (`*.evdb.tmp*`, `index.json.tmp*`), and the
   indexes, which it rewrites to list exactly the bundles present. A folder that is a link, and links or folders
   inside an area, are left alone and named in the log; so is an area in which something goes wrong, while the
   others are still cleaned.

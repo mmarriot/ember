@@ -13,7 +13,6 @@ import json
 import os
 import re
 import shlex
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -120,13 +119,15 @@ def settings(path, geometry=None, era=None, conditions=None, cmssw=None, log=sys
     result = subprocess.run([*prefix, "python3", "-c", _RUN4], input=json.dumps(xml), capture_output=True, text=True,
                             env=env)
     run4 = json.loads(result.stdout) if result.returncode == 0 else {"known": {}, "matches": []}
+    # why the release's geometries could not be read, for whichever message below needs them
+    why = f"\n(this release's Run4 geometries could not be read:\n{result.stderr.strip()[-500:]})" if result.returncode else ""
     if geometry is None:
         if len(run4["matches"]) != 1:
             found = (f"it matches {' and '.join(run4['matches'])}" if run4["matches"] else
                      "none of this release's Run4 geometries lists its geometry files" if xml else
                      "the file does not record its geometry files")
             raise Problem(f"{path}: cannot tell which geometry it was made with ({found}); give --geometry, "
-                          "e.g. --geometry D110" + ("" if run4["known"] else f"\n{result.stderr.strip()[-500:]}"))
+                          "e.g. --geometry D110" + why)
         geometry = run4["matches"][0]
         print(f"geometry {geometry} (from the file's geometry files)", file=log)
     geometry = geometry_name(geometry)
@@ -143,7 +144,7 @@ def settings(path, geometry=None, era=None, conditions=None, cmssw=None, log=sys
         print(f"era {era} (this release's default for {geometry}; the file does not record its era)", file=log)
     missing = [name for name, value in (("--era", era), ("--conditions", conditions)) if value is None]
     if missing:
-        raise Problem(f"{path}: this release has no default for geometry {geometry}; give {' and '.join(missing)}")
+        raise Problem(f"{path}: this release has no default for geometry {geometry}; give {' and '.join(missing)}" + why)
     return geometry, era, conditions
 
 
@@ -180,8 +181,9 @@ def export(inputs, workdir, events=None, geometry=None, era=None, conditions=Non
             raise Problem(f"this CMSSW release has no {STEP}. The event-display NanoAOD is the package "
                           "DPGAnalysis/EventDisplayNanoAOD: use a release that has it, or add the package to your "
                           "area as the evd documentation says (Getting started), then cmsenv and try again")
-        kept = os.path.join(tempfile.gettempdir(), f"evd-cmsRun-{os.getpid()}.log")
-        shutil.copyfile(log_path, kept)
+        fd, kept = tempfile.mkstemp(prefix="evd-cmsRun-", suffix=".log")  # a new file, never one planted in /tmp
+        with os.fdopen(fd, "w") as f:
+            f.write(output)
         tail = "\n".join(output.splitlines()[-25:])
         raise Problem(f"the export job failed (exit code {result.returncode}); the end of its output (all of it: "
                       f"{kept}):\n{tail}")

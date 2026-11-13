@@ -10,14 +10,21 @@
 // stages) also gets: the menu, themes, help, a rotate drag keeping the selection, a custom column used for colour and a filter,
 // the replay and the tour; the replay also for any bundle whose paths are built from their parts (`grow`: captions in order, paths complete by the fit). Any console error, or a bundle taking over BUNDLE_TIMEOUT (three times that for files over
 // BIG_FILE or events over BIG_EVENT: software WebGL takes seconds per frame on their scenes, and clicks wait for frames), fails.
-// Screenshots: <dir>/<bundle>_*.png (one small one for scenes over BIG objects). Progress: one timestamped line per step.
-// Usage: node e2e/smoke.mjs <dev server URL> <screenshot dir> [--deep <bundle>] [bundle ...]  (dev builds expose the engine)
+// Before the bundles (when none is named; `--site`: only this), the site around them (checkSite): the data set chooser
+// with my files, the recent ones and the shared ones, its filter and keys; a link to someone else's file; the login
+// typed where the site does not say who is signed in; the start panel of a site without data; a link to a file that
+// is gone; a local file; the share pop-up. It brings its own people and files (answers given to the page for whoami
+// and data/u/...), so it runs against any development server.
+// Screenshots: <dir>/<bundle>_*.png (one small one for scenes over BIG objects), <dir>/site_*.png. Progress: one timestamped line per step.
+// Usage: node e2e/smoke.mjs <dev server URL> <screenshot dir> [--site] [--deep <bundle>] [bundle ...]  (dev builds expose the engine)
 import { chromium } from "playwright";
 
 const args = process.argv.slice(2), deepAt = args.indexOf("--deep");
 const deepName = deepAt >= 0 ? args.splice(deepAt, 2)[1] : undefined;
+const siteAt = args.indexOf("--site"), siteOnly = siteAt >= 0 && !!args.splice(siteAt, 1);
 const [base = "http://127.0.0.1:5173/", out = "e2e/shots", ...names] = args;
-const files = names.length ? names : (await (await fetch(`${base}index.json`)).json()).bundles.map((b) => b.file);
+const listed = (await (await fetch(`${base}index.json`)).json()).bundles;
+const files = siteOnly ? [] : names.length ? names : listed.map((b) => b.file);
 const headers = Object.fromEntries(await Promise.all(files.map(async (f) => [f, await header(f)])));
 const deep = deepName ?? files.filter((f) => headers[f].display.some((d) => d.stage !== undefined)).sort((a, c) => headers[a].size - headers[c].size)[0];
 
@@ -28,6 +35,15 @@ const BIG = 200_000; // objects drawn above which a bundle gets one small screen
 const log = (text) => console.log(`[${new Date().toISOString().slice(11, 19)}] ${text}`);
 const browser = await chromium.launch({ args: ["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader"] });
 const problems = [];
+/** The browser's own line for a request answered 404, where that is an answer the page expects: a site without
+ *  `whoami`, a person without files (no index), a link to a file that is gone. */
+const expected404 = (m) => /status of 404/.test(m.text()) && /\/whoami$|\/index\.json$|\/gone\.evdb$/.test(new URL(m.location().url || base).pathname);
+if (siteOnly || !names.length) {
+  const t0 = Date.now();
+  const result = await checkSite().then(() => "checked", (e) => `error: ${e.message.split("\n")[0]}`);
+  if (result !== "checked") problems.push(`site: ${result}`);
+  log(`site: ${result} (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
+}
 for (const file of files) {
   const tag = file.replace(/\.evdb$/, ""), t0 = Date.now(), state = { page: null };
   let timer;
@@ -44,6 +60,236 @@ await browser.close();
 console.log(problems.length ? `FAILED\n  ${problems.join("\n  ")}` : "ok");
 process.exit(problems.length ? 1 : 0);
 
+/** Wait until a bundle is open and the event asked for was read: the top bar names an event as soon as the bundle's
+ *  header is in, while the event itself (35 MB at PU200) is still on its way, which the progress bar shows. */
+async function eventRead(page) {
+  await page.waitForSelector(".eventid strong:has-text('· Event')", { timeout: 90000 });
+  await page.waitForFunction(() => !document.querySelector(".topbar .progress"), null, { timeout: 90000 });
+}
+
+/** The site around the bundles: who the page is for, the data sets it lists, what it says with nothing to show, and
+ *  sharing. Two people (tester, who is signed in, and alice) and their files are answers given to the page; their
+ *  bundles are the site's smallest one under other names. */
+async function checkSite() {
+  const fail = (text) => problems.push(`site: ${text}`);
+  const sizes = Object.fromEntries(await Promise.all(listed.map(async (b) => [b.file, (await header(b.file)).size])));
+  const small = [...listed].sort((a, c) => sizes[a.file] - sizes[c.file])[0], other = listed.find((b) => b !== small);
+  if (!small) return fail("no bundle in index.json to check the site with");
+  const days = (n) => new Date(Date.now() + n * 86_400_000).toISOString();
+  const indexes = {
+    tester: { updated: days(0), bundles: [
+      { file: "data/u/tester/reco_test.evdb", title: "My rereco test", events: 12, created: days(-1), expires: days(29) },
+      { file: "data/u/tester/older.evdb", title: "An older conversion", events: 3, created: days(-29.5), expires: days(0.5) }] },
+    alice: { updated: days(0), bundles: [{ file: "data/u/alice/for_the_meeting.evdb", title: "Events for the meeting", events: 7, created: days(-10), expires: days(20) }] },
+  };
+  const json = (body, status = 200) => ({ status, contentType: "application/json", body: JSON.stringify(body) });
+  /** A page of the site as `who` sees it: signed in as them ("": the site has no whoami), with `shared` as the site's
+   *  list (default: its own). */
+  const visit = async (hash, { who = "tester", shared, width = 1440, theme = "dark" } = {}) => {
+    const context = await browser.newContext({ viewport: { width, height: 860 } });
+    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    const page = await context.newPage();
+    page.on("console", (m) => m.type() === "error" && !expected404(m) && fail(m.text()));
+    page.on("pageerror", (e) => fail(e.message));
+    await page.addInitScript((t) => { try { localStorage.setItem("evd.theme", t); } catch { /* the default theme */ } }, theme);
+    await page.route((url) => url.pathname.endsWith("/whoami"), (r) => r.fulfill(who ? json({ login: who }) : json({}, 404)));
+    await page.route((url) => /\/data\/u\/[^/]+\/index\.json$/.test(url.pathname), (r) => {
+      const index = indexes[new URL(r.request().url()).pathname.split("/").at(-2)];
+      return r.fulfill(index ? json(index) : json({}, 404));
+    });
+    await page.route((url) => /\/data\/u\/[^/]+\/[^/]+\.evdb$/.test(url.pathname), (r) => {
+      const url = new URL(r.request().url());
+      return url.pathname.endsWith("/gone.evdb") ? r.fulfill({ status: 404, body: "" }) : r.continue({ url: `${base}${small.file}${url.search}` });
+    });
+    if (shared) await page.route((url) => url.pathname.endsWith("/index.json") && !url.pathname.includes("/data/u/"), (r) => r.fulfill(json({ bundles: shared })));
+    await page.goto(`${base}${hash}`, { timeout: 90000 });
+    return page;
+  };
+  const shown = async (page) => { await eventRead(page); await page.waitForTimeout(800); };
+  const shot = async (page, name) => { await page.waitForTimeout(300); await page.screenshot({ path: `${out}/site_${name}.png`, timeout: 60000 }).catch(() => log(`site: screenshot ${name} timed out`)); };
+  const sectionNames = (page) => page.$$eval(".sectionhead > span:first-child", (h) => h.map((x) => x.textContent));
+  const rowTitles = (page) => page.$$eval(".dataset-row .title", (r) => r.map((x) => x.textContent));
+  const label = (page) => page.textContent(".dataset .name");
+
+  // The chooser, signed in: the button names the data set open; the panel lists my files (newest first, with their
+  // expiry), then the site's, with the open one marked; the filter narrows them; ↓ and Enter open one; Esc closes.
+  for (const [theme, width] of [["dark", 1440], ["light", 900]]) {
+    const page = await visit(`#b=${small.file}&e=0`, { theme, width });
+    await shown(page);
+    if ((await label(page)) !== small.title) fail(`the chooser's button says "${await label(page)}", not the data set's title "${small.title}"`);
+    if (!(await page.title()).startsWith(small.title)) fail(`the page's title "${await page.title()}" does not start with the data set's`);
+    const before = await page.$eval(".chooser", (c) => c.getBoundingClientRect().width);
+    await page.click(".dataset");
+    await page.waitForSelector(".chooserpanel");
+    const sections = await sectionNames(page), titles = await rowTitles(page);
+    if (sections[0] !== "My files · tester") fail(`the first section is "${sections[0]}", not my files`);
+    if (titles[0] !== "My rereco test" || titles[1] !== "An older conversion") fail(`my files are not listed newest first: ${titles.slice(0, 2).join(" | ")}`);
+    const notes = await page.$$eval(".dataset-row small", (r) => r.map((x) => x.textContent));
+    if (!/12 events · expires in 29 days/.test(notes[0]) || !/expires today/.test(notes[1])) fail(`my files do not say their events and expiry: ${notes.slice(0, 2).join(" | ")}`);
+    if (sections.includes("Recent")) fail("a recent section with nothing opened from a link");
+    for (const b of listed) if (!titles.includes(b.title)) fail(`the shared data set "${b.title}" is not listed`);
+    if (titles.includes("Events for the meeting")) fail("someone else's file is listed without a link to it");
+    const current = await page.$$eval(".dataset-row[aria-current]", (r) => r.map((x) => x.querySelector(".title").textContent));
+    if (current.length !== 1 || current[0] !== small.title) fail(`the open data set is not the one marked: ${current.join(" | ")}`);
+    if (!(await page.evaluate(() => document.activeElement?.classList.contains("filter")))) fail("the filter does not have the focus when the chooser opens");
+    await shot(page, `chooser_${theme}_${width}`);
+    await page.keyboard.type("zzz nothing");
+    if (!(await page.$(".datasets .none")) || (await rowTitles(page)).length) fail("a filter matching nothing still lists data sets, or does not say so");
+    await page.fill(".chooserpanel .filter", "rereco");
+    if ((await rowTitles(page)).join() !== "My rereco test") fail(`the filter "rereco" lists: ${(await rowTitles(page)).join(" | ")}`);
+    await page.keyboard.press("Enter");
+    await shown(page);
+    if (await page.$(".chooserpanel")) fail("the chooser stays open after a data set is chosen");
+    if ((await label(page)) !== "My rereco test") fail(`after choosing my file the button says "${await label(page)}"`);
+    if (!page.url().includes("b=data/u/tester/reco_test.evdb")) fail(`the address does not name my file readably: ${page.url()}`);
+    const after = await page.$eval(".chooser", (c) => c.getBoundingClientRect().width);
+    if (Math.abs(after - before) > 0.5) fail(`the chooser's button changed width with the data set (${before} -> ${after} px): the top bar jumps`);
+    // ↓ walks the rows, Esc closes and gives the focus back to the button; the view's keys then work again.
+    await page.click(".dataset");
+    await page.keyboard.press("ArrowDown");
+    const active = await page.$eval(".dataset-row.active .title", (x) => x.textContent);
+    if (active !== "An older conversion") fail(`↓ from my first file went to "${active}"`);
+    await page.keyboard.press("Escape");
+    if (await page.$(".chooserpanel")) fail("Esc does not close the chooser");
+    if (!(await page.evaluate(() => document.activeElement?.classList.contains("dataset")))) fail("Esc does not give the focus back to the chooser's button");
+    if (!(await page.$(".eventid strong:has-text('· Event')"))) fail("Esc in the chooser left the event");
+    await page.context().close();
+  }
+
+  // A link to someone else's file: it opens for me, named from its owner's index; it is under Recent from then on (and
+  // can be forgotten there); the share pop-up holds the link, says it was copied and what it opens, and when it ends.
+  {
+    const page = await visit("#b=data/u/alice/for_the_meeting.evdb&e=1");
+    await shown(page);
+    await page.waitForFunction(() => document.querySelector(".dataset .name")?.textContent === "Events for the meeting", null, { timeout: 10000 }).catch(() => {});
+    if ((await label(page)) !== "Events for the meeting") fail(`a link to someone's file is named "${await label(page)}", not by its title in their index`);
+    await page.click(".share");
+    await page.waitForSelector(".sharepop");
+    const link = await page.inputValue(".sharepop input"), text = await page.textContent(".popover");
+    if (link !== page.url() || !link.includes("b=data/u/alice/for_the_meeting.evdb&e=1")) fail(`the share pop-up's link is not this view's: ${link}`);
+    await page.waitForSelector(".sharepop .status.ok", { timeout: 5000 }).catch(() => fail("the share pop-up does not say the link was copied"));
+    const clip = await page.evaluate(() => navigator.clipboard.readText()).catch(() => null);
+    if (clip !== link) fail(`the clipboard holds "${clip}", not the link`);
+    for (const part of ["Events for the meeting", "event 2 of", "view", "alice's file", "expires in 20 days"]) if (!text.includes(part)) fail(`the share pop-up does not say "${part}": ${text}`);
+    await shot(page, "share");
+    await page.keyboard.press("Escape");
+    if (await page.$(".sharepop")) fail("Esc does not close the share pop-up");
+    await page.click(".dataset");
+    const about = await page.textContent(".about");
+    if (!/published by alice/.test(about) || !/expires in 20 days/.test(about)) fail(`the chooser does not say whose file is open and when it expires: ${about}`);
+    if (!(await sectionNames(page)).includes("Recent")) fail("a file opened from a link is not under Recent");
+    const recent = await page.$eval(".dataset-row[aria-current]", (r) => r.textContent);
+    if (!/Events for the meeting.*from alice · opened today/.test(recent)) fail(`the recent row reads "${recent}"`);
+    await page.click(".about .link");
+    const details = await page.$$eval(".about table td:first-child", (c) => c.map((x) => x.textContent));
+    for (const k of ["Events", "Published by", "Expires", "Converter", "File"]) if (!details.includes(k)) fail(`the data set's details lack "${k}": ${details.join(", ")}`);
+    await shot(page, "recent");
+    await page.click(".dataset-row[aria-current] .icon-button");
+    if ((await sectionNames(page)).includes("Recent")) fail("removing the only recent data set leaves the section");
+    if (await page.evaluate(() => JSON.parse(localStorage.getItem("evd.recent") ?? "[]").length)) fail("a recent data set removed is still remembered");
+    await page.context().close();
+  }
+
+  // A site that does not say who is signed in: the chooser asks for the login once, lists that person's files and
+  // remembers it; "not you?" forgets it.
+  {
+    const page = await visit(`#b=${small.file}&e=0`, { who: "" });
+    await shown(page);
+    await page.click(".dataset");
+    if (!(await page.$(".whoami input"))) fail("without whoami the chooser does not ask for the login");
+    await page.fill(".whoami input", "not a login");
+    await page.keyboard.press("Enter");
+    if (!(await page.$(".whoami [role=alert]"))) fail("a login that cannot be one is taken without a word");
+    await shot(page, "login");
+    await page.fill(".whoami input", "Tester");
+    await page.keyboard.press("Enter");
+    await page.waitForSelector(".dataset-row .title:has-text('My rereco test')", { timeout: 10000 }).catch(() => fail("my files are not listed after typing my login"));
+    if ((await page.evaluate(() => localStorage.getItem("evd.login"))) !== "tester") fail("the typed login is not remembered (evd.login)");
+    await page.click(".sectionhead .link");
+    if (!(await page.$(".whoami input")) || (await page.evaluate(() => localStorage.getItem("evd.login")))) fail("“not you?” does not forget the login");
+    await page.context().close();
+  }
+
+  // A site with no data set: the start panel says what this is and how data gets in, in place of the empty side panel;
+  // its command can be copied.
+  for (const [theme, width] of [["dark", 1440], ["light", 900]]) {
+    const page = await visit("", { who: "", shared: [], theme, width });
+    await page.waitForSelector(".startpanel .card", { timeout: 30000 });
+    const text = await page.textContent(".startpanel");
+    for (const part of ["evd file.root", ".evdb", "link", "Documentation"]) if (!text.includes(part)) fail(`the start panel does not mention "${part}"`);
+    if (await page.isVisible(".sidebar")) fail("the empty side panel shows next to the start panel");
+    if ((await page.title()) !== "Event display") fail(`with nothing open the page is titled "${await page.title()}"`);
+    if (!(await page.getAttribute(".startpanel a", "href"))?.startsWith("http")) fail("the start panel's documentation link goes nowhere");
+    await page.click(".command .link");
+    if ((await page.evaluate(() => navigator.clipboard.readText()).catch(() => null)) !== "evd file.root") fail("the start panel's command is not copied");
+    await shot(page, `start_${theme}_${width}`);
+    await page.context().close();
+  }
+
+  // A link to a file that is gone: the page says so in full (whose it was, what to do); choosing a data set from there
+  // opens it and the panel goes.
+  for (const [theme, width] of [["dark", 1440], ["light", 900]]) {
+    const page = await visit("#b=data/u/alice/gone.evdb&e=3", { theme, width });
+    await page.waitForSelector(".startpanel [role=alert]", { timeout: 30000 });
+    const text = await page.textContent(".startpanel");
+    for (const part of ["no longer here", "published by alice", "evd file.root", "HTTP 404"]) if (!text.includes(part)) fail(`a link to a file that is gone does not say "${part}": ${text}`);
+    if (await page.$(".toast.error")) fail("a file that is gone is also reported as a passing message");
+    await shot(page, `gone_${theme}_${width}`);
+    await page.click(".startpanel .primary");
+    await page.waitForSelector(".chooserpanel");
+    await page.fill(".chooserpanel .filter", small.title);
+    await page.keyboard.press("Enter");
+    await shown(page);
+    if (await page.$(".startpanel")) fail("the panel about the missing file stays after another data set opened");
+    if (await page.evaluate(() => (localStorage.getItem("evd.recent") ?? "").includes("gone.evdb"))) fail("a file that is gone is kept under Recent");
+    await page.context().close();
+  }
+  // A file that is there but is not a bundle (here: the site's index): unreadable, with a way to try again.
+  {
+    const page = await visit("#b=index.json");
+    await page.waitForSelector(".startpanel [role=alert]", { timeout: 30000 });
+    const text = await page.textContent(".startpanel");
+    if (!text.includes("cannot be read") || !text.includes("Try again")) fail(`a file that is not a bundle is reported as: ${text}`);
+    await page.context().close();
+  }
+
+  // A local file (picked in the chooser, as a drop does): opened where it is, marked local, with no address; the
+  // share button says why it has no link and how to get one; it is under Recent as a file to drop again.
+  {
+    const page = await visit(`#b=${(other ?? small).file}&e=0`);
+    await shown(page);
+    // Dragged over the page, the page says it can be dropped; dropped, it opens.
+    const drag = (type, name) => page.evaluate(async ([type, name, url]) => {
+      const data = new DataTransfer();
+      data.items.add(new File([await (await fetch(url)).blob()], name));
+      window.dispatchEvent(new DragEvent(type, { dataTransfer: data, bubbles: true, cancelable: true }));
+    }, [type, name, `${base}${small.file}`]);
+    await drag("dragenter", "dropped.evdb");
+    if (!(await page.waitForSelector(".drophint", { timeout: 3000 }).catch(() => null))) fail("a file dragged over the page gets no hint that it can be dropped");
+    await shot(page, "drop");
+    await drag("drop", "dropped.evdb");
+    await page.waitForFunction(() => document.querySelector(".dataset .name")?.textContent === "dropped.evdb", null, { timeout: 30000 }).catch(() => fail("a dropped file does not open"));
+    if (await page.$(".drophint")) fail("the drop hint stays after the drop");
+    await shown(page);
+    const bytes = Buffer.from(await (await fetch(`${base}${small.file}`)).arrayBuffer());
+    await page.click(".dataset");
+    await page.setInputFiles(".chooserpanel input[type=file]", { name: "from_my_disk.evdb", mimeType: "application/octet-stream", buffer: bytes });
+    await page.waitForFunction(() => document.querySelector(".dataset .name")?.textContent === "from_my_disk.evdb", null, { timeout: 30000 }).catch(() => fail("a local file does not open from the chooser"));
+    await shown(page);
+    if (!(await page.$(".dataset .tag"))) fail("a local file is not marked as local on the chooser's button");
+    if (page.url().includes("b=")) fail(`a local file is in the address, which cannot open it: ${page.url()}`);
+    await page.click(".share");
+    const text = await page.textContent(".popover");
+    if (!/A local file has no link/i.test(text) || !text.includes("evd file.root")) fail(`sharing a local file says: ${text}`);
+    await shot(page, "local");
+    await page.keyboard.press("Escape");
+    await page.click(".dataset");
+    const row = await page.$eval(".dataset-row.off", (r) => r.textContent).catch(() => "");
+    if (!/from_my_disk\.evdb.*drop it/.test(row)) fail(`a local file under Recent reads "${row}"`);
+    await page.context().close();
+  }
+}
+
 async function checkBundle(file, tag, state) {
   const h = headers[file], fail = (text) => problems.push(`${tag}: ${text}`);
   let page, small = false;
@@ -55,10 +301,10 @@ async function checkBundle(file, tag, state) {
   const open = async (hash, query = false) => { // a fresh page each time: software WebGL is slow to let go of a big scene
     await page?.close();
     page = state.page = await browser.newPage({ viewport: small ? { width: 720, height: 450 } : { width: 1440, height: 860 } });
-    page.on("console", (m) => m.type() === "error" && fail(m.text()));
+    page.on("console", (m) => m.type() === "error" && !expected404(m) && fail(m.text()));
     page.on("pageerror", (e) => fail(e.message));
     await page.goto(`${base}${query ? "?" : "#"}${hash}`, { timeout: 90000 });
-    await page.waitForSelector(".eventid strong:has-text('Event')", { timeout: 90000 });
+    await eventRead(page);
     await page.waitForTimeout(1200);
   };
 

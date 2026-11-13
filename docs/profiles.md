@@ -1,21 +1,27 @@
 # Converter and profiles
 
-`python3 -m evdtools from-nano` turns NanoAOD files into a bundle ([format.md](format.md)). A profile, a JSON file in
+`evd` turns NanoAOD files into a bundle ([format.md](format.md)). A profile, a JSON file in
 `evdtools/profiles/` (or any path given to `--profile`), says which tables to keep, how to relate, cut and select
 them, and how the viewer should draw them. The converter has no detector-specific code; everything below is profile
 data.
 
 ## Command line
 
+`evd FILE.root` converts CMS events with the `cms` profile and publishes the bundle ([the `evd` command](cli.md)).
+`evd convert` is the converter alone, with every option, for any NanoAOD and any profile:
+
 ```bash
-python3 -m evdtools from-nano IN.root [IN2.root ...] -o OUT.evdb --profile hgcal [options]
-python3 -m evdtools inspect OUT.evdb      # tables, relations, layers, record sizes, first events
-python3 -m evdtools validate OUT.evdb     # structural checks of every record; exit code 1 on problems
+evd convert IN.root [IN2.root ...] -o OUT.evdb --profile hgcal [options]
+evd inspect OUT.evdb      # tables, relations, layers, record sizes, first events
+evd validate OUT.evdb     # structural checks of every record; exit code 1 on problems
 ```
+
+(`python3 -m evdtools ...` from a clone is the same command; `from-nano` is the older name of `convert`.)
 
 | option | meaning |
 |---|---|
 | `--max-events N` | stop after N selected events |
+| `-j N`, `--threads N` | threads to read and compress with (default: up to 4) |
 | `--events 416622,416619-416628` | only these event numbers, in event order (cuts and selection still apply) |
 | `--sorted` | the bundle lists its events in (run, lumi, event) order, across all input files. A multi-threaded export writes events in the order they finish, so two exports of one sample (or the 0PU and PU200 versions of the same events) differ in order without it. Only the index is sorted (records are found by offset): no extra reading |
 | `--run-tables FILE` | take the per-run tables from another NanoAOD file of the same runs, for inputs made without them. It must use the same channel mapping |
@@ -28,12 +34,12 @@ for uproot's many ranged reads.
 
 | profile | data |
 |---|---|
-| `cms` | The whole CMS Phase-2 step3 event (Fireworks/EventExport presets `calo,hgcal,reco,hgcalSoA,truth,tracker,pf,physics,muon,mtd`): the modules `physics`, `hgcal`, `tracker`, `calo`, `pf` and `muon` joined. Header `domains` in the order `Physics` (shared, the start domain `view.domain`, with the primary vertices), `Tracker`, `Calo`, `HGCal`, `Muons`; the detector `outlines` of every module; truth particles as helices, only in-time pile-up kept; HGCalNanoAOD's `GeneralTrack` folded into `Tracks` (and `GSFTrack` into `GsfTracks`) |
-| `physics` | module: physics objects (presets `pf`, `physics`). AK4 Puppi jets as `cones` from the leading vertex (AK4 CHS jets with their b-tags a hidden alternative), Puppi/PF MET as arrows, electrons (barrel and HGCal) as helices to their supercluster, photons as lines to theirs, superclusters with their hits, GSF tracks with their hits, taus (unticked, decay mode required), inclusive secondary vertices with their tracks; primary and secondary vertices matched to truth vertices. One `fixedColour` per kind. The `Physics` domain |
-| `tracker` | module (also alone): tracker (presets `tracker`, `mtd`). Tracks as helices in the solenoid field (`field`; high purity, pT ≥ 1 GeV, filtered to the primary vertex; preset "All vertices" coloured by vertex), primary vertices, the hits on each track for a selection, the beam spot, the MTD rechits (BTL and ETL, unticked, by time; preset "Track time": tracks by t0, vertices by t, MTD hits by time). The `Tracker` domain. Alone it reads every table of the file: for a tracker bundle use `tracker_only` |
-| `calo` | module: barrel and forward calorimeters (preset `calo`). ECAL barrel, HB, HO and HF rechits as η–φ towers (`cell` hint, sizes from the exporter's `dEta dPhi thickness`), one energy cut per subdetector, HO and HF hidden, HF not in the front view. The `Calo` domain |
-| `pf` | module: particle flow (presets `pf`, `truth`). PF candidates (unticked, filtered to `puppiWeight > 0`; preset "What PUPPI removed") with their track, GSF track, TICL candidate and PF clusters; PF clusters of ECAL, HB, HF, HO with their hits and the ECAL/HCAL truth associations; simulated energy in the barrel and forward calorimeter hits as facts |
-| `muon` | module: muon system (presets `muon`, `truth`). Muons as a Physics kind (inner-track helix), their standalone and global tracks as `polyline`s through their ordered hits, DT/CSC/GEM segments as centred lines, the rechits and the chambers in use (boxes: `cell` shape `box`) drawn for a selection, GE0 filtered out of "show all"; muon-hit truth as facts at the simulation's unit (`fact.unit`). `cms` declares the `Muons` domain after HGCal |
+| `cms` | The whole CMS Phase-2 step3 event, as CMSSW writes it with `NANO:@EVD` ([CMSSW side](cmssw.md)): the modules `physics`, `hgcal`, `tracker`, `calo`, `pf` and `muon` joined. Header `domains` in the order `Physics` (shared, the start domain `view.domain`, with the primary vertices), `Tracker`, `Calo`, `HGCal`, `Muons`; the detector `outlines` of every module; truth particles as helices, only in-time pile-up kept; HGCalNanoAOD's `GeneralTrack` folded into `Tracks` (and `GSFTrack` into `GsfTracks`) |
+| `physics` | module: physics objects. AK4 Puppi jets as `cones` from the leading vertex (AK4 CHS jets with their b-tags a hidden alternative), Puppi/PF MET as arrows, electrons (barrel and HGCal) as helices to their supercluster, photons as lines to theirs, superclusters with their hits, GSF tracks with their hits, taus (unticked, decay mode required), inclusive secondary vertices with their tracks; primary and secondary vertices matched to truth vertices. One `fixedColour` per kind. The `Physics` domain |
+| `tracker` | module (also alone): tracker and timing layer. Tracks as helices in the solenoid field (`field`; high purity, pT ≥ 1 GeV, filtered to the primary vertex; preset "All vertices" coloured by vertex), primary vertices, the hits on each track for a selection, the beam spot, the MTD rechits (BTL and ETL, unticked, by time; preset "Track time": tracks by t0, vertices by t, MTD hits by time). The `Tracker` domain. Alone it reads every table of the file: for a tracker bundle use `tracker_only` |
+| `calo` | module: barrel and forward calorimeters. ECAL barrel, HB, HO and HF rechits as η–φ towers (`cell` hint, sizes from the exporter's `dEta dPhi thickness`), one energy cut per subdetector, HO and HF hidden, HF not in the front view. The `Calo` domain |
+| `pf` | module: particle flow. PF candidates (unticked, filtered to `puppiWeight > 0`; preset "What PUPPI removed") with their track, GSF track, TICL candidate and PF clusters; PF clusters of ECAL, HB, HF, HO with their hits and the ECAL/HCAL truth associations; simulated energy in the barrel and forward calorimeter hits as facts |
+| `muon` | module: muon system. Muons as a Physics kind (inner-track helix), their standalone and global tracks as `polyline`s through their ordered hits, DT/CSC/GEM segments as centred lines, the rechits and the chambers in use (boxes: `cell` shape `box`) drawn for a selection, GE0 filtered out of "show all"; muon-hit truth as facts at the simulation's unit (`fact.unit`). `cms` declares the `Muons` domain after HGCal |
 | `tracker_only` | `cms` without the calorimeters, particle flow, physics objects and muon system (excluded, so not read): the `tracker` layers with the truth graph and the track-truth associations; vertices stay in the `Tracker` domain |
 | `hgcal` | CMSSW step3 HGCal/TICL reconstruction (SoA and/or legacy): rechits, layer clusters, tracksters through candidates, tracks, the truth graph (particles, vertices, hits) with reco-truth associations, kept to in-time pile-up (bunch crossing 0); see [truth-graph.md](truth-graph.md). It reads every table it does not exclude: on an all-detectors export it also writes about 80 tables it does not draw, so use `cms` (or a profile that includes `hgcal` and excludes the rest) for those files |
 | `mct` | multi-cassette test at P5, cosmic muons: hits and layer clusters, events with a hit above 6 sigma in two layers; the readout channels (per-run table) as background |
@@ -41,7 +47,7 @@ for uproot's many ranged reads.
 | `testbeam` | test-beam layer stacks: hits and layer clusters of beam showers, readout channels as background, energy and timing presets, run information from the run registry |
 
 Each profile's `note` explains its choices. A module is a profile meant to be included (`include`); the CMS modules
-are written for the step3 export and are used through `cms`.
+are written for the `NANO:@EVD` tables and are used through `cms`.
 
 ## How a file is converted
 

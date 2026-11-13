@@ -2,7 +2,8 @@
 
 "Truth" in evd means the CMSSW **truth graph** and nothing else: `truth::Graph` and its hit index
 (`truth::LogicalGraphHitIndex`, PhysicsTools/TruthInfo), and the reco <-> truth associations of
-SimGeneral/TruthGraphAssociatorProducers, as Fireworks/EventExport writes them to NanoAOD. CaloParticle, SimCluster
+SimGeneral/TruthGraphAssociatorProducers, as the `NANO:@EVD` flavour (DPGAnalysis/EventDisplayNanoAOD, "the
+exporter" below; [CMSSW side](cmssw.md)) writes them to NanoAOD. CaloParticle, SimCluster
 and SimTrackster are not used (the `hgcal` profile excludes their tables) and should not be.
 
 This page says what the viewer shows from the truth graph, what it works out itself where the graph has no answer,
@@ -36,7 +37,7 @@ measures (purity, completeness) and the colours are in [truth.md](truth.md).
 
 ## How truth reaches evd
 
-Sources: CMSSW_20_1_0_pre5 with the truth-graph and EventExport developments; CMSSW paths are relative to `src/`
+Sources: CMSSW_20_1_0_pre5 with the truth-graph and exporter developments; CMSSW paths are relative to `src/`
 (SimDataFormats/TruthInfo as in the release). Numbers marked *measured* come from the bundles `gun3_0PU.evdb` (events
 0 to 2) and `ttbar_pu200.evdb` (events 0 and 1), read with `evdtools.bundle`. Checked on 2026-11-10.
 
@@ -52,10 +53,10 @@ Sources: CMSSW_20_1_0_pre5 with the truth-graph and EventExport developments; CM
    AdaptiveTight, AdaptiveNominal) and one `TruthToReco` map. The reco types covered are listed in the
    `TruthAssociationTraits` specialisations (`plugins/AllRecoToTruthBranchAssociatorsProducer.cc:137-227`):
    `reco::Track`, `reco::Vertex`, `reco::PFCluster`, `ticl::Trackster`, `TICLCandidate`. **Not `reco::CaloCluster`.**
-3. **EventExport** (`Fireworks/EventExport/plugins/TruthTableProducers.cc`, `python/eventExport_cff.py:101-142`)
+3. **The exporter** (`DPGAnalysis/EventDisplayNanoAOD/plugins/TruthTableProducers.cc`, `python/eventDisplayNano_cff.py`)
    writes `TruthParticles`, `TruthVertices`, `TruthParticleChildren`, `<coll>ToTruth` (AdaptiveNominal),
    `<coll>FromTruth` (TruthToReco), and `TruthHGCalHits` / `TruthSoAHits{EE,HSi,HSci}` (particle -> hit, sim
-   energy).
+   energy; the SoA ones only where SoA hit tables are written, which a stock release does not do: [CMSSW side](cmssw.md#soa-collections)).
 4. **evd profile** `evdtools/profiles/hgcal.json:64-114` reads all of these as relations. Legacy CLUEstering
    relations are redirected to the SoA tracksters by `sameRows` (`hgcal.json:12`, `evdtools/nano.py:313-329`).
 
@@ -81,25 +82,25 @@ From `PhysicsTools/TruthInfo/interface/BranchHitAssociator.h:66-108`, plus the p
 ## Gap table
 
 Location classes: **G** = not in the graph/hit index; **A** = in the graph but no associator; **X** = associator
-exists but EventExport does not export it; **E** = exported but evd does not read it, or reads it in a way that loses
+exists but the exporter does not write it; **E** = exported but evd does not read it, or reads it in a way that loses
 information. Priority is for the event display.
 
 | # | What is missing | Class | Where | Priority |
 |---|---|---|---|---|
 | 1 | **Layer cluster <-> truth association** | A | no `TruthAssociationTraits<reco::CaloCluster>`, no `layerClusters` domain in `truthGraphRecoLabelsPSet` (`truthGraphAssociationLabels_cff.py:37-54`), nothing in `truthGraphAssociatorsSequence` (cff `:190-199`), no LC validator in `Validation/TruthInfo` | high |
-| 2 | Hits of the particle a reco object is matched to, when that particle is not the one entering the calorimeter | X | `TruthHitTableProducer` exports subgraph hits only for particles with `LevelFlag::CaloBoundary` (`TruthTableProducers.cc:398`, default `:435`) | high |
-| 3 | Total simulated energy per hit (all particles), so a grey hit can be told apart as noise or as an un-exported particle | X (data in index, not exported) | `TruthTableProducers.cc:385-424` writes only (exported particle, hit) rows | high |
-| 4 | Particles that deposit energy but are neither signal nor matched by a calorimeter object are not exported, so their hits stay unattributed (**fixed in evd's exporter**: `keepLevelMask`, see the section "3–5. Unattributed energy") | X | selection `TruthTableProducers.cc:105-130`; `keepMatchedBy` excludes tracks (`eventExport_cff.py:114-115`); pairs to un-exported particles dropped (`TruthTableProducers.cc:328-330`) | high at PU |
+| 2 | Hits of the particle a reco object is matched to, when that particle is not the one entering the calorimeter | X | `TruthHitTableProducer` exports subgraph hits only for particles with `LevelFlag::CaloBoundary` (`TruthTableProducers.cc`, its `levelMask` default) | high |
+| 3 | Total simulated energy per hit (all particles), so a grey hit can be told apart as noise or as an un-exported particle | X (data in index, not exported) | `TruthTableProducers.cc` writes only (exported particle, hit) rows | high |
+| 4 | Particles that deposit energy but are neither signal nor matched by a calorimeter object are not exported, so their hits stay unattributed (**fixed in evd's exporter**: `keepLevelMask`, see the section "3–5. Unattributed energy") | X | selection `TruthTableProducers.cc`; `keepMatchedBy` excludes tracks (`eventDisplayNano_cff.py`); pairs to un-exported particles dropped (`TruthTableProducers.cc`) | high at PU |
 | 5 | Out-of-time pile-up has no particles at all (default configuration; where a sample has them, the `hgcal` profile drops them) | G | `truthGraphMixedDigi_cff.py:49` (`pileupBunchCrossings=[0]`) | medium |
-| 6 | First-stage tracksters of a non-v6 (CLUE3D) reconstruction | X | the associator follows the scheduled labels (`truthGraphAssociationLabels_cff.py:170-189`), but EventExport hard-codes v6 labels (`eventExport_cff.py:105-112`); the profile has `clue3dLCs` but no CLUE3D truth relation (`hgcal.json:40-42`) | medium |
+| 6 | First-stage tracksters of a non-v6 (CLUE3D) reconstruction | X | the associator follows the scheduled labels (`truthGraphAssociationLabels_cff.py:170-189`), and **the exporter now does too** (it reads `truthGraphAssociationLabels_cff`, so a stock release writes `ticlTrackstersCLUE3DHigh{To,From}Truth`); the profile has `clue3dLCs` but no CLUE3D truth relation yet (`hgcal.json`) | medium |
 | 7 | Candidate truth is calorimeter-only; a track-only candidate has no candidate match | A (by design) | `RecoHitAdapters.h:148-161`, traits `AllRecoToTruthBranchAssociatorsProducer.cc:217-224` | medium |
-| 8 | Runner-up matches per reco object (Fixed WP: every branch sharing energy) | X | only `RecoToTruthAdaptiveNominal` is exported (`eventExport_cff.py:119`) | low |
+| 8 | Runner-up matches per reco object (Fixed WP: every branch sharing energy) | X | only `RecoToTruthAdaptiveNominal` is exported (`eventDisplayNano_cff.py`) | low |
 | 9 | HLT tracksters/tracks/vertices (offline vertices: see 14, exported) | X | `allVertexToTruthBranchAssociators`, `hlt*Associators` exist (cff `:89-114`, `:167-184`); the HLT ones are not exported | low |
 | 10 | SoA objects are never associated directly | A | coverage only through legacy copies (`HGCalTrackstersFromSoAProducer` in `tracksterProducerTypes`, labels cff `:26-33`) plus evd `sameRows` | low (works while SoA == legacy) |
 | 11 | Hit times of the sim hits | X | `LogicalGraphHitIndex::directHitTimes` (`LogicalGraphHitIndex.h:77-79,160-171`), not exported | low |
-| 12 | Barrel/forward calorimeter hit truth (EB, HB, HF, HO) | X → **fixed in evd's exporter** | `TruthEcalHits`, `TruthHBHEHits`, `TruthHFHits`, `TruthHOHits` (preset truth with calo, `eventExport_cff.py` `truthCaloHitTables`), drawn as facts (`fact` hint, `pf.json`). At PU200, before the in-time cut: 253k EB, 13k HB, 103k HF links per event (1.7, 0.09, 0.34 MB in the nano) | high |
-| 13 | ECAL/HCAL PF-cluster associations | X → **fixed in evd's exporter** | `particleFlowCluster{ECAL,HCAL}{To,From}Truth` (`_truthMatched` in `eventExport_cff.py`), with the `PFClusters{ECAL,HCAL}` tables in collection order; `match` hints in `pf.json` | high |
-| 14 | Primary/secondary vertex associations (part of gap 9) | X → **fixed in evd's exporter** | `offlinePrimaryVertices{To,From}Truth`, `inclusiveSecondaryVertices{To,From}Truth` (`truthVertexTables` in `eventExport_cff.py`, preset truth), joined to `TruthVertices.graphIndex`; `match` hints with `target` interaction / decayVertex, `measure` pt2, `purity` in `physics.json`. Still to check: pairs whose truth vertex is not an exported `TruthVertices` row are dropped by the table producer without being counted | medium |
+| 12 | Barrel/forward calorimeter hit truth (EB, HB, HF, HO) | X → **fixed in evd's exporter** | `TruthEcalHits`, `TruthHBHEHits`, `TruthHFHits`, `TruthHOHits` (`truthCaloHitTables` in `eventDisplayNano_cff.py`), drawn as facts (`fact` hint, `pf.json`). At PU200, before the in-time cut: 253k EB, 13k HB, 103k HF links per event (1.7, 0.09, 0.34 MB in the nano) | high |
+| 13 | ECAL/HCAL PF-cluster associations | X → **fixed in evd's exporter** | `particleFlowCluster{ECAL,HCAL}{To,From}Truth` (`_truthMatched` in `eventDisplayNano_cff.py`), with the `PFClusters{ECAL,HCAL}` tables in collection order; `match` hints in `pf.json` | high |
+| 14 | Primary/secondary vertex associations (part of gap 9) | X → **fixed in evd's exporter** | `offlinePrimaryVertices{To,From}Truth`, `inclusiveSecondaryVertices{To,From}Truth` (`truthVertexTables` in `eventDisplayNano_cff.py`), joined to `TruthVertices.graphIndex`; `match` hints with `target` interaction / decayVertex, `measure` pt2, `purity` in `physics.json`. Still to check: pairs whose truth vertex is not an exported `TruthVertices` row are dropped by the table producer without being counted | medium |
 | 15 | PF-cluster associator for HF and HO | A (CMSSW config) | `truthGraphRecoLabelsPSet` (`truthGraphAssociationLabels_cff.py:37-54`) has `pfClustersEcal/Hcal` only. Add `pfClustersHF = particleFlowClusterHF`, `pfClustersHO = particleFlowClusterHO`, two module clones with `denominatorDetectors=["Hcal"]` **and** `pfRecHits` including `particleFlowRecHitHF`, `particleFlowRecHitHO` (default list is ECAL + HBHE, `AllRecoToTruthBranchAssociatorsProducer.cc:966`; without it HF cells are weighted by simulated photoelectrons) | medium |
 | 16 | Muon channel not cell-keyed | G | PSimHits keyed by `detUnitId` only (`LogicalGraphHitIndexProducer.cc:430-433`): CSC layer, RPC roll, GEM partition (DT is per wire). Two particles in one CSC layer cannot be told apart per rechit. Ask: a cell key (strip / wire group from the PSimHit entry/exit point), as the tracker channel has. evd exports muon-hit truth at that unit (`TruthMuonHits`: every rechit of a unit gets the unit's energy; `fact.unit` names it) | medium |
 | 17 | Muon-segment association | A | no `truth::recoHits` for `DTRecSegment4D`, `CSCSegment`, `GEMSegment` (their rechits' sim-unit DetIds), no traits, no `muonSegments` domain; metric SharedHits on the Muon channel; thresholds from MuonAssociatorByHits (purity 0.75, efficiency 0.5, `Validation/RecoMuon/python/associators_cff.py:23-42`) | medium |
@@ -128,7 +129,7 @@ information. Priority is for the event display.
   object's hits without fractions. Neither knows the cell's total sim energy, and both inherit
   gaps 2 to 4.
 - **Check:** a producer alias like `TruthBranchLayerClusterAssociatorsProducer` (or a `layerClusters` key in
-  `truthGraphRecoLabelsPSet`) appears, and the step3 file has `*_truthBranchLayerClusterAssociators_*`. EventExport
+  `truthGraphRecoLabelsPSet`) appears, and the step3 file has `*_truthBranchLayerClusterAssociators_*`. The exporter
   then needs one `_truthMatched` entry (`hgcalMergeLayerClusters`), and evd one `ToTruth`/`FromTruth` relation pair
   from `HGCalLayerClusters`. The existing `sameRows` redirect moves it onto `HGCalSoALayerClusters`.
 
@@ -175,7 +176,7 @@ particles".
 
 ### Per-hit simulated energy: what it is, exactly
 
-- **Per (exported CaloBoundary particle, hit)**, summed over the particle's subgraph (`TruthTableProducers.cc:401-415`,
+- **Per (exported CaloBoundary particle, hit)**, summed over the particle's subgraph (`TruthTableProducers.cc`,
   doc string `:422`). It is the `PCaloHit` deposited energy: sampling energy, not calibrated. Only ratios between
   particles are meaningful, not a comparison with the rechit energy.
 - **Not** all particles: only exported ones (signal + matched + ancestors) that also have CaloBoundary.
@@ -189,7 +190,7 @@ particles".
 ### 6–11. Smaller gaps, briefly
 
 - **6:** for a TICL v5 / CLUE3D sample, `ticlTrackstersCLUE3DHigh*Truth` would be produced but not exported. The fix
-  is to read `truthGraphRecoLabelsPSet.tracksters` in `eventExport_cff.py` instead of hard-coding v6 labels.
+  is to read `truthGraphRecoLabelsPSet.tracksters` in `eventDisplayNano_cff.py` instead of hard-coding v6 labels.
 - **7:** *measured* PU200, 1307 of 1910 candidates have a match. The rest include track-only candidates. Their tracks
   carry a `generalTracksToTruth` match, which evd could fall back on (no CMSSW change needed).
 - **8:** evd's reco -> truth relations have at most one entry per object (*measured:* entries = matched objects in
@@ -210,11 +211,11 @@ so.
 
 The track associator (`AllRecoToTruthBranchAssociatorsProducer.cc:858-877`) is hit-based: its payload is a number of
 shared hits, and its score is 1 − shared hits / track hits (measured: exact for every track of the 0PU sample).
-EventExport writes the count under the calorimeter names (`generalTracksToTruth.sharedEnergy`,
+The exporter writes the count under the calorimeter names (`generalTracksToTruth.sharedEnergy`,
 `generalTracksFromTruth.sharedFraction`, integers 1–33). The viewer names them "shared hits" from the relations'
 `match.measure`. The maps have no threshold: CMS tracking validation calls a track with < 75% shared hits a fake
 (*measured*, PU200: 11% of matched tracks are below 75%), which is why truth mode colours a track by its particle
-only from 75%. **Check:** EventExport names the column by the associator's metric.
+only from 75%. **Check:** the exporter names the column by the associator's metric.
 
 ## What the bundles carry for truth, and what the viewer does not use
 
@@ -242,4 +243,4 @@ what it does not.
 2. `TruthHitTableProducer` has a non-CaloBoundary mode, or a per-hit total sim energy column (gaps 2, 3).
 3. `keepMatchedBy` includes tracks, or there is a "keep every particle with HGCal hits above E" option (gap 4).
 4. `pileupBunchCrossings` widened, or an OOT summary per hit (gap 5).
-5. EventExport reads its label list from `truthGraphAssociationLabels_cff` (gap 6).
+5. Done: the exporter reads its label list from `truthGraphAssociationLabels_cff` (gap 6).

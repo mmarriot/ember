@@ -1,9 +1,41 @@
 # Viewer
 
 A static web page (TypeScript, Preact signals, three.js) that reads bundles over HTTP range requests: on opening, the
-header and index; then one request per event shown. It lists the bundles of the site's `index.json` (re-read every
-30 s while the page is visible), or opens a `.evdb` file dropped on the page. What it draws and how comes from the
-bundle's display hints ([format.md](format.md)).
+header and index; then one request per event shown. What it draws and how comes from the bundle's display hints
+([format.md](format.md)). A first tour is in [Getting started](getting-started.md#4-five-things-to-try-first).
+
+## Data sets
+
+The button at the left of the top bar names the data set that is open. A click opens the chooser: a filter and three
+kinds of list.
+
+- **My files**: what you published with `evd FILE.root` ([the `evd` command](cli.md)), newest first, each with its
+  number of events and when it expires. The list is your area of the site, `data/u/<login>/index.json`.
+- **Recent**: data sets you opened from someone's link, and local files by name (up to 12, remembered in this
+  browser). A local file cannot be opened again from the list: drop it on the page again.
+- **The site's shared groups** (its `index.json`, re-read every 30 s while the page is visible): samples and
+  test-stand data kept by the site.
+
+Other people's files are in no list: they are reached by link. Type to filter, ↑ ↓ and Enter to open, Esc to close;
+**Open a local file…** at the bottom picks a `.evdb` from your computer, as dropping one on the page does. The panel
+also says what is open (**Details**): who published it, when it expires, the converter and, when the bundle records
+it, the CMSSW release that wrote its input.
+
+**Who "my" is.** The page asks the site who is signed on (`whoami`, see [Hosting](hosting.md#who-is-looking-whoami));
+where the site does not answer, the chooser asks for your CERN login once and remembers it in the browser
+("not you?" forgets it).
+
+**With nothing to show.** A bare address opens the newest shared data set, else your newest. A site with no data set
+shows a start panel: what the page is and the three ways to get events in (publish a file, open a local one, follow a
+link). A link to a file that is gone (expired or removed), refused, out of reach or not a bundle shows a panel that
+says which, whose file it was and what to do; when a data set is already on screen it stays, and the reason comes as
+a message.
+
+**Sharing.** The share button (top right) copies a link to what is on screen and says what the link opens: the data
+set, the event, the part of the detector, the view, a kind looked at alone, the selection and the colours; and, for
+a file in someone's area, until when it works. Cuts, ticked collections and the camera are not part of a link. A
+local file has no link: the button says so and how to publish the file. The address bar always holds the same link
+(see [the end of this page](#the-address)).
 
 ## Controls
 
@@ -215,8 +247,13 @@ Expressions (filters, custom columns, summary `where`) admit column names, numbe
 `&& || !`, parentheses and a fixed list of Math functions. They are parsed, never evaluated as JavaScript
 (`viewer/src/model/expr.ts`).
 
-The URL keeps the bundle, event, view, domain (`All` when a bundle that opens on a domain shows everything), a kind
-looked at alone (`only`), the selection, the level shown (`lv`) and the truth colours (`c=truth`), so links can be shared. They are in the hash
-(`#b=…&e=…`; a query, `?b=…&e=…`, is read too); `e` is the event's place in the file from 0 (the top bar counts
-from 1), not its event number (the Event… box takes that). Custom columns, filters, colour
-choices and the active preset (per profile), the theme and the panel width are remembered per browser.
+### The address
+
+The address keeps the bundle, event, view, domain (`All` when a bundle that opens on a domain shows everything), a
+kind looked at alone (`only`), the selection, the level shown (`lv`) and the truth colours (`c=truth`), so links can
+be shared. They are in the hash (`#b=…&e=…`; a query, `?b=…&e=…`, is read too): `b` is the bundle's path relative to
+the site (`data/u/<login>/<name>.evdb` for a user's file), and `e` is the event's place in the file from 0 (the top
+bar counts from 1), not its event number (the Event… box takes that). A local file is not written to the address.
+
+Remembered per browser, not in links: custom columns, filters, colour choices and the active preset (per profile),
+the theme, the panel width, your typed login and the recent data sets.

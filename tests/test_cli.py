@@ -42,6 +42,7 @@ def test_a_file_alone_is_converted_published_and_its_link_printed_last(setup, ca
     assert len(Bundle(str(published))) == 10 and Bundle(str(published)).header["source"]["converter"] == f"evdtools {__version__}"
     [entry] = json.load(open(published.parent / "index.json"))["bundles"]
     assert entry["file"] == "data/u/alice/ttbar.evdb" and entry["title"] == "ttbar · 10 events"
+    assert set(entry) == {"file", "title", "events", "size", "created", "published", "expires"}
     assert not list(setup.glob("*.evdb"))  # nothing left here
 
 
@@ -147,3 +148,86 @@ def test_evd_runs_as_one_file_with_its_profiles_inside(setup):
     assert done.returncode == 0 and done.stdout.splitlines()[-1] == "https://evd.example/#b=data/u/alice/ttbar.evdb"
     failed = run("ttbar.root")  # the built-in cms profile is found in the file, and draws nothing of this input
     assert failed.returncode == 1 and "none of the tables that the profile cms draws" in failed.stderr
+
+
+# Review findings: each of these failed before its fix.
+def test_options_may_come_before_the_file(setup, capsys):
+    assert main(["-o", "out.evdb", "--profile", "test.json", "ttbar.root"]) == 0 and len(Bundle("out.evdb")) == 10
+    assert main(["--max-events", "3", "--profile", "test.json", "--no-publish", "ttbar.root"]) == 0
+    assert len(Bundle("ttbar.evdb")) == 3
+    for flag in ("-h", "--help", "--version"):
+        with pytest.raises(SystemExit) as e:
+            main([flag])
+        assert e.value.code == 0
+    assert "evd view" not in capsys.readouterr().out.split("usage:")[1].splitlines()[0]  # the top-level help
+
+
+def test_a_hostile_user_option_is_refused_before_anything_is_written(setup, capsys):
+    (setup / "site" / "data" / "simulation").mkdir(parents=True)
+    main(["convert", "ttbar.root", "-o", str(setup / "site/data/simulation/ttbar.evdb"), "--profile", "test.json"])
+    for user in ("../..", "../simulation", "a/b", "x y"):
+        assert main(["ttbar.root", "--profile", "test.json", "--user", user]) == 1
+        assert main(["rm", "--user", user, "ttbar"]) == 1
+        assert main(["list", "--user", user]) == 1
+    assert "login" in capsys.readouterr().err
+    assert (setup / "site/data/simulation/ttbar.evdb").exists() and os.listdir(setup / "site") == ["data"]
+    assert os.listdir(setup / "site" / "data") == ["simulation"]
+
+
+def test_output_does_not_need_the_input_to_have_a_publishable_name(setup, capsys):
+    os.rename("ttbar.root", "my file (v2).root")
+    assert main(["my file (v2).root", "--profile", "test.json", "-o", "out.evdb"]) == 0
+    assert main(["my file (v2).root", "--profile", "test.json"]) == 1 and "--name" in capsys.readouterr().err
+
+
+def test_a_site_that_cannot_be_written_is_found_before_converting(setup, capsys, monkeypatch):
+    if os.geteuid() == 0:
+        pytest.skip("root may write anywhere")
+    users = setup / "site" / "data" / "u"
+    users.mkdir(parents=True)
+    os.chmod(users, 0o555)
+    from evdtools import nano
+    monkeypatch.setattr(nano, "convert", lambda *a, **k: pytest.fail("converted before checking the site"))
+    try:
+        assert main(["ttbar.root", "--profile", "test.json"]) == 1
+    finally:
+        os.chmod(users, 0o755)
+    assert "cannot write" in capsys.readouterr().err
+
+
+def test_list_says_when_the_site_is_not_there(setup, capsys):
+    assert main(["list", "--site", str(setup / "nowhere")]) == 1
+    assert "does not exist" in capsys.readouterr().err
+
+
+def test_numbers_are_checked_when_the_command_line_is_read(setup, capsys):
+    for bad in (["--events", "abc"], ["--events", "3-"], ["--max-events", "-1"], ["--max-events", "x"], ["-j", "0"]):
+        with pytest.raises(SystemExit) as e:
+            main(["ttbar.root", "--profile", "test.json", *bad])
+        assert e.value.code == 2
+    err = capsys.readouterr().err
+    assert "invalid literal" not in err and "islice" not in err and "416622,416630-416640" in err
+    with pytest.raises(SystemExit):
+        main(["clean", "--days", "0"])
+
+
+def test_rm_takes_the_name_with_or_without_its_suffix(setup, capsys):
+    main(["ttbar.root", "--profile", "test.json"])
+    assert main(["rm", "ttbar.evdb"]) == 0 and "removed ttbar" in capsys.readouterr().out
+
+
+def test_options_for_reconstruction_files_are_said_to_be_ignored_for_nanoaod(setup, capsys):
+    assert main(["ttbar.root", "--profile", "test.json", "--geometry", "D110", "--nano", "kept.root", "-o", "o.evdb"]) == 0
+    err = capsys.readouterr().err
+    assert "--geometry" in err and "--nano" in err and "ignored" in err and not os.path.exists("kept.root")
+
+
+def test_threads_give_the_same_records_as_one_thread(setup):
+    from evdtools.nano import convert
+    import gzip, io
+    for threads in (1, 4):
+        convert(["ttbar.root"], f"t{threads}.evdb", "test.json", log=io.StringIO(), threads=threads)
+    one, four = Bundle("t1.evdb"), Bundle("t4.evdb")
+    raw = lambda b, e: (b._file.seek(e["offset"]), gzip.decompress(b._file.read(e["length"])))[1]
+    assert len(one) == len(four) == 12 and [e["event"] for e in one.events] == [e["event"] for e in four.events]
+    assert all(raw(one, a) == raw(four, b) for a, b in zip(one.events, four.events))

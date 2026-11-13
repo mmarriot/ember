@@ -153,22 +153,37 @@ class BundleWriter:
         os.remove(self._tmp)
 
 
+def summary(path):
+    """(header, number of events) of a bundle file; ValueError if it is not a complete bundle."""
+    bundle = Bundle(path)
+    bundle._file.close()
+    return bundle.header, len(bundle)
+
+
 class Bundle:
     """Random access to the events of a bundle."""
 
     def __init__(self, path):
+        """ValueError if the file is not a complete bundle."""
         self._file = open(path, "rb")
-        magic, version, hlen = struct.unpack("<4sII", self._file.read(12))
-        if magic != MAGIC or version != VERSION:
-            raise ValueError(f"{path}: not an evd/{VERSION} bundle")
-        self.header = json.loads(self._file.read(hlen))
-        self._file.seek(-16, os.SEEK_END)
-        offset, length, magic = struct.unpack("<QI4s", self._file.read(16))
-        if magic != MAGIC:
-            raise ValueError(f"{path}: missing trailer (incomplete file?)")
-        self._file.seek(offset)
-        index = json.loads(self._file.read(length))
-        self.events, self.runs = index["events"], index.get("runs", [])
+        try:
+            magic, version, hlen = struct.unpack("<4sII", self._file.read(12))
+            if magic != MAGIC or version != VERSION:
+                raise ValueError(f"{path}: not an evd/{VERSION} bundle")
+            self.header = json.loads(self._file.read(hlen))
+            self._file.seek(-16, os.SEEK_END)
+            offset, length, magic = struct.unpack("<QI4s", self._file.read(16))
+            if magic != MAGIC:
+                raise ValueError(f"{path}: missing trailer (incomplete file?)")
+            self._file.seek(offset)
+            index = json.loads(self._file.read(length))
+            self.events, self.runs = index["events"], index.get("runs", [])
+        except (struct.error, KeyError, TypeError, OSError) as e:  # too short, or not what the format says
+            self._file.close()
+            raise ValueError(f"{path}: not a complete bundle ({type(e).__name__})") from None
+        except ValueError:
+            self._file.close()
+            raise
 
     def __len__(self):
         return len(self.events)

@@ -4,8 +4,8 @@
 tools/build_zipapp.py.
 """
 import argparse
-import datetime
 import os
+import re
 import shutil
 import sys
 import tempfile
@@ -15,8 +15,6 @@ import numpy as np
 
 from . import Problem, __version__
 from .bundle import Bundle
-
-COMMANDS = ("view", "list", "rm", "convert", "from-nano", "inspect", "validate", "sync", "publish", "simulate", "clean")
 
 
 def validate(path):
@@ -57,16 +55,34 @@ def _site_options(p):
     p.add_argument("--user", help="whose area on the site (default: $EVD_USER, else your login)")
 
 
+def _number(least):
+    """argparse type: a whole number, at least `least`."""
+    def number(text):
+        if not re.fullmatch(r"\d+", text) or int(text) < least:
+            raise argparse.ArgumentTypeError(f"'{text}' is not a whole number of {least} or more")
+        return int(text)
+    return number
+
+
+def _event_numbers(text):
+    """argparse type: event numbers and ranges, kept as text for nano.parse_events."""
+    if not re.fullmatch(r"\s*\d+(-\d+)?(\s*,\s*\d+(-\d+)?)*\s*", text):
+        raise argparse.ArgumentTypeError(f"'{text}' is not a list of event numbers such as 416622,416630-416640")
+    return text
+
+
 def _convert_options(p, profile, max_events=None):
     p.add_argument("--profile", default=profile, help=f"profile name or JSON path (default: {profile})")
-    p.add_argument("--max-events", type=int, metavar="N",
+    p.add_argument("--max-events", type=_number(0), metavar="N",
                    help="convert at most N events" + (f" (default: {max_events})" if max_events else ""))
-    p.add_argument("--events", help="only these event numbers, e.g. 416622,416630-416640 (the profile's selection "
-                                    "still applies; a reconstruction file is exported in full to find them)")
-    p.add_argument("-j", "--threads", type=int, help="threads to read and compress with (default: up to 4)")
+    p.add_argument("--events", type=_event_numbers,
+                   help="only these event numbers, e.g. 416622,416630-416640 (the profile's selection still "
+                        "applies; a reconstruction file is exported in full to find them)")
+    p.add_argument("-j", "--threads", type=_number(1), help="threads to read and compress with (default: up to 4)")
 
 
 def parser():
+    """(the argument parser, the names of its commands)."""
     top = argparse.ArgumentParser(
         prog="evd", description="Turn CMS events into event-display bundles and publish them on the event-display "
         "site. `evd FILE.root` is `evd view FILE.root`: convert, publish to your area, print the link.")
@@ -90,7 +106,6 @@ def parser():
     edm.add_argument("--era", help="e.g. Phase2C17I13M9")
     edm.add_argument("--conditions", help="global tag, e.g. auto:phase2_realistic_T33")
     edm.add_argument("--nano", metavar="FILE.root", help="also keep the NanoAOD that was made, as this file")
-    edm.add_argument("--step", default=None, help=argparse.SUPPRESS)  # the cmsDriver step, if not NANO:@EVD
 
     p = sub.add_parser("list", help="list your published bundles")
     p.add_argument("-l", "--links", action="store_true", help="print each bundle's link")
@@ -135,9 +150,9 @@ def parser():
     p.add_argument("--start", type=int, default=0, help="first event")
     p = sub.add_parser("clean", help="site: remove the users' bundles that have expired (for cron)")
     p.add_argument("--site", help="the site's directory (default: $EVD_SITE_DIR, else the CMS site)")
-    p.add_argument("--days", type=int, help="keep a bundle this many days after it was last published (default: 30)")
+    p.add_argument("--days", type=_number(1), help="keep a bundle this many days after it was published (default: 30)")
     p.add_argument("--dry-run", action="store_true", help="only list what would be removed")
-    return top
+    return top, set(sub.choices)
 
 
 def view(args):
@@ -145,52 +160,53 @@ def view(args):
     from . import export, site
     from .nano import convert, parse_events
 
-    out = sys.stdout
-
     publish = not (args.output or args.no_publish)
-    name = site.check_name(args.name or os.path.splitext(os.path.basename(args.inputs[0]))[0])
+    name = args.name or os.path.splitext(os.path.basename(args.inputs[0]))[0]
+    if not args.output:  # the name is the file's on the site, or here
+        site.check_name(name)
     kinds, entries, releases = zip(*map(export.describe, args.inputs))
     if len(set(kinds)) > 1:
         raise Problem("the inputs mix NanoAOD and CMSSW reconstruction files: give one kind at a time")
-    if publish:
-        site.store(site.site_dir(args.site))  # before any work: the site must be within reach
+    if publish:  # before any work (an export takes minutes): the site must be there, and the user's area writable
+        user, files = site.login(args.user), site.store(site.site_dir(args.site))
+        files.check(f"{site.USERS}/{user}")
+    unused = [f"--{o}" for o in ("geometry", "era", "conditions", "nano") if getattr(args, o)] if kinds[0] == "nano" else []
+    if unused:
+        print(f"evd: {', '.join(unused)} ignored: for CMSSW reconstruction files, and the input is NanoAOD", file=sys.stderr)
     # At most 10 events unless told otherwise; events asked for by number are all converted.
     limit = (None if args.events else 10) if args.max_events is None else args.max_events or None
     with tempfile.TemporaryDirectory(prefix="evd-") as work:
         inputs = args.inputs
         made = f" from {' and '.join(dict.fromkeys(filter(None, releases)))}" if any(releases) else ""
         print(f"{', '.join(map(os.path.basename, inputs))}: "
-              f"{'NanoAOD' if kinds[0] == 'nano' else 'CMSSW reconstruction'}{made}, {sum(entries)} events", file=out)
+              f"{'NanoAOD' if kinds[0] == 'nano' else 'CMSSW reconstruction'}{made}, {sum(entries)} events")
         if kinds[0] == "edm":
             print("making the event-display NanoAOD of "
-                  f"{'all of them' if not limit or limit >= sum(entries) else f'the first {limit}'} with cmsRun",
-                  file=out)
+                  f"{'all of them' if not limit or limit >= sum(entries) else f'the first {limit}'} with cmsRun")
             started = time.time()
             inputs = [export.export(inputs, work, limit, args.geometry, args.era, args.conditions,
-                                    threads=args.threads or 4, log=_Indented(out),
-                                    **({"step": args.step} if args.step else {}))]
-            print(f"  NanoAOD made in {time.time() - started:.0f} s", file=out)
+                                    threads=args.threads or 4, log=_Indented(sys.stdout))]
+            print(f"  NanoAOD made in {time.time() - started:.0f} s")
             if args.nano:
                 shutil.copyfile(inputs[0], args.nano)
         target = args.output or (os.path.join(work, f"{name}.evdb") if publish else f"{name}.evdb")
         started = time.time()
-        written = convert(inputs, target, args.profile, limit, log=_Indented(out),
+        written = convert(inputs, target, args.profile, limit, log=_Indented(sys.stdout),
                           events=parse_events(args.events) if args.events else None, threads=args.threads)
         total = sum(entries)
         cut = f" of {total} (--max-events 0 for all)" if kinds[0] == "nano" and limit and written == limit < total else ""
-        print(f"  {written} events{cut}, {_size(os.path.getsize(target))}, {time.time() - started:.0f} s", file=out)
+        print(f"  {written} events{cut}, {_size(os.path.getsize(target))}, {time.time() - started:.0f} s")
         if not written:
             os.remove(target)
             raise Problem("no event was converted" + (": none of the events asked for is in the input" if args.events
                                                       else ", so there is no bundle"))
         if not publish:
-            print(f"wrote {target}", file=out)
+            print(f"wrote {target}")
             return 0
-        user = site.login(args.user)
         entry, replaced = site.publish(target, site.site_dir(args.site), user, name, args.title)
     print(f"{'replaced' if replaced else 'published'} {name}: kept until {entry['expires'][:10]} "
-          f"(evd list, evd rm {name})\n", file=out)
-    print(site.link(site.site_url(args.url), user, name), file=out)
+          f"(evd list, evd rm {name})\n")
+    print(site.link(site.site_url(args.url), user, name))
     return 0
 
 
@@ -209,9 +225,10 @@ class _Indented:
 
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
-    if argv and argv[0] not in COMMANDS and not argv[0].startswith("-"):
-        argv.insert(0, "view")  # evd FILE.root ...
-    args = parser().parse_args(argv)
+    top, commands = parser()
+    if argv and argv[0] not in commands | {"-h", "--help", "--version"}:
+        argv.insert(0, "view")  # evd FILE.root ..., evd -o out.evdb FILE.root
+    args = top.parse_args(argv)
     try:
         return run(args)
     except (Problem, ValueError, OSError) as e:
@@ -235,8 +252,8 @@ def run(args):
         if not entries:
             print(f"{user} has no published bundle (evd FILE.root publishes one)")
             return 0
-        rows = [(os.path.basename(e["file"])[:-5], str(e.get("events", "")), _size(e.get("size", 0)),
-                 (e.get("expires") or "")[:10], e.get("title", "")) for e in entries]
+        rows = [(os.path.basename(e["file"])[:-5], str(e.get("events", "")), _size(e.get("size") or 0),
+                 str(e.get("expires") or "")[:10], str(e.get("title") or "")) for e in entries]
         widths = [max(len(r[k]) for r in [("NAME", "EVENTS", "SIZE", "EXPIRES"), *rows]) for k in range(4)]
         for row in [("NAME", "EVENTS", "SIZE", "EXPIRES", "TITLE"), *rows]:
             print("  ".join([*(cell.ljust(w) for cell, w in zip(row, widths)), row[4]]).rstrip())
@@ -245,7 +262,7 @@ def run(args):
     elif args.command == "rm":
         from . import site
         user, missing = site.login(args.user), []
-        for name in args.names:
+        for name in (n[:-5] if n.endswith(".evdb") else n for n in args.names):
             if site.remove(site.site_dir(args.site), user, name):
                 print(f"removed {name}")
             else:
@@ -306,7 +323,7 @@ def run(args):
         site = site_dir(args.site)
         if not os.path.isdir(site):
             raise Problem(f"the site directory {site} is not mounted here: clean runs where the site is a directory")
-        removed = clean(site, KEEP_DAYS if args.days is None else args.days, args.dry_run, log)
+        removed = clean(site, args.days or KEEP_DAYS, args.dry_run, log)
         log(f"{len(removed)} file(s) {'would be ' if args.dry_run else ''}removed")
     return 0
 

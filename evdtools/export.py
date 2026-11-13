@@ -13,8 +13,10 @@ import json
 import os
 import re
 import shlex
+import shutil
 import subprocess
 import sys
+import tempfile
 
 import uproot
 
@@ -145,22 +147,23 @@ def settings(path, geometry=None, era=None, conditions=None, cmssw=None, log=sys
     return geometry, era, conditions
 
 
-def cmsdriver(inputs, events, geometry, era, conditions, threads=4, step=STEP, output=OUTPUT):
+def cmsdriver(inputs, events, geometry, era, conditions, threads=4, output=OUTPUT):
     """The cmsDriver.py command line that writes the event-display NanoAOD of the first `events` events (None:
     all) of the EDM files `inputs` to `output`, in the directory it runs in."""
     source = lambda p: p if re.match(r"\w+:", p) else f"file:{os.path.abspath(p)}"
-    return ["cmsDriver.py", "evd", "-s", step, "--mc", "--filein", ",".join(map(source, inputs)),
+    return ["cmsDriver.py", "evd", "-s", STEP, "--mc", "--filein", ",".join(map(source, inputs)),
             "--fileout", f"file:{output}", "--eventcontent", "NANOAODSIM", "--datatier", "NANOAODSIM",
             "-n", str(events if events else -1), "--geometry", geometry_name(geometry), "--era", era,
             "--conditions", conditions, "--nThreads", str(threads), "--python_filename", "evd_nano_cfg.py"]
 
 
-def export(inputs, workdir, events=None, geometry=None, era=None, conditions=None, cmssw=None, threads=4, step=STEP,
+def export(inputs, workdir, events=None, geometry=None, era=None, conditions=None, cmssw=None, threads=4,
            log=sys.stderr):
-    """Run the export of the EDM files `inputs` in `workdir`; returns the NanoAOD file written there. The job's
-    output goes to <workdir>/cmsRun.log; when it fails, its last lines are in the Problem raised."""
+    """Run the export of the EDM files `inputs` in `workdir`; returns the NanoAOD file written there. When the job
+    fails, the Problem raised says why if that is known (a release without the flavour), or else shows the end of
+    the job's output and where all of it was kept."""
     geometry, era, conditions = settings(inputs[0], geometry, era, conditions, cmssw, log)
-    command = cmsdriver(inputs, events, geometry, era, conditions, threads, step)
+    command = cmsdriver(inputs, events, geometry, era, conditions, threads)
     prefix, env = _environment(cmssw)
     print(f"running {' '.join(map(shlex.quote, command))}", file=log)
     log_path = os.path.join(workdir, "cmsRun.log")
@@ -172,8 +175,14 @@ def export(inputs, workdir, events=None, geometry=None, era=None, conditions=Non
     nano = os.path.join(workdir, OUTPUT)
     if result.returncode or not os.path.exists(nano):
         with open(log_path, errors="replace") as f:
-            tail = "".join(f.readlines()[-25:]).rstrip()
-        hint = (f"\nThis release has no {step}: it needs the event-display NanoAOD package "
-                "(DPGAnalysis/EventDisplayNanoAOD)." if "Impossible to map" in tail else "")
-        raise Problem(f"the export job failed (exit code {result.returncode}); the end of its output:\n{tail}{hint}")
+            output = f.read()
+        if "Impossible to map" in output:  # cmsDriver does not know the flavour (and prints all those it knows)
+            raise Problem(f"this CMSSW release has no {STEP}. The event-display NanoAOD is the package "
+                          "DPGAnalysis/EventDisplayNanoAOD: use a release that has it, or add the package to your "
+                          "area as the evd documentation says (Getting started), then cmsenv and try again")
+        kept = os.path.join(tempfile.gettempdir(), f"evd-cmsRun-{os.getpid()}.log")
+        shutil.copyfile(log_path, kept)
+        tail = "\n".join(output.splitlines()[-25:])
+        raise Problem(f"the export job failed (exit code {result.returncode}); the end of its output (all of it: "
+                      f"{kept}):\n{tail}")
     return nano

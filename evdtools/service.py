@@ -28,8 +28,8 @@ import shutil
 import tempfile
 import time
 
-from .bundle import Bundle
-from .site import service_dir, site_dir
+from .bundle import Bundle, summary
+from .site import USERS, replacing, service_dir, site_dir
 
 LOCK_STALE = 3 * 3600  # s: a lock older than this was left by a run that died
 
@@ -60,10 +60,8 @@ def _natural(path):
 
 
 def _write_json(path, data):
-    tmp = f"{path}.tmp{os.getpid()}"
-    with open(tmp, "w") as f:
+    with replacing(path) as partial, open(partial, "w") as f:
         json.dump(data, f, indent=1)
-    os.replace(tmp, path)
 
 
 def _stem(campaign, path):
@@ -99,36 +97,47 @@ def _remember_title(site, campaign, file_titles=None):
     folder = os.path.join(site, "data", campaign["name"])
     os.makedirs(folder, exist_ok=True)
     path = os.path.join(folder, "campaign.json")
-    files = json.load(open(path)).get("files", {}) if os.path.exists(path) else {}
+    try:
+        with open(path) as f:
+            files = json.load(f).get("files", {})
+    except (OSError, ValueError, AttributeError):  # none yet, or not what this function wrote: start again
+        files = {}
     _write_json(path, {"title": campaign.get("title", campaign["name"]), "files": {**files, **(file_titles or {})}})
 
 
 def build_index(site):
-    """index.json for the viewer: every non-empty bundle, newest data first."""
+    """index.json for the viewer: every non-empty bundle of the campaigns, newest data first. The users' folder
+    (data/u/, see evdtools/site.py) is not a campaign: nothing in it is listed. A file that cannot be read is said
+    and left out."""
+    users = os.path.join(site, USERS)
+    campaign_files = lambda name: [p for p in glob.glob(os.path.join(site, "data", "*", name))
+                                   if os.path.dirname(p) != users]
     titles, file_titles = {}, {}
-    for path in glob.glob(os.path.join(site, "data", "*", "campaign.json")):
-        with open(path) as f:
-            meta = json.load(f)
-        titles[os.path.basename(os.path.dirname(path))] = meta["title"]
-        file_titles.update({f"{os.path.basename(os.path.dirname(path))}/{k}": v for k, v in meta.get("files", {}).items()})
+    for path in campaign_files("campaign.json"):
+        try:
+            with open(path) as f:
+                meta = json.load(f)
+            titles[os.path.basename(os.path.dirname(path))] = meta["title"]
+            file_titles.update({f"{os.path.basename(os.path.dirname(path))}/{k}": v for k, v in meta.get("files", {}).items()})
+        except (OSError, ValueError, KeyError, TypeError, AttributeError) as e:
+            log(f"skipping unreadable {path}: {e!r}")
     bundles = []
-    for path in glob.glob(os.path.join(site, "data", "*", "*.evdb")):
+    for path in campaign_files("*.evdb"):
         campaign, stem = os.path.basename(os.path.dirname(path)), os.path.splitext(os.path.basename(path))[0]
         try:
-            b = Bundle(path)
-            b._file.close()  # only the header and index are needed
-        except (OSError, ValueError) as e:
+            header, events = summary(path)
+            source = header["source"]
+        except (OSError, ValueError, KeyError) as e:
             log(f"skipping unreadable {path}: {e}")
             continue
-        if not len(b):
+        if not events:
             continue
         part = re.search(r"_(\d+)$", stem)
         name = file_titles.get(f"{campaign}/{stem}") or f"{titles.get(campaign, campaign)} · {f'file {int(part.group(1))}' if part else stem}"
         bundles.append({
             "file": os.path.relpath(path, site), "campaign": campaign, "campaign_title": titles.get(campaign, campaign),
-            "events": len(b), "title": f"{name} · {len(b)} events",
-            "data_time": b.header["source"].get("data_time") or b.header["source"].get("created"),
-            "created": b.header["source"].get("created"),
+            "events": events, "title": f"{name} · {events} events",
+            "data_time": source.get("data_time") or source.get("created"), "created": source.get("created"),
         })
     bundles.sort(key=lambda x: (x["data_time"] or "", _natural(x["file"])), reverse=True)
     return {"updated": now(), "bundles": bundles}
@@ -231,12 +240,12 @@ def simulate(source, site, campaign="live_demo", title="Simulated live data", ev
 def publish(bundle, site, campaign, title, name=None, file_title=None):
     """Add a finished bundle (e.g. a simulated sample) to the site as data/<campaign>/<name>.evdb, with an optional
     title of its own, and rewrite the index. The copy is renamed into place, so readers never see half a file."""
-    Bundle(bundle)._file.close()  # refuse anything that is not a complete bundle
+    summary(bundle)  # refuse anything that is not a complete bundle
     stem = name or os.path.splitext(os.path.basename(bundle))[0]
     _remember_title(site, {"name": campaign, "title": title}, {stem: file_title} if file_title else None)
     target = os.path.join(site, "data", campaign, f"{stem}.evdb")
-    shutil.copyfile(bundle, f"{target}.tmp{os.getpid()}")
-    os.replace(f"{target}.tmp{os.getpid()}", target)
+    with replacing(target) as partial:
+        shutil.copyfile(bundle, partial)
     _write_json(os.path.join(site, "index.json"), build_index(site))
     log(f"published {os.path.relpath(target, site)}")
     return target

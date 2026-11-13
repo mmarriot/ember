@@ -218,3 +218,29 @@ def test_a_failed_export_counts_as_a_failure_of_the_file(tmp_path):
         raise Problem("the export job failed (exit code 1)")
     assert sync(config, convert=fake_convert({})[0], export=export) == 0
     assert json.load(open(os.path.join(config["state"], "failures.json"))) == {"relval_20_1_0/TTbar_14TeV_PU_201X_PU-v1": 1}
+
+
+def test_files_directly_in_the_users_folder_neither_show_in_the_site_index_nor_break_it(tmp_path):
+    from evdtools.service import build_index
+    config = setup(tmp_path, ["NANO_1.root"])
+    convert, _ = fake_convert({})
+    sync(config, convert=convert)
+    users = tmp_path / "site" / "data" / "u"
+    users.mkdir()
+    convert(["leak.root"], str(users / "leak.evdb"), "cms", None, data_time=datetime.datetime(2026, 1, 1))
+    (users / "campaign.json").write_text('{"title": "Users"}')
+    (users / "empty.evdb").write_bytes(b"")
+    assert [b["file"] for b in build_index(config["site"])["bundles"]] == ["data/mct/NANO_1.evdb"]
+
+
+def test_a_broken_file_in_a_campaign_does_not_stop_the_index(tmp_path):
+    from evdtools.service import build_index
+    config = setup(tmp_path, ["NANO_1.root"])
+    sync(config, convert=fake_convert({})[0])
+    other = tmp_path / "site" / "data" / "other"
+    other.mkdir()
+    (other / "empty.evdb").write_bytes(b"")
+    (other / "short.evdb").write_bytes(b"EVDB\x01")
+    (other / "campaign.json").write_text("{not json")
+    assert [b["file"] for b in build_index(config["site"])["bundles"]] == ["data/mct/NANO_1.evdb"]
+    assert sync(config, convert=fake_convert({})[0]) == 0  # and the pass still ends with an index

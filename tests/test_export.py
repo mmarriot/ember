@@ -100,7 +100,8 @@ def test_settings_that_cannot_be_found_are_asked_for(monkeypatch):
 
 DRIVER = """#!/bin/bash
 echo "cmsDriver $@"
-[ -n "$FAKE_DRIVER_FAILS" ] && { echo "Exception: Impossible to map EVD from {...}"; exit 1; }
+[ "$FAKE_DRIVER_FAILS" = 1 ] && { echo "Exception: Impossible to map EVD from {...}"; exit 1; }
+[ "$FAKE_DRIVER_FAILS" = other ] && { echo "An exception of category ProductNotFound occurred"; exit 8; }
 out=""; while [ $# -gt 0 ]; do [ "$1" = "--fileout" ] && out=${2#file:}; shift; done
 echo nano > "$out"
 """
@@ -127,12 +128,6 @@ def test_export_runs_cmsdriver_in_the_work_directory_and_returns_the_nanoaod(dri
     assert "-n 5 --geometry ExtendedRun4D110 --era E --conditions C" in open(os.path.join(driver, "cmsRun.log")).read()
 
 
-def test_a_failed_export_shows_the_end_of_the_job_output(driver, monkeypatch):
-    monkeypatch.setenv("FAKE_DRIVER_FAILS", "1")
-    with pytest.raises(Problem, match=r"(?s)exit code 1.*Impossible to map EVD.*DPGAnalysis/EventDisplayNanoAOD"):
-        export.export(["step3.root"], driver, 5, "D110", "E", "C", log=io.StringIO())
-
-
 def test_export_needs_a_cmssw_environment(driver, monkeypatch):
     monkeypatch.delenv("CMSSW_BASE")
     with pytest.raises(Problem, match="cmsenv"):
@@ -144,3 +139,23 @@ def test_a_cmssw_area_is_set_up_in_a_clean_environment(monkeypatch):
     prefix, env = export._environment("/areas/CMSSW_20_1_0")
     assert prefix[:2] == ["bash", "-c"] and "cd /areas/CMSSW_20_1_0 && eval $(scram runtime -sh)" in prefix[2]
     assert "PYTHONPATH" not in env and env["PATH"] == "/usr/bin:/bin"
+
+
+def test_a_release_without_the_flavour_gets_the_hint_and_not_the_whole_job_output(driver, monkeypatch):
+    monkeypatch.setenv("FAKE_DRIVER_FAILS", "1")
+    with pytest.raises(Problem) as e:
+        export.export(["step3.root"], driver, 5, "D110", "E", "C", log=io.StringIO())
+    assert "DPGAnalysis/EventDisplayNanoAOD" in str(e.value) and "Impossible to map" not in str(e.value)
+    assert len(str(e.value)) < 500
+
+
+def test_another_failure_keeps_the_job_output_where_it_survives(driver, monkeypatch, tmp_path):
+    monkeypatch.setenv("FAKE_DRIVER_FAILS", "other")
+    monkeypatch.setenv("TMPDIR", str(tmp_path))
+    import tempfile
+    monkeypatch.setattr(tempfile, "tempdir", None)
+    with pytest.raises(Problem) as e:
+        export.export(["step3.root"], driver, 5, "D110", "E", "C", log=io.StringIO())
+    kept = [f for f in os.listdir(tmp_path) if f.startswith("evd-cmsRun-")]
+    assert len(kept) == 1 and kept[0] in str(e.value) and "ProductNotFound" in open(tmp_path / kept[0]).read()
+    assert "exit code 8" in str(e.value) and "ProductNotFound" in str(e.value)

@@ -28,7 +28,8 @@ evd [view] FILE.root [FILE.root ...] [options]
 ```
 
 Converts the inputs to one bundle, copies it to `data/u/<login>/<name>.evdb` on the site, adds it to your list and
-prints the link on the last line, after an empty line (so `evd FILE.root | tail -1` is the link).
+prints the link on the last line, after an empty line (so `evd FILE.root | tail -1` is the link). Options may come
+before or after the files: `evd -o out.evdb FILE.root` is `evd FILE.root -o out.evdb`.
 
 The inputs are either NanoAOD files written with `NANO:@EVD`, or CMSSW reconstruction files (step3: event content
 `FEVTDEBUGHLT` or `RECOSIM`). For reconstruction files `evd` first runs `cmsDriver.py ... -s NANO:@EVD` in a temporary directory,
@@ -45,7 +46,7 @@ call.
 | `--max-events N` | at most N events. Default: 10; with `--events`, all of those asked for. `0`: all |
 | `--events 3,7-9` | only these event numbers (the profile's event selection still applies). A reconstruction file is exported in full to find them |
 | `-j N`, `--threads` | threads to read and compress with. Default: up to 4, never more than the process may use |
-| `--site DIR`, `--url URL`, `--user LOGIN` | the site's directory and address, and whose area. Default: the environment variables below, else the CMS site and your login |
+| `--site DIR`, `--url URL`, `--user LOGIN` | the site's directory and address, and whose area (a CERN login: letters, digits, `-`, `_`). Default: the environment variables below, else the CMS site and your login |
 
 For reconstruction files:
 
@@ -133,7 +134,8 @@ viewer finds your files under it.
 | `cmsDriver.py not found: run cmsenv first` | as above |
 | `FILE: cannot tell which geometry it was made with (...)` | give `--geometry`, e.g. `--geometry D110` |
 | `this release has no default for geometry G; give --era and --conditions` | give them |
-| `the export job failed (exit code N); the end of its output: ...` | the cmsRun job failed; its last lines follow. "This release has no NANO:@EVD" means the release lacks the event-display NanoAOD ([until it is merged](getting-started.md#before-you-start)). A wrong era or conditions for the file also ends here: give `--era`, `--conditions` |
+| the release has no `NANO:@EVD` | the CMSSW area lacks the event-display NanoAOD: see [until it is merged](getting-started.md#before-you-start), or use a release that has it |
+| `the export job failed (exit code N); the end of its output: ...` | the cmsRun job failed; its last lines follow. A wrong era or conditions for the file ends here: give `--era`, `--conditions` |
 | `LOGIN has no bundle named NAME (evd list)` | `evd list` shows the names |
 | `no profile P: neither a file nor one of the built-in profiles (...)` | the built-in ones are listed in the message |
 

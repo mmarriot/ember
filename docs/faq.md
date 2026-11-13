@@ -10,7 +10,7 @@ The file is analysis NanoAOD. The event display needs the detector-level tables 
 `NANO:@EVD` step ([Getting started](getting-started.md#2-your-own-events-from-a-new-reconstruction-job)); MiniAOD
 and analysis NanoAOD do not hold hits or the links between objects.
 
-**`This release has no NANO:@EVD`, or cmsDriver says it cannot map `EVD`.**
+**`evd` says the release has no `NANO:@EVD`, or cmsDriver says "Impossible to map EVD".**
 The release does not have the event-display NanoAOD. Until it is merged:
 `git cms-merge-topic mmarriot:eventdisplay-nano && scram b` in your area
 ([Before you start](getting-started.md#before-you-start)).

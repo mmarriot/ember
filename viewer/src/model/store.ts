@@ -1,6 +1,6 @@
 // Application state. Components and the renderer react to these signals.
 import { batch, computed, effect, signal } from "@preact/signals";
-import { around, blobSource, Bundle, type DisplayLayer, type EventData, type Header, httpSource, kindName, REPRS, type Table, unitOf } from "../io/bundle";
+import { around, blobSource, Bundle, type DisplayLayer, type EventData, type Header, httpSource, kindName, REPRS, type Source, type Table, unitOf } from "../io/bundle";
 import { describeNoLink, type Legend, type ThemeName } from "../render/colour";
 import type { Caption } from "../render/replay";
 import type { Hit, ViewName } from "../render/engine";
@@ -12,24 +12,19 @@ import { opensPair, truthStatus, type TruthStatus } from "./match";
 import { PAIR, type Pair, pairFor, pairShows } from "./pair";
 import { levelsOf, type Related, relatedParts, sameRef, type Ref } from "./relations";
 import { matchClass, recoLadder, recoOfTruth } from "./chain";
-import { describeFailure, type Failure, forgetRecent, type Listed, mine, noteRecent, ownerOf, readIndex, titleOf } from "./library";
+import { cleanList, describeFailure, type Failure, forgetRecent, type Listed, locate, mine, NameError, noteRecent, ownerOf, readIndex, titleOf } from "./library";
 
 export type { Listed };
 /** The site's shared data sets (index.json): test stands, reference samples. A person's own are in `mine` (library.ts). */
 export const catalogue = signal<{ bundles: Listed[]; updated?: string }>({ bundles: [] }); // newest data first
 /** The data set open: its title and index entry where a list has it (the site's, mine, or its owner's); `local`: a
- *  file from this computer, which no link can reach. */
-export interface Opened { file: string; title: string; local: boolean; entry?: Listed }
-/** What was opened; `theirs`: its entry in its owner's index, for a data set from a link that no list of mine has. */
-const openedFile = signal<{ file: string; local: boolean; theirs?: Listed } | null>(null);
-/** Named from the lists as they are now: a link's data set opens before they are read, and takes its title then. */
-export const opened = computed<Opened | null>(() => {
-  const o = openedFile.value;
-  if (!o) return null;
-  const entry = o.local ? undefined : catalogue.value.bundles.find((x) => x.file === o.file) ?? mine.value.find((x) => x.file === o.file) ?? o.theirs;
-  return { file: o.file, local: o.local, entry, title: entry?.title ?? (o.local ? o.file : titleOf(o.file)) };
-});
-/** The name of a data set being opened, until it shows or fails. */
+ *  file from this computer, which no link can reach; `external`: an address on another site, which this site's
+ *  lists, publishers and expiry say nothing about. */
+export interface Opened { file: string; title: string; local: boolean; external: boolean; entry?: Listed }
+/** How `bundleName` was opened (set with it, in one batch); `theirs`: its entry in its owner's index, for a data set
+ *  from a link that no list of mine has. */
+const openedAs = signal<{ local: boolean; external: boolean; theirs?: Listed }>({ local: false, external: false });
+/** The name of the data set being opened (the last one asked for), until it shows or fails. */
 export const opening = signal<string | null>(null);
 /** Why the last data set did not open, while nothing else is shown instead (ui/Start.tsx). */
 export const openFailure = signal<Failure | null>(null);
@@ -39,8 +34,21 @@ export const following = signal(false); // Live mode (ui/live.ts): play new file
 
 export const bundle = signal<Bundle | null>(null);
 export const bundleName = signal("");
+/** Named from the lists as they are now: a link's data set opens before they are read, and takes its title then. */
+export const opened = computed<Opened | null>(() => {
+  const file = bundleName.value, { local, external, theirs } = openedAs.value;
+  if (!file || !bundle.value) return null;
+  const entry = local || external ? undefined : catalogue.value.bundles.find((x) => x.file === file) ?? mine.value.find((x) => x.file === file) ?? theirs;
+  return { file, local, external, entry, title: entry?.title ?? (local ? file : titleOf(file)) };
+});
 export const eventIndex = signal(0);
 export const rawEvent = signal<EventData | null>(null); // as read from the file
+/** The bundle of the event shown: for a moment after another bundle opens, still the previous one. */
+const shownOf = signal<Bundle | null>(null);
+/** The index entry (run, event, ...) of the event shown, once it is the open bundle's: until a newly opened bundle's
+ *  first event is read, `eventIndex` is the previous bundle's (or 0, while a link's event 30 is on its way) and names
+ *  an event that is not the one on screen, nor the one coming. */
+export const shownEntry = computed(() => (bundle.value && shownOf.value === bundle.value ? bundle.value.events[eventIndex.value] : undefined));
 export const event = computed(() => (rawEvent.value ? withCustomColumns(rawEvent.value, customColumns.value) : null));
 export const loading = signal(false);
 export const loadMs = signal(0);
@@ -447,33 +455,48 @@ export function toast(text: string, kind: "info" | "error" = "info") {
   setTimeout(() => (toasts.value = toasts.value.filter((t) => t.id !== id)), kind === "error" ? 8000 : 2500);
 }
 
-/** Re-read index.json, bypassing caches (it changes as new data arrive). */
+/** Re-read index.json, bypassing caches (it changes as new data arrive). Its entries are kept only where they are
+ *  entries (library.ts cleanList); an index that says it was not rewritten (`updated`) changes nothing, so nothing
+ *  that depends on the list re-runs every poll. */
 export async function refreshCatalogue() {
   try {
     const r = await fetch("index.json", { cache: "no-store" });
-    if (r.ok) catalogue.value = await r.json();
+    const index = r.ok ? await r.json() : null, bundles = cleanList(index?.bundles);
+    if (!bundles || (typeof index.updated === "string" && index.updated === catalogue.peek().updated)) return;
+    catalogue.value = { bundles, updated: typeof index.updated === "string" ? index.updated : undefined };
   } catch { /* offline or no index: keep what we have */ }
 }
 
-/** Name the data set just opened. One that no list of mine has came from a link: it goes to the recent ones (from
- *  which a list that arrives later takes it back, library.ts pruneRecent), with its title from its owner's index
- *  (read once, in the background), where its expiry is too. */
-async function describeOpened(name: string, local: boolean) {
-  openedFile.value = { file: name, local };
+/** Name the data set just opened (open number `id`). One that no list of mine has came from a link: it goes to the
+ *  recent ones (from which a list that arrives later takes it back, library.ts pruneRecent), with its title from its
+ *  owner's index (read once, in the background), where its expiry is too. An address on another site is neither
+ *  looked up nor remembered. */
+async function describeOpened(id: number, name: string, local: boolean, external: boolean, index = readIndex) {
   if (local) return noteRecent({ file: name, title: name, local: true });
-  if (opened.peek()?.entry) return;
-  const owner = ownerOf(name), theirs = owner ? (await readIndex(owner))?.find((x) => x.file === name) : undefined;
-  if (openedFile.peek()?.file !== name || openedFile.peek()?.local) return; // another one opened meanwhile
-  if (theirs) openedFile.value = { file: name, local, theirs };
+  if (external || opened.peek()?.entry) return;
+  const owner = ownerOf(name), theirs = owner ? (await index(owner))?.find((x) => x.file === name) : undefined;
+  if (id !== opens) return; // another one was asked for meanwhile
+  if (theirs) openedAs.value = { local, external, theirs };
   if (!opened.peek()?.entry || opened.peek()?.entry === theirs) noteRecent({ file: name, title: theirs?.title ?? titleOf(name) });
 }
 
+let opens = 0; // how many opens were asked for: each knows its number, and only the last one may show anything
 /** Open a bundle and show its event `start` (a shared link's event: read only that one, not event 0 first). `local`:
- *  a file from this computer (`open` reads it), which the address bar and the recent list cannot open again. */
-export async function openBundle(name: string, open = () => httpSource(name), start = 0, local = false) {
+ *  a file from this computer (`open` reads it), which the address bar and the recent list cannot open again.
+ *  `name`, when not local, is a file of this site or an address elsewhere (library.ts locate); anything else is
+ *  refused. Opens overlap (a slow link and a choice made meanwhile, Live, two quick picks): the last one asked for
+ *  wins, whatever order they finish in; one that was overtaken changes nothing and says nothing. Returns whether
+ *  this open is the one on screen, with its event read (then a link's view and selection can be applied). */
+export async function openBundle(name: string, open?: () => Promise<Source>, start = 0, local = false, index = readIndex): Promise<boolean> {
+  const id = ++opens, overtaken = () => id !== opens;
+  const place = local ? null : locate(name), external = place?.kind === "external";
   opening.value = name;
   try {
-    const b = await Bundle.open(await open());
+    if (place?.kind === "bad") throw new NameError(name);
+    const source = await (open ?? (() => httpSource(place?.kind === "external" ? place.url : name)))();
+    if (overtaken()) return false;
+    const b = await Bundle.open(source);
+    if (overtaken()) return false;
     // A layer drawn in a way this viewer does not know (a newer bundle): left out, the rest is drawn.
     const unknown = b.header.display.filter((d) => !(REPRS as readonly string[]).includes(d.repr));
     if (unknown.length) {
@@ -487,12 +510,15 @@ export async function openBundle(name: string, open = () => httpSource(name), st
       toast(`Not drawn, position columns missing: ${unplaced.map((d) => `${d.label} (${d.table})`).join(", ")}`, "error");
       b.header.display = b.header.display.filter(placed);
     }
-    bundle.value = b;
-    solo.value = null;
-    colourChoice.value = "reco";
-    bundleName.value = name;
-    openFailure.value = null;
-    void describeOpened(name, local);
+    batch(() => { // one change for whoever watches: the address is never written for a name with the previous one's kind
+      bundle.value = b;
+      solo.value = null;
+      colourChoice.value = "reco";
+      bundleName.value = name;
+      openedAs.value = { local, external };
+      openFailure.value = null;
+    });
+    void describeOpened(id, name, local, external, index);
     const first = startDomain(b.header); // the domain it opens on (e.g. the physics objects), in its view
     view.value = b.header.domains?.find((d) => d.name === first)?.view ?? b.header.view?.start ?? "3d";
     loadCustom(b.header.profile, Object.fromEntries(b.header.display.filter((d) => d.filter).map((d) => [d.table, d.filter!])));
@@ -500,17 +526,20 @@ export async function openBundle(name: string, open = () => httpSource(name), st
     domain.value = first;
     if (first) openTab.value = { name: tabOfDomain(b.header, first) };
     cuts.value = Object.fromEntries([...cutGroups.value].map(([g, info]) => [g, info.default]));
-    if (opening.peek() === name) opening.value = null; // shown from here on: the event's own progress bar
+    opening.value = null; // shown from here on: the event's own progress bar
     await showEvent(start);
+    return !overtaken() && shownOf.peek() === b;
   } catch (e) {
-    const failure = describeFailure(name, e);
+    if (overtaken()) return false;
+    const failure = describeFailure(name, e, local);
     if (failure.kind === "gone") forgetRecent(name);
     // With a data set on screen it stays, and a message says why the other did not open; with nothing to show (a link
     // followed to a file that is gone), the page says so in full.
     if (bundle.peek()) toast(`${failure.title}: ${failure.text}`, "error");
     else openFailure.value = failure;
+    return false;
   } finally {
-    if (opening.peek() === name) opening.value = null;
+    if (!overtaken()) opening.value = null;
   }
 }
 
@@ -519,7 +548,6 @@ export const openLocal = (file: File) => openBundle(file.name, async () => blobS
 
 let wanted = 0; // the event asked for last: shown, or still to be read
 let reading: Bundle | null = null; // the bundle whose event is being read: one read at a time
-let shownOf: Bundle | null = null; // the bundle of the event shown
 /** The event `d` after the one asked for last (← / →), so presses while an event is read each move on one event. */
 export const stepEvent = (d: number) => showEvent(wanted + d);
 /** Show event `i` (wrapping around), then read the next one in the direction of travel ahead (io/bundle.ts around).
@@ -539,12 +567,12 @@ export async function showEvent(i: number) {
       const t0 = performance.now(), ev = await b.event(index);
       if (bundle.peek() !== b) return; // another bundle opened meanwhile
       if (index !== wanted) { index = wanted; continue; }
-      const from = shownOf === b ? eventIndex.peek() : index;
+      const from = shownOf.peek() === b ? eventIndex.peek() : index;
       selection.value = null;
       hover.value = null;
       eventIndex.value = index;
       rawEvent.value = ev;
-      shownOf = b;
+      shownOf.value = b;
       loadMs.value = performance.now() - t0;
       const { keep, next } = around(index, from, n);
       b.keep(keep);

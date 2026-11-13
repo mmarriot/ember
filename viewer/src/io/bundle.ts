@@ -214,12 +214,21 @@ export function blobSource(blob: Blob): Source {
 export class HttpError extends Error {
   constructor(readonly url: string, readonly status: number) { super(`${url}: HTTP ${status}`); }
 }
+/** No answer at all: the connection, or a request the browser would not make or let the page read (another site
+ *  without permission for this one; an expired sign-on, which redirects to the login page of another site). */
+export class NetworkError extends Error {
+  constructor(readonly url: string, cause: unknown) { super(`${url}: ${cause instanceof Error ? cause.message : cause}`); }
+}
+/** The bytes are there but are not a bundle: wrong first bytes, no trailer (cut short), or a header that is not JSON. */
+export class FormatError extends Error {}
+/** fetch, with its rejection (a TypeError, whatever the cause) as a NetworkError: other TypeErrors are bugs. */
+const request = (url: string, init: RequestInit) => fetch(url, init).catch((e) => { throw new NetworkError(url, e); });
 
 export async function httpSource(url: string): Promise<Source> {
   // A file replaced under the same name (a data set converted again) must not be read from the browser's cache of the
   // old one: the probe bypasses the cache, and every read names the version it found (the server ignores the query),
   // so cached ranges of another version are never used, while those of this one still are.
-  const probe = await fetch(url, { headers: { Range: "bytes=0-0" }, cache: "no-store" });
+  const probe = await request(url, { headers: { Range: "bytes=0-0" }, cache: "no-store" });
   if (!probe.ok) throw new HttpError(url, probe.status);
   if (probe.status === 200) return blobSource(await probe.blob()); // server ignores Range: keep the whole file
   const size = Number(probe.headers.get("Content-Range")?.split("/")[1]);
@@ -232,7 +241,7 @@ export async function httpSource(url: string): Promise<Source> {
     size,
     async read(offset, length) {
       if (!whole) {
-        const r = await fetch(at, { headers: { Range: `bytes=${offset}-${offset + length - 1}` } });
+        const r = await request(at, { headers: { Range: `bytes=${offset}-${offset + length - 1}` } });
         if (r.status === 206) { // from the file opened: one replaced since would give its bytes at this one's offsets
           if (version && r.headers.get(validator) !== version) throw new Error(`${url} changed on the server since it was opened: open it again`);
           return r.arrayBuffer();
@@ -290,13 +299,20 @@ export class Bundle {
   private constructor(readonly header: Header, readonly events: IndexEntry[], readonly runs: RunEntry[], private readonly source: Source) {}
 
   static async open(source: Source): Promise<Bundle> {
-    const head = new DataView(await source.read(0, 12));
-    if (text(head.buffer.slice(0, 4)) !== "EVDB" || head.getUint32(4, true) !== 1) throw new Error("not an evd/1 bundle");
-    const header: Header = JSON.parse(text(await source.read(12, head.getUint32(8, true))));
-    const trailer = new DataView(await source.read(source.size - 16, 16));
-    if (text(trailer.buffer.slice(12, 16)) !== "EVDB") throw new Error("bundle has no trailer (incomplete?)");
-    const index = JSON.parse(text(await source.read(Number(trailer.getBigUint64(0, true)), trailer.getUint32(8, true))));
-    return new Bundle(header, index.events, index.runs ?? [], source);
+    try {
+      const head = new DataView(await source.read(0, 12));
+      if (text(head.buffer.slice(0, 4)) !== "EVDB" || head.getUint32(4, true) !== 1) throw new FormatError("not an evd/1 bundle");
+      const header: Header = JSON.parse(text(await source.read(12, head.getUint32(8, true))));
+      const trailer = new DataView(await source.read(source.size - 16, 16));
+      if (text(trailer.buffer.slice(12, 16)) !== "EVDB") throw new FormatError("bundle has no trailer (incomplete?)");
+      const index = JSON.parse(text(await source.read(Number(trailer.getBigUint64(0, true)), trailer.getUint32(8, true))));
+      return new Bundle(header, index.events, index.runs ?? [], source);
+    } catch (e) {
+      // A file too short for its header or trailer (RangeError from the DataView), or whose header or index is not
+      // JSON (SyntaxError): not a bundle either. What the source itself reports (HTTP, network) is passed on.
+      if (e instanceof RangeError || e instanceof SyntaxError) throw new FormatError(`not a complete evd/1 bundle (${e.message})`);
+      throw e;
+    }
   }
 
   /** Event i, with the per-run tables of its run (if the bundle has any) added to its own. Read once while kept (see

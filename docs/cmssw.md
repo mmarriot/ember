@@ -36,10 +36,13 @@ Scope today: **Phase-2 full simulation**, on `FEVTDEBUGHLT` and `RECOSIM` conten
 rows in all 97 tables as the `FEVTDEBUGHLT` file of the same 10 events). Run 3, FastSim, premixed pile-up, real data
 and `AODSIM` or MiniAOD inputs have not been tested.
 
-**Input that is not there.** A producer configured with `skipNonExistingSrc` writes an empty table when its
-collection is missing, and a reference into a collection that is not in the event becomes -1, so the same sequence
-runs in the reconstruction job and on a file that keeps only part of its products. A reference into another
-collection than the configured one is an error: an index is never written into the wrong table.
+**Input that is not there.** The flavour needs Phase-2 RECO-level content (tested in the reconstruction job, on
+`FEVTDEBUGHLT` and on `RECOSIM` files); most producers stop the job when their input is missing. The exceptions are
+the calorimeter hit and cluster → hit tables, which skip a missing collection (a table keeps its columns, with the
+rows of the collections that are there). With truth (the `enableTruth` modifier of the Phase-2 eras), the input must
+hold the truth graph (`truthLogicalGraphProducer` and its hit index): CMSSW's associators stop the job without it. A
+reference into another collection than the configured one is an error: an index is never written into the wrong
+table.
 
 ## What it writes
 
@@ -88,7 +91,7 @@ kind.
 
 | per event | no pile-up | 200 pile-up |
 |---|---|---|
-| NanoAOD size | 0.95 MB | 21.7 MB |
+| NanoAOD size | 0.94 MB | 21.5 MB |
 | event loop, real time | 0.3 to 0.4 s | 1.6 to 1.7 s |
 | CMSSW's truth association producers | 35 ms | 3.6 s |
 | the NanoAOD output module | 19 ms | 0.57 s |
@@ -108,11 +111,11 @@ the standalone numbers above are its upper bound per event.
 Three choices keep the file small and the output fast, all in the flavour's customisation and configuration:
 
 - **Compression: ZSTD level 5**, instead of the LZMA of analysis NanoAOD. Same content at 200 pile-up: ZSTD
-  21.7 MB and 0.57 s per event in the output module; ZLIB level 4 21.9 MB and 0.78 s; LZMA level 9 15.3 MB and
-  1.88 s. The file is an intermediate (the bundle is what is kept), so time was chosen over the last 30% of size.
+  21.5 MB and 0.57 s per event in the output module; ZLIB level 4 21.9 MB and 0.78 s; LZMA level 9 15.3 MB and
+  1.88 s (ZLIB and LZMA measured before tracker and MTD hits had reduced precision, which saves 1%). The file is an intermediate (the bundle is what is kept), so time was chosen over the last 30% of size.
 - **Float precision.** The large tables keep 12 to 16 mantissa bits of their float columns (14 for calorimeter and
   MTD hits and truth particles, 16 for tracker hits and truth vertices, 12 for fractions and scores): 0.15 mm at
-  2.5 m, 15 µm at 1 m. The zeroed bits are what compresses: 24.4 MB per event at full precision, 21.7 MB with it.
+  2.5 m, 15 µm at 1 m. The zeroed bits are what compresses: 24.4 MB per event at full precision, 21.5 MB with it.
   Each producer has a `precision` parameter (`-1`: all bits).
 - **No derivable columns** on the hit tables: `eta` and `phi` follow from `x`, `y`, `z`.
 

@@ -41,7 +41,7 @@ call.
 |---|---|
 | `-o FILE.evdb`, `--output` | write the bundle to this file and publish nothing |
 | `--no-publish` | write `<name>.evdb` in the current directory and publish nothing |
-| `--name NAME` | the bundle's name on the site and in the link. Default: the first input's file name without extension. Letters, digits, `.`, `_` and `-` |
+| `--name NAME` | the bundle's name on the site and in the link. Default: the first input's file name without extension. A letter or digit, then letters, digits, `.`, `_` and `-` |
 | `--title TITLE` | its title in the viewer's list. Default: the name. The list adds "· N events" |
 | `--profile PROFILE` | a built-in profile or the path of a JSON file ([Profiles](profiles.md)). Default: `cms` |
 | `--max-events N` | at most N events. Default: 10; with `--events`, all of those asked for. `0`: all |
@@ -68,7 +68,7 @@ evd rm NAME [NAME ...]        remove them; exit code 1 if one of them does not e
 ```
 
 Both take `--site`, `--url` and `--user`, and both end with exit code 1 when the site is not there or cannot be
-reached. With nothing published, `evd list` prints `<login> has no published bundle` and exits 0. The list is in
+reached. With nothing published, `evd list` prints `<login> has no published bundle (evd FILE.root publishes one)` and exits 0. The list is in
 the order of publishing, most recent first.
 
 ## `evd convert`, `evd inspect`, `evd validate`
@@ -76,7 +76,7 @@ the order of publishing, most recent first.
 ```
 evd convert IN.root [IN2.root ...] -o OUT.evdb [--profile hgcal] [--max-events N] [--events ...] [-j N]
             [--sorted] [--run-tables FILE] [--run-info SPEC]
-evd inspect OUT.evdb          tables, relations, layers, record sizes, first events, release and converter
+evd inspect OUT.evdb          layers, relations, record sizes, the first events' largest tables, release and converter
 evd validate OUT.evdb         structural checks of every record; exit code 1 on problems
 ```
 
@@ -106,7 +106,7 @@ site is a mounted directory, and leaves alone anything under `data/u/` that is a
 | `EVD_SITE_URL` | the address the site is served at; only used to print links | `https://cms-evd.web.cern.ch` (provisional) |
 | `EVD_USER` | whose area you publish to | your login on this machine |
 | `EVD_SERVICE_DIR` | the site's service directory (state of `sync`) | `/eos/project/c/cms-evd/service` (provisional) |
-| `EVD_DEBUG=1` | print the Python traceback of a failure instead of one line | off |
+| `EVD_DEBUG` | any value (even `0`): print the Python traceback of a failure instead of one line | unset |
 
 On a machine where your account name is not your CERN login, set `EVD_USER` (or `--user`) to the CERN login: the
 viewer finds your files under it. Nothing checks that the login is yours: what keeps one person out of another's
@@ -132,12 +132,12 @@ area is the access rights of the folders on the site ([Hosting](hosting.md#users
 | `display T: no column C; it has: ...` | the file has table `T` without a column the profile draws: the file and the profile are of different versions. Use the `evd` that goes with the release that wrote the file (`evd inspect` and the first line of `evd view` name the release) |
 | `the inputs mix NanoAOD and CMSSW reconstruction files` | give one kind per call |
 | `no event was converted` | `--events` named events the file does not have, or the profile's selection kept none |
-| `'NAME' cannot be a bundle name` | give `--name` with letters, digits, `.`, `_`, `-` |
+| `'NAME' cannot be a bundle name` | give `--name` starting with a letter or digit, then letters, digits, `.`, `_`, `-` |
 | `'X' cannot be a login: a letter, then letters, digits, '-' and '_', 2 to 32 characters` | your account name here is not a CERN login: give yours with `--user` or `EVD_USER` |
 | `the site directory DIR does not exist` (also `... on root://HOST/`) | you are not where the site is mounted and the path is not on EOS, or the site is not set up; set `EVD_SITE_DIR`/`--site`, or write a file with `-o`. `view`, `list` and `rm` all stop here, before any work |
 | `cannot write to DIR: Permission denied ...` | the users' areas are writable by CMS members; with `-o FILE` the bundle is written here instead |
-| `cannot write PATH: root://... refused (...)` | no valid Kerberos ticket: `kinit <login>@CERN.CH`, then again |
-| `xrdcp not found ...` | the site is not mounted on this machine and XRootD is not in `PATH`: run `cmsenv` first |
+| `cannot reach DIR: root://... refused (...)`, or `cannot write PATH: root://... refused (...)` | no valid Kerberos ticket: `kinit <login>@CERN.CH`, then again |
+| `xrdfs not found ...` (or `xrdcp`) | the site is not mounted on this machine and XRootD is not in `PATH`: run `cmsenv` first |
 | `this is a CMSSW reconstruction file: ... run cmsenv ...` | a step3 file needs a CMSSW environment with `NANO:@EVD`: `cmsenv` in such a release, then again |
 | `cmsDriver.py not found: run cmsenv first` | as above |
 | `FILE: cannot tell which geometry it was made with (...)` | give `--geometry`, e.g. `--geometry D110` |

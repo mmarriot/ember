@@ -21,9 +21,10 @@ Then [five things to try first](#4-five-things-to-try-first) in the viewer, [sha
   simulation; see [CMSSW side](cmssw.md)), and the `evd` command.
 
 > **Until the CMSSW pull requests are merged** (delete this box afterwards). `NANO:@EVD` is not in a release yet. In
-> your CMSSW area (CMSSW_20_1_X), once:
+> a recent CMSSW_20_1_X integration build (`scram list -c CMSSW_20_1_X` lists them; they expire after a few weeks), once:
 >
 > ```bash
+> cmsrel CMSSW_20_1_X_<date> && cd CMSSW_20_1_X_<date>/src && cmsenv
 > git cms-merge-topic mmarriot:eventdisplay-nano
 > scram b -j 8
 > ```
@@ -216,7 +217,7 @@ CMSSW_20_1_X_2026-11-12-2300:
 
 | per event | no pile-up | 200 pile-up |
 |---|---|---|
-| NanoAOD (`NANO:@EVD`) | 0.95 MB | 21.7 MB |
+| NanoAOD (`NANO:@EVD`) | 0.94 MB | 21.5 MB |
 | making it from a step3 file, 8 threads | 0.3 s | 1.6 s |
 | bundle (`.evdb`) | 0.85 MB | 18 MB |
 | `evd`: NanoAOD to bundle, 4 threads | 0.1 s | 1.2 s |

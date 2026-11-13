@@ -7,7 +7,7 @@ simulation says was really there next to what was reconstructed. CMSSW writes th
 turns the file into a link, and the link opens the same event, selection and view for anyone it is sent to.
 
 <!-- A screenshot belongs here. None is tracked yet: an image of a CMS event is CMS material, and adding one is the
-     owner's decision (see pr-notes/docs-public.md, audit). -->
+     owner's decision. -->
 
 **Status:** version 0.2, in development, used by its authors. The CMSSW side (`NANO:@EVD`) is a pull request that is
 not merged yet, and the CMS site is not set up yet: the addresses below are provisional. What works today and what

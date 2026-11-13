@@ -47,7 +47,7 @@ is part of the generator particle X". A match **above** it (an ancestor of sever
 an ω decayed by the generator) means the object merges them: the pair view then stands for all the generator particles
 below it and the key says so.
 
-**Why the generator level.** Compared on ttbar 0PU (5 events; `runs/truth/measure/levels.py` in the hackathon area):
+**Why the generator level.** Compared on ttbar 0PU (5 events):
 
 | colour level | groups owning HGCal hits | of them, resonances or heavy hadrons | reco matches above the level |
 |---|---|---|---|
@@ -220,7 +220,7 @@ each is the track's statement.
 
 ## Samples
 
-The ttbar samples (`hackathon/samples/ttbar_{0PU,PU200}`, 50 events each) contain every difficult case (per 0PU event:
+The ttbar samples (0PU and PU200, 50 events each) contain every difficult case (per 0PU event:
 49 photon conversions and 57 nuclear interactions in the tracker; 3.4% of CE-E truth hits with several owners, 13% at
 PU200) but few clean, isolated objects (0.5 isolated HGCal objects and 0.6 signal muons per event; the Signal level is
 empty without a selection preset). For checking definitions one particle at a time, a small 0PU particle gun would help:

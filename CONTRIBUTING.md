@@ -27,7 +27,7 @@ Run what the change could affect, and say in the pull request what you ran:
 python3 -m pytest tests                          # converter, format, command, site
 cd viewer && npm run typecheck && npm test       # TypeScript types and unit tests
 PLAYWRIGHT_BROWSERS_PATH=<cache> node e2e/smoke.mjs http://127.0.0.1:5173/ e2e/shots    # viewer changes: browser checks
-.venv/bin/zensical build --strict                # documentation changes: fails on a broken link or anchor
+cd .. && .venv/bin/zensical build --strict       # documentation changes: fails on a broken link or anchor
 ```
 
 The first two and the documentation build also run on every pull request (`.github/workflows/`). The browser checks

@@ -20,7 +20,7 @@ The file and the converter are of different versions: the tables changed between
 the release that wrote the file. The first line `evd` prints names that release; `evd --version` names the
 converter.
 
-**`evd: cannot write ...: root://eosproject.cern.ch/ refused`.**
+**`evd: cannot reach ...` or `evd: cannot write ...: root://eosproject.cern.ch/ refused`.**
 No valid Kerberos ticket: `kinit <login>@CERN.CH` and run it again. On lxplus the site is a mounted directory and no
 ticket beyond your login is needed.
 
@@ -76,7 +76,7 @@ muons, taus, MET). The tag on each step of the selection's card says which; [Tru
 
 **Everything is grey in the truth colours.**
 The bundle has no truth: the input was made without the truth graph (FastSim, or an era without `enableTruth`), or
-the file's truth tables are empty. `evd inspect FILE.evdb` lists the tables; look for `TruthParticles`.
+the file's truth tables are empty. `evd inspect FILE.evdb` shows its relations and the first events' largest tables; look for `TruthParticles`.
 
 ## Everything else
 

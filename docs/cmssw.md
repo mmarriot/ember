@@ -21,7 +21,7 @@ cmsDriver.py step3 -s RAW2DIGI,RECO,RECOSIM,NANO:@EVD \
 
 The NanoAOD is written beside the reconstruction output, as `<fileout stem>_inNANOAODSIM.root`.
 
-On a reconstruction file that exists (`FEVTDEBUGHLT` content, what RelVal `GEN-SIM-RECO` files hold):
+On a reconstruction file that exists (`FEVTDEBUGHLT` content, what RelVal `GEN-SIM-RECO` files hold, or `RECOSIM`):
 
 ```bash
 cmsDriver.py evd -s NANO:@EVD --conditions <as the file> --geometry <as the file> --era <as the file> --mc \
@@ -30,10 +30,14 @@ cmsDriver.py evd -s NANO:@EVD --conditions <as the file> --geometry <as the file
 
 `evd step3.root` runs this for you ([the `evd` command](cli.md#evd-view)).
 
-Scope today: **Phase-2 full simulation**. Run 3, FastSim, premixed pile-up, real data, and `RECOSIM` or `AODSIM`
-inputs have not been tested. The hit, link and truth producers write an empty table when their input collection is
-missing (`skipNonExistingSrc`); the others stop the job on a missing input, which is how an unsupported kind of file
-shows itself.
+Scope today: **Phase-2 full simulation**, on `FEVTDEBUGHLT` and `RECOSIM` content (a `RECOSIM` file gave the same
+rows in all 97 tables as the `FEVTDEBUGHLT` file of the same 10 events). Run 3, FastSim, premixed pile-up, real data
+and `AODSIM` or MiniAOD inputs have not been tested.
+
+**Input that is not there.** A producer configured with `skipNonExistingSrc` writes an empty table when its
+collection is missing, and a reference into a collection that is not in the event becomes -1, so the same sequence
+runs in the reconstruction job and on a file that keeps only part of its products. A reference into another
+collection than the configured one is an error: an index is never written into the wrong table.
 
 ## What it writes
 
@@ -75,27 +79,35 @@ and TrackingParticles are not written ([Truth graph](truth-graph.md) says why, a
 
 Nothing unless it is asked for: no standard workflow schedules any of it.
 
-Measured on ttbar, geometry `ExtendedRun4D104`, CMSSW_20_1_X_2026-11-12-2300, standalone on a step3 file with 8
-threads (20 events without pile-up, 10 at 200 pile-up):
+Measured on ttbar at 14 TeV, geometry `ExtendedRun4D104`, CMSSW_20_1_X_2026-11-12-2300, the flavour run on a
+reconstruction file with 8 threads (20 events without pile-up, 10 at 200 pile-up). The numbers are those of the
+package's `README.md`; module times are the framework's real time per module and event, summed over the modules of a
+kind.
 
-| | no pile-up | 200 pile-up |
+| per event | no pile-up | 200 pile-up |
 |---|---|---|
-| NanoAOD size | 0.95 MB / event | 21.7 MB / event (59 MB before compression) |
-| event loop | 0.31 s / event | 1.6 s / event |
-| of the module time: CMSSW's truth associators | about a third | 74% (3.5 of 4.8 s summed over modules: tracks 2.1 s, tracksters 1.2 s, PF clusters 0.25 s) |
-| the NanoAOD output module | 20 ms | 0.57 s |
-| the table producers, all together (this package's and the reused HGCalNanoAOD ones) | about 35 ms | about 0.63 s (HGCal hits 0.17 s for 487k hits) |
-| peak memory of the job | 3.9 GB | 11–12 GB |
+| NanoAOD size | 0.95 MB | 21.7 MB |
+| event loop, real time | 0.3 to 0.4 s | 1.6 to 1.7 s |
+| CMSSW's truth association producers | 35 ms | 3.6 s |
+| the NanoAOD output module | 19 ms | 0.57 s |
+| this package's table producers | 32 ms | 0.49 s |
+| of which `HGCalHits` (a geometry lookup per hit, 0.3 µs each) | 18 ms | 0.16 s |
+| the tables reused from `DPGAnalysis/HGCalNanoAOD` | 5 ms | 0.13 s |
+| peak memory of the job | 3.9 GB | 11 to 12 GB |
+
+At 200 pile-up three quarters of the module time is CMSSW's own truth association (tracks and tracksters mostly),
+which this package only schedules. The largest tables there are `TruthParticles` (4.7 MB per event, 109k rows),
+`HGCalHits` (3.3 MB, 487k rows), `HGCalLayerClusters` (2.0 MB) and `TruthHGCalHits` (2.0 MB).
 
 Inside the reconstruction job (20 ttbar events without pile-up, 16 threads) the job took 63 s with the flavour and
-65 s without, and 7.3 GB of memory either way: no measurable change. The in-job cost at 200 pile-up has not been
-measured; the standalone numbers above are its upper bound per event.
+65 s without, with the same peak memory: no measurable change. The in-job cost at 200 pile-up has not been measured;
+the standalone numbers above are its upper bound per event.
 
 Three choices keep the file small and the output fast, all in the flavour's customisation and configuration:
 
 - **Compression: ZSTD level 5**, instead of the LZMA of analysis NanoAOD. Same content at 200 pile-up: ZSTD
   21.7 MB and 0.57 s per event in the output module; ZLIB level 4 21.9 MB and 0.78 s; LZMA level 9 15.3 MB and
-  1.9 s. The file is an intermediate (the bundle is what is kept), so time was chosen over the last 30% of size.
+  1.88 s. The file is an intermediate (the bundle is what is kept), so time was chosen over the last 30% of size.
 - **Float precision.** The large tables keep 12 to 16 mantissa bits of their float columns (14 for calorimeter and
   MTD hits and truth particles, 16 for tracker hits and truth vertices, 12 for fractions and scores): 0.15 mm at
   2.5 m, 15 µm at 1 m. The zeroed bits are what compresses: 24.4 MB per event at full precision, 21.7 MB with it.

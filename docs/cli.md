@@ -31,7 +31,7 @@ Converts the inputs to one bundle, copies it to `data/u/<login>/<name>.evdb` on 
 prints the link on the last line, after an empty line (so `evd FILE.root | tail -1` is the link).
 
 The inputs are either NanoAOD files written with `NANO:@EVD`, or CMSSW reconstruction files (step3: event content
-`FEVTDEBUGHLT`). For reconstruction files `evd` first runs `cmsDriver.py ... -s NANO:@EVD` in a temporary directory,
+`FEVTDEBUGHLT` or `RECOSIM`). For reconstruction files `evd` first runs `cmsDriver.py ... -s NANO:@EVD` in a temporary directory,
 which needs `cmsenv` in a release that has the flavour ([CMSSW side](cmssw.md)). The two kinds cannot be mixed in one
 call.
 

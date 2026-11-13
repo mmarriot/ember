@@ -33,7 +33,7 @@ defaults for that geometry). Detection covers Run4 geometries described by XML f
 are in (use the same one); with an era or process modifiers that differ from the release's default for its geometry
 (`--era`; process modifiers cannot be passed yet: run the `cmsDriver.py` command of
 [Getting started](getting-started.md#3-a-step3root-you-already-have) by hand with `--procModifiers`); or with an
-event content that lacks what the tables read (`FEVTDEBUGHLT` is what is tested).
+event content that lacks what the tables read (`FEVTDEBUGHLT` and `RECOSIM` are what is tested).
 
 **My account name here is not my CERN login.**
 Set `EVD_USER=<CERN login>` (or `--user`), so that the bundle goes to the area the viewer lists as yours.

@@ -128,7 +128,7 @@ evd step3.root --nano evd_nano.root        # also keep the NanoAOD that was made
 ```
 
 What the file must hold: the event content `FEVTDEBUGHLT`, which is what RelVal `GEN-SIM-RECO` files are written
-with. `RECOSIM` has not been tested. The same thing by hand, if you want the NanoAOD as a file of its own:
+with, or `RECOSIM`. `AODSIM` and MiniAOD lack the hits and are not supported. The same thing by hand, if you want the NanoAOD as a file of its own:
 
 ```bash
 cmsDriver.py evd -s NANO:@EVD --conditions auto:phase2_realistic_T35 --geometry ExtendedRun4D104 \

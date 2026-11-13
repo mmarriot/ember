@@ -4,7 +4,7 @@ import { signal } from "@preact/signals";
 import logo from "../../logo.svg";
 import { type Domain, kindName } from "../io/bundle";
 import { DOCS_URL, expiryText, ownerOf, PUBLISH_COMMAND } from "../model/library";
-import { activeMode, bundle, catalogue, dialog, domain, eventIndex, following, layerOf, loading, opened, opening, selection, showEvent, shownLevel, solo, stepEvent, toast, touring, view } from "../model/store";
+import { activeMode, bundle, catalogue, dialog, domain, eventIndex, following, layerOf, loading, opened, opening, rawEvent, selection, showEvent, shownLevel, solo, stepEvent, toast, touring, view } from "../model/store";
 import { Chooser } from "./Chooser";
 import { togglePopover } from "./Info";
 import { toggleLive } from "./live";
@@ -70,7 +70,10 @@ const NoLink = ({ name }: { name: string }) => (
 );
 
 export function Header() {
-  const b = bundle.value, e = b?.events[eventIndex.value];
+  const b = bundle.value, e = b?.events[eventIndex.value], read = rawEvent.value?.id;
+  // A data set just opened names its event once that event is read: until then the index is the previous data set's
+  // (or 0, while a link's event 30 is on its way), and the bar would name an event that is not the one coming.
+  const here = !!e && !!read && read[0] === e.run && read[2] === e.event;
   const jump = (value: string) => {
     const [run, ev] = value.includes(":") ? value.split(":").map(Number) : [undefined, Number(value)];
     const i = b?.events.findIndex((x) => x.event === ev && (run === undefined || x.run === run)) ?? -1;
@@ -87,8 +90,8 @@ export function Header() {
       <nav class="eventnav" aria-label="Event navigation">
         <button class="icon-button" title="Previous event (←)" onClick={() => stepEvent(-1)}><Icon name="prev" /></button>
         <div class="eventid">
-          <strong>{e ? `Run ${e.run} · Event ${e.event}` : opening.value ? "Opening…" : "No event"}</strong>
-          <small>{b && e && b.runTitle(e.run) ? `${b.runTitle(e.run)} · ` : ""}{b ? `${eventIndex.value + 1} of ${b.events.length}` : ""}</small>
+          <strong>{e && here ? `Run ${e.run} · Event ${e.event}` : opening.value || loading.value ? "Opening…" : "No event"}</strong>
+          <small>{b && e && here ? `${b.runTitle(e.run) ? `${b.runTitle(e.run)} · ` : ""}${eventIndex.value + 1} of ${b.events.length}` : b ? `${b.events.length.toLocaleString()} events` : ""}</small>
         </div>
         <button class="icon-button" title="Next event (→)" onClick={() => stepEvent(1)}><Icon name="next" /></button>
         <button class={touring.value ? "icon-button tour-button on" : "icon-button tour-button"} title={touring.value ? "Stop the tour (P)" : "Tour: build each event up from the collision point to the physics objects (P)"}

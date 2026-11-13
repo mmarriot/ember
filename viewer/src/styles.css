@@ -49,9 +49,13 @@ code { font: 11.5px ui-monospace, SFMono-Regular, Menlo, monospace; }
 /* top bar */
 .topbar { position: relative; display: flex; align-items: center; gap: 16px; padding: 0 16px; background: var(--surface); border-bottom: 1px solid var(--line); box-shadow: 0 1px 0 rgba(31,35,40,.03); z-index: 3; }
 .brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 15px; white-space: nowrap; }
-/* The data set chooser (Chooser.tsx): a button of a fixed share of the bar, whatever the name's length (the bar does
-   not move when the data set changes; it shrinks first when the bar is narrow), and its panel. */
-.chooser { position: relative; flex: 0 1 340px; min-width: 120px; }
+/* The data set chooser (Chooser.tsx): a button and its panel. The button's width is set by the window alone: what the
+   bar's other items leave at that width in the worst case (measured: about 1180 px of them without the parts of the
+   detector, more with their buttons, which the narrower bars below fold away). So it is the same for every data set of
+   a kind, whatever the length of its name or of its event's title, and the bar does not move when another one opens.
+   It may still shrink (to 120 px) before the bar overflows. */
+.chooser { position: relative; flex: 0 1 clamp(120px, calc(100vw - 1180px), 340px); min-width: 120px; }
+.topbar.parts .chooser { flex-basis: clamp(120px, calc(100vw - 1330px), 340px); }
 .dataset { display: flex; align-items: center; gap: 6px; width: 100%; text-align: left; padding: 5px 8px; }
 .dataset.on { background: var(--accent-soft); border-color: var(--accent); }
 .dataset .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -99,7 +103,8 @@ a.link:hover { text-decoration: underline; }
    empty, gives its place to it. */
 .app.nodata .sidebar, .app.nodata .resizer { display: none; }
 .app.nodata main { grid-column: 1 / -1; grid-row: 2 / -1; }
-.app.nodata .eventnav, .app.nodata .topbar > .views { opacity: .4; pointer-events: none; } /* nothing to step through or turn */
+.app.nodata .eventnav, .app.nodata .topbar > .views { opacity: .4; } /* nothing to step through or turn: inert, disabled (Header.tsx, Viewport.tsx) */
+.app.nodata .topbar > .views button { cursor: default; }
 .startpanel { position: absolute; inset: 0; z-index: 2; display: flex; padding: 24px; overflow: auto; background: var(--bg); }
 .startpanel > * { margin: auto; } /* centred, and scrollable from its top when the view is short */
 .startpanel.quiet { color: var(--muted); }
@@ -299,6 +304,7 @@ table.kv.keys td:nth-child(2) { text-align: left; }
 
 /* A bar with the domain buttons too (.parts): tighter before it wraps. */
 @media (max-width: 1300px) {
+  .topbar.parts .chooser { flex-basis: clamp(120px, calc(100vw - 960px), 340px); } /* no jump box, the logo alone */
   .topbar.parts { gap: 8px; padding: 0 10px; }
   .topbar.parts .segmented button { padding: 5px 8px; }
   .topbar.parts .brand { font-size: 0; } /* the logo only */
@@ -307,8 +313,11 @@ table.kv.keys td:nth-child(2) { text-align: left; }
   .topbar.parts .eventid { min-width: 120px; }
 }
 
+@media (max-width: 1100px) { .topbar.parts .chooser { flex-basis: clamp(120px, calc(100vw - 720px), 340px); } } /* the parts as a list */
+
 @media (max-width: 900px) {
   /* the top bar wraps, so the chooser's button may be anywhere on it: its panel takes the top of the window */
+  .chooser, .topbar.parts .chooser { flex: 0 1 340px; } /* a bar that wraps: its own row's share */
   .chooserpanel { position: fixed; left: 8px; right: 8px; top: 8px; width: auto; max-height: calc(100vh - 16px); }
   /* and the menu button too: the menu opens as a sheet at the bottom */
   .menupanel { position: fixed; left: 8px; right: 8px; top: auto; bottom: 8px; max-height: 75vh; overflow: auto; justify-content: center; }

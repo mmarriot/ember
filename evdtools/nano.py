@@ -25,7 +25,8 @@ from . import Problem, __version__
 from .bundle import BundleWriter, type_code
 
 # The built-in profiles, read as package data so that they are also found when evdtools runs from a zip file.
-PROFILES = importlib.resources.files(__package__).joinpath("profiles")
+# (The package by name: under Python 3.9 a module loaded from a zip has no __package__ when this line runs.)
+PROFILES = importlib.resources.files("evdtools").joinpath("profiles")
 OPS = {"<": np.less, "<=": np.less_equal, ">": np.greater, ">=": np.greater_equal, "==": np.equal, "!=": np.not_equal}
 # Profile keys the converter acts on; every other top-level key is a viewer setting, copied to the header verbatim.
 PROFILE_KEYS = {"name", "note", "include", "exclude", "internal", "sameRows", "derive", "relations", "cuts", "select",

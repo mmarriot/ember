@@ -527,3 +527,15 @@ def test_tracker_profile_alone_and_tracker_only():
     assert [d["name"] for d in header["domains"]] == ["Tracker"] and header["field"]["bz"] == 3.8
     assert header["relations"]["trackVertex"]["inverseOf"] == "vertexTracks"
     assert header["view"]["start"] == "front" and {d["table"]: d["repr"] for d in header["display"]}["Tracks"] == "helix"
+
+
+def test_clue3d_tracksters_are_matched_to_truth():
+    """A stock release makes CLUE3D tracksters, not CLUEstering ones: both are matched to truth the same way, in both
+    directions."""
+    rels = {r["name"]: r for r in load_profile("hgcal")["relations"]}
+    for reco, truth, table in (("clusteringTruth", "truthClusterings", "ticlTrackstersCLUEstering"),
+                               ("clue3dTruth", "truthClue3d", "ticlTrackstersCLUE3DHigh")):
+        assert rels[reco]["from"] == rels[truth]["to"] == table and rels[reco]["to"] == rels[truth]["from"] == "TruthParticles"
+        assert rels[reco]["table"] == f"{table}ToTruth" and rels[truth]["table"] == f"{table}FromTruth"
+        assert rels[reco]["match"] == rels["clusteringTruth"]["match"] and rels[truth]["match"] == rels["truthClusterings"]["match"]
+    assert {"ticlTrackstersCLUE3DHighToTruth", "ticlTrackstersCLUE3DHighFromTruth"} <= set(load_profile("hgcal")["internal"])

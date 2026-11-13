@@ -6,7 +6,7 @@
                "TICLSoATrackstersLCOffsets", "TICLSoATrackstersLCs", "ticlTrackstersCLUE3DHighvertices", "ticlTrackstersCLUEsteringvertices",
                "ticlTracksterLinksvertices", "ticlTracksterLinksSuperclusteringDNNvertices", "ticlTracksterInterpretationsvertices",
                "TICLCandidatesExtra",
-               "TruthParticleChildren", "TruthHGCalHits", "TruthSoAHitsEE", "TruthSoAHitsHSi", "TruthSoAHitsHSci", "ticlTrackstersCLUEsteringToTruth", "ticlTrackstersCLUEsteringFromTruth", "ticlTracksterLinksToTruth", "ticlTracksterLinksFromTruth", "ticlTracksterLinksSuperclusteringDNNToTruth", "ticlTracksterLinksSuperclusteringDNNFromTruth", "ticlTracksterInterpretationsToTruth", "ticlTracksterInterpretationsFromTruth", "ticlCandidateToTruth", "ticlCandidateFromTruth", "generalTracksToTruth", "generalTracksFromTruth"],
+               "TruthParticleChildren", "TruthHGCalHits", "TruthSoAHitsEE", "TruthSoAHitsHSi", "TruthSoAHitsHSci", "ticlTrackstersCLUE3DHighToTruth", "ticlTrackstersCLUE3DHighFromTruth", "ticlTrackstersCLUEsteringToTruth", "ticlTrackstersCLUEsteringFromTruth", "ticlTracksterLinksToTruth", "ticlTracksterLinksFromTruth", "ticlTracksterLinksSuperclusteringDNNToTruth", "ticlTracksterLinksSuperclusteringDNNFromTruth", "ticlTracksterInterpretationsToTruth", "ticlTracksterInterpretationsFromTruth", "ticlCandidateToTruth", "ticlCandidateFromTruth", "generalTracksToTruth", "generalTracksFromTruth"],
   "sameRows": [
     {"keep": "HGCalSoALayerClusters", "drop": "HGCalLayerClusters", "columns": [["energy", "energy"], ["x", "position_x"]]},
     {"keep": "TICLSoATracksters", "drop": "ticlTrackstersCLUEstering", "columns": [["rawEnergy", "raw_energy"], ["x", "barycenter_x"]]}
@@ -70,6 +70,12 @@
      "association": true, "best": {"weight": "score", "order": "min"}, "match": {"measure": "energy", "in": "HGCal", "target": "caloBoundary", "shared": "sharedEnergy", "over": ["rawEnergy", "raw_energy"], "good": 0.5}},
     {"name": "truthClusterings", "kind": "links", "from": "TruthParticles", "to": "ticlTrackstersCLUEstering", "table": "ticlTrackstersCLUEsteringFromTruth",
      "fromIndex": "ticlTrackstersCLUEsteringFromTruth.truthIdx", "toIndex": "ticlTrackstersCLUEsteringFromTruth.recoIdx", "weights": ["ticlTrackstersCLUEsteringFromTruth.sharedFraction", "ticlTrackstersCLUEsteringFromTruth.score"],
+     "association": true, "best": {"weight": "sharedFraction", "order": "max"}, "match": {"measure": "energy", "in": "HGCal", "completeness": {"weight": "sharedFraction"}}},
+    {"name": "clue3dTruth", "kind": "links", "from": "ticlTrackstersCLUE3DHigh", "to": "TruthParticles", "table": "ticlTrackstersCLUE3DHighToTruth",
+     "fromIndex": "ticlTrackstersCLUE3DHighToTruth.recoIdx", "toIndex": "ticlTrackstersCLUE3DHighToTruth.truthIdx", "weights": ["ticlTrackstersCLUE3DHighToTruth.sharedEnergy", "ticlTrackstersCLUE3DHighToTruth.score"],
+     "association": true, "best": {"weight": "score", "order": "min"}, "match": {"measure": "energy", "in": "HGCal", "target": "caloBoundary", "shared": "sharedEnergy", "over": ["rawEnergy", "raw_energy"], "good": 0.5}},
+    {"name": "truthClue3d", "kind": "links", "from": "TruthParticles", "to": "ticlTrackstersCLUE3DHigh", "table": "ticlTrackstersCLUE3DHighFromTruth",
+     "fromIndex": "ticlTrackstersCLUE3DHighFromTruth.truthIdx", "toIndex": "ticlTrackstersCLUE3DHighFromTruth.recoIdx", "weights": ["ticlTrackstersCLUE3DHighFromTruth.sharedFraction", "ticlTrackstersCLUE3DHighFromTruth.score"],
      "association": true, "best": {"weight": "sharedFraction", "order": "max"}, "match": {"measure": "energy", "in": "HGCal", "completeness": {"weight": "sharedFraction"}}},
     {"name": "linksTruth", "kind": "links", "from": "ticlTracksterLinks", "to": "TruthParticles", "table": "ticlTracksterLinksToTruth",
      "fromIndex": "ticlTracksterLinksToTruth.recoIdx", "toIndex": "ticlTracksterLinksToTruth.truthIdx", "weights": ["ticlTracksterLinksToTruth.sharedEnergy", "ticlTracksterLinksToTruth.score"],

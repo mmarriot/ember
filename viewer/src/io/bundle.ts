@@ -126,7 +126,9 @@ export interface Preset { name: string; colour?: Record<string, string>; filters
 export type RunInfo = Record<string, string | number | boolean>;
 export interface Header {
   schema: string;
-  source: { files: string[]; created?: string };
+  /** Where the bundle comes from: its input files, when and with what it was converted (`converter`, e.g.
+   *  "evdtools 0.3.0"; `cmssw`, the release that wrote the input, when the converter knows it). */
+  source: { files: string[]; created?: string; converter?: string; cmssw?: string; data_time?: string };
   profile: string;
   /** `scope: "run"`: written once per run (see RunEntry) and added to every event of that run. */
   tables: Record<string, { doc: string; scope?: "run"; columns: Record<string, { type: TypeCode; doc: string }> }>;
@@ -207,12 +209,18 @@ export function blobSource(blob: Blob): Source {
   return { size: blob.size, read: (offset, length) => blob.slice(offset, offset + length).arrayBuffer() };
 }
 
+/** The server's refusal of a file (404: not there, 403: not for this person), kept apart from a file that is there
+ *  but unreadable, so the page can say which. */
+export class HttpError extends Error {
+  constructor(readonly url: string, readonly status: number) { super(`${url}: HTTP ${status}`); }
+}
+
 export async function httpSource(url: string): Promise<Source> {
   // A file replaced under the same name (a data set converted again) must not be read from the browser's cache of the
   // old one: the probe bypasses the cache, and every read names the version it found (the server ignores the query),
   // so cached ranges of another version are never used, while those of this one still are.
   const probe = await fetch(url, { headers: { Range: "bytes=0-0" }, cache: "no-store" });
-  if (!probe.ok) throw new Error(`${url}: HTTP ${probe.status}`);
+  if (!probe.ok) throw new HttpError(url, probe.status);
   if (probe.status === 200) return blobSource(await probe.blob()); // server ignores Range: keep the whole file
   const size = Number(probe.headers.get("Content-Range")?.split("/")[1]);
   const validator = probe.headers.has("ETag") ? "ETag" : "Last-Modified", version = probe.headers.get(validator);
@@ -229,7 +237,7 @@ export async function httpSource(url: string): Promise<Source> {
           if (version && r.headers.get(validator) !== version) throw new Error(`${url} changed on the server since it was opened: open it again`);
           return r.arrayBuffer();
         }
-        if (!r.ok) throw new Error(`${url}: HTTP ${r.status}`);
+        if (!r.ok) throw new HttpError(url, r.status);
         whole = r.blob();
       }
       return (await whole).slice(offset, offset + length).arrayBuffer();

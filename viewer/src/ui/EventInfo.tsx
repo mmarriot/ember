@@ -4,6 +4,7 @@ import type { Summary } from "../io/bundle";
 import { customColumns, evaluate, filters } from "../model/custom";
 import { cutMin, cutValues } from "../model/cuts";
 import { bundle, cuts, event, eventIndex, layerOf, loadMs, short } from "../model/store";
+import { provenance } from "./Chooser";
 import { Icon } from "./widgets";
 
 export function EventInfo() {
@@ -21,11 +22,7 @@ export function EventInfo() {
       {(h.summaries ?? []).map((s) => <Chart s={s} />)}
       <section>
         <h3>Source</h3>
-        <table class="kv stats"><tbody>
-          <tr><td>Profile</td><td>{h.profile}</td></tr>
-          {h.source.created && <tr><td>Created</td><td>{h.source.created}</td></tr>}
-        </tbody></table>
-        {h.source.files.map((f) => <div class="path" title={f}>{f}</div>)}
+        <table class="kv prov"><tbody>{provenance().map(([k, v]) => <tr><td>{k}</td><td>{v}</td></tr>)}</tbody></table>
         <details>
           <summary>Tables in this event ({tables.length})</summary>
           <table class="kv stats mono"><tbody>

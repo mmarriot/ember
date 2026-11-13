@@ -72,7 +72,8 @@ async function eventRead(page) {
  *  bundles are the site's smallest one under other names. */
 async function checkSite() {
   const fail = (text) => problems.push(`site: ${text}`);
-  const sizes = Object.fromEntries(await Promise.all(listed.map(async (b) => [b.file, (await header(b.file)).size])));
+  const headers_ = Object.fromEntries(await Promise.all(listed.map(async (b) => [b.file, await header(b.file)])));
+  const sizes = Object.fromEntries(listed.map((b) => [b.file, headers_[b.file].size]));
   const small = [...listed].sort((a, c) => sizes[a.file] - sizes[c.file])[0], other = listed.find((b) => b !== small);
   if (!small) return fail("no bundle in index.json to check the site with");
   const days = (n) => new Date(Date.now() + n * 86_400_000).toISOString();
@@ -85,7 +86,7 @@ async function checkSite() {
   const json = (body, status = 200) => ({ status, contentType: "application/json", body: JSON.stringify(body) });
   /** A page of the site as `who` sees it: signed in as them ("": the site has no whoami), with `shared` as the site's
    *  list (default: its own). */
-  const visit = async (hash, { who = "tester", shared, width = 1440, theme = "dark" } = {}) => {
+  const visit = async (hash, { who = "tester", shared, width = 1440, theme = "dark", people = indexes, setup } = {}) => {
     const context = await browser.newContext({ viewport: { width, height: 860 } });
     await context.grantPermissions(["clipboard-read", "clipboard-write"]);
     const page = await context.newPage();
@@ -94,7 +95,7 @@ async function checkSite() {
     await page.addInitScript((t) => { try { localStorage.setItem("evd.theme", t); } catch { /* the default theme */ } }, theme);
     await page.route((url) => url.pathname.endsWith("/whoami"), (r) => r.fulfill(who ? json({ login: who }) : json({}, 404)));
     await page.route((url) => /\/data\/u\/[^/]+\/index\.json$/.test(url.pathname), (r) => {
-      const index = indexes[new URL(r.request().url()).pathname.split("/").at(-2)];
+      const index = people[new URL(r.request().url()).pathname.split("/").at(-2)];
       return r.fulfill(index ? json(index) : json({}, 404));
     });
     await page.route((url) => /\/data\/u\/[^/]+\/[^/]+\.evdb$/.test(url.pathname), (r) => {
@@ -102,6 +103,7 @@ async function checkSite() {
       return url.pathname.endsWith("/gone.evdb") ? r.fulfill({ status: 404, body: "" }) : r.continue({ url: `${base}${small.file}${url.search}` });
     });
     if (shared) await page.route((url) => url.pathname.endsWith("/index.json") && !url.pathname.includes("/data/u/"), (r) => r.fulfill(json({ bundles: shared })));
+    if (setup) await setup(page); // a scenario's own answers, which go before the ones above
     await page.goto(`${base}${hash}`, { timeout: 90000 });
     return page;
   };
@@ -119,6 +121,23 @@ async function checkSite() {
     if ((await label(page)) !== small.title) fail(`the chooser's button says "${await label(page)}", not the data set's title "${small.title}"`);
     if (!(await page.title()).startsWith(small.title)) fail(`the page's title "${await page.title()}" does not start with the data set's`);
     const before = await page.$eval(".chooser", (c) => c.getBoundingClientRect().width);
+    // The button keeps its width from one data set to another, whatever the lengths of their names and event titles
+    // (two that differ in both; of the same kind: the detector's parts add their buttons to the bar).
+    const plain = (b) => (headers_[b.file].domains ?? []).length < 2, twin = plain(small) && listed.filter((b) => b !== small && plain(b)).sort((a, c) => c.title.length - a.title.length)[0];
+    if (twin && width > 900) {
+      await page.click(".dataset");
+      await page.fill(".chooserpanel .filter", twin.title);
+      await page.keyboard.press("Enter");
+      await page.waitForFunction((t) => document.querySelector(".dataset .name")?.textContent === t, twin.title, { timeout: 30000 });
+      await shown(page);
+      const wide = await page.$eval(".chooser", (c) => c.getBoundingClientRect().width);
+      if (Math.abs(wide - before) > 0.5) fail(`the chooser's button is ${before} px for "${small.title}" and ${wide} px for "${twin.title}" at ${width} px: the top bar moves between data sets`);
+      await page.click(".dataset");
+      await page.fill(".chooserpanel .filter", small.title);
+      await page.keyboard.press("Enter");
+      await page.waitForFunction((t) => document.querySelector(".dataset .name")?.textContent === t, small.title, { timeout: 30000 });
+      await shown(page);
+    } else if (width > 900) log("site: no second data set without detector parts to compare the chooser's width with");
     await page.click(".dataset");
     await page.waitForSelector(".chooserpanel");
     const sections = await sectionNames(page), titles = await rowTitles(page);
@@ -142,8 +161,16 @@ async function checkSite() {
     if (await page.$(".chooserpanel")) fail("the chooser stays open after a data set is chosen");
     if ((await label(page)) !== "My rereco test") fail(`after choosing my file the button says "${await label(page)}"`);
     if (!page.url().includes("b=data/u/tester/reco_test.evdb")) fail(`the address does not name my file readably: ${page.url()}`);
-    const after = await page.$eval(".chooser", (c) => c.getBoundingClientRect().width);
-    if (Math.abs(after - before) > 0.5) fail(`the chooser's button changed width with the data set (${before} -> ${after} px): the top bar jumps`);
+    // Tab walks the panel's controls; once the focus is out of it, it closes (it would stay open over the view).
+    await page.click(".dataset");
+    for (let k = 0; k < 8 && (await page.$(".chooserpanel")); k++) await page.keyboard.press("Tab");
+    if (await page.$(".chooserpanel")) fail("the chooser stays open after Tab took the focus out of it");
+    if (await page.evaluate(() => !!document.activeElement?.closest(".chooser"))) fail("after tabbing out of the chooser the focus is still in it");
+    // The lists hold only options: headings, the login and "not you?" are outside them.
+    await page.click(".dataset");
+    const strays = await page.$$eval(".chooserpanel [role=listbox] > :not([role=option])", (x) => x.length);
+    if (strays) fail(`${strays} elements that are not options are inside the chooser's lists`);
+    await page.keyboard.press("Escape");
     // ↓ walks the rows, Esc closes and gives the focus back to the button; the view's keys then work again.
     await page.click(".dataset");
     await page.keyboard.press("ArrowDown");
@@ -184,6 +211,22 @@ async function checkSite() {
     const details = await page.$$eval(".about table td:first-child", (c) => c.map((x) => x.textContent));
     for (const k of ["Events", "Published by", "Expires", "Converter", "File"]) if (!details.includes(k)) fail(`the data set's details lack "${k}": ${details.join(", ")}`);
     await shot(page, "recent");
+    // Delete in a filter being typed deletes a character, not the recent data set; with nothing typed it forgets it.
+    await page.fill(".chooserpanel .filter", "meeting");
+    await page.keyboard.press("Home");
+    await page.keyboard.press("Delete");
+    if ((await page.inputValue(".chooserpanel .filter")) !== "eeting") fail(`Delete in the filter left "${await page.inputValue(".chooserpanel .filter")}"`);
+    if (!(await page.evaluate(() => (localStorage.getItem("evd.recent") ?? "").includes("for_the_meeting")))) fail("Delete in the filter removed the recent data set");
+    await page.fill(".chooserpanel .filter", "");
+    await page.keyboard.press("ArrowDown"); // from my first file to my second,
+    await page.keyboard.press("ArrowDown"); // to the recent one
+    if (!(await page.$(".dataset-row.active .icon-button"))) fail(`↓ ↓ from my first file is not on the recent data set: ${await page.textContent(".dataset-row.active")}`);
+    await page.keyboard.press("Delete");
+    if (await page.evaluate(() => JSON.parse(localStorage.getItem("evd.recent") ?? "[]").length)) fail("Delete with no filter typed does not forget the recent data set under the keys");
+    await page.keyboard.press("Escape");
+    await page.reload();
+    await shown(page); // the link's data set again: under Recent again
+    await page.click(".dataset");
     await page.click(".dataset-row[aria-current] .icon-button");
     if ((await sectionNames(page)).includes("Recent")) fail("removing the only recent data set leaves the section");
     if (await page.evaluate(() => JSON.parse(localStorage.getItem("evd.recent") ?? "[]").length)) fail("a recent data set removed is still remembered");
@@ -244,12 +287,113 @@ async function checkSite() {
     if (await page.evaluate(() => (localStorage.getItem("evd.recent") ?? "").includes("gone.evdb"))) fail("a file that is gone is kept under Recent");
     await page.context().close();
   }
-  // A file that is there but is not a bundle (here: the site's index): unreadable, with a way to try again.
+  // A file that is there but is not a bundle (here: the site's index): unreadable. Trying a link again is loading the
+  // page again, which keeps the link's event and view (the address still holds the link).
   {
-    const page = await visit("#b=index.json");
+    const page = await visit("#b=index.json&e=2&v=side");
+    await page.waitForSelector(".startpanel [role=alert]", { timeout: 30000 });
+    const text = await page.textContent(".startpanel"), buttons = await page.$$eval(".startpanel .buttons button", (b) => b.map((x) => x.textContent));
+    if (!text.includes("cannot be read") || !buttons.includes("Reload the page") || buttons.includes("Try again")) fail(`a link to a file that is not a bundle is reported as: ${text} [${buttons.join(" | ")}]`);
+    if (!page.url().endsWith("#b=index.json&e=2&v=side")) fail(`a link that did not open is no longer in the address: ${page.url()}`);
+    await page.context().close();
+  }
+
+  // Review, finding 1. An open overtaken by a later one changes nothing: a link whose file is slow to answer, another
+  // data set chosen meanwhile; when the link's file arrives it must not take the view back, nor apply the link's
+  // event and view to the data set chosen. While the link is on its way, the address still holds it.
+  if (other) {
+    const slow = small, quick = other, link = `#b=${slow.file}&e=1&v=side`;
+    const page = await visit(link, { setup: (p) => p.route((url) => url.pathname.endsWith(`/${slow.file}`), async (r) => {
+      if (r.request().headers().range === "bytes=0-0") await new Promise((done) => setTimeout(done, 5000));
+      await r.continue().catch(() => {}); // the page may be gone by then
+    }) });
+    await page.waitForSelector(".dataset");
+    await page.waitForTimeout(500);
+    if (!page.url().endsWith(link)) fail(`the address was rewritten while the link's data set was on its way: ${page.url()}`);
+    await page.click(".dataset");
+    await page.fill(".chooserpanel .filter", quick.title);
+    await page.keyboard.press("Enter");
+    await page.waitForFunction((t) => document.querySelector(".dataset .name")?.textContent === t, quick.title, { timeout: 60000 }).catch(() => fail("the data set chosen while a link was opening did not open"));
+    await shown(page);
+    const chosen = page.url();
+    await page.waitForTimeout(7000); // the link's file has answered by now
+    if ((await label(page)) !== quick.title) fail(`a link that was slow to open replaced the data set chosen after it: the button says "${await label(page)}"`);
+    if (page.url() !== chosen) fail(`the slow link changed the address of the data set chosen after it: ${chosen} -> ${page.url()}`);
+    if (await page.$(".toast.error")) fail(`an overtaken open left a message: ${await page.textContent(".toast.error")}`);
+    await page.context().close();
+  }
+
+  // Review, finding 2. The name in a link is not trusted. A name that is not a file of this site nor a web address is
+  // refused, and says nothing about a publisher; an address on another site opens marked as such: no publisher, not
+  // under Recent, and a share pop-up that says who it opens for.
+  for (const name of ["data/u/alice/..%5Ctester%5Creco_test.evdb", "data/u/../x.evdb", `${small.file}%3Fx=1`, "%2Fetc%2Fx.evdb"]) {
+    const requests = [], page = await visit(`#b=${name}&e=0`, { setup: (p) => p.on("request", (r) => requests.push(r.url())) });
     await page.waitForSelector(".startpanel [role=alert]", { timeout: 30000 });
     const text = await page.textContent(".startpanel");
-    if (!text.includes("cannot be read") || !text.includes("Try again")) fail(`a file that is not a bundle is reported as: ${text}`);
+    if (!text.includes("does not name a data set") || /published by|alice|tester/.test(text.replace(decodeURIComponent(name), ""))) fail(`the name ${name} in a link is reported as: ${text}`);
+    if (requests.some((u) => /\.evdb/.test(u))) fail(`the name ${name} in a link was fetched: ${requests.filter((u) => /\.evdb/.test(u)).join(", ")}`);
+    if (await page.evaluate(() => localStorage.getItem("evd.recent"))) fail(`the name ${name} in a link was remembered under Recent`);
+    await page.context().close();
+  }
+  {
+    const elsewhere = "http://elsewhere.example/data/u/alice/shown_to_all.evdb";
+    const page = await visit(`#b=${elsewhere}&e=1`, { setup: (p) => p.route((url) => url.hostname === "elsewhere.example", async (r) => {
+      const answer = await r.fetch({ url: `${base}${small.file}` }); // another site that lets pages of this one read it
+      await r.fulfill({ response: answer, headers: { ...answer.headers(), "access-control-allow-origin": "*", "access-control-expose-headers": "Content-Range, ETag, Last-Modified" } });
+    }) });
+    const opened = await eventRead(page).then(() => true, () => false);
+    if (!opened) fail(`an address on another site did not open: ${await page.textContent(".startpanel").catch(() => "")}`);
+    else {
+      if ((await page.textContent(".dataset .tag").catch(() => "")) !== "external") fail("a data set from another site is not marked external on the chooser's button");
+      await page.click(".dataset");
+      const about = await page.textContent(".about");
+      if (!about.includes("not on this site") || /published by/.test(about)) fail(`a data set from another site is described as: ${about}`);
+      if ((await sectionNames(page)).includes("Recent")) fail("a data set from another site is remembered under Recent");
+      await page.keyboard.press("Escape");
+      await page.click(".share");
+      const text = await page.textContent(".popover");
+      if (!text.includes("can also reach the data set's own address") || text.includes("for anyone who can open this site")) fail(`sharing a data set from another site says: ${text}`);
+      await shot(page, "external");
+    }
+    await page.context().close();
+  }
+
+  // Review, finding 4. A list is somebody's file: entries that are not entries are left out, and the chooser comes up
+  // whatever they hold. A site without shared data sets opens my newest file, not an address my index names.
+  {
+    const people = { tester: { bundles: [
+      { file: "http://elsewhere.example/first.evdb", title: "An address, not a file of mine", created: days(0) },
+      { file: "data/u/tester/reco_test.evdb", title: "My rereco test", events: null, created: days(-1), expires: 7 },
+      { file: "data/u/alice/for_the_meeting.evdb", title: "Someone else's file in my list" },
+      { file: "data/u/tester/../../index.evdb", title: "Climbing out" }, { title: "No file" }, null,
+    ] } };
+    const requests = [], page = await visit("", { shared: [], people, setup: (p) => p.on("request", (r) => requests.push(r.url())) });
+    await shown(page);
+    if ((await label(page)) !== "My rereco test") fail(`with a malformed index a bare address opened "${await label(page)}", not my own well-formed file`);
+    if (requests.some((u) => u.includes("elsewhere.example"))) fail("an address named in my index was fetched");
+    await page.click(".dataset");
+    if (!(await page.waitForSelector(".chooserpanel", { timeout: 3000 }).catch(() => null))) fail("the chooser does not come up with a malformed entry in my index");
+    else if ((await rowTitles(page)).join() !== "My rereco test") fail(`with a malformed index my files are: ${(await rowTitles(page)).join(" | ")}`);
+    await page.context().close();
+  }
+  // The same for a login typed in a browser: "not you?" must be there to get out of a list that cannot be shown.
+  {
+    const page = await visit(`#b=${small.file}&e=0`, { who: "", people: { tester: { bundles: [{ file: "data/u/tester/x.evdb", title: "X", events: null }] } } });
+    await shown(page);
+    await page.evaluate(() => localStorage.setItem("evd.login", "tester"));
+    await page.reload();
+    await shown(page);
+    await page.click(".dataset");
+    if (!(await page.waitForSelector(".sectionhead .link", { timeout: 3000 }).catch(() => null))) fail("with a malformed entry in my index the chooser has no “not you?”");
+    await page.context().close();
+  }
+
+  // A site whose whoami never answers still opens its newest data set at a bare address, without waiting for it; and
+  // "b=" with nothing after it is a bare address.
+  {
+    const page = await visit("#b=&e=0", { who: "tester", setup: (p) => p.route((url) => url.pathname.endsWith("/whoami"), () => { /* never answered */ }) });
+    const t0 = Date.now(), opened = await page.waitForFunction((t) => document.querySelector(".dataset .name")?.textContent === t, listed[0].title, { timeout: 3500 }).then(() => true, () => false);
+    if (!opened) fail(`with a whoami that hangs, a bare address had not opened the newest shared data set after ${Date.now() - t0} ms: ${await label(page)}`);
     await page.context().close();
   }
 
@@ -273,7 +417,8 @@ async function checkSite() {
     await shown(page);
     const bytes = Buffer.from(await (await fetch(`${base}${small.file}`)).arrayBuffer());
     await page.click(".dataset");
-    await page.setInputFiles(".chooserpanel input[type=file]", { name: "from_my_disk.evdb", mimeType: "application/octet-stream", buffer: bytes });
+    const [picker] = await Promise.all([page.waitForEvent("filechooser"), page.click(".chooserpanel footer button")]);
+    await picker.setFiles({ name: "from_my_disk.evdb", mimeType: "application/octet-stream", buffer: bytes });
     await page.waitForFunction(() => document.querySelector(".dataset .name")?.textContent === "from_my_disk.evdb", null, { timeout: 30000 }).catch(() => fail("a local file does not open from the chooser"));
     await shown(page);
     if (!(await page.$(".dataset .tag"))) fail("a local file is not marked as local on the chooser's button");
@@ -286,6 +431,30 @@ async function checkSite() {
     await page.click(".dataset");
     const row = await page.$eval(".dataset-row.off", (r) => r.textContent).catch(() => "");
     if (!/from_my_disk\.evdb.*drop it/.test(row)) fail(`a local file under Recent reads "${row}"`);
+    // Filtered down to rows that cannot be opened, none is under the keys, and Enter does nothing.
+    await page.fill(".chooserpanel .filter", "from_my_disk");
+    if (await page.$(".dataset-row.active")) fail("a row that cannot be opened (a local file's) is the one under the keys");
+    await page.keyboard.press("Enter");
+    if (!(await page.$(".chooserpanel"))) fail("Enter on a row that cannot be opened closed the chooser");
+    await page.context().close();
+  }
+
+  // Review, finding 3. A local file that is not a bundle, with nothing else on screen: the page says what to do with
+  // the file (convert it again), offers another file, and no "try again" that would fetch its name from the site.
+  {
+    const requests = [], page = await visit("", { who: "", shared: [], setup: (p) => p.on("request", (r) => requests.push(r.url())) });
+    await page.waitForSelector(".startpanel .card", { timeout: 30000 });
+    await page.evaluate(() => {
+      const data = new DataTransfer();
+      data.items.add(new File(["these are my notes, not a bundle"], "notes.evdb"));
+      window.dispatchEvent(new DragEvent("drop", { dataTransfer: data, bubbles: true, cancelable: true }));
+    });
+    await page.waitForSelector(".startpanel [role=alert]", { timeout: 10000 }).catch(() => fail("a local file that is not a bundle gets no panel"));
+    const text = await page.textContent(".startpanel"), buttons = await page.$$eval(".startpanel .buttons button", (b) => b.map((x) => x.textContent));
+    if (!text.includes("convert it again") || /upload/.test(text)) fail(`a local file that is not a bundle is reported as: ${text}`);
+    if (buttons.some((b) => /again|Reload/i.test(b)) || !buttons.includes("Choose another file")) fail(`a local file that did not open offers: ${buttons.join(" | ")}`);
+    if (requests.some((u) => u.includes("notes.evdb"))) fail("a local file's name was fetched from the site");
+    await shot(page, "local_failed");
     await page.context().close();
   }
 }

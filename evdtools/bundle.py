@@ -1,8 +1,10 @@
 """Read and write .evdb bundles (docs/format.md)."""
+import collections
 import gzip
 import json
 import os
 import struct
+from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
 
@@ -28,15 +30,15 @@ def _json(obj, aligned_at):
 
 def encode_record(event_id, tables, relations):
     """tables: {name: (n, {column: array})}; relations: {name: {"offsets", "indices", "weights": {w: array}}}."""
-    chunks, size = [], 0
+    arrays, size = [], 0
 
     def put(array, dtype):
         nonlocal size
-        pad = -size % 8
-        data = np.ascontiguousarray(array, dtype=dtype).tobytes()
-        chunks.append(b"\0" * pad + data)
-        location = [size + pad, len(array)]
-        size += pad + len(data)
+        data = np.ascontiguousarray(array, dtype=dtype)  # the array itself when it already has this type
+        size += -size % 8
+        arrays.append((size, data))
+        location = [size, len(data)]
+        size += data.nbytes
         return location
 
     meta = {"event": [int(x) for x in event_id], "tables": {}, "relations": {}}
@@ -48,35 +50,62 @@ def encode_record(event_id, tables, relations):
             "indices": put(rel["indices"], RELATION_TYPES["indices"]),
             "weights": {w: put(a, RELATION_TYPES["weights"]) for w, a in rel.get("weights", {}).items()}}
     header = _json(meta, 8)
-    return RECORD_MAGIC + struct.pack("<I", len(header)) + header + b"".join(chunks)
+    base = 8 + len(header)
+    # One buffer of the final size, each array copied into it once (zero-filled, which is the padding).
+    record = bytearray(base + size)
+    record[:base] = RECORD_MAGIC + struct.pack("<I", len(header)) + header
+    for offset, data in arrays:
+        if data.nbytes:
+            record[base + offset:base + offset + data.nbytes] = data.view(np.uint8).data
+    return record
+
+
+def _pack(level, event_id, tables, relations):
+    """A record as it is stored: one gzip member (no timestamp, so the same event always gives the same bytes)."""
+    return gzip.compress(encode_record(event_id, tables, relations), compresslevel=level, mtime=0)
 
 
 class BundleWriter:
     """Writes a bundle to `path` atomically: readers never see a partial file."""
 
-    def __init__(self, path, header, compresslevel=6, sort=False):
+    def __init__(self, path, header, compresslevel=4, sort=False, threads=1):
         """`sort`: list the events in (run, lumi, event) order in the index, whatever order they were added in (records
-        are found by offset, so this costs no I/O)."""
+        are found by offset, so this costs no I/O). `threads`: records are compressed on this many threads (zlib
+        releases the interpreter lock) and written in the order they were added; `pool` is that thread pool, or None.
+        `compresslevel` 4: on a PU200 event half the time of 6 for 0.3% more bytes."""
         self._path, self._tmp, self._level, self._sort = path, f"{path}.tmp{os.getpid()}", compresslevel, sort
         self._file = open(self._tmp, "wb")
         head = _json(header, 12)
         self._file.write(MAGIC + struct.pack("<II", VERSION, len(head)) + head)
         self._events, self._runs, self._run_info = [], [], {}
+        self._threads, self.pool = threads, ThreadPoolExecutor(threads) if threads > 1 else None
+        self._queue = collections.deque()  # (index entry, compressed record or its future), oldest first
 
-    def _write(self, record_id, tables, relations):
-        """Append a compressed record; returns its index entry: where it is and the rows of each table."""
-        blob = gzip.compress(encode_record(record_id, tables, relations), compresslevel=self._level)
-        entry = {"offset": self._file.tell(), "length": len(blob),
-                 "counts": {t: int(n) for t, (n, _) in tables.items()}}
+    def _write(self, entry, record_id, tables, relations):
+        """Compress a record and append it; `entry`, its index entry, gets where it is and the rows of each table.
+        With threads, at most `threads` records wait (compressed or being compressed) before the oldest is written."""
+        entry.update(offset=0, length=0, counts={t: int(n) for t, (n, _) in tables.items()})
+        if self.pool is None:
+            return self._store(entry, _pack(self._level, record_id, tables, relations))
+        self._queue.append((entry, self.pool.submit(_pack, self._level, record_id, tables, relations)))
+        while len(self._queue) > self._threads:
+            self._store_oldest()
+
+    def _store_oldest(self):
+        entry, blob = self._queue.popleft()
+        self._store(entry, blob.result())
+
+    def _store(self, entry, blob):
+        entry.update(offset=self._file.tell(), length=len(blob))
         self._file.write(blob)
-        return entry
 
     def add_run(self, run_id, tables, relations):
         """The per-run tables of a run, written once; readers add them to every event of that run."""
-        self._runs.append({"run": int(run_id[0]), **self._write(run_id, tables, relations)})
+        self._runs.append({"run": int(run_id[0])})
+        self._write(self._runs[-1], run_id, tables, relations)
 
     def runs(self):
-        """Runs of the events written so far."""
+        """Runs of the events added so far."""
         return {e["run"] for e in self._events}
 
     def set_run_info(self, info):
@@ -85,9 +114,14 @@ class BundleWriter:
 
     def add(self, event_id, tables, relations):
         run, lumi, event = (int(x) for x in event_id)
-        self._events.append({"run": run, "lumi": lumi, "event": event, **self._write(event_id, tables, relations)})
+        self._events.append({"run": run, "lumi": lumi, "event": event})
+        self._write(self._events[-1], event_id, tables, relations)
 
     def close(self):
+        while self._queue:
+            self._store_oldest()
+        if self.pool:
+            self.pool.shutdown()
         runs = {r["run"]: r for r in self._runs}
         for run, info in self._run_info.items():
             runs.setdefault(run, {"run": run})["info"] = info
@@ -107,6 +141,8 @@ class BundleWriter:
         if exc_type is None:
             self.close()
         else:
+            if self.pool:
+                self.pool.shutdown(cancel_futures=True)
             self._file.close()
             os.remove(self._tmp)
 

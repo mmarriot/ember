@@ -7,11 +7,13 @@ available to lookups, written once per run.
 Per event: read tables -> derive columns -> relations (CSR) -> gather -> row cuts -> event selection -> renumber
 index columns and cut relations (links to removed rows dropped) -> drop internal and per-run tables.
 """
+import contextlib
 import datetime
 import fnmatch
 import itertools
 import json
 import os
+import re
 import sys
 from collections import defaultdict
 
@@ -473,12 +475,14 @@ class Converter:
         """Tables written to the bundle: all but the internal ones (read only to build relations or cuts)."""
         return {t: m for t, m in self.tables.items() if t not in self.internal}
 
-    def header(self, files, profile_name):
+    def header(self, files, profile_name, cmssw=None):
+        """`cmssw`: the release that wrote the input, when it says (see written_by)."""
         written = self.written()
         relations = {n: r for n, r in self.relations.items() if self._writes(n) and r["from"] in written and r["to"] in written}
         return {
             "schema": "evd/1",
             "source": {"files": [os.path.basename(f) for f in files], "converter": f"evdtools {__version__}",
+                       **({"cmssw": cmssw} if cmssw else {}),
                        "created": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")},
             "profile": profile_name,
             "tables": {t: {"doc": m["doc"], **({"scope": "run"} if t in self.run_scope else {}),
@@ -632,9 +636,21 @@ def _open(path):
     """uproot.open; root:// URLs go through the XRootD bindings directly (fsspec-xrootd is not in CMSSW)."""
     # No caches: entries read one at a time (--events) would otherwise keep every decompressed basket (~230 MB per
     # PU200 event), and chunked reading does not reuse them.
-    if path.startswith("root://"):
-        return uproot.open(path, handler=uproot.source.xrootd.XRootDSource, object_cache=None, array_cache=None)
-    return uproot.open(path, object_cache=None, array_cache=None)
+    # Local files are read with plain seek + read: uproot's default (fsspec) source first merges the byte ranges of
+    # the baskets it is asked for, which for the thousands of baskets of a chunk costs more than reading them.
+    handler = uproot.source.xrootd.XRootDSource if path.startswith("root://") else uproot.MultithreadedFileSource
+    return uproot.open(path, handler=handler, object_cache=None, array_cache=None)
+
+
+def written_by(f):
+    """The CMSSW release that wrote an open NanoAOD (or EDM) file: the last process of its history, or None."""
+    try:
+        branch = f["MetaData/ProcessHistory"]
+        history = b"".join(bytes(branch.basket(i).data) for i in range(branch.num_baskets))
+    except Exception:  # no such tree (a NanoAOD-like file from elsewhere): the release is simply not recorded
+        return None
+    releases = re.findall(rb"CMSSW_\d+_\d+_\w+", history)
+    return releases[-1].decode() if releases else None
 
 
 def _run_tables(conv, f):
@@ -654,14 +670,16 @@ def parse_events(spec):
     return out
 
 
-def _entries(tree, conv, events, progress):
+def _entries(tree, conv, events, progress, pool=None):
     """(arrays, i) of the entries of an Events tree to convert. `events`: only these event numbers, found from the
     event branch alone and read one at a time, in event order (the file is opened without caches, so memory stays
     flat). Otherwise, with an event selection on plain columns,
     a first pass reads only the branches that decide it, and an entry is read in full only if it passes;
-    progress(entries scanned) is called after each chunk."""
+    progress(entries scanned) is called after each chunk. `pool`: threads that decompress the baskets (zlib releases
+    the interpreter lock), which is two thirds of the time of reading a PU200 event."""
     full = conv.branches()
-    entry = lambda e: tree.arrays(full, entry_start=e, entry_stop=e + 1, library="np")
+    threaded = {"decompression_executor": pool} if pool else {}
+    entry = lambda e: tree.arrays(full, entry_start=e, entry_stop=e + 1, library="np", **threaded)
     if events is not None:
         numbers, runs = tree["event"].array(library="np"), tree["run"].array(library="np")
         chosen = np.flatnonzero(np.isin(numbers, list(events)))
@@ -670,7 +688,9 @@ def _entries(tree, conv, events, progress):
             yield entry(e), 0
         return
     pre = conv.selection_branches()
-    for arrays, report in tree.iterate(pre or full, step_size="200 MB", library="np", report=True):
+    # "100 MB" is one PU200 event per chunk (two with "200 MB"): the memory at its peak follows the chunk, about 2.6
+    # times its arrays (compressed baskets, decompressed baskets and the arrays are alive together).
+    for arrays, report in tree.iterate(pre or full, step_size="100 MB", library="np", report=True, **threaded):
         for i in range(report.tree_entry_stop - report.tree_entry_start):
             if pre is None:
                 yield arrays, i
@@ -679,9 +699,10 @@ def _entries(tree, conv, events, progress):
         progress(report.tree_entry_stop)
 
 
-def _records(conv, files, log, events=None, runs=None):
+def _records(conv, files, log, events=None, runs=None, first=None, pool=None):
     """(record, run tables) of the converted events of `files`, in order. `events`: only these event numbers;
-    `runs`: per-run tables to use instead of each file's own."""
+    `runs`: per-run tables to use instead of each file's own; `first`: the first file, already open (reading the
+    description of a tree of 2000 branches takes 0.3 s); `pool`: see _entries."""
     def progress(n):
         if events is not None:
             print(f"{name}: {n} of the requested events", file=log)
@@ -690,9 +711,10 @@ def _records(conv, files, log, events=None, runs=None):
 
     for path in files:
         name, selected = os.path.basename(path), 0
-        with _open(path) as f:
+        with (first if first is not None and path == files[0] else _open(path)) as f:
+            first = None
             file_runs = _run_tables(conv, f) if runs is None else runs
-            for arrays, i in _entries(f["Events"], conv, events, progress):
+            for arrays, i in _entries(f["Events"], conv, events, progress, pool):
                 run_tables = file_runs.get(int(arrays["run"][i]))
                 record = conv.event(arrays, i, run_tables)
                 if record is not None:
@@ -700,35 +722,47 @@ def _records(conv, files, log, events=None, runs=None):
                     yield record, run_tables
 
 
+def threads_available(limit=4):
+    """Threads to use by default: the CPUs this process may run on, at most `limit` (often a shared machine)."""
+    return max(1, min(limit, len(os.sched_getaffinity(0)) if hasattr(os, "sched_getaffinity") else os.cpu_count() or 1))
+
+
 def convert(files, output, profile_name="hgcal", max_events=None, log=sys.stderr, data_time=None, run_info=None,
-            events=None, run_tables=None, sort=False):
+            events=None, run_tables=None, sort=False, threads=None):
     """Write the (selected) events of `files` to the bundle `output`; `data_time`: when the input was produced;
     `run_info`: where to find information about the runs (see runinfo.load); `events`: only these event numbers;
     `run_tables`: a NanoAOD file whose Runs tree has the per-run tables (e.g. the channel table) of the same runs,
-    for inputs made without them. `sort`: the bundle lists the events in (run, lumi, event) order (index only)."""
+    for inputs made without them. `sort`: the bundle lists the events in (run, lumi, event) order (index only).
+    `threads`: to decompress the input and compress the records (default: threads_available())."""
     profile = load_profile(profile_name)
-    with _open(files[0]) as f, _open(run_tables or files[0]) as r:
-        conv = Converter(discover(f["Events"]), profile, discover(r["Runs"]) if "Runs" in r else None)
-        runs = _run_tables(conv, r) if run_tables else None
-    if run_tables:
-        print(f"per-run tables of run(s) {sorted(runs)} from {os.path.basename(run_tables)}", file=log)
-    print(f"{len(conv.written())} tables, {len(conv.relations)} relations, {len(conv.display)} display layers",
-          file=log)
-    header = conv.header(files, profile.get("name", profile_name))
-    if data_time:
-        header["source"]["data_time"] = data_time.isoformat(timespec="seconds")
-    written, runs_written = 0, set()
-    with BundleWriter(output, header, sort=sort) as out:
-        for record, per_run in itertools.islice(_records(conv, files, log, events, runs), max_events):
-            run = int(record[0][0])
-            if per_run and run not in runs_written:
-                out.add_run(*conv.run_record(run, per_run))
-                runs_written.add(run)
-            out.add(*record)
-            written += 1
-        if run_info:
-            from .runinfo import load
-            info = load(run_info, out.runs(), log=log)
-            print(f"run info for {len(info)} run(s) from {run_info}", file=log)
-            out.set_run_info(info)
-    return written
+    first = _open(files[0])  # stays open for its events
+    try:
+        with (_open(run_tables) if run_tables else contextlib.nullcontext(first)) as r:
+            conv = Converter(discover(first["Events"]), profile, discover(r["Runs"]) if "Runs" in r else None)
+            runs = _run_tables(conv, r) if run_tables else None
+        if run_tables:
+            print(f"per-run tables of run(s) {sorted(runs)} from {os.path.basename(run_tables)}", file=log)
+        print(f"{len(conv.written())} tables, {len(conv.relations)} relations, {len(conv.display)} display layers",
+              file=log)
+        header = conv.header(files, profile.get("name", profile_name), written_by(first))
+        if data_time:
+            header["source"]["data_time"] = data_time.isoformat(timespec="seconds")
+        written, runs_written = 0, set()
+        with BundleWriter(output, header, sort=sort, threads=threads or threads_available()) as out:
+            records = _records(conv, files, log, events, runs, first, out.pool)
+            for record, per_run in itertools.islice(records, max_events):
+                run = int(record[0][0])
+                if per_run and run not in runs_written:
+                    out.add_run(*conv.run_record(run, per_run))
+                    runs_written.add(run)
+                out.add(*record)
+                written += 1
+            records.close()  # stopped at max_events: close the file it was reading
+            if run_info:
+                from .runinfo import load
+                info = load(run_info, out.runs(), log=log)
+                print(f"run info for {len(info)} run(s) from {run_info}", file=log)
+                out.set_run_info(info)
+        return written
+    finally:
+        first.close()

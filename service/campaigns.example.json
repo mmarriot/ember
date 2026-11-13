@@ -1,0 +1,29 @@
+{
+  "site": "/eos/project/c/cms-evd/www",
+  "state": "/eos/project/c/cms-evd/service/state",
+  "settle": 600,
+  "max_failures": 3,
+  "campaigns": [
+    {
+      "name": "testbeam_2026",
+      "title": "Test beam 2026",
+      "inputs": "/eos/cms/store/group/dpg_hgcal/tb_hgcal/2026/TestBeam_ReReco/*/v3/Events_1.root",
+      "xrootd": "root://eoscms.cern.ch/",
+      "profile": "testbeam",
+      "max_events": 300,
+      "stem": "wildcards",
+      "runInfo": "registry:RunRegistryP5.RunTable"
+    },
+    {
+      "name": "relval_CMSSW_20_1_0_pre6",
+      "title": "RelVal CMSSW_20_1_0_pre6",
+      "inputs": "/eos/cms/store/relval/CMSSW_20_1_0_pre6/RelVal*/GEN-SIM-RECO/*_D121_*/*/*.root",
+      "xrootd": "root://eoscms.cern.ch/",
+      "profile": "cms",
+      "max_events": 10,
+      "stem": "wildcards",
+      "stem_parts": [0, 1, 2],
+      "export": {"cmssw": "/eos/project/c/cms-evd/service/cmssw/CMSSW_20_1_0_pre6", "geometry": "D121"}
+    }
+  ]
+}

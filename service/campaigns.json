@@ -1,12 +1,10 @@
 {
-  "site": "/eos/user/m/mmarriot/evd",
-  "state": "/eos/user/m/mmarriot/evd-service/state",
   "settle": 600,
   "max_failures": 3,
   "campaigns": [
     {
       "name": "testbeam_2026",
-      "title": "Test beam 2026 \u00b7 11 layers (TestBeam_ReReco v3)",
+      "title": "Test beam 2026 · 11 layers (TestBeam_ReReco v3)",
       "inputs": "/eos/cms/store/group/dpg_hgcal/tb_hgcal/2026/TestBeam_ReReco/*/v3/Events_1.root",
       "xrootd": "root://eoscms.cern.ch/",
       "profile": "testbeam",

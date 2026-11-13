@@ -4,7 +4,7 @@ import { useEffect } from "preact/hooks";
 import type { ViewName } from "../render/engine";
 import { startDomain } from "../model/domains";
 import { loadIdentity, loadRecent, mine, pruneRecent, PUBLISH_COMMAND, refreshMine } from "../model/library";
-import { activeMode, anchor, bundle, bundleName, catalogue, colourChoice, dialog, domain, event, eventIndex, focusLevel, highlight, labelsOn, openBundle, opened, openLocal, refreshCatalogue, selection, shownLevel, solo, soloKey, started, stepEvent, stepFocusLevel, truthColours, unlook, view } from "../model/store";
+import { activeMode, anchor, bundle, bundleName, catalogue, colourChoice, dialog, domain, event, eventIndex, focusLevel, highlight, labelsOn, openBundle, opened, opening, openLocal, refreshCatalogue, selection, shownEntry, shownLevel, solo, soloKey, started, stepEvent, stepFocusLevel, truthColours, unlook, view } from "../model/store";
 import { chooserOpen } from "./Chooser";
 import { SYNTAX } from "./ExprForm";
 import { Header } from "./Header";
@@ -25,6 +25,8 @@ const POLL = 30_000; // ms between index checks (keeps the data set lists curren
 const NAME = "Event display";
 /** A file is being dragged over the page. */
 const dropping = signal(false);
+/** The data set named by the link the page was opened with, until its state (event, view, selection) is applied. */
+const restoring = signal<string | null>(null);
 
 export function App() {
   useEffect(() => {
@@ -32,14 +34,18 @@ export function App() {
     // the file, from 0 (the top bar shows it from 1: "2 of 50"), not its event number (the Event… box takes that).
     const url = new URLSearchParams(location.hash.slice(1) || location.search.slice(1));
     // Who the page is for and their files: asked for at once, in the background. A link's data set does not wait for
-    // them; a bare address opens the site's newest shared data set, or with none of those my newest.
+    // them. A bare address opens the site's newest shared data set as soon as the site's list is in; only a site
+    // without one waits to know who I am, to open my newest (whoami has a time limit, library.ts).
     loadRecent();
-    const lists = Promise.all([refreshCatalogue(), loadIdentity().then(() => refreshMine())]);
-    (url.get("b") ? Promise.resolve() : lists).then(async () => {
-      const name = url.get("b") ?? catalogue.value.bundles[0]?.file ?? mine.value[0]?.file;
-      if (!name) return void (started.value = true);
+    const shared = refreshCatalogue(), own = loadIdentity().then(() => refreshMine());
+    const linked = url.get("b") || null; // "b=" names nothing
+    restoring.value = linked;
+    (linked ? Promise.resolve() : shared.then(() => (catalogue.value.bundles.length ? undefined : own))).then(async () => {
+      const name = linked ?? catalogue.value.bundles[0]?.file ?? mine.value[0]?.file;
       started.value = true;
-      await openBundle(name, undefined, Number(url.get("e") ?? 0));
+      // The link's view, selection and colours are for the link's data set with its event on screen: not for another
+      // one chosen while it was on its way (it then changes nothing: store.ts openBundle).
+      if (!name || !(await openBundle(name, undefined, Number(url.get("e") ?? 0))) || !linked) return;
       const d = url.get("d"); // "All": everything, in a bundle that opens on a domain
       if (d) chooseDomain(d === ALL ? null : d, false);
       const v = url.get("v") as ViewName | null;
@@ -52,11 +58,12 @@ export function App() {
       if (url.get("c") === "truth" && truthColours.peek()) colourChoice.value = "truth";
       const lv = url.get("lv");
       if (lv && selection.peek()) focusLevel.value = lv; // a level the focus does not have is ignored (store.ts shownLevel)
-    });
+    }).finally(() => (restoring.value = null));
+    const onStorage = (e: StorageEvent) => { if (e.key === "evd.recent") loadRecent(); }; // another tab opened or forgot one
     const poll = setInterval(() => { if (document.visibilityState === "visible") { void refreshCatalogue(); void refreshMine(); } }, POLL);
     const stopRecent = effect(() => pruneRecent([...catalogue.value.bundles, ...mine.value].map((x) => x.file)));
     const stopTitle = effect(() => { // the tab's name: the data set and event, so tabs of several can be told apart
-      const o = opened.value, e = bundle.value?.events[eventIndex.value];
+      const o = opened.value, e = shownEntry.value;
       document.title = o ? `${o.title}${e ? ` · event ${e.event}` : ""} – ${NAME}` : NAME;
     });
 
@@ -64,6 +71,11 @@ export function App() {
       const s = selection.value, d = domain.value ?? (startDomain(bundle.value?.header) ? ALL : null), lv = s && shownLevel.value;
       const p = new URLSearchParams({ b: bundleName.value, e: String(eventIndex.value), v: view.value, ...(d ? { d } : {}), ...(s ? { s: `${s.table}:${s.row}` } : {}),
         ...(lv ? { lv } : {}), ...(activeMode.value === "truth" ? { c: "truth" } : {}), ...(solo.value ? { only: solo.value } : {}) });
+      // A link being opened stays in the address until its event, view and selection are applied: written earlier, the
+      // address would say e=0 and the default view while the link's event is read, and a reload (or the "reload" of a
+      // link that failed) would open that instead. Another data set chosen meanwhile ends the wait.
+      const link = restoring.value, held = link !== null && (opening.value === link || (opening.value === null && (!bundleName.value || bundleName.value === link)));
+      if (held) return;
       // A local file has no address: a link to it would open nothing, also for me after a reload.
       if (opened.value?.local) history.replaceState(null, "", location.pathname + location.search);
       // "/" and ":" are themselves in a fragment: the link reads b=data/u/alice/x.evdb, not b=data%2Fu%2F…
@@ -116,10 +128,12 @@ export function App() {
     window.addEventListener("dragover", onDragOver);
     window.addEventListener("dragenter", onDragEnter);
     window.addEventListener("dragleave", onDragLeave);
+    window.addEventListener("storage", onStorage);
     return () => {
       clearInterval(poll); stopUrl(); stopRecent(); stopTitle();
       window.removeEventListener("keydown", onKey); window.removeEventListener("drop", onDrop); window.removeEventListener("dragover", onDragOver);
       window.removeEventListener("dragenter", onDragEnter); window.removeEventListener("dragleave", onDragLeave);
+      window.removeEventListener("storage", onStorage);
     };
   }, []);
 

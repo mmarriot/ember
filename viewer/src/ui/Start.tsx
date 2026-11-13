@@ -4,8 +4,8 @@
 import { useState } from "preact/hooks";
 import logo from "../../logo.svg";
 import { DOCS_URL, mine, PUBLISH_COMMAND, titleOf } from "../model/library";
-import { bundle, catalogue, openBundle, openFailure, opening, openLocal, started } from "../model/store";
-import { chooserOpen } from "./Chooser";
+import { bundle, catalogue, openBundle, openFailure, opening, started } from "../model/store";
+import { chooserOpen, pickLocalFile } from "./Chooser";
 
 export function Start() {
   const failure = openFailure.value, name = opening.value;
@@ -23,11 +23,6 @@ function Command({ text }: { text: string }) {
 }
 
 const choose = () => { chooserOpen.value = true; };
-const pickFile = () => {
-  const input = Object.assign(document.createElement("input"), { type: "file", accept: ".evdb" });
-  input.onchange = () => { if (input.files?.[0]) void openLocal(input.files[0]); };
-  input.click();
-};
 
 function Welcome() {
   const some = catalogue.value.bundles.length + mine.value.length > 0;
@@ -42,7 +37,7 @@ function Welcome() {
         <ol>
           <li><b>Publish a file.</b> In a CMSSW area, one command converts a NanoAOD or step3 file, puts it in your area of
             this site and prints a link to it: <Command text={PUBLISH_COMMAND} /></li>
-          <li><b>Open a local file.</b> Drop a <code>.evdb</code> file anywhere on this page, or <button class="link" onClick={pickFile}>choose one</button>.
+          <li><b>Open a local file.</b> Drop a <code>.evdb</code> file anywhere on this page, or <button class="link" onClick={pickLocalFile}>choose one</button>.
             It is read where it is and stays on your computer.</li>
           <li><b>Follow a link.</b> A link someone copied with the share button opens the same event, selection and view for you.</li>
         </ol>
@@ -53,17 +48,22 @@ function Welcome() {
 }
 
 function Failed() {
-  const f = openFailure.value!, signOn = f.kind === "denied" || f.kind === "offline";
+  const f = openFailure.value!, signOn = !f.external && (f.kind === "denied" || f.kind === "offline");
+  // Trying again: a file of this computer cannot be fetched by its name (it is chosen again); a link's data set is
+  // opened as the link says (its event and view are still in the address), by loading the page again; one chosen
+  // here is simply opened again.
+  const linked = new URLSearchParams(location.hash.slice(1) || location.search.slice(1)).get("b") === f.name;
+  const again = f.local || f.kind === "gone" || f.kind === "badname" ? null : signOn || linked ? () => location.reload() : () => void openBundle(f.name);
   return (
     <div class="startpanel">
       <div class="card" role="alert">
         <h1>{f.title}</h1>
         <p>{f.text}</p>
-        {f.kind === "gone" && <p class="hint">One command in a CMSSW area converts a file, publishes it here and prints its link: <Command text={PUBLISH_COMMAND} /></p>}
+        {f.kind === "gone" && !f.external && <p class="hint">One command in a CMSSW area converts a file, publishes it here and prints its link: <Command text={PUBLISH_COMMAND} /></p>}
         <p class="buttons">
           <button class="primary" onClick={choose}>Choose a data set</button>
-          {signOn && <button onClick={() => location.reload()}>Reload the page</button>}
-          {f.kind !== "gone" && !signOn && <button onClick={() => void openBundle(f.name)}>Try again</button>}
+          {f.local && <button onClick={pickLocalFile}>Choose another file</button>}
+          {again && <button onClick={again}>{signOn || linked ? "Reload the page" : "Try again"}</button>}
           <a class="link" href={DOCS_URL} target="_blank" rel="noopener">Documentation ↗</a>
         </p>
         <p class="detail" title="What the page was told">{f.detail}</p>

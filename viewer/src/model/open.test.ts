@@ -4,7 +4,7 @@ import { blobSource, HttpError, type Source } from "../io/bundle";
 import { type Listed, recent } from "./library";
 // The store sets the page's theme as it loads: a stand-in page (the tests run without a DOM).
 Object.assign(globalThis, { document: { documentElement: { dataset: {} } } });
-const { bundle, bundleName, catalogue, openBundle, opened, openFailure, opening, toasts } = await import("./store");
+const { bundle, bundleName, catalogue, keepShown, openBundle, opened, openFailure, opening, toasts } = await import("./store");
 
 const golden = async () => blobSource(new Blob([readFileSync(new URL("../../../golden/v6_1event.evdb", import.meta.url))]));
 const gone = (name: string) => async () => { throw new HttpError(name, 404); };
@@ -97,6 +97,18 @@ describe("openBundle", () => {
     expect([second, late]).toEqual([true, false]); // what App.tsx goes by to apply a link's event and view
   });
 
+  it("keeps the data set on screen when it is chosen again while a slower one opens", async () => {
+    await openBundle("data/sim/first.evdb", golden);
+    let arrive!: () => Promise<void>;
+    const slow = openBundle("data/sim/second.evdb", () => new Promise<Source>((done) => { arrive = async () => done(await golden()); }));
+    expect(opening.value).toBe("data/sim/second.evdb");
+    keepShown(); // the chooser, picking first.evdb again
+    expect(opening.value).toBeNull();
+    await arrive();
+    expect(await slow).toBe(false);
+    expect(bundleName.value).toBe("data/sim/first.evdb");
+  });
+
   it("says nothing about an open that failed after another was asked for, and keeps that one's Opening…", async () => {
     let fail!: () => void, arrive!: () => Promise<void>;
     const first = openBundle("data/sim/first.evdb", () => new Promise<Source>((_, reject) => { fail = () => reject(new HttpError("data/sim/first.evdb", 404)); }));
@@ -117,6 +129,23 @@ describe("openBundle", () => {
     await settle();
     expect(opened.value).toMatchObject({ external: true, local: false, entry: undefined });
     expect(recent.value).toEqual([]);
+  });
+
+  it("does not save the settings of a bundle from another site under its profile, which it names itself", async () => {
+    const saved = new Map<string, string>();
+    Object.assign(globalThis, { localStorage: { getItem: (k: string) => saved.get(k) ?? null, setItem: (k: string, v: string) => saved.set(k, v) } });
+    try {
+      await openBundle("https://elsewhere.example/data/u/alice/x.evdb", golden);
+      const { filters } = await import("./custom");
+      filters.value = { ...filters.value, Anything: "0" };
+      const settings = () => [...saved.keys()].filter((k) => k.startsWith("evd.custom."));
+      expect(settings()).toEqual([]);
+      await openBundle("data/sim/mine.evdb", golden);
+      filters.value = { ...filters.value, Anything: "0" };
+      expect(settings()).toEqual([`evd.custom.${bundle.value!.header.profile}`]);
+    } finally {
+      delete (globalThis as { localStorage?: unknown }).localStorage;
+    }
   });
 
   it("refuses a name that is neither a file of this site nor an address", async () => {

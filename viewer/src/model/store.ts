@@ -521,7 +521,7 @@ export async function openBundle(name: string, open?: () => Promise<Source>, sta
     void describeOpened(id, name, local, external, index);
     const first = startDomain(b.header); // the domain it opens on (e.g. the physics objects), in its view
     view.value = b.header.domains?.find((d) => d.name === first)?.view ?? b.header.view?.start ?? "3d";
-    loadCustom(b.header.profile, Object.fromEntries(b.header.display.filter((d) => d.filter).map((d) => [d.table, d.filter!])));
+    loadCustom(b.header.profile, Object.fromEntries(b.header.display.filter((d) => d.filter).map((d) => [d.table, d.filter!])), !external);
     visible.value = Object.fromEntries(b.header.display.map((d) => [layerKey(d), d.visible]));
     domain.value = first;
     if (first) openTab.value = { name: tabOfDomain(b.header, first) };
@@ -541,6 +541,12 @@ export async function openBundle(name: string, open?: () => Promise<Source>, sta
   } finally {
     if (!overtaken()) opening.value = null;
   }
+}
+
+/** Keep the data set on screen, chosen again while another was opening: that open is overtaken, as by a new one. */
+export function keepShown() {
+  opens++;
+  opening.value = null;
 }
 
 /** Open a file from this computer (dropped on the page, or picked): read where it is, never uploaded. */

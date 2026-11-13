@@ -5,7 +5,7 @@ import { signal } from "@preact/signals";
 import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import { provenance, summary } from "../model/about";
 import { agoText, DOCS_URL, expiryText, forgetLogin, forgetRecent, type Listed, login, matches, mine, mineUnread, ownerOf, PUBLISH_COMMAND, recent, recentShown, refreshMine, typeLogin } from "../model/library";
-import { bundle, bundleName, catalogue, openBundle, opened, opening, openLocal, refreshCatalogue } from "../model/store";
+import { bundle, bundleName, catalogue, keepShown, openBundle, opened, opening, openLocal, refreshCatalogue } from "../model/store";
 import { stopLive } from "./live";
 import { Icon } from "./widgets";
 
@@ -104,6 +104,7 @@ function Panel({ close }: { close: () => void }) {
     stopLive(); // Live would open the newest file over the one chosen
     close();
     if (row.file !== bundleName.value || !bundle.value) void openBundle(row.file);
+    else keepShown(); // an open asked for meanwhile must not replace it
   };
   const step = (d: number) => { // to the next row that can be opened, stopping at the ends
     for (let i = active + d; i >= 0 && i < rows.length; i += d) if (!rows[i].local) return setActive(i);

@@ -75,8 +75,9 @@ export const customDoc = (table: string, column: string) => {
 
 // Persistence. localStorage can be missing or throw (private windows, blocked storage): then nothing is remembered.
 let storageKey = "";
-/** The user's choices for a profile; `defaults` (table -> filter expression) apply where the user has set none. */
-export function loadCustom(profile: string, defaults: Record<string, string>) {
+/** The user's choices for a profile; `defaults` (table -> filter expression) apply where the user has set none.
+ *  `remember` false (a bundle from another site, which names its own profile): changes are not saved. */
+export function loadCustom(profile: string, defaults: Record<string, string>, remember = true) {
   storageKey = "";
   let saved: Partial<{ columns: CustomColumn[]; filters: Record<string, string>; colourBy: Record<string, string>; preset: number }> = {};
   try { saved = JSON.parse(localStorage.getItem(`evd.custom.${profile}`) ?? "{}"); } catch { /* defaults */ }
@@ -85,7 +86,7 @@ export function loadCustom(profile: string, defaults: Record<string, string>) {
   filters.value = { ...defaults, ...(saved.filters ?? {}) };
   colourBy.value = saved.colourBy ?? {};
   activePreset.value = typeof saved.preset === "number" ? saved.preset : 0;
-  storageKey = `evd.custom.${profile}`;
+  if (remember) storageKey = `evd.custom.${profile}`;
 }
 effect(() => {
   const data = JSON.stringify({ columns: customColumns.value, filters: filters.value, colourBy: colourBy.value, preset: activePreset.value });

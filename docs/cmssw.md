@@ -152,6 +152,10 @@ collection yet. The TICL v6 development branch adds its own (HGCal SoA rechits, 
 - **Reco ↔ truth associations that CMSSW does not have**: jets, electrons and photons, muons, taus, MET, PF
   candidates, HF and HO PF clusters, and layer clusters ([cms-sw/cmssw#52451](https://github.com/cms-sw/cmssw/pull/52451) adds the last). evd does not substitute
   its own matching for them; each appears when its associator exists ([Truth graph](truth-graph.md#gap-table)).
+- **TICL candidate ↔ truth** on a stock release: CMSSW has no candidate associator. The association it writes under
+  `ticlCandidateToTruth` is that of the candidates' own tracksters (table `ticlCandidate`), so the viewer shows the
+  match on those tracksters ("Candidate tracksters") and none on the candidates. The profile reads the table that
+  way whenever the file has `ticlCandidate` (relation option `unless`, [Profiles](profiles.md)).
 - **Track → MTD rechit links** (a track carries its MTD hit's position and time), and **MTD hit truth**.
 - **Tracker hits that are on no track** (RECO stores clusters; only the hits on tracks are written).
 - **SoA collections** on a stock release (above).

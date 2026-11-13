@@ -421,11 +421,12 @@ class Converter:
             self.viewer_hints["domains"] = [d for d in self.viewer_hints["domains"] if d["name"] in used]
 
     def _available(self, rel):
-        """A relation is kept if all its tables are in the file; then every column it names must exist."""
+        """A relation is kept if all its tables are in the file and none of its `unless` tables is; then every column
+        it names must exist."""
         keys = ("offsets", "counts", "indices", "index", "via", "fromIndex", "toIndex", "fromKey", "toKey")
         specs = [s for s in [rel.get(k) for k in keys] + rel.get("weights", []) if s]
         tables = {rel["from"], rel["to"], rel.get("table")} | {_column(s)[0] for s in specs}
-        if not all(t is None or t in self.tables for t in tables):
+        if not all(t is None or t in self.tables for t in tables) or any(t in self.tables for t in rel.get("unless", [])):
             return False
         for table, column in map(_column, specs):
             if column not in self.tables[table]["columns"]:

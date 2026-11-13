@@ -83,7 +83,7 @@ Then:
 ```
 $ evd step3_inNANOAODSIM.root
 step3_inNANOAODSIM.root: NanoAOD from CMSSW_20_1_X_2026-11-12-2300, 20 events
-  46 tables, 82 relations, 42 display layers
+  44 tables, 86 relations, 43 display layers
   10 events of 20 (--max-events 0 for all), 8 MB, 1 s
 published step3_inNANOAODSIM: kept until 2026-12-13 (evd list, evd rm step3_inNANOAODSIM)
 

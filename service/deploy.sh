@@ -20,7 +20,7 @@ cp "$REPO/viewer/dist/index.html" "$SITE/index.html.tmp" && mv "$SITE/index.html
 rsync -a --delete "$REPO/viewer/dist/assets/" "$SITE/assets/"  # then drop files of older builds
 rsync -a --delete --exclude __pycache__ "$REPO/evdtools" "$REPO/service" "$SERVICE/code/"
 # The cron jobs work on the site this deployment was made for (service/env.sh reads this file).
-printf "EVD_SITE_DIR='%s'\nEVD_SITE_URL='%s'\nEVD_SERVICE_DIR='%s'\n" "$SITE" "$EVD_SITE_URL" "$SERVICE" > "$SERVICE/code/site.env"
+printf "export EVD_SITE_DIR='%s'\nexport EVD_SITE_URL='%s'\nexport EVD_SERVICE_DIR='%s'\n" "$SITE" "$EVD_SITE_URL" "$SERVICE" > "$SERVICE/code/site.env"
 # The `evd` command as one file, replaced by a rename so that a running copy is never half-written.
 python3 "$REPO/tools/build_zipapp.py" "$BIN/evd.new" > /dev/null && mv "$BIN/evd.new" "$BIN/evd"
 # Run information from the run registry needs mysql-connector-python (pure Python): installed once next to the code.

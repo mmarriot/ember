@@ -5,7 +5,6 @@ CODE=$(dirname "$HERE")                              # <code>, which contains ev
 
 # deploy.sh records the site it deployed to; without that file, the environment or evdtools/site.py's defaults apply.
 [ -f "$CODE/site.env" ] && source "$CODE/site.env"
-export EVD_SITE_DIR EVD_SITE_URL EVD_SERVICE_DIR
 
 # Needs python3 with uproot, numpy, scipy and the XRootD bindings: use the current one if it has them (e.g. inside
 # cmsenv), otherwise an LCG view from CVMFS (lxplus is el9).

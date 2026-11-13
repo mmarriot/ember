@@ -26,21 +26,52 @@ The site's location is set in one place, `evdtools/site.py`, and overridden by e
 `service/deploy.sh` writes the three locations it deployed to into `code/site.env`; the cron entry points read that
 file (`service/env.sh`), so the crontab lines need no variables.
 
-Access to set up once on the site directory (EOS ACLs): everyone reads; CMS members can create their own folder
-under `data/u/` and write in it; the service account that runs the cron jobs can write everywhere (it removes the
-expired bundles). `deploy.sh` creates `data/u/`.
+`deploy.sh` creates `data/u/`.
+
+## Access to set up
+
+To set up once on the site directory, with EOS ACLs: everyone who may see the site reads; a CMS member can create
+their own folder under `data/u/` and write in it, **and in no one else's**; the service account that runs the cron
+jobs can write everywhere (it removes the expired bundles and rewrites the lists).
+
+This is the only thing that keeps one user from replacing or removing another's bundles. `evd` writes as whoever
+runs it, with their own EOS rights, and the site has no server that could check anything. What `evd` does check is
+that a login (`--user`, `EVD_USER`) and a bundle name are plain names, so that a path built from them stays inside
+`data/u/<login>/`; and `evd clean` leaves alone anything in `data/u/` that is a link.
+
+**Not verified:** the ACL that gives exactly this on an EOS project space (a folder its creator alone can write in,
+under a parent where every CMS member can create one, with deletion by the service account) has not been worked
+out or tried: the site does not exist yet. Before the site is announced, test with two ordinary accounts that
+neither can write, replace or remove anything in the other's folder (`evd --user <the other> FILE.root`,
+`evd rm --user <the other> NAME`, and plain `cp`/`rm` on the mounted directory), and that the cron account can.
 
 ## Users' bundles
 
 `evd FILE.root` (see `evd view -h`) converts and copies the bundle to `data/u/<login>/<name>.evdb`, then rewrites
-`data/u/<login>/index.json`: `{"updated", "bundles": [{"file", "title", "events", "size", "created", "expires"}]}`,
-newest first, `file` relative to the site, so that the link is `<EVD_SITE_URL>/#b=<file>`. Files are copied under a
-temporary name and renamed, so a reader never sees half a file. Where the site directory is not mounted the same is
-done with `xrdcp` and `xrdfs` (needs a Kerberos ticket). `evd list` and `evd rm NAME` read and edit the same index.
-The site's own `index.json` never lists `data/u/`: a user's bundle is seen by its owner and by whoever has its link.
+`data/u/<login>/index.json`:
 
-A bundle is kept 30 days after it was last published; publishing the same name again replaces and renews it.
-`evd clean` (below) removes the expired ones.
+```
+{"updated": "2026-11-13T12:02:33+00:00",
+ "bundles": [{"file": "data/u/<login>/<name>.evdb",      relative to the site: the link is <EVD_SITE_URL>/#b=<file>
+              "title": "<title> · 10 events", "events": 10, "size": 14180023,
+              "created": "...",                           when the bundle was converted (its header's)
+              "published": "...",                         when it was put on the site; publishing again renews it
+              "expires": "..."}]}                         published + 30 days
+```
+
+most recently published first. `<login>` is lower case: a letter, then letters, digits, `-` and `_`, 2 to 32
+characters (the rule the viewer applies). Files are copied under a temporary name and renamed, so a reader never
+sees half a file. Where the site directory is not mounted the same is done with `xrdcp` and `xrdfs` (needs a
+Kerberos ticket). `evd list` and `evd rm NAME` read and edit the same index. The site's own `index.json` never lists
+anything in `data/u/`: a user's bundle is seen by its owner and by whoever has its link.
+
+The index is read, changed and written back without a lock: two `evd` runs of one user that publish at the same
+moment can leave one of the two bundles out of `evd list` and of the viewer's "My files" until that name is
+published again or the next `evd clean`. The bundle is there and its link works.
+
+A bundle is kept 30 days after it was published; publishing the same name again replaces and renews it.
+`evd clean` (below) removes the expired ones, and rewrites each list from the files present (`published` is then the
+file's modification time).
 
 ## Campaigns (`campaigns.json`)
 
@@ -95,8 +126,11 @@ through the same cleanup.
 - **Add a finished sample** (e.g. simulation) under its own heading:
   `evd publish ttbar.evdb --campaign simulation --title Simulation --file-title "ttbar 14 TeV · PU200"`
 - **Remove expired user bundles now:** `evd clean --dry-run` lists them, `evd clean` removes them (`--days N`
-  changes the 30 days). It only ever touches `data/u/`: expired bundles, files a publish left half-copied more than a
-  day ago, and the indexes, which it rewrites to list exactly the bundles present.
+  changes the 30 days; at least 1). It only ever touches plain files directly in the folders of `data/u/`: expired
+  bundles, files a publish left half-copied more than a day ago (`*.evdb.tmp<pid>`, `index.json.tmp<pid>`), and the
+  indexes, which it rewrites to list exactly the bundles present. A folder that is a link, and links or folders
+  inside an area, are left alone and named in the log; so is an area in which something goes wrong, while the
+  others are still cleaned.
 - **Demonstrate Live without new data:** `evd simulate mct_22000077.evdb --campaign mct_live_demo --title "MCT
   cosmics (simulated live)" --events 10 --interval 60` publishes a few events every minute (remove
   `data/mct_live_demo/` first to start over).

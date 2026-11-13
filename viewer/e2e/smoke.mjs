@@ -128,8 +128,16 @@ async function checkBundle(file, tag, state) {
   // In the "Particle type" mode a selection shows its truth <-> reco pair (a candidate, and its particle with truth).
   if (await page.locator(".colourkey").count()) {
     const pair = await page.locator(".inspector .pairline").innerText().catch(() => "");
-    log(`${tag}: pair ${pair.replace(/\s+/g, " ")}`);
-    if (!pair) fail("no truth <-> reco pair for the selection");
+    // A kind with no truth of its own opens no pair (src/model/match.ts truthStatus, opensPair): with a truth root in
+    // the bundle, a truthGap and neither a match to a truth layer, a fact into it nor a derived match (e.g. a stock
+    // release's TICL candidates).
+    const rels = Object.values(h.relations), truthTables = new Set(h.display.filter((d) => d.truth).map((d) => d.table));
+    const truthRoot = [...truthTables].some((t) => rels.some((r) => r.association && (r.from === t || r.to === t)));
+    const ownTruth = !truthRoot || !target.truthGap || !!target.truthGap.derived
+      || rels.some((r) => (r.match && r.from === target.table && truthTables.has(r.to)) || (r.fact && r.to === target.table));
+    log(`${tag}: pair ${pair.replace(/\s+/g, " ") || (ownTruth ? "none" : `none, as ${target.table} has no truth of its own`)}`);
+    if (!pair && ownTruth) fail("no truth <-> reco pair for the selection");
+    if (pair && !ownTruth) fail(`a truth <-> reco pair for ${target.table}, which has no truth of its own`);
   }
   await shot("3_selected");
   // The levels need an object with a step that is drawn on request ("show"): row 0 may be e.g. a track-only candidate.

@@ -1,10 +1,5 @@
 /* The selection's card (Navigator.tsx): its header, its chain with the truth link of every step, the truth card and
    lineage (Truth.tsx), the pair, the levels in the view, the object looked at, its associations and its columns. */
-@media (prefers-reduced-motion: reduce) {
-  .inspector {
-    animation: none;
-  }
-}
 .inspector {
   position: absolute;
   top: 12px;
@@ -23,6 +18,12 @@
   from {
     opacity: 0;
     transform: translateY(-8px);
+  }
+}
+/* Without the slide-in for those who ask for less motion: after the rule above, so that it wins. */
+@media (prefers-reduced-motion: reduce) {
+  .inspector {
+    animation: none;
   }
 }
 .inspector > header {

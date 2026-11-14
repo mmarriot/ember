@@ -182,7 +182,7 @@
   box-shadow: 0 0 0 2px var(--overlay);
 }
 
-/* Fades and slides are left out for those who ask for less motion (the card's: inspector.css). */
+/* Without the fade for those who ask for less motion: after the rule that sets it, so that it wins. */
 @media (prefers-reduced-motion: reduce) {
   .caption {
     animation: none;

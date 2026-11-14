@@ -852,6 +852,7 @@ async function checkBundle(file, tag, state) {
     if (pair && !ownTruth) fail(`a truth <-> reco pair for ${target.table}, which has no truth of its own`);
   }
   await shot("3_selected");
+  await checkReducedMotion(page, fail);
   // The levels need an object with a step that is drawn on request ("show"): row 0 may be e.g. a track-only candidate.
   const pills = () => page.locator(".inspector .rung .level").count();
   let row = 0;
@@ -1092,6 +1093,14 @@ async function checkObjectRows(page, h, fail, shot, tag) {
   if (!marked?.includes("selected")) fail("the selected object's row is not marked");
   await shot("1_rows");
   await page.keyboard.press("Escape");
+}
+
+/** Those who ask for less motion get the selection's card without its slide-in. */
+async function checkReducedMotion(page, fail) {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  const animation = await page.$eval(".inspector", (card) => getComputedStyle(card).animationName);
+  await page.emulateMedia({ reducedMotion: null });
+  if (animation !== "none") fail(`the card slides in for those who ask for less motion (animation ${animation})`);
 }
 
 /** X crosses the reco <-> truth link from a selected object that has a match, and B comes back. */

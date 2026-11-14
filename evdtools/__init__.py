@@ -1,4 +1,5 @@
 """evdtools: produce, check and publish .evdb event-display bundles (docs/format.md)."""
+
 __version__ = "0.2.0"
 
 

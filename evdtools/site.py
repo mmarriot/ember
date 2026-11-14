@@ -16,6 +16,7 @@ Nothing here checks who the caller is: that one user cannot write in another's a
 the folders under data/u/ (see service/README.md). What is checked is that a login or a bundle name is a plain name,
 so that no path built from them leaves the user's area.
 """
+
 import contextlib
 import datetime
 import errno
@@ -40,8 +41,11 @@ DEFAULT_URL = "https://cms-evd.web.cern.ch"
 DEFAULT_SERVICE = "/eos/project/c/cms-evd/service"
 KEEP_DAYS = 30
 USERS = "data/u"  # the per-user areas, relative to the site
-EOS = {"/eos/project/": "root://eosproject.cern.ch/", "/eos/user/": "root://eosuser.cern.ch/",
-       "/eos/cms/": "root://eoscms.cern.ch/"}
+EOS = {
+    "/eos/project/": "root://eosproject.cern.ch/",
+    "/eos/user/": "root://eosuser.cern.ch/",
+    "/eos/cms/": "root://eoscms.cern.ch/",
+}
 PARTIAL = re.compile(r"\.(evdb|json)\.tmp\w+$")  # a file being copied in (replacing() and _XRootD.put)
 
 
@@ -62,8 +66,10 @@ def check_login(user):
     names a folder, so anything else (a path, a space) is refused."""
     user = user.lower()
     if not re.fullmatch(r"[a-z][a-z0-9_-]{1,31}", user):
-        raise Problem(f"'{user}' cannot be a login: a letter, then letters, digits, '-' and '_', 2 to 32 characters "
-                      "(give your CERN login with --user or EVD_USER)")
+        raise Problem(
+            f"'{user}' cannot be a login: a letter, then letters, digits, '-' and '_', 2 to 32 characters "
+            "(give your CERN login with --user or EVD_USER)"
+        )
     return user
 
 
@@ -128,8 +134,10 @@ class _Mounted:
     def check(self, area=None):
         """A Problem if the site is not there, or (with `area`) if files cannot be written in <site>/area."""
         if not os.path.isdir(self.root):
-            raise Problem(f"the site directory {self.root} does not exist (set EVD_SITE_DIR or --site, or write the "
-                          "bundle here with -o FILE)")
+            raise Problem(
+                f"the site directory {self.root} does not exist (set EVD_SITE_DIR or --site, or write the "
+                "bundle here with -o FILE)"
+            )
         folder = os.path.join(self.root, area or "")
         while not os.path.isdir(folder):  # it will be created: can it be, in the nearest folder that exists?
             folder = os.path.dirname(folder)
@@ -137,8 +145,10 @@ class _Mounted:
             self._denied(folder, "Permission denied")
 
     def _denied(self, folder, why):
-        raise Problem(f"cannot write to {folder}: {why}. The user areas of the site are writable by CMS members "
-                      "only; -o FILE writes the bundle here instead")
+        raise Problem(
+            f"cannot write to {folder}: {why}. The user areas of the site are writable by CMS members "
+            "only; -o FILE writes the bundle here instead"
+        )
 
     def read(self, path):
         """The bytes of <site>/path, or None if there is no such file or it is a link (not followed: the next write
@@ -175,9 +185,13 @@ class _Mounted:
 
 class _XRootD:
     """The site on an EOS instance this machine does not mount, through xrdcp and xrdfs."""
+
     MISSING = re.compile(rb"no such file|\[3011\]", re.I)
-    REFUSED = re.compile(r"auth failed|unable to authenticate|no protocols left to try|permission denied|"
-                         r"not authorized|\[3010\]", re.I)
+    REFUSED = re.compile(
+        r"auth failed|unable to authenticate|no protocols left to try|permission denied|"
+        r"not authorized|\[3010\]",
+        re.I,
+    )
 
     def __init__(self, host, root):
         self.host, self.root = host, root
@@ -186,14 +200,18 @@ class _XRootD:
         try:
             return subprocess.run(command, capture_output=True)
         except FileNotFoundError:
-            raise Problem(f"{command[0]} not found: the site is not mounted on this machine, and reaching it through "
-                          "XRootD needs xrdcp and xrdfs (run cmsenv first)") from None
+            raise Problem(
+                f"{command[0]} not found: the site is not mounted on this machine, and reaching it through "
+                "XRootD needs xrdcp and xrdfs (run cmsenv first)"
+            ) from None
 
     def _fail(self, what, result):
         error = result.stderr.decode(errors="replace").strip()
         if self.REFUSED.search(error):
-            raise Problem(f"cannot {what}: {self.host} refused ({error.splitlines()[-1]}). Get a Kerberos ticket "
-                          "with `kinit <login>@CERN.CH`; the user areas of the site are writable by CMS members")
+            raise Problem(
+                f"cannot {what}: {self.host} refused ({error.splitlines()[-1]}). Get a Kerberos ticket "
+                "with `kinit <login>@CERN.CH`; the user areas of the site are writable by CMS members"
+            )
         raise Problem(f"cannot {what}: {error or 'xrootd error'}")
 
     def _url(self, path):
@@ -204,8 +222,10 @@ class _XRootD:
         written is only known when writing: one round trip tells that the server, the ticket and the site are there."""
         result = self._run("xrdfs", self.host, "stat", self.root)
         if result.returncode and self.MISSING.search(result.stderr):
-            raise Problem(f"the site directory {self.root} does not exist on {self.host} (set EVD_SITE_DIR or "
-                          "--site, or write the bundle here with -o FILE)")
+            raise Problem(
+                f"the site directory {self.root} does not exist on {self.host} (set EVD_SITE_DIR or "
+                "--site, or write the bundle here with -o FILE)"
+            )
         if result.returncode:
             self._fail(f"reach {self.root}", result)
 
@@ -219,9 +239,11 @@ class _XRootD:
 
     def put(self, source, path):
         target, partial = f"{self.root}/{path}", f"{path}.tmp{os.getpid()}"
-        for step in (("xrdfs", self.host, "mkdir", "-p", os.path.dirname(target)),
-                     ("xrdcp", "-s", "-f", source, self._url(partial)),
-                     ("xrdfs", self.host, "mv", f"{self.root}/{partial}", target)):  # EOS renames over an old file
+        for step in (
+            ("xrdfs", self.host, "mkdir", "-p", os.path.dirname(target)),
+            ("xrdcp", "-s", "-f", source, self._url(partial)),
+            ("xrdfs", self.host, "mv", f"{self.root}/{partial}", target),
+        ):  # EOS renames over an old file
             result = self._run(*step)
             if result.returncode:
                 self._fail(f"write {target}", result)
@@ -250,8 +272,11 @@ def _listing(files, user):
         entries = json.loads(data)["bundles"] if data else []
     except (ValueError, KeyError, TypeError):
         return []  # not an index: the next publish writes a new one
-    return [e for e in entries if isinstance(e, dict) and isinstance(e.get("file"), str)] \
-        if isinstance(entries, list) else []
+    return (
+        [e for e in entries if isinstance(e, dict) and isinstance(e.get("file"), str)]
+        if isinstance(entries, list)
+        else []
+    )
 
 
 def listing(site, user):
@@ -279,10 +304,17 @@ def _entry(bundle, file, title, published, days):
     """The index entry of the local bundle file `bundle`, listed as `file` and published at `published` (s);
     ValueError if it is not a complete bundle."""
     from .bundle import summary  # here, so that the site's location can be asked for (below) without numpy
+
     header, events = summary(bundle)
-    return {"file": file, "title": f"{title} · {events} events", "events": events, "size": os.path.getsize(bundle),
-            "created": (header.get("source") or {}).get("created"), "published": _iso(published),
-            "expires": _iso(published + days * 86400)}
+    return {
+        "file": file,
+        "title": f"{title} · {events} events",
+        "events": events,
+        "size": os.path.getsize(bundle),
+        "created": (header.get("source") or {}).get("created"),
+        "published": _iso(published),
+        "expires": _iso(published + days * 86400),
+    }
 
 
 def publish(bundle, site, user, name, title=None, days=KEEP_DAYS):
@@ -399,4 +431,6 @@ def clean(site, days=KEEP_DAYS, dry_run=False, log=print, now=None):
 
 
 if __name__ == "__main__":  # for the shell scripts in service/: eval "$(python3 -m evdtools.site)"
-    print(f"export EVD_SITE_DIR='{site_dir()}'\nexport EVD_SITE_URL='{site_url()}'\nexport EVD_SERVICE_DIR='{service_dir()}'")
+    print(
+        f"export EVD_SITE_DIR='{site_dir()}'\nexport EVD_SITE_URL='{site_url()}'\nexport EVD_SERVICE_DIR='{service_dir()}'"
+    )

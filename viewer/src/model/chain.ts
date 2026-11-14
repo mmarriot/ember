@@ -19,31 +19,74 @@ import { bestPartners, contentPartners, levelsOf, type Ref, type Related } from 
  *  ranking of the particles in its parts would be a match through them (docs/truth.md "Constituents"): the statement
  *  stays on each hit or cluster. */
 export type Link = { label?: string } & (
-  | { kind: "match"; truth: string; measure: string; good?: number; of: number; matched: number; clean: number; partners: [number, number][]; purity?: number } // purity: of a single object's match
+  | {
+      kind: "match";
+      truth: string;
+      measure: string;
+      good?: number;
+      of: number;
+      matched: number;
+      clean: number;
+      partners: [number, number][];
+      purity?: number;
+    } // purity: of a single object's match
   | { kind: "fact"; in: string; truth: string; total: number; particles: [number, number][]; unranked?: boolean } // [truth row, share 0..1], largest first
-  | { kind: "derived"; truth: string; reason: string; gap?: number; of: number; partners: [number, number][]; unranked?: boolean }
+  | {
+      kind: "derived";
+      truth: string;
+      reason: string;
+      gap?: number;
+      of: number;
+      partners: [number, number][];
+      unranked?: boolean;
+    }
   | { kind: "none"; reason: string; gap?: number }
-  | { kind: "container" });
+  | { kind: "container" }
+);
 
 /** `held`: for an object no relation names as containing the selection (see `voted`), how many of the selection's
  *  `of` parts it holds. */
-export interface Group { table: string; rows: number[]; held?: [number, number] }
+export interface Group {
+  table: string;
+  rows: number[];
+  held?: [number, number];
+}
 /** One step of the ladder: the objects of one kind. */
-export interface Rung { kind: string; groups: Group[]; count: number; links: Link[] }
+export interface Rung {
+  kind: string;
+  groups: Group[];
+  count: number;
+  links: Link[];
+}
 /** `other`: related rows of tables the bundle does not draw (a hit's digi), under their table's name. */
-export interface Ladder { above: Rung[]; self: Rung; below: Rung[]; beside: Rung[]; other: Rung[] }
+export interface Ladder {
+  above: Rung[];
+  self: Rung;
+  below: Rung[];
+  beside: Rung[];
+  other: Rung[];
+}
 
-const layerOf = (header: Header, table: string): DisplayLayer | undefined => header.display.find((l) => l.table === table);
-const stageOf = (header: Header, table: string) => header.display.find((l) => l.table === table && l.stage !== undefined)?.stage;
+const layerOf = (header: Header, table: string): DisplayLayer | undefined =>
+  header.display.find((l) => l.table === table);
+const stageOf = (header: Header, table: string) =>
+  header.display.find((l) => l.table === table && l.stage !== undefined)?.stage;
 const sorted = (rows: Iterable<number>) => [...rows].sort((a, b) => a - b);
 
 /** The ladder of reco object `sel`. `parts`: its relatedParts; `statuses`: each table's truth status (model/match.ts);
  *  `truth`: the truth particles' table, for evd's stand-in (layer clusters). */
-export function recoLadder(ev: EventData, header: Header, sel: Ref, parts: { madeOf: Related; partOf: Related; linked: Related },
-  statuses: Map<string, TruthStatus>, truth?: string): Ladder {
+export function recoLadder(
+  ev: EventData,
+  header: Header,
+  sel: Ref,
+  parts: { madeOf: Related; partOf: Related; linked: Related },
+  statuses: Map<string, TruthStatus>,
+  truth?: string,
+): Ladder {
   // What is inside it: what it is made of, and what is built only from that (model/relations.ts levelsOf).
   const inside = levelsOf(ev, header, sel, { ...parts, linked: new Map() });
-  const below: Related = new Map(), beside: Related = new Map();
+  const below: Related = new Map(),
+    beside: Related = new Map();
   for (const [t, rows] of inside) {
     if (t === sel.table || !rows.size) continue;
     // Named by its relations, or an earlier step of its own reconstruction (a candidate's tracksters): below. Anything
@@ -51,73 +94,149 @@ export function recoLadder(ev: EventData, header: Header, sel: Ref, parts: { mad
     (parts.madeOf.has(t) || stageOf(header, t) !== undefined ? below : beside).set(t, rows);
   }
   // A kind with truth of its own may list the particles in its parts; for any other that would be a match through them.
-  const kind = statuses.get(sel.table)?.kind, ranked = kind === "match" || kind === "fact" || kind === "derived";
+  const kind = statuses.get(sel.table)?.kind,
+    ranked = kind === "match" || kind === "fact" || kind === "derived";
   const rung = (name: string, tables: string[], from: Related, rank: boolean): Rung => {
     const groups = tables.map((table) => ({ table, rows: sorted(from.get(table) ?? []) })).filter((g) => g.rows.length);
-    return { kind: name, groups, count: groups.reduce((s, g) => s + g.rows.length, 0), links: linksOf(ev, header, groups, statuses, truth, rank) };
+    return {
+      kind: name,
+      groups,
+      count: groups.reduce((s, g) => s + g.rows.length, 0),
+      links: linksOf(ev, header, groups, statuses, truth, rank),
+    };
   };
   // Holders before what they hold (model/levels.ts gives each kind its depth), so each list reads down the chain; then,
   // among what contains it (`paths`), the collections of another reconstruction path (a PF candidate's CHS jet next to
   // its Puppi jet), by their own name. Not among its parts: those are the same objects again (legacy hits next to SoA).
   const rungs = (from: Related, rank: boolean, paths = false) => {
-    const levels = focusLevels(header.display, sel.table, from, () => true, header.relations).map((l, i) => ({ l, i }))
-      .sort((a, b) => (a.l.depth ?? 0) - (b.l.depth ?? 0) || a.i - b.i).map(({ l }) => rung(l.name, [...new Set(l.layers.map((d) => d.table))], from, rank));
-    const others = !paths ? [] : [...from.keys()].filter((t) => t !== sel.table && layerOf(header, t)?.alternative && from.get(t)!.size)
-      .map((t) => rung(`${layerOf(header, t)!.group} · ${layerOf(header, t)!.label}`, [t], from, rank));
+    const levels = focusLevels(header.display, sel.table, from, () => true, header.relations)
+      .map((l, i) => ({ l, i }))
+      .sort((a, b) => (a.l.depth ?? 0) - (b.l.depth ?? 0) || a.i - b.i)
+      .map(({ l }) => rung(l.name, [...new Set(l.layers.map((d) => d.table))], from, rank));
+    const others = !paths
+      ? []
+      : [...from.keys()]
+          .filter((t) => t !== sel.table && layerOf(header, t)?.alternative && from.get(t)!.size)
+          .map((t) => rung(`${layerOf(header, t)!.group} · ${layerOf(header, t)!.label}`, [t], from, rank));
     return [...levels, ...others];
   };
-  const own = layerOf(header, sel.table), self = rung(own ? kindName(own) : sel.table, [sel.table], new Map([[sel.table, new Set([sel.row])]]), true);
-  const other = [...parts.partOf, ...below].filter(([t, rows]) => rows.size && t !== sel.table && !layerOf(header, t))
+  const own = layerOf(header, sel.table),
+    self = rung(own ? kindName(own) : sel.table, [sel.table], new Map([[sel.table, new Set([sel.row])]]), true);
+  const other = [...parts.partOf, ...below]
+    .filter(([t, rows]) => rows.size && t !== sel.table && !layerOf(header, t))
     .map(([t, rows]) => ({ kind: t, groups: [{ table: t, rows: sorted(rows) }], count: rows.size, links: [] }));
-  return { above: [...voted(ev, header, sel, parts, statuses, truth), ...rungs(parts.partOf, true, true)], self, below: rungs(below, ranked), beside: rungs(beside, ranked), other };
+  return {
+    above: [...voted(ev, header, sel, parts, statuses, truth), ...rungs(parts.partOf, true, true)],
+    self,
+    below: rungs(below, ranked),
+    beside: rungs(beside, ranked),
+    other,
+  };
 }
 
 /** Later steps of the selection's reconstruction that no relation names as containing it (a trackster's linked
  *  trackster, interpretation and candidate): for each such table, the object holding the most of the selection's parts
  *  (contentPartners), if it holds at least half of them (counted: "3 of its 4 layer clusters"); latest step first, the
  *  collections of one kind in one step. Worked out in evd, and marked as such (`held`). */
-function voted(ev: EventData, header: Header, sel: Ref, parts: { madeOf: Related; partOf: Related }, statuses: Map<string, TruthStatus>, truth?: string): Rung[] {
-  const own = stageOf(header, sel.table), n = ev.tables[sel.table]?.n ?? 0, out: (Rung & { stage: number })[] = [];
+function voted(
+  ev: EventData,
+  header: Header,
+  sel: Ref,
+  parts: { madeOf: Related; partOf: Related },
+  statuses: Map<string, TruthStatus>,
+  truth?: string,
+): Rung[] {
+  const own = stageOf(header, sel.table),
+    n = ev.tables[sel.table]?.n ?? 0,
+    out: (Rung & { stage: number })[] = [];
   if (own === undefined) return [];
   for (const d of header.display) {
-    if (d.stage === undefined || d.stage <= own || d.alternative || d.truth || parts.partOf.has(d.table) || out.some((r) => r.groups.some((g) => g.table === d.table))) continue;
-    const c = contentPartners(sel.table, d.table, n, ev, header), row = c.partner[sel.row], mine = parts.madeOf.get(c.parts);
+    if (
+      d.stage === undefined ||
+      d.stage <= own ||
+      d.alternative ||
+      d.truth ||
+      parts.partOf.has(d.table) ||
+      out.some((r) => r.groups.some((g) => g.table === d.table))
+    )
+      continue;
+    const c = contentPartners(sel.table, d.table, n, ev, header),
+      row = c.partner[sel.row],
+      mine = parts.madeOf.get(c.parts);
     if (!c.parts || row === undefined || row < 0 || !mine?.size) continue;
     const theirs = new Set<number>(); // the holder's parts in the same table, through any of its relations into it
     for (const [name, info] of Object.entries(header.relations)) {
       const rel = ev.relations[name];
-      if (rel && !info.association && info.from === d.table && info.to === c.parts) for (const p of rel.indices.subarray(rel.offsets[row], rel.offsets[row + 1])) theirs.add(p);
+      if (rel && !info.association && info.from === d.table && info.to === c.parts)
+        for (const p of rel.indices.subarray(rel.offsets[row], rel.offsets[row + 1])) theirs.add(p);
     }
     let held = 0;
     for (const p of mine) if (theirs.has(p)) held++;
     if (2 * held < mine.size) continue;
-    const group: Group = { table: d.table, rows: [row], held: [held, mine.size] }, same = out.find((r) => r.kind === kindName(d));
-    if (same) { same.groups.push(group); same.count++; }
-    else out.push({ kind: kindName(d), groups: [group], count: 1, links: [], stage: d.stage });
+    const group: Group = { table: d.table, rows: [row], held: [held, mine.size] },
+      same = out.find((r) => r.kind === kindName(d));
+    if (same) {
+      same.groups.push(group);
+      same.count++;
+    } else out.push({ kind: kindName(d), groups: [group], count: 1, links: [], stage: d.stage });
   }
-  return out.sort((a, b) => b.stage - a.stage).map(({ stage: _, ...r }) => ({ ...r, links: linksOf(ev, header, r.groups, statuses, truth, true) }));
+  return out
+    .sort((a, b) => b.stage - a.stage)
+    .map(({ stage: _, ...r }) => ({ ...r, links: linksOf(ev, header, r.groups, statuses, truth, true) }));
 }
 
 /** The truth links of the objects in `groups` (one kind): matches counted per truth table, facts per detector (never
  *  summed across detectors), evd's stand-in, or why there is none. `rank`: whether the particles behind a fact or a
  *  stand-in of several objects may be listed (see Link `unranked`); without it they are not worked out at all. */
-function linksOf(ev: EventData, header: Header, groups: Group[], statuses: Map<string, TruthStatus>, truth: string | undefined, rank: boolean): Link[] {
-  const out: (Link & { tables: string[] })[] = [], factRows: Related = new Map();
+function linksOf(
+  ev: EventData,
+  header: Header,
+  groups: Group[],
+  statuses: Map<string, TruthStatus>,
+  truth: string | undefined,
+  rank: boolean,
+): Link[] {
+  const out: (Link & { tables: string[] })[] = [],
+    factRows: Related = new Map();
   const tally = (counts: Map<number, number>) => [...counts].sort((a, b) => b[1] - a[1] || a[0] - b[0]);
-  const matches = new Map<string, { link: Extract<Link, { kind: "match" }>; counts: Map<number, number>; tables: string[] }>();
-  const several = groups.reduce((s, g) => s + g.rows.length, 0) > 1, listed = rank || !several;
+  const matches = new Map<
+    string,
+    { link: Extract<Link, { kind: "match" }>; counts: Map<number, number>; tables: string[] }
+  >();
+  const several = groups.reduce((s, g) => s + g.rows.length, 0) > 1,
+    listed = rank || !several;
   const none = (table: string, reason: string, gap?: number) => {
     const same = out.find((l) => l.kind === "none" && l.reason === reason);
-    if (same) same.tables.push(table); else out.push({ kind: "none", reason, gap, tables: [table] });
+    if (same) same.tables.push(table);
+    else out.push({ kind: "none", reason, gap, tables: [table] });
   };
   for (const g of groups) {
-    const s = statuses.get(g.table), n = ev.tables[g.table]?.n ?? 0;
+    const s = statuses.get(g.table),
+      n = ev.tables[g.table]?.n ?? 0;
     if (!s) continue;
     if (s.kind === "match") {
-      const info = header.relations[s.relation], rel = ev.relations[s.relation];
-      if (!rel) { none(g.table, "its association is not in this event"); continue; }
-      const { partner } = bestPartners(rel, info, true, n), purity = bestPurities(ev, header, s.relation);
-      const m = matches.get(info.to) ?? { link: { kind: "match" as const, truth: info.to, measure: s.match.measure, good: s.match.good, of: 0, matched: 0, clean: 0, partners: [] }, counts: new Map<number, number>(), tables: [] };
+      const info = header.relations[s.relation],
+        rel = ev.relations[s.relation];
+      if (!rel) {
+        none(g.table, "its association is not in this event");
+        continue;
+      }
+      const { partner } = bestPartners(rel, info, true, n),
+        purity = bestPurities(ev, header, s.relation);
+      const m = matches.get(info.to) ?? {
+        link: {
+          kind: "match" as const,
+          truth: info.to,
+          measure: s.match.measure,
+          good: s.match.good,
+          of: 0,
+          matched: 0,
+          clean: 0,
+          partners: [],
+        },
+        counts: new Map<number, number>(),
+        tables: [],
+      };
       m.tables.push(g.table);
       for (const r of g.rows) {
         m.link.of++;
@@ -132,22 +251,59 @@ function linksOf(ev: EventData, header: Header, groups: Group[], statuses: Map<s
     } else if (s.kind === "fact") factRows.set(g.table, new Set(g.rows));
     else if (s.kind === "derived" && truth) {
       const counts = new Map<number, number>();
-      if (listed) { const c = contentPartners(g.table, truth, n, ev, header); for (const r of g.rows) if (c.partner[r] >= 0) counts.set(c.partner[r], (counts.get(c.partner[r]) ?? 0) + 1); }
-      out.push({ kind: "derived", truth, reason: s.reason, gap: s.gap, of: g.rows.length, partners: tally(counts), ...(listed ? {} : { unranked: true }), tables: [g.table] });
+      if (listed) {
+        const c = contentPartners(g.table, truth, n, ev, header);
+        for (const r of g.rows) if (c.partner[r] >= 0) counts.set(c.partner[r], (counts.get(c.partner[r]) ?? 0) + 1);
+      }
+      out.push({
+        kind: "derived",
+        truth,
+        reason: s.reason,
+        gap: s.gap,
+        of: g.rows.length,
+        partners: tally(counts),
+        ...(listed ? {} : { unranked: true }),
+        tables: [g.table],
+      });
     } else if (s.kind === "none") none(g.table, s.reason, s.gap);
-    else if (s.kind === "container") { const same = out.find((l) => l.kind === "container"); if (same) same.tables.push(g.table); else out.push({ kind: "container", tables: [g.table] }); }
+    else if (s.kind === "container") {
+      const same = out.find((l) => l.kind === "container");
+      if (same) same.tables.push(g.table);
+      else out.push({ kind: "container", tables: [g.table] });
+    }
   }
-  for (const { link, counts, tables } of matches.values()) out.unshift({ ...link, partners: listed ? tally(counts) : [], purity: link.of === 1 ? link.purity : undefined, tables });
+  for (const { link, counts, tables } of matches.values())
+    out.unshift({
+      ...link,
+      partners: listed ? tally(counts) : [],
+      purity: link.of === 1 ? link.purity : undefined,
+      tables,
+    });
   // Facts, one line per detector: a hit table of a less preferred path (legacy next to SoA) would count each hit twice.
-  const use = (t: string) => !layerOf(header, t)?.alternative, sums = listed && factRows.size ? simEnergyByParticle(ev, header, factRows, use) : [];
-  for (const where of new Set(facts(header).filter((f) => factRows.has(f.to) && use(f.to)).map((f) => f.in))) {
-    const fs = facts(header).filter((f) => f.in === where && factRows.has(f.to) && use(f.to)), g = sums.find((x) => x.in === where);
-    out.push({ kind: "fact", in: where, truth: fs[0].from, total: g?.total ?? 0, particles: g ? g.particles.map(([p, e]) => [p, e / g.total]) : [],
-      ...(listed ? {} : { unranked: true }), tables: [...new Set(fs.map((f) => f.to))] });
+  const use = (t: string) => !layerOf(header, t)?.alternative,
+    sums = listed && factRows.size ? simEnergyByParticle(ev, header, factRows, use) : [];
+  for (const where of new Set(
+    facts(header)
+      .filter((f) => factRows.has(f.to) && use(f.to))
+      .map((f) => f.in),
+  )) {
+    const fs = facts(header).filter((f) => f.in === where && factRows.has(f.to) && use(f.to)),
+      g = sums.find((x) => x.in === where);
+    out.push({
+      kind: "fact",
+      in: where,
+      truth: fs[0].from,
+      total: g?.total ?? 0,
+      particles: g ? g.particles.map(([p, e]) => [p, e / g.total]) : [],
+      ...(listed ? {} : { unranked: true }),
+      tables: [...new Set(fs.map((f) => f.to))],
+    });
   }
   // Where the step's collections differ in truth, each line names its own.
   const differ = new Set(groups.map((g) => statuses.get(g.table)?.kind)).size > 1;
-  return out.map(({ tables, ...l }) => (differ ? { ...l, label: [...new Set(tables.map((t) => layerOf(header, t)?.label ?? t))].join(", ") } : l));
+  return out.map(({ tables, ...l }) =>
+    differ ? { ...l, label: [...new Set(tables.map((t) => layerOf(header, t)?.label ?? t))].join(", ") } : l,
+  );
 }
 
 /** The objects of the `from` table of reco -> truth relation `name` that `pass` (its layer's cut and filter), by what
@@ -155,11 +311,18 @@ function linksOf(ev: EventData, header: Header, groups: Group[], statuses: Map<s
  *  threshold, any match), `impure` (a match below it) or `unmatched` (none). Rows in table order; null without the
  *  relation in this event. The event's list of fakes and merges for one kind. */
 export function matchTally(ev: EventData, header: Header, name: string, pass: (row: number) => boolean) {
-  const info = header.relations[name], rel = ev.relations[name];
+  const info = header.relations[name],
+    rel = ev.relations[name];
   if (!info?.match || !rel) return null;
-  const n = ev.tables[info.from]?.n ?? 0, { partner } = bestPartners(rel, info, true, n), purity = bestPurities(ev, header, name), good = info.match.good;
-  const clean: number[] = [], impure: number[] = [], unmatched: number[] = [];
-  for (let r = 0; r < n; r++) { // typed-array reads only: it runs for every matched kind on each cut slider step
+  const n = ev.tables[info.from]?.n ?? 0,
+    { partner } = bestPartners(rel, info, true, n),
+    purity = bestPurities(ev, header, name),
+    good = info.match.good;
+  const clean: number[] = [],
+    impure: number[] = [],
+    unmatched: number[] = [];
+  for (let r = 0; r < n; r++) {
+    // typed-array reads only: it runs for every matched kind on each cut slider step
     if (!pass(r)) continue;
     if (partner[r] < 0) unmatched.push(r);
     else if (good !== undefined && purity && !(purity[r] >= good)) impure.push(r);
@@ -171,10 +334,17 @@ export function matchTally(ev: EventData, header: Header, name: string, pass: (r
 /** What the CMSSW associator says of object `row` of reco -> truth relation `name`'s table: `clean`, `impure` or
  *  `unmatched` (see matchTally), or `matched` for a kind without a clean threshold (nothing says how good the match
  *  is); undefined without the relation in this event. */
-export function matchClass(ev: EventData, header: Header, name: string, row: number): "clean" | "impure" | "unmatched" | "matched" | undefined {
-  const info = header.relations[name], rel = ev.relations[name];
+export function matchClass(
+  ev: EventData,
+  header: Header,
+  name: string,
+  row: number,
+): "clean" | "impure" | "unmatched" | "matched" | undefined {
+  const info = header.relations[name],
+    rel = ev.relations[name];
   if (!info?.match || !rel) return undefined;
-  const p = bestPartners(rel, info, true, ev.tables[info.from]?.n ?? 0).partner[row], good = info.match.good;
+  const p = bestPartners(rel, info, true, ev.tables[info.from]?.n ?? 0).partner[row],
+    good = info.match.good;
   if (p === undefined || p < 0) return "unmatched";
   if (good === undefined) return "matched";
   const purity = bestPurities(ev, header, name)?.[row];
@@ -186,16 +356,41 @@ export function matchClass(ev: EventData, header: Header, name: string, row: num
  *  first, each with its completeness (the share of the truth object it holds, where the association gives one) and
  *  whether the truth object is that reco object's own best match (`unmatched`: it has none at all). An empty entry:
  *  nothing of that kind shares anything with it. `hits`: per detector, the hits it left simulated energy in (facts). */
-export interface Reconstructed { table: string; measure?: string; in?: string; partners: { row: number; completeness?: number; best: boolean; unmatched: boolean }[] }
-export interface Deposits { in: string; hits: number; energy: number; weight: string }
+export interface Reconstructed {
+  table: string;
+  measure?: string;
+  in?: string;
+  partners: { row: number; completeness?: number; best: boolean; unmatched: boolean }[];
+}
+export interface Deposits {
+  in: string;
+  hits: number;
+  energy: number;
+  weight: string;
+}
 export function recoOfTruth(ev: EventData, header: Header, sel: Ref): { reco: Reconstructed[]; hits: Deposits[] } {
-  const reco: Reconstructed[] = [], hits = new Map<string, Deposits>();
+  const reco: Reconstructed[] = [],
+    hits = new Map<string, Deposits>();
   for (const [name, info] of Object.entries(header.relations)) {
-    const rel = ev.relations[name], to = layerOf(header, info.to);
-    if (!info.association || info.from !== sel.table || !rel || !to || to.truth || to.alternative || sel.row + 1 >= rel.offsets.length) continue;
-    const lo = rel.offsets[sel.row], hi = rel.offsets[sel.row + 1], where = factIn(header, name);
-    if (where !== undefined) { // a simulation fact: the hits it left energy in, per detector
-      const weight = info.best?.weight ?? info.weights[0] ?? "", w = weight ? rel.weights[weight] : undefined;
+    const rel = ev.relations[name],
+      to = layerOf(header, info.to);
+    if (
+      !info.association ||
+      info.from !== sel.table ||
+      !rel ||
+      !to ||
+      to.truth ||
+      to.alternative ||
+      sel.row + 1 >= rel.offsets.length
+    )
+      continue;
+    const lo = rel.offsets[sel.row],
+      hi = rel.offsets[sel.row + 1],
+      where = factIn(header, name);
+    if (where !== undefined) {
+      // a simulation fact: the hits it left energy in, per detector
+      const weight = info.best?.weight ?? info.weights[0] ?? "",
+        w = weight ? rel.weights[weight] : undefined;
       const d = hits.get(where) ?? { in: where, hits: 0, energy: 0, weight };
       d.hits += hi - lo;
       if (w) for (let k = lo; k < hi; k++) d.energy += w[k];
@@ -203,16 +398,31 @@ export function recoOfTruth(ev: EventData, header: Header, sel: Ref): { reco: Re
       continue;
     }
     // Whether it is the reco object's own best match: the reco -> truth map read forwards.
-    const back = Object.entries(header.relations).find(([n, r]) => r.association && r.from === info.to && r.to === sel.table && ev.relations[n]);
-    const own = back ? bestPartners(ev.relations[back[0]], back[1], true, ev.tables[info.to]?.n ?? 0).partner : undefined;
-    const c = info.match?.completeness, cw = c ? rel.weights[c.weight] : undefined;
+    const back = Object.entries(header.relations).find(
+      ([n, r]) => r.association && r.from === info.to && r.to === sel.table && ev.relations[n],
+    );
+    const own = back
+      ? bestPartners(ev.relations[back[0]], back[1], true, ev.tables[info.to]?.n ?? 0).partner
+      : undefined;
+    const c = info.match?.completeness,
+      cw = c ? rel.weights[c.weight] : undefined;
     const partners = Array.from({ length: hi - lo }, (_, i) => {
-      const k = lo + i, row = rel.indices[k];
-      return { row, completeness: cw ? (c!.complement ? 1 - cw[k] : cw[k]) : undefined, best: own?.[row] === sel.row, unmatched: !!own && own[row] < 0 };
-    }).sort((a, b) => (b.completeness ?? 0) - (a.completeness ?? 0) || Number(b.best) - Number(a.best) || a.row - b.row);
+      const k = lo + i,
+        row = rel.indices[k];
+      return {
+        row,
+        completeness: cw ? (c!.complement ? 1 - cw[k] : cw[k]) : undefined,
+        best: own?.[row] === sel.row,
+        unmatched: !!own && own[row] < 0,
+      };
+    }).sort(
+      (a, b) => (b.completeness ?? 0) - (a.completeness ?? 0) || Number(b.best) - Number(a.best) || a.row - b.row,
+    );
     reco.push({ table: info.to, measure: info.match?.measure, in: info.match?.in, partners });
   }
   const order = (t: string) => header.display.findIndex((l) => l.table === t);
-  reco.sort((a, b) => (stageOf(header, b.table) ?? -1) - (stageOf(header, a.table) ?? -1) || order(a.table) - order(b.table));
+  reco.sort(
+    (a, b) => (stageOf(header, b.table) ?? -1) - (stageOf(header, a.table) ?? -1) || order(a.table) - order(b.table),
+  );
   return { reco, hits: [...hits.values()] };
 }

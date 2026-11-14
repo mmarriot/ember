@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest";
 import { LINE_KIND, outlineSegments, RING_KIND } from "./outlines";
 
 /** The segments as pairs of points [x, y, z]. */
-const pairs = (p: Float32Array) => Array.from({ length: p.length / 6 }, (_, i) => [[...p.subarray(6 * i, 6 * i + 3)], [...p.subarray(6 * i + 3, 6 * i + 6)]]);
+const pairs = (p: Float32Array) =>
+  Array.from({ length: p.length / 6 }, (_, i) => [
+    [...p.subarray(6 * i, 6 * i + 3)],
+    [...p.subarray(6 * i + 3, 6 * i + 6)],
+  ]);
 
 describe("outlineSegments", () => {
   it("draws a barrel part through z = 0 and an endcap part at both ends", () => {
@@ -22,12 +26,16 @@ describe("outlineSegments", () => {
       if (Math.abs(ymid) > 1e-3) expect(Math.sign(ymid)).toBe(side[i]);
     }
     // Spokes (constant z, radius from 129 to 152) are vertical lines in rho-z.
-    const spokes = pairs(position).filter(([a, b]) => a[2] === b[2] && Math.abs(Math.hypot(a[0], a[1]) - 129) < 1e-3 && Math.abs(Math.hypot(b[0], b[1]) - 152) < 1e-3);
+    const spokes = pairs(position).filter(
+      ([a, b]) =>
+        a[2] === b[2] && Math.abs(Math.hypot(a[0], a[1]) - 129) < 1e-3 && Math.abs(Math.hypot(b[0], b[1]) - 152) < 1e-3,
+    );
     expect(spokes.length).toBe(2 * 4);
   });
   it("marks rings apart from lines and spokes, which only the side and rho-z views draw", () => {
     const { kind, position } = outlineSegments([{ name: "EB", r: [129, 152], z: [0, 291] }]);
-    const rings = [...kind].filter((k) => k === RING_KIND).length, lines = [...kind].filter((k) => k === LINE_KIND).length;
+    const rings = [...kind].filter((k) => k === RING_KIND).length,
+      lines = [...kind].filter((k) => k === LINE_KIND).length;
     expect(rings).toBe(2 * 2 * 64 * 2); // 2 faces x 2 radii x 64 segments, 2 vertices each
     expect(lines).toBe(2 * (4 * 2 + 4 * 2)); // per angle: 2 lines along z, 2 spokes
     expect(kind.length).toBe(position.length / 3);

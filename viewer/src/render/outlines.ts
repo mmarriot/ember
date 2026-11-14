@@ -7,13 +7,21 @@
 import * as THREE from "three";
 import type { Outline, ViewName } from "../io/bundle";
 
-const RING = 64, LINES = 4; // segments per ring; lines along z and spokes per face, evenly in phi (between the axes)
-export const RING_KIND = 0, LINE_KIND = 1; // `kind` per vertex: a ring's segment, or a line along z or a spoke
+const RING = 64,
+  LINES = 4; // segments per ring; lines along z and spokes per face, evenly in phi (between the axes)
+export const RING_KIND = 0,
+  LINE_KIND = 1; // `kind` per vertex: a ring's segment, or a line along z or a spoke
 
 /** The outlines' line segments: 6 floats per segment (its two ends); per vertex the side of the beam axis it is drawn
  *  on in rho-z (the segment's middle's: a ring segment crossing y = 0 must not jump across the axis) and its kind. */
-export function outlineSegments(outlines: readonly Outline[]): { position: Float32Array; side: Float32Array; kind: Float32Array } {
-  const pos: number[] = [], side: number[] = [], kind: number[] = [];
+export function outlineSegments(outlines: readonly Outline[]): {
+  position: Float32Array;
+  side: Float32Array;
+  kind: Float32Array;
+} {
+  const pos: number[] = [],
+    side: number[] = [],
+    kind: number[] = [];
   const add = (a: number[], b: number[], k: number) => {
     pos.push(...a, ...b);
     const s = a[1] + b[1] >= 0 ? 1 : -1;
@@ -22,16 +30,20 @@ export function outlineSegments(outlines: readonly Outline[]): { position: Float
   };
   const at = (r: number, phi: number, z: number) => [r * Math.cos(phi), r * Math.sin(phi), z];
   for (const { r, z } of outlines) {
-    const [z0, z1] = [Math.min(...z), Math.max(...z)], faces = z0 > 0 ? [z0, z1, -z0, -z1] : [z1, -z1];
+    const [z0, z1] = [Math.min(...z), Math.max(...z)],
+      faces = z0 > 0 ? [z0, z1, -z0, -z1] : [z1, -z1];
     const radii = r[0] > 0 ? r : [r[1]];
     for (const zf of faces)
       for (const rr of radii)
-        for (let i = 0; i < RING; i++) add(at(rr, (2 * Math.PI * i) / RING, zf), at(rr, (2 * Math.PI * (i + 1)) / RING, zf), RING_KIND);
+        for (let i = 0; i < RING; i++)
+          add(at(rr, (2 * Math.PI * i) / RING, zf), at(rr, (2 * Math.PI * (i + 1)) / RING, zf), RING_KIND);
     for (let i = 0; i < LINES; i++) {
       const phi = (2 * Math.PI * (i + 0.5)) / LINES; // off the axes, so no line lies on y = 0 (rho-z sides)
       for (const rr of radii) {
-        if (z0 > 0) { add(at(rr, phi, z0), at(rr, phi, z1), LINE_KIND); add(at(rr, phi, -z0), at(rr, phi, -z1), LINE_KIND); }
-        else add(at(rr, phi, -z1), at(rr, phi, z1), LINE_KIND);
+        if (z0 > 0) {
+          add(at(rr, phi, z0), at(rr, phi, z1), LINE_KIND);
+          add(at(rr, phi, -z0), at(rr, phi, -z1), LINE_KIND);
+        } else add(at(rr, phi, -z1), at(rr, phi, z1), LINE_KIND);
       }
       for (const zf of faces) add(at(r[0], phi, zf), at(r[1], phi, zf), LINE_KIND);
     }
@@ -42,15 +54,21 @@ export function outlineSegments(outlines: readonly Outline[]): { position: Float
 /** The outlines as one LineSegments in a colour between `colour` and `background` (raw sRGB, as the layers); faded
  *  parts are mixed further towards the background (no blending, so no sorting). */
 export function outlineObject(outlines: readonly Outline[], colour: THREE.Color, background: THREE.Color) {
-  const { position, side, kind } = outlineSegments(outlines), g = new THREE.BufferGeometry();
+  const { position, side, kind } = outlineSegments(outlines),
+    g = new THREE.BufferGeometry();
   g.setAttribute("position", new THREE.BufferAttribute(position, 3));
   g.setAttribute("side", new THREE.BufferAttribute(side, 1));
   g.setAttribute("kind", new THREE.BufferAttribute(kind, 1));
   const material = new THREE.ShaderMaterial({
     uniforms: {
-      uProj: { value: 0 }, uLines: { value: 0 }, uFade: { value: 0 }, uReach: { value: 1000 }, uTarget: { value: new THREE.Vector3() },
+      uProj: { value: 0 },
+      uLines: { value: 0 },
+      uFade: { value: 0 },
+      uReach: { value: 1000 },
+      uTarget: { value: new THREE.Vector3() },
       // fainter on a dark background; a light one needs more contrast for the same impression
-      uCol: { value: colour.clone().lerp(background, background.getHSL({ h: 0, s: 0, l: 0 }).l > 0.5 ? 0.15 : 0.55) }, uBg: { value: background.clone() },
+      uCol: { value: colour.clone().lerp(background, background.getHSL({ h: 0, s: 0, l: 0 }).l > 0.5 ? 0.15 : 0.55) },
+      uBg: { value: background.clone() },
     },
     depthWrite: false,
     vertexShader: /* glsl */ `
@@ -90,7 +108,13 @@ export function outlineObject(outlines: readonly Outline[], colour: THREE.Color,
       u.uFade.value = view === "3d" ? 1 : 0;
     },
     /** 3D: what the camera looks at and its distance to it (cm), the scale of the fading. */
-    setReach(target: THREE.Vector3, d: number) { u.uTarget.value.copy(target); u.uReach.value = d; },
-    dispose() { g.dispose(); material.dispose(); },
+    setReach(target: THREE.Vector3, d: number) {
+      u.uTarget.value.copy(target);
+      u.uReach.value = d;
+    },
+    dispose() {
+      g.dispose();
+      material.dispose();
+    },
   };
 }

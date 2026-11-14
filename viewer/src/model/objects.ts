@@ -7,7 +7,8 @@ import type { DisplayLayer, Table } from "../io/bundle";
  *  sorting the table: 110k layer clusters at PU200 are a scan, not a 40 ms sort on every render. Otherwise (N steps
  *  through all of them) a sort, O(n log n) in the passing rows. */
 export function topRows(t: Table, sort: string | undefined, pass: (row: number) => boolean, max: number): number[] {
-  const key = sort ? t.columns[sort] : undefined, rows: number[] = [];
+  const key = sort ? t.columns[sort] : undefined,
+    rows: number[] = [];
   if (key && max <= 64) {
     for (let i = 0; i < t.n; i++) {
       if (!pass(i) || (rows.length === max && !(Number(key[i]) > Number(key[rows[max - 1]])))) continue;

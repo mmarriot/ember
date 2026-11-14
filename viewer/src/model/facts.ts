@@ -6,7 +6,8 @@
 // drawn as cells is a fact, in that layer's domain.
 import type { DisplayLayer, Fact, Header } from "../io/bundle";
 
-const layerOf = (header: Header, table: string): DisplayLayer | undefined => header.display?.find((l) => l.table === table);
+const layerOf = (header: Header, table: string): DisplayLayer | undefined =>
+  header.display?.find((l) => l.table === table);
 
 /** The detector of relation `name` if it is a simulation fact (truth -> hits), else undefined. "" for a fact whose
  *  detector the bundle does not name (an old bundle without domains). */
@@ -14,7 +15,8 @@ export function factIn(header: Header, name: string): string | undefined {
   const r = header.relations[name];
   if (!r) return undefined;
   if (r.fact) return r.fact.in;
-  const from = layerOf(header, r.from), to = layerOf(header, r.to);
+  const from = layerOf(header, r.from),
+    to = layerOf(header, r.to);
   if (!r.association || !from?.truth || !to || to.truth || to.context || to.repr !== "cells") return undefined;
   return to.domain ?? "";
 }
@@ -25,8 +27,11 @@ export function facts(header: Header): FactRelation[] {
   let out = factsOf.get(header);
   if (!out) {
     out = Object.keys(header.relations).flatMap((name) => {
-      const where = factIn(header, name), r = header.relations[name];
-      return where === undefined ? [] : [{ name, from: r.from, to: r.to, in: where, ...(r.fact?.unit ? { unit: r.fact.unit } : {}) }];
+      const where = factIn(header, name),
+        r = header.relations[name];
+      return where === undefined
+        ? []
+        : [{ name, from: r.from, to: r.to, in: where, ...(r.fact?.unit ? { unit: r.fact.unit } : {}) }];
     });
     factsOf.set(header, out);
   }
@@ -36,7 +41,11 @@ const factsOf = new WeakMap<Header, FactRelation[]>();
 
 /** What one row of the simulation's record covers for hit `row` of a fact relation's table, when coarser than a hit
  *  (e.g. "CSC layer"); undefined when it is the hit itself. */
-export function unitOf(f: FactRelation, columns: Record<string, ArrayLike<number | bigint>> | undefined, row: number): string | undefined {
+export function unitOf(
+  f: FactRelation,
+  columns: Record<string, ArrayLike<number | bigint>> | undefined,
+  row: number,
+): string | undefined {
   const u = f.unit;
   if (!u || typeof u === "string") return u;
   const v = columns?.[u.column]?.[row];

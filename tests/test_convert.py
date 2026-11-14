@@ -1,4 +1,5 @@
 """convert() on small NanoAOD files: preselection, --events, --max-events, --sorted, per-run tables from the file or another."""
+
 import io
 import json
 
@@ -23,9 +24,10 @@ CHANNELS = {"Channel": {"size": [0.5, 0.0, 0.7]}}
 
 
 def event(*energies):
-    return {"Hit": {"e": list(energies), "dense": [k % 4 for k in range(len(energies))],
-                    "cluster": [0] * len(energies)},
-            "Cl": {"e": [2.0]}}
+    return {
+        "Hit": {"e": list(energies), "dense": [k % 4 for k in range(len(energies))], "cluster": [0] * len(energies)},
+        "Cl": {"e": [2.0]},
+    }
 
 
 EVENTS = [event(6, 0.5, 2), event(2, 3), event(9), event(1, 7, 8)]  # all but event 1 have a hit above 5

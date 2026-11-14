@@ -17,12 +17,23 @@ export interface Layer {
   readonly context?: boolean; // a background layer: left out of framing
   readonly views?: readonly ViewName[]; // the views that draw it (none: all)
   readonly object: THREE.Object3D;
-  readonly x: Float32Array; readonly y: Float32Array; readonly z: Float32Array;
+  readonly x: Float32Array;
+  readonly y: Float32Array;
+  readonly z: Float32Array;
   /** Objects picked along a segment rather than at a point (lines; showers along their principal axis): its ends. */
-  readonly segment?: { readonly a: readonly [Float32Array, Float32Array, Float32Array]; readonly b: readonly [Float32Array, Float32Array, Float32Array] };
+  readonly segment?: {
+    readonly a: readonly [Float32Array, Float32Array, Float32Array];
+    readonly b: readonly [Float32Array, Float32Array, Float32Array];
+  };
   /** Curved lines (helices): each object's path as `points` points, object i at [i * points, (i + 1) * points), picked
    *  along it and framed whole. */
-  readonly path?: { readonly points: number; readonly x: Float32Array; readonly y: Float32Array; readonly z: Float32Array; fill(i: number): void };
+  readonly path?: {
+    readonly points: number;
+    readonly x: Float32Array;
+    readonly y: Float32Array;
+    readonly z: Float32Array;
+    fill(i: number): void;
+  };
   /** Lines (tracks, truth particles): framing a selection keeps them whole, start to end. */
   readonly line?: boolean;
   /** Multiplies the pick distance (default 1): below 1, the layer wins over others nearby (e.g. showers over hits). */
@@ -46,7 +57,14 @@ export interface Layer {
   dispose(): void;
 }
 export interface LayerInput {
-  key: string; d: DisplayLayer; t: Table; pal: Pal; rgb: Float32Array; emphasis?: Uint8Array; cut?: Float32Array; field?: Field;
+  key: string;
+  d: DisplayLayer;
+  t: Table;
+  pal: Pal;
+  rgb: Float32Array;
+  emphasis?: Uint8Array;
+  cut?: Float32Array;
+  field?: Field;
   /** A relation of the event, with its `to` table (`polyline` reads its points through it). */
   relation?: (name: string) => { offsets: Uint32Array; indices: Uint32Array; to: Table } | undefined;
 }
@@ -76,20 +94,38 @@ const CULL = (id = "gl_InstanceID") => `float pinned = float(${id}) >= uPin0 && 
   gPin = pinned;
   if ((icut < uCut && pinned < 0.5) || iT > uClock || remaining() <= 0.0) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }`;
 // Colours go to the shaders as raw sRGB values, like the per-object colours (no linear conversion).
-const raw = (c: number | string) => (typeof c === "number" ? new THREE.Color().setHex(c, THREE.LinearSRGBColorSpace) : new THREE.Color().setStyle(c, THREE.LinearSRGBColorSpace));
+const raw = (c: number | string) =>
+  typeof c === "number"
+    ? new THREE.Color().setHex(c, THREE.LinearSRGBColorSpace)
+    : new THREE.Color().setStyle(c, THREE.LinearSRGBColorSpace);
 const baseUniforms = (pal: Pal) => ({
-  uProj: { value: 0 }, uPin0: { value: -1 }, uPin1: { value: -1 }, uAct0: { value: 0 }, uAct1: { value: 0 }, uMix: { value: 1 }, uCut: { value: -1e30 }, uClock: { value: REPLAY_OFF }, uRetire: { value: REPLAY_OFF }, uFade: { value: new THREE.Vector3(0, 1, 0) }, uFlash: { value: pal.flash },
-  uBg: { value: raw(pal.background) }, uRim: { value: new THREE.Color(...pal.rim) }, uGrey: { value: raw(pal.unassigned) },
+  uProj: { value: 0 },
+  uPin0: { value: -1 },
+  uPin1: { value: -1 },
+  uAct0: { value: 0 },
+  uAct1: { value: 0 },
+  uMix: { value: 1 },
+  uCut: { value: -1e30 },
+  uClock: { value: REPLAY_OFF },
+  uRetire: { value: REPLAY_OFF },
+  uFade: { value: new THREE.Vector3(0, 1, 0) },
+  uFlash: { value: pal.flash },
+  uBg: { value: raw(pal.background) },
+  uRim: { value: new THREE.Color(...pal.rim) },
+  uGrey: { value: raw(pal.unassigned) },
 });
 
 /** Cut bookkeeping shared by all layer kinds. A pinned object (the selected one) passes whatever the cut. */
 function cutter(n: number, values: Float32Array | undefined, onChange: (min: number) => void) {
-  let min = -Infinity, pinned = -1;
+  let min = -Infinity,
+    pinned = -1;
   const passes = (i: number) => !values || i === pinned || values[i] >= min;
   return {
     values: values ?? new Float32Array(n),
     passes,
-    pin(row: number) { pinned = row; },
+    pin(row: number) {
+      pinned = row;
+    },
     setCut(m: number) {
       min = values ? m : -Infinity;
       onChange(min);
@@ -110,23 +146,38 @@ function cutter(n: number, values: Float32Array | undefined, onChange: (min: num
  *  selection's tracks) then uploads only the selection's rows. `pieces` (instanced): instances per row, for a row
  *  drawn in several pieces (a helix of many turns), each with its piece number in the attribute `ipiece` and the
  *  row's count in `ipieces`. */
-function shaderLayer(input: LayerInput, g: THREE.BufferGeometry, material: THREE.ShaderMaterial, instanced: boolean,
-  attributes: Record<string, Float32Array>, vec3: Record<string, Float32Array> = {}, pieces?: Uint16Array) {
-  const n = input.t.n, u = material.uniforms, Attr = instanced ? THREE.InstancedBufferAttribute : THREE.BufferAttribute;
+function shaderLayer(
+  input: LayerInput,
+  g: THREE.BufferGeometry,
+  material: THREE.ShaderMaterial,
+  instanced: boolean,
+  attributes: Record<string, Float32Array>,
+  vec3: Record<string, Float32Array> = {},
+  pieces?: Uint16Array,
+) {
+  const n = input.t.n,
+    u = material.uniforms,
+    Attr = instanced ? THREE.InstancedBufferAttribute : THREE.BufferAttribute;
   const cut = cutter(n, input.cut, (m) => (u.uCut.value = Math.max(m, -1e30)));
   // The row of each instance, if not one instance per row; `slot`: each row's first instance, -1 for none.
-  let rows: Uint32Array | null = null, slot: Int32Array | null = null, piece: Float32Array | null = null;
+  let rows: Uint32Array | null = null,
+    slot: Int32Array | null = null,
+    piece: Float32Array | null = null;
   const kept: number[] = [];
   if (input.cut) for (let i = 0; i < n; i++) if (input.cut[i] > HIDDEN) kept.push(i);
   if ((input.cut && kept.length < n) || pieces?.some((c) => c > 1)) {
-    const use = input.cut ? kept : Array.from({ length: n }, (_, i) => i), count = (r: number) => (pieces ? pieces[r] : 1);
+    const use = input.cut ? kept : Array.from({ length: n }, (_, i) => i),
+      count = (r: number) => (pieces ? pieces[r] : 1);
     rows = new Uint32Array(use.reduce((s, r) => s + count(r), 0));
     slot = new Int32Array(n).fill(-1);
     if (pieces) piece = new Float32Array(rows.length);
     let k = 0;
     for (const r of use) {
       slot[r] = k;
-      for (let j = 0; j < count(r); j++, k++) { rows[k] = r; if (piece) piece[k] = j; }
+      for (let j = 0; j < count(r); j++, k++) {
+        rows[k] = r;
+        if (piece) piece[k] = j;
+      }
     }
   }
   const m = rows ? rows.length : n;
@@ -136,8 +187,15 @@ function shaderLayer(input: LayerInput, g: THREE.BufferGeometry, material: THREE
     for (let k = 0; k < rows.length; k++) for (let c = 0; c < size; c++) out[size * k + c] = a[size * rows[k] + c];
     return out;
   };
-  const now = new Uint8Array(m), before = new Uint8Array(m), appear = new Float32Array(m), link = new Float32Array(m);
-  for (const [name, a] of Object.entries({ ...attributes, icut: cut.values, ...(pieces ? { ipieces: Float32Array.from(pieces) } : {}) }))
+  const now = new Uint8Array(m),
+    before = new Uint8Array(m),
+    appear = new Float32Array(m),
+    link = new Float32Array(m);
+  for (const [name, a] of Object.entries({
+    ...attributes,
+    icut: cut.values,
+    ...(pieces ? { ipieces: Float32Array.from(pieces) } : {}),
+  }))
     g.setAttribute(name, new Attr(pick(a), 1));
   if (pieces) g.setAttribute("ipiece", new Attr(piece ?? new Float32Array(m), 1));
   for (const [name, a] of Object.entries({ iT: appear, iL: link })) g.setAttribute(name, new Attr(a, 1));
@@ -151,36 +209,63 @@ function shaderLayer(input: LayerInput, g: THREE.BufferGeometry, material: THREE
     pick,
     passes: cut.passes,
     setCut: cut.setCut,
-    setPinned(row: number) { // its instances: from its slot, as long as they are its own
+    setPinned(row: number) {
+      // its instances: from its slot, as long as they are its own
       cut.pin(row);
-      let k = row < 0 ? -1 : slot ? slot[row] : row, end = k;
+      let k = row < 0 ? -1 : slot ? slot[row] : row,
+        end = k;
       if (k >= 0) while (end < m && (rows ? rows[end] === row : end === row)) end++;
-      u.uPin0.value = k; u.uPin1.value = end;
+      u.uPin0.value = k;
+      u.uPin1.value = end;
     },
-    setColours(rgb: Float32Array) { (g.getAttribute("icol").array as Float32Array).set(pick(rgb, 3)); changed("icol"); },
+    setColours(rgb: Float32Array) {
+      (g.getAttribute("icol").array as Float32Array).set(pick(rgb, 3));
+      changed("icol");
+    },
     setHighlight(sel: Set<number> | null) {
       before.set(now);
       now.fill(0);
-      sel?.forEach((r) => { for (let k = slot ? slot[r] : r; k >= 0 && k < m && (rows ? rows[k] === r : k === r); k++) now[k] = 255; });
+      sel?.forEach((r) => {
+        for (let k = slot ? slot[r] : r; k >= 0 && k < m && (rows ? rows[k] === r : k === r); k++) now[k] = 255;
+      });
       changed("isel", "ipsel");
       u.uAct0.value = u.uAct1.value;
       u.uAct1.value = sel ? 1 : 0;
       u.uMix.value = 0;
     },
-    setHighlightMix(k: number) { u.uMix.value = k; },
-    setProjection(rz: boolean) { u.uProj.value = rz ? 1 : 0; },
-    setTimeline(a: Float32Array, l: Float32Array) { appear.set(pick(a)); link.set(pick(l)); changed("iT", "iL"); }, // in place: a new attribute would orphan its GPU buffer
-    setClock(t: number) { u.uClock.value = t; },
-    setRetire(t: number) { u.uRetire.value = t; },
+    setHighlightMix(k: number) {
+      u.uMix.value = k;
+    },
+    setProjection(rz: boolean) {
+      u.uProj.value = rz ? 1 : 0;
+    },
+    setTimeline(a: Float32Array, l: Float32Array) {
+      appear.set(pick(a));
+      link.set(pick(l));
+      changed("iT", "iL");
+    }, // in place: a new attribute would orphan its GPU buffer
+    setClock(t: number) {
+      u.uClock.value = t;
+    },
+    setRetire(t: number) {
+      u.uRetire.value = t;
+    },
   };
 }
 
 /** What every layer takes from its display hint. A background layer is picked over a smaller radius, so objects
  *  in front of it win. */
-const identity = ({ key, d }: LayerInput, pickRadius: number) =>
-  ({ key, table: d.table, label: d.label, context: d.context, views: d.views, pickRadius: d.context ? (3 / 8) * pickRadius : pickRadius });
+const identity = ({ key, d }: LayerInput, pickRadius: number) => ({
+  key,
+  table: d.table,
+  label: d.label,
+  context: d.context,
+  views: d.views,
+  pickRadius: d.context ? (3 / 8) * pickRadius : pickRadius,
+});
 
-const positions = ({ d, t }: LayerInput) => d.position.map((c) => toF32(t.columns[c], t.n)) as [Float32Array, Float32Array, Float32Array];
+const positions = ({ d, t }: LayerInput) =>
+  d.position.map((c) => toF32(t.columns[c], t.n)) as [Float32Array, Float32Array, Float32Array];
 
 /** Calorimeter cells as hexagonal prisms lying in their layer planes. */
 export function cells(input: LayerInput): Layer {
@@ -189,7 +274,8 @@ export function cells(input: LayerInput): Layer {
   if (d.cell?.shape === "box") return boxes(input);
   const [x, y, z] = positions(input);
   const size = toF32(d.size ? t.columns[d.size] : undefined, t.n, 0.6);
-  const base = hexPrism(), g = new THREE.InstancedBufferGeometry();
+  const base = hexPrism(),
+    g = new THREE.InstancedBufferGeometry();
   g.index = base.index;
   g.setAttribute("position", base.getAttribute("position"));
   const material = new THREE.ShaderMaterial({
@@ -234,15 +320,26 @@ export function cells(input: LayerInput): Layer {
   const common = shaderLayer(input, g, material, true, { ix: x, iy: y, iz: z, isize: size });
   const mesh = new THREE.Mesh(g, material);
   mesh.frustumCulled = false;
-  if (d.context) { // drawn first and without depth, so it never hides the event in front of or behind it
+  if (d.context) {
+    // drawn first and without depth, so it never hides the event in front of or behind it
     material.depthWrite = false;
     mesh.renderOrder = -1;
   }
   return {
-    ...identity(input, 8), object: mesh, x, y, z,
+    ...identity(input, 8),
+    object: mesh,
+    x,
+    y,
+    z,
     ...common,
-    setFade(from, to, amount) { material.uniforms.uFade.value.set(from, to, amount); },
-    dispose() { g.dispose(); base.dispose(); material.dispose(); },
+    setFade(from, to, amount) {
+      material.uniforms.uFade.value.set(from, to, amount);
+    },
+    dispose() {
+      g.dispose();
+      base.dispose();
+      material.dispose();
+    },
   };
 }
 
@@ -251,19 +348,32 @@ export function cells(input: LayerInput): Layer {
  *  so the vertex shader runs ~12 times per cell, not ~40: the cost of 400k HGCal cells at PU200. No normals: the
  *  fragment shader lights each face from its derivatives. */
 export function hexPrism() {
-  const cyl = new THREE.CylinderGeometry(1, 1, 1, 6).rotateX(Math.PI / 2), p = cyl.getAttribute("position"), corners: number[][] = [];
+  const cyl = new THREE.CylinderGeometry(1, 1, 1, 6).rotateX(Math.PI / 2),
+    p = cyl.getAttribute("position"),
+    corners: number[][] = [];
   for (let i = 0; i < p.count; i++) {
     const v = [p.getX(i), p.getY(i), p.getZ(i)];
-    if (Math.hypot(v[0], v[1]) > 0.5 && !corners.some((c) => c.every((x, k) => Math.abs(x - v[k]) < 1e-6))) corners.push(v);
+    if (Math.hypot(v[0], v[1]) > 0.5 && !corners.some((c) => c.every((x, k) => Math.abs(x - v[k]) < 1e-6)))
+      corners.push(v);
   }
   cyl.dispose();
   const angle = (v: number[]) => Math.atan2(v[1], v[0]);
-  const top = corners.filter((v) => v[2] > 0).sort((a, b) => angle(a) - angle(b)), bottom = corners.filter((v) => v[2] < 0).sort((a, b) => angle(a) - angle(b));
-  const pos = [...top, ...bottom], tris: number[][] = [];
-  for (let k = 1; k < 5; k++) { tris.push([0, k, k + 1]); tris.push([6, 6 + k, 6 + k + 1]); } // the two caps, as fans
-  for (let k = 0; k < 6; k++) { const n = (k + 1) % 6; tris.push([k, 6 + k, 6 + n], [k, 6 + n, n]); } // the sides
-  const index = tris.flatMap(([a, b, c]) => { // outward (counter-clockwise seen from outside): flip if not
-    const u = [0, 1, 2].map((i) => pos[b][i] - pos[a][i]), w = [0, 1, 2].map((i) => pos[c][i] - pos[a][i]);
+  const top = corners.filter((v) => v[2] > 0).sort((a, b) => angle(a) - angle(b)),
+    bottom = corners.filter((v) => v[2] < 0).sort((a, b) => angle(a) - angle(b));
+  const pos = [...top, ...bottom],
+    tris: number[][] = [];
+  for (let k = 1; k < 5; k++) {
+    tris.push([0, k, k + 1]);
+    tris.push([6, 6 + k, 6 + k + 1]);
+  } // the two caps, as fans
+  for (let k = 0; k < 6; k++) {
+    const n = (k + 1) % 6;
+    tris.push([k, 6 + k, 6 + n], [k, 6 + n, n]);
+  } // the sides
+  const index = tris.flatMap(([a, b, c]) => {
+    // outward (counter-clockwise seen from outside): flip if not
+    const u = [0, 1, 2].map((i) => pos[b][i] - pos[a][i]),
+      w = [0, 1, 2].map((i) => pos[c][i] - pos[a][i]);
     const n = [u[1] * w[2] - u[2] * w[1], u[2] * w[0] - u[0] * w[2], u[0] * w[1] - u[1] * w[0]];
     const m = [0, 1, 2].map((i) => (pos[a][i] + pos[b][i] + pos[c][i]) / 3);
     return n[0] * m[0] + n[1] * m[1] + n[2] * m[2] >= 0 ? [a, b, c] : [a, c, b];
@@ -277,9 +387,17 @@ export function hexPrism() {
 /** A cells layer drawn as instanced solids of another shape (towers, boxes): `base` is a unit box whose corners the
  *  vertex shader `body` places (it sets `c`, the point, and `nrm`, the normal, from the instance's attributes; uniform
  *  `uDisc` from `disc`). Lighting, selection fade, replay pop and the background (context) mode are as for hexagons. */
-function solidCells(input: LayerInput, declarations: string, body: string, attributes: Record<string, Float32Array>,
-  vec3: Record<string, Float32Array>, disc = false) {
-  const { d } = input, base = new THREE.BoxGeometry(1, 1, 1), g = new THREE.InstancedBufferGeometry();
+function solidCells(
+  input: LayerInput,
+  declarations: string,
+  body: string,
+  attributes: Record<string, Float32Array>,
+  vec3: Record<string, Float32Array>,
+  disc = false,
+) {
+  const { d } = input,
+    base = new THREE.BoxGeometry(1, 1, 1),
+    g = new THREE.InstancedBufferGeometry();
   g.index = base.index;
   g.setAttribute("position", base.getAttribute("position"));
   g.setAttribute("normal", base.getAttribute("normal"));
@@ -307,14 +425,22 @@ function solidCells(input: LayerInput, declarations: string, body: string, attri
   const common = shaderLayer(input, g, material, true, attributes, vec3);
   const mesh = new THREE.Mesh(g, material);
   mesh.frustumCulled = false;
-  if (d.context) { // as hexagons: drawn first and without depth, so it never hides the event
+  if (d.context) {
+    // as hexagons: drawn first and without depth, so it never hides the event
     material.depthWrite = false;
     mesh.renderOrder = -1;
   }
   return {
-    object: mesh, ...common,
-    setFade(from: number, to: number, amount: number) { material.uniforms.uFade.value.set(from, to, amount); },
-    dispose() { g.dispose(); base.dispose(); material.dispose(); },
+    object: mesh,
+    ...common,
+    setFade(from: number, to: number, amount: number) {
+      material.uniforms.uFade.value.set(from, to, amount);
+    },
+    dispose() {
+      g.dispose();
+      base.dispose();
+      material.dispose();
+    },
   };
 }
 
@@ -324,23 +450,36 @@ function solidCells(input: LayerInput, declarations: string, body: string, attri
  *  corners (geometry.ts towerPoint is its CPU twin): 6 floats per cell besides the common ones, no geometry on the
  *  CPU. Picked along the axis, front to back. */
 function towers(input: LayerInput): Layer {
-  const { d, t } = input, n = t.n, cell = d.cell as Extract<NonNullable<DisplayLayer["cell"]>, { shape: "tower" }>, disc = cell.face === "disc";
+  const { d, t } = input,
+    n = t.n,
+    cell = d.cell as Extract<NonNullable<DisplayLayer["cell"]>, { shape: "tower" }>,
+    disc = cell.face === "disc";
   const [x, y, z] = positions(input);
-  const dEta = perRow(t.columns, n, cell.dEta, 0.087), dPhi = perRow(t.columns, n, cell.dPhi, 0.087), depth = perRow(t.columns, n, cell.depth, 10);
+  const dEta = perRow(t.columns, n, cell.dEta, 0.087),
+    dPhi = perRow(t.columns, n, cell.dPhi, 0.087),
+    depth = perRow(t.columns, n, cell.depth, 10);
   for (let i = 0; i < n; i++) depth[i] = Math.max(depth[i], MIN_DEPTH); // never flat: a cell seen edge-on stays visible
   const back = [new Float32Array(n), new Float32Array(n), new Float32Array(n)] as const;
   for (let i = 0; i < n; i++) {
     const b = towerPoint(x[i], y[i], z[i], dEta[i], dPhi[i], depth[i], disc, 0, 0, 1);
-    back[0][i] = b[0]; back[1][i] = b[1]; back[2][i] = b[2];
+    back[0][i] = b[0];
+    back[1][i] = b[1];
+    back[2][i] = b[2];
   }
-  const solid = solidCells(input, "attribute vec3 ipos, ibin; // ibin: dEta, dPhi, depth (cm)", /* glsl */ `
+  const solid = solidCells(
+    input,
+    "attribute vec3 ipos, ibin; // ibin: dEta, dPhi, depth (cm)",
+    /* glsl */ `
         float rho0 = length(ipos.xy), w = position.z + 0.5;
         float eta = asinh(ipos.z / rho0) + position.x * ibin.x * k, phi = atan(ipos.y, ipos.x) + position.y * ibin.y * k;
         vec3 er = vec3(cos(phi), sin(phi), 0.0), ep = vec3(-er.y, er.x, 0.0), ee, ed;
         if (uDisc < 0.5) { float r = rho0 + w * ibin.z; c = vec3(r * er.xy, r * sinh(eta)); ee = vec3(0.0, 0.0, 1.0); ed = er; }
         else { float zz = ipos.z + sign(ipos.z) * w * ibin.z; c = vec3(abs(zz) / sinh(abs(eta)) * er.xy, zz); ee = -sign(ipos.z) * er; ed = vec3(0.0, 0.0, sign(ipos.z)); }
         nrm = normal.x * ee + normal.y * ep + normal.z * ed;`,
-    {}, { ipos: interleave([x, y, z]), ibin: interleave([dEta, dPhi, depth]) }, disc);
+    {},
+    { ipos: interleave([x, y, z]), ibin: interleave([dEta, dPhi, depth]) },
+    disc,
+  );
   return { ...identity(input, 8), x, y, z, segment: { a: [x, y, z], b: back }, ...solid };
 }
 const MIN_DEPTH = 0.3; // cm, as the hexagons' thickness
@@ -349,15 +488,28 @@ const MIN_DEPTH = 0.3; // cm, as the hexagons' thickness
  *  and `v` (length) as columns, `size` [half width at -v, half width at +v, half length, half thickness] (geometry.ts
  *  boxPoint is the CPU twin). Picked at the centre. */
 function boxes(input: LayerInput): Layer {
-  const { d, t } = input, n = t.n, cell = d.cell as Extract<NonNullable<DisplayLayer["cell"]>, { shape: "box" }>;
-  const [x, y, z] = positions(input), cols = (c: readonly string[]) => c.map((k) => toF32(t.columns[k], n)) as [Float32Array, Float32Array, Float32Array];
+  const { d, t } = input,
+    n = t.n,
+    cell = d.cell as Extract<NonNullable<DisplayLayer["cell"]>, { shape: "box" }>;
+  const [x, y, z] = positions(input),
+    cols = (c: readonly string[]) => c.map((k) => toF32(t.columns[k], n)) as [Float32Array, Float32Array, Float32Array];
   const size = cell.size.map((v: PerRow) => perRow(t.columns, n, v, 1));
-  const solid = solidCells(input, "attribute vec3 ipos, iu, iv, isize; attribute float ithick; // isize: half widths at -v, +v, half length", /* glsl */ `
+  const solid = solidCells(
+    input,
+    "attribute vec3 ipos, iu, iv, isize; attribute float ithick; // isize: half widths at -v, +v, half length",
+    /* glsl */ `
         vec3 nv = normalize(cross(iu, iv));
         float hw = mix(isize.x, isize.y, position.y + 0.5); // ("half" is reserved in GLSL)
         c = ipos + 2.0 * k * (position.x * hw * iu + position.y * isize.z * iv) + 2.0 * position.z * ithick * nv;
         nrm = normal.x * iu + normal.y * iv + normal.z * nv;`,
-    { ithick: size[3] }, { ipos: interleave([x, y, z]), iu: interleave(cols(cell.u)), iv: interleave(cols(cell.v)), isize: interleave([size[0], size[1], size[2]]) });
+    { ithick: size[3] },
+    {
+      ipos: interleave([x, y, z]),
+      iu: interleave(cols(cell.u)),
+      iv: interleave(cols(cell.v)),
+      isize: interleave([size[0], size[1], size[2]]),
+    },
+  );
   return { ...identity(input, 8), x, y, z, ...solid };
 }
 
@@ -368,14 +520,23 @@ function boxes(input: LayerInput): Layer {
 export function markers(input: LayerInput): Layer {
   const { d, t } = input;
   const [x, y, z] = positions(input);
-  const sizeCol = d.size ? t.columns[d.size] : undefined, sized = new Float32Array(t.n);
+  const sizeCol = d.size ? t.columns[d.size] : undefined,
+    sized = new Float32Array(t.n);
   if (sizeCol) {
-    const v = toF32(sizeCol, t.n), r = valueRange(v);
-    for (let i = 0; i < t.n; i++) { const p = position(r, v[i]); sized[i] = p > 0 ? (p < 1 ? p : 1) : 0; } // NaN -> 0
+    const v = toF32(sizeCol, t.n),
+      r = valueRange(v);
+    for (let i = 0; i < t.n; i++) {
+      const p = position(r, v[i]);
+      sized[i] = p > 0 ? (p < 1 ? p : 1) : 0;
+    } // NaN -> 0
   }
   const g = new THREE.BufferGeometry();
   const material = new THREE.ShaderMaterial({
-    uniforms: { ...baseUniforms(input.pal), uPx: { value: window.devicePixelRatio }, uSized: { value: sizeCol ? 1 : 0 } },
+    uniforms: {
+      ...baseUniforms(input.pal),
+      uPx: { value: window.devicePixelRatio },
+      uSized: { value: sizeCol ? 1 : 0 },
+    },
     depthTest: false,
     vertexShader: /* glsl */ `
       attribute float ix, iy, iz, isel, ipsel, iemph, icut, iT, iL, isize;
@@ -419,9 +580,16 @@ export function markers(input: LayerInput): Layer {
   points.frustumCulled = false;
   points.renderOrder = 2;
   return {
-    ...identity(input, 9), object: points, x, y, z,
+    ...identity(input, 9),
+    object: points,
+    x,
+    y,
+    z,
     ...common,
-    dispose() { g.dispose(); material.dispose(); },
+    dispose() {
+      g.dispose();
+      material.dispose();
+    },
   };
 }
 
@@ -479,18 +647,24 @@ export function ellipsoids(input: LayerInput): Layer {
   const [x, y, z] = positions(input);
   const axis = (d.axis ?? []).map((c) => toF32(t.columns[c], t.n));
   const extent = (d.extent ?? []).map((c) => toF32(t.columns[c], t.n));
-  const shape = d.shape ?? "solid", style = SHOWER_STYLES[shape];
+  const shape = d.shape ?? "solid",
+    style = SHOWER_STYLES[shape];
   const geometry = new THREE.SphereGeometry(1, 40, 24);
   const material = new THREE.ShaderMaterial({
-    vertexShader: SHOWER_VERTEX, fragmentShader: SHOWER_FRAGMENT, uniforms: { uStyle: { value: style } },
-    transparent: shape !== "core", depthWrite: shape === "core", side: shape === "shell" || shape === "cage" ? THREE.DoubleSide : THREE.FrontSide,
+    vertexShader: SHOWER_VERTEX,
+    fragmentShader: SHOWER_FRAGMENT,
+    uniforms: { uStyle: { value: style } },
+    transparent: shape !== "core",
+    depthWrite: shape === "core",
+    side: shape === "shell" || shape === "cage" ? THREE.DoubleSide : THREE.FrontSide,
   });
   let core = shape === "core" ? 0.55 : 1; // a candidate is a compact core inside the shower it stands for
   let pinned = -1; // the selected row
   const mesh = new THREE.InstancedMesh(geometry, material, Math.max(t.n, 1));
   mesh.count = t.n;
   mesh.frustumCulled = false;
-  const seg = new Float32Array(6 * t.n), segCol = new Float32Array(6 * t.n); // axis lines, written in place by update()
+  const seg = new Float32Array(6 * t.n),
+    segCol = new Float32Array(6 * t.n); // axis lines, written in place by update()
   const lineGeometry = new THREE.BufferGeometry();
   lineGeometry.setAttribute("position", new THREE.BufferAttribute(seg, 3));
   lineGeometry.setAttribute("color", new THREE.BufferAttribute(segCol, 3));
@@ -500,18 +674,31 @@ export function ellipsoids(input: LayerInput): Layer {
   const drawAxis = shape === "solid" || shape === "core"; // shells and cages stay uncluttered
   const pickA = [new Float32Array(t.n), new Float32Array(t.n), new Float32Array(t.n)] as const;
   const pickB = [new Float32Array(t.n), new Float32Array(t.n), new Float32Array(t.n)] as const;
-  let rz = false, highlighted: Set<number> | null = null, previous: Set<number> | null = null, hlMix = 1, enveloped = false;
+  let rz = false,
+    highlighted: Set<number> | null = null,
+    previous: Set<number> | null = null,
+    hlMix = 1,
+    enveloped = false;
   const shown = (set: Set<number> | null, i: number) => (set === null || set.has(i) ? 1 : 0);
-  let appear: Float32Array | null = null, clock = REPLAY_OFF, settled = Infinity; // replay: all grown once clock >= settled
+  let appear: Float32Array | null = null,
+    clock = REPLAY_OFF,
+    settled = Infinity; // replay: all grown once clock >= settled
   let retire = REPLAY_OFF; // replay: shrink away from this time
-  const GROW = 0.6, RETIRE = 0.6;
+  const GROW = 0.6,
+    RETIRE = 0.6;
   const smooth = (a: number) => (a >= 1 ? 1 : a <= 0 ? 0 : a * a * (3 - 2 * a));
   const remaining = () => (clock >= REPLAY_OFF ? 1 : smooth(1 - (clock - retire) / RETIRE));
   const growth = (i: number) => smooth((clock - (appear?.[i] ?? 0)) / GROW) * remaining();
-  const sigma = (k: number, i: number) => Math.min(k === 0 ? 30 : 8, Math.max(1, Math.sqrt(Math.max(extent[k]?.[i] ?? 0, 0)))); // cm
+  const sigma = (k: number, i: number) =>
+    Math.min(k === 0 ? 30 : 8, Math.max(1, Math.sqrt(Math.max(extent[k]?.[i] ?? 0, 0)))); // cm
 
-  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3();
-  const a = new THREE.Vector3(), zAxis = new THREE.Vector3(0, 0, 1), c = new THREE.Color();
+  const m = new THREE.Matrix4(),
+    q = new THREE.Quaternion(),
+    s = new THREE.Vector3(),
+    p = new THREE.Vector3();
+  const a = new THREE.Vector3(),
+    zAxis = new THREE.Vector3(0, 0, 1),
+    c = new THREE.Color();
   const project = (v: THREE.Vector3) => (rz ? v.set(v.z, Math.hypot(v.x, v.y) * (v.y >= 0 ? 1 : -1), 3) : v);
   const update = () => {
     seg.fill(0);
@@ -520,24 +707,41 @@ export function ellipsoids(input: LayerInput): Layer {
       const hasAxis = a.lengthSq() > 1e-6;
       if (hasAxis) a.normalize();
       const vis = shown(previous, i) + (shown(highlighted, i) - shown(previous, i)) * hlMix;
-      const g = growth(i) * vis, hidden = !cut.passes(i) || g === 0, half = 2 * g * sigma(0, i);
-      for (let e = 0; e < 2; e++) { // the axis' ends: picked along it, and drawn
+      const g = growth(i) * vis,
+        hidden = !cut.passes(i) || g === 0,
+        half = 2 * g * sigma(0, i);
+      for (let e = 0; e < 2; e++) {
+        // the axis' ends: picked along it, and drawn
         const end = e ? pickB : pickA;
         p.set(x[i], y[i], z[i]).addScaledVector(a, e ? -half : half);
-        end[0][i] = p.x; end[1][i] = p.y; end[2][i] = p.z;
+        end[0][i] = p.x;
+        end[1][i] = p.y;
+        end[2][i] = p.z;
         if (!hasAxis || hidden || !drawAxis) continue;
         project(p);
         const o = 6 * i + 3 * e;
-        seg[o] = p.x; seg[o + 1] = p.y; seg[o + 2] = p.z;
-        segCol[o] = rgb[3 * i]; segCol[o + 1] = rgb[3 * i + 1]; segCol[o + 2] = rgb[3 * i + 2];
+        seg[o] = p.x;
+        seg[o + 1] = p.y;
+        seg[o + 2] = p.z;
+        segCol[o] = rgb[3 * i];
+        segCol[o + 1] = rgb[3 * i + 1];
+        segCol[o + 2] = rgb[3 * i + 2];
       }
       q.setFromUnitVectors(zAxis, hasAxis && !rz ? a : zAxis);
       if (hidden) s.set(0, 0, 0);
       else if (hasAxis && !rz) s.set(sigma(1, i), sigma(2, i), sigma(0, i));
       else s.set(1, 1, 1);
       mesh.setMatrixAt(i, m.compose(project(p.set(x[i], y[i], z[i])), q, s.multiplyScalar(2 * g * core)));
-      const pin = i === pinned ? 0.55 : 0, rim = input.pal.rim; // the selected one: halfway to the rim colour, as the shader layers
-      mesh.setColorAt(i, c.setRGB(rgb[3 * i] + pin * (rim[0] - rgb[3 * i]), rgb[3 * i + 1] + pin * (rim[1] - rgb[3 * i + 1]), rgb[3 * i + 2] + pin * (rim[2] - rgb[3 * i + 2])));
+      const pin = i === pinned ? 0.55 : 0,
+        rim = input.pal.rim; // the selected one: halfway to the rim colour, as the shader layers
+      mesh.setColorAt(
+        i,
+        c.setRGB(
+          rgb[3 * i] + pin * (rim[0] - rgb[3 * i]),
+          rgb[3 * i + 1] + pin * (rim[1] - rgb[3 * i + 1]),
+          rgb[3 * i + 2] + pin * (rim[2] - rgb[3 * i + 2]),
+        ),
+      );
     }
     mesh.instanceMatrix.needsUpdate = true;
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
@@ -548,10 +752,24 @@ export function ellipsoids(input: LayerInput): Layer {
   update();
   return {
     // Picked anywhere along the principal axis (the drawn length), and preferred over hits and clusters nearby.
-    ...identity(input, 14), object: group, x, y, z, segment: { a: pickA, b: pickB }, pickBias: shape === "core" ? 0.3 : 0.45,
+    ...identity(input, 14),
+    object: group,
+    x,
+    y,
+    z,
+    segment: { a: pickA, b: pickB },
+    pickBias: shape === "core" ? 0.3 : 0.45,
     passes: (i) => cut.passes(i) && shown(highlighted, i) === 1, // showers hidden by a selection cannot be picked
-    setCut: cut.setCut, setColours(c) { rgb = c; update(); },
-    setPinned(row) { pinned = row; cut.pin(row); update(); },
+    setCut: cut.setCut,
+    setColours(c) {
+      rgb = c;
+      update();
+    },
+    setPinned(row) {
+      pinned = row;
+      cut.pin(row);
+      update();
+    },
     setOutline(on, envelope = false) {
       material.uniforms.uStyle.value = on || envelope ? SHOWER_STYLES.shell : style;
       material.side = on || envelope ? THREE.DoubleSide : material.side;
@@ -565,13 +783,42 @@ export function ellipsoids(input: LayerInput): Layer {
       core = envelope || shape !== "core" ? 1 : 0.55;
       update();
     },
-    setHighlight(rows) { previous = highlighted; highlighted = rows; hlMix = 0; update(); },
-    setHighlightMix(k) { if (k !== hlMix) { hlMix = k; update(); } },
-    setProjection(v) { rz = v; update(); },
-    setTimeline(t) { appear = t; settled = Math.max(t.reduce((m, v) => Math.max(m, v), 0) + GROW, retire < REPLAY_OFF ? retire + RETIRE : 0); },
-    setClock(t) { const was = clock; clock = t; if (appear && !(was >= settled && t >= settled)) update(); },
-    setRetire(t) { retire = t; if (appear) settled = Math.max(settled, t < REPLAY_OFF ? t + RETIRE : 0); },
-    dispose() { geometry.dispose(); material.dispose(); mesh.dispose(); lines.geometry.dispose(); (lines.material as THREE.Material).dispose(); },
+    setHighlight(rows) {
+      previous = highlighted;
+      highlighted = rows;
+      hlMix = 0;
+      update();
+    },
+    setHighlightMix(k) {
+      if (k !== hlMix) {
+        hlMix = k;
+        update();
+      }
+    },
+    setProjection(v) {
+      rz = v;
+      update();
+    },
+    setTimeline(t) {
+      appear = t;
+      settled = Math.max(t.reduce((m, v) => Math.max(m, v), 0) + GROW, retire < REPLAY_OFF ? retire + RETIRE : 0);
+    },
+    setClock(t) {
+      const was = clock;
+      clock = t;
+      if (appear && !(was >= settled && t >= settled)) update();
+    },
+    setRetire(t) {
+      retire = t;
+      if (appear) settled = Math.max(settled, t < REPLAY_OFF ? t + RETIRE : 0);
+    },
+    dispose() {
+      geometry.dispose();
+      material.dispose();
+      mesh.dispose();
+      lines.geometry.dispose();
+      (lines.material as THREE.Material).dispose();
+    },
   };
 }
 
@@ -609,14 +856,31 @@ export function segments(input: LayerInput): Layer {
         gl_FragColor = vec4(uDash > 0.5 ? mix(vCol, uBg, 0.35) : vCol, 1.0); // truth dimmer than reconstructed tracks
       }`,
   });
-  const common = shaderLayer(input, g, material, true, { ix: start[0], iy: start[1], iz: start[2], jx: x, jy: y, jz: z });
+  const common = shaderLayer(input, g, material, true, {
+    ix: start[0],
+    iy: start[1],
+    iz: start[2],
+    jx: x,
+    jy: y,
+    jz: z,
+  });
   const lines = new THREE.LineSegments(g, material);
   lines.frustumCulled = false;
   lines.renderOrder = 1;
   return {
-    ...identity(input, 8), object: lines, x, y, z, segment: { a: start, b: [x, y, z] }, pickBias: 0.8, line: true,
+    ...identity(input, 8),
+    object: lines,
+    x,
+    y,
+    z,
+    segment: { a: start, b: [x, y, z] },
+    pickBias: 0.8,
+    line: true,
     ...common,
-    dispose() { g.dispose(); material.dispose(); },
+    dispose() {
+      g.dispose();
+      material.dispose();
+    },
   };
 }
 
@@ -625,10 +889,15 @@ type Vec3s = [Float32Array, Float32Array, Float32Array];
  *  `position`, or `centred` on it). */
 export function segmentEnds(d: DisplayLayer, t: Table, position: Vec3s): [Vec3s, Vec3s] {
   if (!d.direction) return [position, (d.end ?? d.position).map((c) => toF32(t.columns[c], t.n)) as Vec3s];
-  const n = t.n, dir = d.direction.map((c) => toF32(t.columns[c], n)), len = perRow(t.columns, n, isToCylinder(d.length) ? undefined : d.length, 100);
-  const a: Vec3s = [new Float32Array(n), new Float32Array(n), new Float32Array(n)], b: Vec3s = [new Float32Array(n), new Float32Array(n), new Float32Array(n)];
+  const n = t.n,
+    dir = d.direction.map((c) => toF32(t.columns[c], n)),
+    len = perRow(t.columns, n, isToCylinder(d.length) ? undefined : d.length, 100);
+  const a: Vec3s = [new Float32Array(n), new Float32Array(n), new Float32Array(n)],
+    b: Vec3s = [new Float32Array(n), new Float32Array(n), new Float32Array(n)];
   for (let i = 0; i < n; i++) {
-    const m = Math.hypot(dir[0][i], dir[1][i], dir[2][i]) || 1, back = d.centred ? 0.5 * len[i] : 0, ahead = len[i] - back;
+    const m = Math.hypot(dir[0][i], dir[1][i], dir[2][i]) || 1,
+      back = d.centred ? 0.5 * len[i] : 0,
+      ahead = len[i] - back;
     for (let k = 0; k < 3; k++) {
       a[k][i] = position[k][i] - (back * dir[k][i]) / m;
       b[k][i] = position[k][i] + (ahead * dir[k][i]) / m;
@@ -641,13 +910,20 @@ export function segmentEnds(d: DisplayLayer, t: Table, position: Vec3s): [Vec3s,
  *  half the width across the line's direction on screen in the vertex shader (4 vertices per line, nothing on the
  *  CPU), so it keeps its width at any zoom. `arrow`: a cone head at the end, placed on the CPU (for a few objects). */
 function wideSegments(input: LayerInput, start: Vec3s, end: Vec3s): Layer {
-  const { d, t } = input, n = t.n, [x, y, z] = end;
+  const { d, t } = input,
+    n = t.n,
+    [x, y, z] = end;
   const g = new THREE.InstancedBufferGeometry();
   g.setAttribute("position", new THREE.Float32BufferAttribute([0, -1, 0, 0, 1, 0, 1, -1, 0, 1, 1, 0], 3)); // x: along, y: across
   g.setIndex([0, 2, 1, 2, 3, 1]);
   const px = globalThis.devicePixelRatio ?? 1;
   const material = new THREE.ShaderMaterial({
-    uniforms: { ...baseUniforms(input.pal), uWidth: { value: (d.width ?? 2) * px }, uRes: { value: new THREE.Vector2(1, 1) }, uDash: { value: d.truth ? 1 : 0 } },
+    uniforms: {
+      ...baseUniforms(input.pal),
+      uWidth: { value: (d.width ?? 2) * px },
+      uRes: { value: new THREE.Vector2(1, 1) },
+      uDash: { value: d.truth ? 1 : 0 },
+    },
     side: THREE.DoubleSide,
     vertexShader: /* glsl */ `
       attribute float isel, ipsel, icut, iT;
@@ -684,26 +960,44 @@ function wideSegments(input: LayerInput, start: Vec3s, end: Vec3s): Layer {
   quads.onBeforeRender = (r) => material.uniforms.uRes.value.copy(r.getDrawingBufferSize(res));
   const group = new THREE.Group().add(quads);
   // Arrow heads: an instanced cone per row at the line's end, along it; hidden when the line is cut or not grown yet.
-  let rgb = input.rgb, rz = false, clock = REPLAY_OFF, appear: Float32Array | null = null;
-  const heads = d.arrow ? new THREE.InstancedMesh(new THREE.ConeGeometry(1, 1, 20).translate(0, -0.5, 0), new THREE.ShaderMaterial({ // raw colours, as the lines
-    vertexShader: /* glsl */ `varying vec3 vCol;
+  let rgb = input.rgb,
+    rz = false,
+    clock = REPLAY_OFF,
+    appear: Float32Array | null = null;
+  const heads = d.arrow
+    ? new THREE.InstancedMesh(
+        new THREE.ConeGeometry(1, 1, 20).translate(0, -0.5, 0),
+        new THREE.ShaderMaterial({
+          // raw colours, as the lines
+          vertexShader: /* glsl */ `varying vec3 vCol;
       void main() {
         #ifdef USE_INSTANCING_COLOR
         vCol = instanceColor;
         #endif
         gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(position, 1.0);
       }`,
-    fragmentShader: `varying vec3 vCol; void main() { gl_FragColor = vec4(vCol, 1.0); }`,
-  }), Math.max(n, 1)) : null;
+          fragmentShader: `varying vec3 vCol; void main() { gl_FragColor = vec4(vCol, 1.0); }`,
+        }),
+        Math.max(n, 1),
+      )
+    : null;
   const placeHeads = () => {
     if (!heads) return;
-    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), a = new THREE.Vector3(), b = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0), c = new THREE.Color();
+    const m = new THREE.Matrix4(),
+      q = new THREE.Quaternion(),
+      a = new THREE.Vector3(),
+      b = new THREE.Vector3(),
+      up = new THREE.Vector3(0, 1, 0),
+      c = new THREE.Color();
     const project = (v: THREE.Vector3, side: number) => (rz ? v.set(v.z, Math.hypot(v.x, v.y) * side, 3) : v);
     for (let i = 0; i < n; i++) {
-      const side = y[i] >= 0 ? 1 : -1, grown = clock >= REPLAY_OFF || clock >= (appear?.[i] ?? 0) + 0.5;
+      const side = y[i] >= 0 ? 1 : -1,
+        grown = clock >= REPLAY_OFF || clock >= (appear?.[i] ?? 0) + 0.5;
       project(a.set(start[0][i], start[1][i], start[2][i]), side);
       project(b.set(x[i], y[i], z[i]), side);
-      const dir = b.clone().sub(a), len = dir.length(), h = common.passes(i) && grown && len > 0 ? Math.max(6, 0.1 * len) : 0;
+      const dir = b.clone().sub(a),
+        len = dir.length(),
+        h = common.passes(i) && grown && len > 0 ? Math.max(6, 0.1 * len) : 0;
       q.setFromUnitVectors(up, len > 0 ? dir.divideScalar(len) : up);
       heads.setMatrixAt(i, m.compose(b, q, new THREE.Vector3(0.4 * h, h, 0.4 * h)));
       heads.setColorAt(i, c.setRGB(rgb[3 * i], rgb[3 * i + 1], rgb[3 * i + 2], THREE.LinearSRGBColorSpace));
@@ -719,30 +1013,76 @@ function wideSegments(input: LayerInput, start: Vec3s, end: Vec3s): Layer {
     placeHeads();
   }
   return {
-    ...identity(input, 10), object: group, x, y, z, segment: { a: start, b: end }, pickBias: 0.7, line: true,
+    ...identity(input, 10),
+    object: group,
+    x,
+    y,
+    z,
+    segment: { a: start, b: end },
+    pickBias: 0.7,
+    line: true,
     ...common,
-    setCut(min) { const shown = common.setCut(min); placeHeads(); return shown; },
-    setPinned(row) { common.setPinned(row); placeHeads(); },
-    setColours(c) { rgb = c; common.setColours(c); placeHeads(); },
-    setProjection(v) { rz = v; common.setProjection(v); placeHeads(); },
-    setTimeline(a, l) { appear = a; common.setTimeline(a, l); placeHeads(); },
-    setClock(t) { const was = clock; clock = t; common.setClock(t); if (heads && (t < REPLAY_OFF || was < REPLAY_OFF)) placeHeads(); },
-    dispose() { g.dispose(); material.dispose(); heads?.geometry.dispose(); (heads?.material as THREE.Material | undefined)?.dispose(); heads?.dispose(); },
+    setCut(min) {
+      const shown = common.setCut(min);
+      placeHeads();
+      return shown;
+    },
+    setPinned(row) {
+      common.setPinned(row);
+      placeHeads();
+    },
+    setColours(c) {
+      rgb = c;
+      common.setColours(c);
+      placeHeads();
+    },
+    setProjection(v) {
+      rz = v;
+      common.setProjection(v);
+      placeHeads();
+    },
+    setTimeline(a, l) {
+      appear = a;
+      common.setTimeline(a, l);
+      placeHeads();
+    },
+    setClock(t) {
+      const was = clock;
+      clock = t;
+      common.setClock(t);
+      if (heads && (t < REPLAY_OFF || was < REPLAY_OFF)) placeHeads();
+    },
+    dispose() {
+      g.dispose();
+      material.dispose();
+      heads?.geometry.dispose();
+      (heads?.material as THREE.Material | undefined)?.dispose();
+      heads?.dispose();
+    },
   };
 }
 
 /** Points per drawn piece of helix (a line strip): HELIX_POINTS - 1 along the arc, then the end point. A path of many
  *  turns (a looper) is drawn in several pieces, each at most TURNS_PER_PIECE turns (about 11 degrees per segment), so
  *  it stays round. Each point costs one vertex-shader run per frame (a few sin and cos), nothing on the CPU. */
-const HELIX_POINTS = 48, TURNS_PER_PIECE = 1.5, MAX_PIECES = 256;
+const HELIX_POINTS = 48,
+  TURNS_PER_PIECE = 1.5,
+  MAX_PIECES = 256;
 const PICK_POINTS = 17; // the CPU polyline used for picking and framing
 // Paths per table and hint, kept while the event's table lives: a layer that shows only the selection's objects is
 // rebuilt on every click, and its paths do not change.
-const pathCache = new WeakMap<Table, Map<string, { paths: Paths; pieces: Uint16Array; ends: Float32Array[]; pick: NonNullable<Layer["path"]> }>>();
+const pathCache = new WeakMap<
+  Table,
+  Map<string, { paths: Paths; pieces: Uint16Array; ends: Float32Array[]; pick: NonNullable<Layer["path"]> }>
+>();
 /** Three columns as one array of 3 floats per row (a vec3 attribute: WebGL gives a shader at most 16 attributes). */
 const interleave = (a: readonly [Float32Array, Float32Array, Float32Array]) => {
   const out = new Float32Array(3 * a[0].length);
-  for (let i = 0; i < a[0].length; i++) { out[3 * i] = a[0][i]; out[3 * i + 1] = a[1][i]; out[3 * i + 2] = a[2][i]; }
+  for (let i = 0; i < a[0].length; i++) {
+    out[3 * i] = a[0][i];
+    out[3 * i + 1] = a[1][i];
+    out[3 * i + 2] = a[2][i];
+  }
   return out;
 };
 
@@ -751,7 +1091,9 @@ const interleave = (a: readonly [Float32Array, Float32Array, Float32Array]) => {
  *  point; the vertex shader puts each point of the strip on the path, so a path costs 48 bytes, not a polyline. Picking and framing use a coarser polyline computed on the CPU, per path when first needed. */
 export function helices(input: LayerInput): Layer {
   const { d, t, field } = input;
-  const start = positions(input), cols = (names?: readonly string[]) => (names ?? []).map((c) => toF32(t.columns[c], t.n)) as [Float32Array, Float32Array, Float32Array];
+  const start = positions(input),
+    cols = (names?: readonly string[]) =>
+      (names ?? []).map((c) => toF32(t.columns[c], t.n)) as [Float32Array, Float32Array, Float32Array];
   const key = JSON.stringify([d.position, d.momentum, d.charge, d.end, d.length, field]);
   let byHint = pathCache.get(t);
   if (!byHint) pathCache.set(t, (byHint = new Map()));
@@ -759,34 +1101,88 @@ export function helices(input: LayerInput): Layer {
   // A layer with nothing to draw (e.g. truth particles shown for a selection, none yet) skips the paths: computing them
   // for every row (100k truth particles at PU200) costs ~50 ms per event; the first selection computes them.
   if (!cached && input.cut && !input.cut.some((v) => v > HIDDEN)) {
-    const zeros = () => [new Float32Array(t.n), new Float32Array(t.n), new Float32Array(t.n)] as [Float32Array, Float32Array, Float32Array];
+    const zeros = () =>
+      [new Float32Array(t.n), new Float32Array(t.n), new Float32Array(t.n)] as [
+        Float32Array,
+        Float32Array,
+        Float32Array,
+      ];
     const paths: Paths = { n: t.n, dir: new Float32Array(3 * t.n), path: new Float32Array(3 * t.n), end: zeros() };
     const none = new Float32Array(2 * t.n).fill(NaN); // picking: never reached (nothing passes the cut)
-    cached = { paths, pieces: new Uint16Array(t.n).fill(1), ends: [new Float32Array(3 * t.n), new Float32Array(3 * t.n)], pick: { points: 2, x: none, y: none, z: none, fill() {} } };
+    cached = {
+      paths,
+      pieces: new Uint16Array(t.n).fill(1),
+      ends: [new Float32Array(3 * t.n), new Float32Array(3 * t.n)],
+      pick: { points: 2, x: none, y: none, z: none, fill() {} },
+    };
   } else if (!cached) {
-    const momentum = d.momentum ? cols(d.momentum) : cols(["", "", ""]), charge = toF32(d.charge ? t.columns[d.charge] : undefined, t.n);
+    const momentum = d.momentum ? cols(d.momentum) : cols(["", "", ""]),
+      charge = toF32(d.charge ? t.columns[d.charge] : undefined, t.n);
     let end = cols(d.end ?? d.position);
     if (isToCylinder(d.length)) end = endsOrCylinder(start, momentum, end, t.n, d.length.to); // where `end` is not finite
-    const paths = helixPaths(start, momentum, charge, end, t.n, field), pieces = new Uint16Array(t.n);
-    for (let i = 0; i < t.n; i++) { // turns in the field: |k| (rad/cm) times the arc's length there
-      const turns = (Math.abs(paths.path[3 * i]) * Math.min(paths.path[3 * i + 1], paths.path[3 * i + 2])) / (2 * Math.PI);
+    const paths = helixPaths(start, momentum, charge, end, t.n, field),
+      pieces = new Uint16Array(t.n);
+    for (let i = 0; i < t.n; i++) {
+      // turns in the field: |k| (rad/cm) times the arc's length there
+      const turns =
+        (Math.abs(paths.path[3 * i]) * Math.min(paths.path[3 * i + 1], paths.path[3 * i + 2])) / (2 * Math.PI);
       pieces[i] = Math.min(MAX_PIECES, Math.max(1, Math.ceil(turns / TURNS_PER_PIECE)));
     }
-    byHint.set(key, (cached = { paths, pieces, ends: [interleave(start), interleave(paths.end)], pick: polylines(paths, start, PICK_POINTS) }));
+    byHint.set(
+      key,
+      (cached = {
+        paths,
+        pieces,
+        ends: [interleave(start), interleave(paths.end)],
+        pick: polylines(paths, start, PICK_POINTS),
+      }),
+    );
   }
-  const { paths, pieces, ends: [istart, iend], pick } = cached, [x, y, z] = paths.end;
-  const g = new THREE.InstancedBufferGeometry(), wide = (d.width ?? 1) > 1;
+  const {
+      paths,
+      pieces,
+      ends: [istart, iend],
+      pick,
+    } = cached,
+    [x, y, z] = paths.end;
+  const g = new THREE.InstancedBufferGeometry(),
+    wide = (d.width ?? 1) > 1;
   // x: 0 to 1 along the arc of the piece; 2 for the last point, the end point (on the last piece). Wide paths: each
   // point twice, y = -1 and +1 for the two sides of a strip of quads.
   const along = (k: number) => (k === HELIX_POINTS - 1 ? 2 : k / (HELIX_POINTS - 2));
-  if (!wide) g.setAttribute("position", new THREE.Float32BufferAttribute(Array.from({ length: HELIX_POINTS }, (_, k) => [along(k), 0, 0]).flat(), 3));
+  if (!wide)
+    g.setAttribute(
+      "position",
+      new THREE.Float32BufferAttribute(Array.from({ length: HELIX_POINTS }, (_, k) => [along(k), 0, 0]).flat(), 3),
+    );
   else {
-    g.setAttribute("position", new THREE.Float32BufferAttribute(Array.from({ length: HELIX_POINTS }, (_, k) => [along(k), -1, 0, along(k), 1, 0]).flat(), 3));
-    g.setIndex(Array.from({ length: HELIX_POINTS - 1 }, (_, k) => [2 * k, 2 * k + 2, 2 * k + 1, 2 * k + 2, 2 * k + 3, 2 * k + 1]).flat());
+    g.setAttribute(
+      "position",
+      new THREE.Float32BufferAttribute(
+        Array.from({ length: HELIX_POINTS }, (_, k) => [along(k), -1, 0, along(k), 1, 0]).flat(),
+        3,
+      ),
+    );
+    g.setIndex(
+      Array.from({ length: HELIX_POINTS - 1 }, (_, k) => [
+        2 * k,
+        2 * k + 2,
+        2 * k + 1,
+        2 * k + 2,
+        2 * k + 3,
+        2 * k + 1,
+      ]).flat(),
+    );
   }
   const material = new THREE.ShaderMaterial({
-    uniforms: { ...baseUniforms(input.pal), uDash: { value: d.truth ? 1 : 0 }, uWidth: { value: (d.width ?? 1) * (globalThis.devicePixelRatio ?? 1) }, uRes: { value: new THREE.Vector2(1, 1) } },
-    defines: wide ? { WIDE: 1 } : {}, side: THREE.DoubleSide,
+    uniforms: {
+      ...baseUniforms(input.pal),
+      uDash: { value: d.truth ? 1 : 0 },
+      uWidth: { value: (d.width ?? 1) * (globalThis.devicePixelRatio ?? 1) },
+      uRes: { value: new THREE.Vector2(1, 1) },
+    },
+    defines: wide ? { WIDE: 1 } : {},
+    side: THREE.DoubleSide,
     vertexShader: /* glsl */ `
       attribute float isel, ipsel, icut, iT, iL, ipiece, ipieces;
       attribute vec3 istart, iend, icol, idir, ipath; // ipath: curvature (rad/cm), length in the field, length of the arc (cm)
@@ -840,27 +1236,47 @@ export function helices(input: LayerInput): Layer {
         gl_FragColor = vec4(uDash > 0.5 ? mix(vCol, uBg, 0.35) : vCol, 1.0);
       }`,
   });
-  const common = shaderLayer(input, g, material, true, {}, { istart, iend, idir: paths.dir, ipath: paths.path }, pieces);
+  const common = shaderLayer(
+    input,
+    g,
+    material,
+    true,
+    {},
+    { istart, iend, idir: paths.dir, ipath: paths.path },
+    pieces,
+  );
   const lines = wide ? new THREE.Mesh(g, material) : new THREE.Line(g, material);
   lines.frustumCulled = false;
   lines.renderOrder = 1;
   const res = new THREE.Vector2();
   if (wide) lines.onBeforeRender = (r) => material.uniforms.uRes.value.copy(r.getDrawingBufferSize(res));
   return {
-    ...identity(input, 8), object: lines, x, y, z, path: pick, pickBias: 0.8, line: true,
+    ...identity(input, 8),
+    object: lines,
+    x,
+    y,
+    z,
+    path: pick,
+    pickBias: 0.8,
+    line: true,
     ...common,
-    dispose() { g.dispose(); material.dispose(); },
+    dispose() {
+      g.dispose();
+      material.dispose();
+    },
   };
 }
-
 
 /** Unit cone for `cones`, not indexed: per side triangle the apex (z = 0, xy the middle angle of the triangle) and
  *  two base points (z = 1, xy cos and sin of their angle); per cap triangle the base centre (xy = 0, z = 1) and two
  *  base points, marked by `cap` = 1. */
 export function unitCone(segments = 32) {
-  const pos: number[] = [], cap: number[] = [];
+  const pos: number[] = [],
+    cap: number[] = [];
   for (let i = 0; i < segments; i++) {
-    const a0 = (2 * Math.PI * i) / segments, a1 = (2 * Math.PI * (i + 1)) / segments, am = (a0 + a1) / 2;
+    const a0 = (2 * Math.PI * i) / segments,
+      a1 = (2 * Math.PI * (i + 1)) / segments,
+      am = (a0 + a1) / 2;
     pos.push(Math.cos(am), Math.sin(am), 0, Math.cos(a0), Math.sin(a0), 1, Math.cos(a1), Math.sin(a1), 1);
     pos.push(0, 0, 1, Math.cos(a1), Math.sin(a1), 1, Math.cos(a0), Math.sin(a0), 1);
     cap.push(0, 0, 0, 1, 1, 1);
@@ -877,22 +1293,36 @@ export function unitCone(segments = 32) {
  *  R cos t, phi + R sin t); in rho-z each cone becomes a wedge on its axis's side. `setOutline`: the rim only, so
  *  the cone stays out of the way of what is inside it (e.g. in a detector's view). Picked along its axis. */
 export function cones(input: LayerInput): Layer {
-  const { d, t } = input, n = t.n;
+  const { d, t } = input,
+    n = t.n;
   const start = positions(input);
   const [eta, phi] = (d.direction ?? ["eta", "phi"]).map((c) => toF32(t.columns[c], n));
   const radius = perRow(t.columns, n, d.radius, 0.4);
   const length = isToCylinder(d.length) ? new Float32Array(n) : perRow(t.columns, n, d.length, 100);
-  const ends = [new Float32Array(n), new Float32Array(n), new Float32Array(n)] as [Float32Array, Float32Array, Float32Array];
+  const ends = [new Float32Array(n), new Float32Array(n), new Float32Array(n)] as [
+    Float32Array,
+    Float32Array,
+    Float32Array,
+  ];
   for (let i = 0; i < n; i++) {
-    const [dx, dy, dz] = etaPhiDirection(eta[i], phi[i]), x0 = start[0][i], y0 = start[1][i], z0 = start[2][i];
+    const [dx, dy, dz] = etaPhiDirection(eta[i], phi[i]),
+      x0 = start[0][i],
+      y0 = start[1][i],
+      z0 = start[2][i];
     if (isToCylinder(d.length)) length[i] = toCylinder(x0, y0, z0, dx, dy, dz, d.length.to.r, d.length.to.z);
-    ends[0][i] = x0 + length[i] * dx; ends[1][i] = y0 + length[i] * dy; ends[2][i] = z0 + length[i] * dz;
+    ends[0][i] = x0 + length[i] * dx;
+    ends[1][i] = y0 + length[i] * dy;
+    ends[2][i] = z0 + length[i] * dz;
   }
-  const base = unitCone(), g = new THREE.InstancedBufferGeometry();
+  const base = unitCone(),
+    g = new THREE.InstancedBufferGeometry();
   g.setAttribute("position", base.getAttribute("position"));
   g.setAttribute("cap", base.getAttribute("cap"));
   const material = new THREE.ShaderMaterial({
-    uniforms: { ...baseUniforms(input.pal), uOutline: { value: 0 } }, transparent: true, depthWrite: false, side: THREE.DoubleSide,
+    uniforms: { ...baseUniforms(input.pal), uOutline: { value: 0 } },
+    transparent: true,
+    depthWrite: false,
+    side: THREE.DoubleSide,
     vertexShader: /* glsl */ `
       attribute float ilen, isel, ipsel, icut, iT, cap;
       attribute vec3 icol, istart, icone; // icone: eta, phi, radius
@@ -933,7 +1363,14 @@ export function cones(input: LayerInput): Layer {
         gl_FragColor = light ? vec4(col * 0.8, min(1.0, 1.6 * a)) : vec4(col, a);
       }`,
   });
-  const common = shaderLayer(input, g, material, true, { ilen: length }, { istart: interleave(start), icone: interleave([eta, phi, radius]) });
+  const common = shaderLayer(
+    input,
+    g,
+    material,
+    true,
+    { ilen: length },
+    { istart: interleave(start), icone: interleave([eta, phi, radius]) },
+  );
   const mesh = new THREE.Mesh(g, material);
   mesh.frustumCulled = false;
   mesh.renderOrder = 3; // after the opaque objects, so they show through
@@ -942,11 +1379,18 @@ export function cones(input: LayerInput): Layer {
   // base, and between them the base (rho-z: its projected arc, as before) or its chord (front, side). A cone seen along
   // its axis has no wedge: then its base circle. CPU lines, for tens of jets; they follow the cut and the colours, and
   // the cone's own mesh is hidden meanwhile.
-  let rgb = input.rgb, rz = false, outlined = false, view: ViewName = "3d";
-  const wedge = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.ShaderMaterial({ // raw colours, as the layers
-    vertexShader: `attribute vec3 color; varying vec3 vCol; void main() { vCol = color; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
-    fragmentShader: `varying vec3 vCol; void main() { gl_FragColor = vec4(vCol, 1.0); }`,
-  }));
+  let rgb = input.rgb,
+    rz = false,
+    outlined = false,
+    view: ViewName = "3d";
+  const wedge = new THREE.LineSegments(
+    new THREE.BufferGeometry(),
+    new THREE.ShaderMaterial({
+      // raw colours, as the layers
+      vertexShader: `attribute vec3 color; varying vec3 vCol; void main() { vCol = color; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+      fragmentShader: `varying vec3 vCol; void main() { gl_FragColor = vec4(vCol, 1.0); }`,
+    }),
+  );
   wedge.frustumCulled = false;
   wedge.renderOrder = 3;
   const updateWedges = () => {
@@ -954,30 +1398,54 @@ export function cones(input: LayerInput): Layer {
     mesh.visible = !show;
     wedge.visible = show;
     if (!show) return;
-    const pos: number[] = [], col: number[] = [];
+    const pos: number[] = [],
+      col: number[] = [];
     for (let i = 0; i < n; i++) {
       if (!common.passes(i)) continue;
-      const side = ends[1][i] >= 0 ? 1 : -1, x0 = start[0][i], y0 = start[1][i], z0 = start[2][i];
+      const side = ends[1][i] >= 0 ? 1 : -1,
+        x0 = start[0][i],
+        y0 = start[1][i],
+        z0 = start[2][i];
       // A point in the view's plane (2D, for the silhouette) and as drawn (rho-z: in its plane; front, side: the point
       // itself, the orthographic camera flattens it).
-      const flat = (x: number, y: number, z: number): [number, number] => (rz ? [z, Math.hypot(x, y) * side] : view === "side" ? [z, y] : [x, y]);
+      const flat = (x: number, y: number, z: number): [number, number] =>
+        rz ? [z, Math.hypot(x, y) * side] : view === "side" ? [z, y] : [x, y];
       const drawn = (p: number[]): number[] => (rz ? [...flat(p[0], p[1], p[2]), 3] : p);
-      const apex3 = [x0, y0, z0], apex = flat(x0, y0, z0), axis = flat(ends[0][i], ends[1][i], ends[2][i]), ax = [axis[0] - apex[0], axis[1] - apex[1]];
+      const apex3 = [x0, y0, z0],
+        apex = flat(x0, y0, z0),
+        axis = flat(ends[0][i], ends[1][i], ends[2][i]),
+        ax = [axis[0] - apex[0], axis[1] - apex[1]];
       const rim3: number[][] = [];
       for (let k = 0; k <= 32; k++) {
-        const a = (2 * Math.PI * k) / 32, [dx, dy, dz] = etaPhiDirection(eta[i] + radius[i] * Math.cos(a), phi[i] + radius[i] * Math.sin(a));
+        const a = (2 * Math.PI * k) / 32,
+          [dx, dy, dz] = etaPhiDirection(eta[i] + radius[i] * Math.cos(a), phi[i] + radius[i] * Math.sin(a));
         rim3.push([x0 + length[i] * dx, y0 + length[i] * dy, z0 + length[i] * dz]);
       }
       const rim = rim3.map((p) => flat(p[0], p[1], p[2]));
-      const line = (a: number[], b: number[]) => { pos.push(...drawn(a), ...drawn(b)); col.push(...rgb.subarray(3 * i, 3 * i + 3), ...rgb.subarray(3 * i, 3 * i + 3)); };
+      const line = (a: number[], b: number[]) => {
+        pos.push(...drawn(a), ...drawn(b));
+        col.push(...rgb.subarray(3 * i, 3 * i + 3), ...rgb.subarray(3 * i, 3 * i + 3));
+      };
       // Seen along its axis (the axis shorter on screen than the base is wide): the base circle is its outline.
       const spread = Math.max(...rim.map((p) => Math.hypot(p[0] - axis[0], p[1] - axis[1])));
-      if (Math.hypot(ax[0], ax[1]) < spread) { for (let k = 0; k < 32; k++) line(rim3[k], rim3[k + 1]); continue; }
+      if (Math.hypot(ax[0], ax[1]) < spread) {
+        for (let k = 0; k < 32; k++) line(rim3[k], rim3[k + 1]);
+        continue;
+      }
       // The outermost base points on either side of the axis, by their angle from it seen from the apex.
-      const turn = (p: [number, number]) => Math.atan2(ax[0] * (p[1] - apex[1]) - ax[1] * (p[0] - apex[0]), ax[0] * (p[0] - apex[0]) + ax[1] * (p[1] - apex[1]));
-      let lo = 0, hi = 0;
-      rim.forEach((p, k) => { if (turn(p) < turn(rim[lo])) lo = k; if (turn(p) > turn(rim[hi])) hi = k; });
-      line(apex3, rim3[lo]); line(apex3, rim3[hi]);
+      const turn = (p: [number, number]) =>
+        Math.atan2(
+          ax[0] * (p[1] - apex[1]) - ax[1] * (p[0] - apex[0]),
+          ax[0] * (p[0] - apex[0]) + ax[1] * (p[1] - apex[1]),
+        );
+      let lo = 0,
+        hi = 0;
+      rim.forEach((p, k) => {
+        if (turn(p) < turn(rim[lo])) lo = k;
+        if (turn(p) > turn(rim[hi])) hi = k;
+      });
+      line(apex3, rim3[lo]);
+      line(apex3, rim3[hi]);
       if (rz) for (let k = 0; k < 32; k++) line(rim3[k], rim3[k + 1]);
       else line(rim3[lo], rim3[hi]);
     }
@@ -985,30 +1453,67 @@ export function cones(input: LayerInput): Layer {
     wedge.geometry.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
   };
   return {
-    ...identity(input, 14), object: new THREE.Group().add(mesh, wedge), x: ends[0], y: ends[1], z: ends[2], segment: { a: start, b: ends }, pickBias: 0.6, line: true,
+    ...identity(input, 14),
+    object: new THREE.Group().add(mesh, wedge),
+    x: ends[0],
+    y: ends[1],
+    z: ends[2],
+    segment: { a: start, b: ends },
+    pickBias: 0.6,
+    line: true,
     ...common,
-    setCut(min) { const shown = common.setCut(min); updateWedges(); return shown; },
-    setPinned(row) { common.setPinned(row); updateWedges(); },
-    setColours(c) { rgb = c; common.setColours(c); updateWedges(); },
-    setProjection(v) { rz = v; common.setProjection(v); updateWedges(); },
-    setView(v) { view = v; updateWedges(); },
-    setOutline(on: boolean, envelope = false) { outlined = on || envelope; material.uniforms.uOutline.value = outlined ? 1 : 0; updateWedges(); },
-    dispose() { g.dispose(); base.dispose(); material.dispose(); wedge.geometry.dispose(); (wedge.material as THREE.Material).dispose(); },
+    setCut(min) {
+      const shown = common.setCut(min);
+      updateWedges();
+      return shown;
+    },
+    setPinned(row) {
+      common.setPinned(row);
+      updateWedges();
+    },
+    setColours(c) {
+      rgb = c;
+      common.setColours(c);
+      updateWedges();
+    },
+    setProjection(v) {
+      rz = v;
+      common.setProjection(v);
+      updateWedges();
+    },
+    setView(v) {
+      view = v;
+      updateWedges();
+    },
+    setOutline(on: boolean, envelope = false) {
+      outlined = on || envelope;
+      material.uniforms.uOutline.value = outlined ? 1 : 0;
+      updateWedges();
+    },
+    dispose() {
+      g.dispose();
+      base.dispose();
+      material.dispose();
+      wedge.geometry.dispose();
+      (wedge.material as THREE.Material).dispose();
+    },
   };
 }
-
 
 /** Each row's points for `polyline`: through relation `points.relation`, the `to` rows' positions in stored order.
  *  Returns per row the number of pieces (point pairs, at least 1: a row with fewer than 2 points draws nothing) and a
  *  flat point list with each row's first point index. */
 export function polylinePoints(d: DisplayLayer, n: number, relation: LayerInput["relation"]) {
-  const rel = d.points && relation?.(d.points.relation), cols = d.points?.position ?? ["x", "y", "z"];
-  const offsets = new Uint32Array(n + 1), xyz: number[] = [];
+  const rel = d.points && relation?.(d.points.relation),
+    cols = d.points?.position ?? ["x", "y", "z"];
+  const offsets = new Uint32Array(n + 1),
+    xyz: number[] = [];
   for (let i = 0; i < n; i++) {
     if (rel && i + 1 < rel.offsets.length) {
       const p = cols.map((c) => rel.to.columns[c]);
       for (let k = rel.offsets[i]; k < rel.offsets[i + 1]; k++) {
-        const j = rel.indices[k], v = p.map((c) => (c ? Number(c[j]) : NaN));
+        const j = rel.indices[k],
+          v = p.map((c) => (c ? Number(c[j]) : NaN));
         if (v.every(Number.isFinite)) xyz.push(...v);
       }
     }
@@ -1025,7 +1530,9 @@ const PICK_MAX = 64; // points per path kept for picking and framing
  *  consecutive points, an instance each, `width` px wide (quads across the line on screen) or 1 px lines. In a replay
  *  each path grows piece by piece from its first point. Picked and framed along its points (up to 64 per path). */
 export function pointPaths(input: LayerInput): Layer {
-  const { d, t } = input, n = t.n, wide = (d.width ?? 1) > 1;
+  const { d, t } = input,
+    n = t.n,
+    wide = (d.width ?? 1) > 1;
   const { offsets, xyz, pieces } = polylinePoints(d, n, input.relation);
   const g = new THREE.InstancedBufferGeometry();
   if (wide) {
@@ -1033,8 +1540,13 @@ export function pointPaths(input: LayerInput): Layer {
     g.setIndex([0, 2, 1, 2, 3, 1]);
   } else g.setAttribute("position", new THREE.Float32BufferAttribute([0, 0, 0, 1, 0, 0], 3));
   const material = new THREE.ShaderMaterial({
-    uniforms: { ...baseUniforms(input.pal), uWidth: { value: (d.width ?? 1) * (globalThis.devicePixelRatio ?? 1) }, uRes: { value: new THREE.Vector2(1, 1) } },
-    defines: wide ? { WIDE: 1 } : {}, side: THREE.DoubleSide,
+    uniforms: {
+      ...baseUniforms(input.pal),
+      uWidth: { value: (d.width ?? 1) * (globalThis.devicePixelRatio ?? 1) },
+      uRes: { value: new THREE.Vector2(1, 1) },
+    },
+    defines: wide ? { WIDE: 1 } : {},
+    side: THREE.DoubleSide,
     vertexShader: /* glsl */ `
       attribute float isel, ipsel, icut, iT, ipiece, ipieces;
       attribute vec3 icol, ia, ib; // this piece's ends
@@ -1060,10 +1572,16 @@ export function pointPaths(input: LayerInput): Layer {
   });
   const common = shaderLayer(input, g, material, true, {}, {}, pieces);
   // The pieces' ends, in the instances' order (shaderLayer: each kept row's pieces in turn).
-  const rowOf = common.pick(Float32Array.from({ length: n }, (_, i) => i)), piece = g.getAttribute("ipiece").array as Float32Array;
-  const m = rowOf.length, a = new Float32Array(3 * m), b = new Float32Array(3 * m);
+  const rowOf = common.pick(Float32Array.from({ length: n }, (_, i) => i)),
+    piece = g.getAttribute("ipiece").array as Float32Array;
+  const m = rowOf.length,
+    a = new Float32Array(3 * m),
+    b = new Float32Array(3 * m);
   for (let k = 0; k < m; k++) {
-    const r = rowOf[k], first = offsets[r], count = offsets[r + 1] - first, j = first + Math.min(piece[k], Math.max(count - 2, 0));
+    const r = rowOf[k],
+      first = offsets[r],
+      count = offsets[r + 1] - first,
+      j = first + Math.min(piece[k], Math.max(count - 2, 0));
     for (let c = 0; c < 3; c++) {
       a[3 * k + c] = count ? xyz[3 * j + c] : 0;
       b[3 * k + c] = count > 1 ? xyz[3 * (j + 1) + c] : a[3 * k + c];
@@ -1080,20 +1598,42 @@ export function pointPaths(input: LayerInput): Layer {
   // point is where it is (x, y, z), as for lines.
   let most = 2;
   for (let i = 0; i < n; i++) most = Math.max(most, Math.min(PICK_MAX, offsets[i + 1] - offsets[i]));
-  const px = new Float32Array(n * most), py = new Float32Array(n * most), pz = new Float32Array(n * most);
-  const x = new Float32Array(n), y = new Float32Array(n), z = new Float32Array(n);
+  const px = new Float32Array(n * most),
+    py = new Float32Array(n * most),
+    pz = new Float32Array(n * most);
+  const x = new Float32Array(n),
+    y = new Float32Array(n),
+    z = new Float32Array(n);
   for (let i = 0; i < n; i++) {
-    const first = offsets[i], count = offsets[i + 1] - first;
+    const first = offsets[i],
+      count = offsets[i + 1] - first;
     for (let j = 0; j < most; j++) {
-      const at = count ? first + Math.round((Math.min(j, Math.min(count, most) - 1) * (count - 1)) / Math.max(Math.min(count, most) - 1, 1)) : -1;
-      px[i * most + j] = at < 0 ? NaN : xyz[3 * at]; py[i * most + j] = at < 0 ? NaN : xyz[3 * at + 1]; pz[i * most + j] = at < 0 ? NaN : xyz[3 * at + 2];
+      const at = count
+        ? first +
+          Math.round((Math.min(j, Math.min(count, most) - 1) * (count - 1)) / Math.max(Math.min(count, most) - 1, 1))
+        : -1;
+      px[i * most + j] = at < 0 ? NaN : xyz[3 * at];
+      py[i * most + j] = at < 0 ? NaN : xyz[3 * at + 1];
+      pz[i * most + j] = at < 0 ? NaN : xyz[3 * at + 2];
     }
-    x[i] = px[i * most + most - 1]; y[i] = py[i * most + most - 1]; z[i] = pz[i * most + most - 1];
+    x[i] = px[i * most + most - 1];
+    y[i] = py[i * most + most - 1];
+    z[i] = pz[i * most + most - 1];
   }
   return {
-    ...identity(input, 8), object: mesh, x, y, z, path: { points: most, x: px, y: py, z: pz, fill() {} }, pickBias: 0.8, line: true,
+    ...identity(input, 8),
+    object: mesh,
+    x,
+    y,
+    z,
+    path: { points: most, x: px, y: py, z: pz, fill() {} },
+    pickBias: 0.8,
+    line: true,
     ...common,
-    dispose() { g.dispose(); material.dispose(); },
+    dispose() {
+      g.dispose();
+      material.dispose();
+    },
   };
 }
 

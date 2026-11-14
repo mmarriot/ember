@@ -1,4 +1,5 @@
 """The users' areas of the site: publish, list, remove, expiry, and the same through XRootD commands."""
+
 import datetime
 import json
 import os
@@ -14,8 +15,14 @@ from evdtools.service import build_index
 
 
 def bundle(path, events=2, created="2026-11-09T00:00:00+00:00"):
-    header = {"schema": "evd/1", "profile": "cms", "tables": {"Hit": {"doc": "", "columns": {"e": {"type": "f32", "doc": ""}}}},
-              "relations": {}, "display": [], "source": {"files": ["x.root"], "created": created}}
+    header = {
+        "schema": "evd/1",
+        "profile": "cms",
+        "tables": {"Hit": {"doc": "", "columns": {"e": {"type": "f32", "doc": ""}}}},
+        "relations": {},
+        "display": [],
+        "source": {"files": ["x.root"], "created": created},
+    }
     with BundleWriter(str(path), header) as out:
         for i in range(events):
             out.add((1, 1, i), {"Hit": (1, {"e": np.ones(1, np.float32)})}, {})
@@ -56,8 +63,11 @@ def test_publishing_a_name_again_replaces_it_and_the_list_is_by_time_of_publicat
     site.publish(bundle(tmp_path / "b.evdb", created="2026-11-02T00:00:00+00:00"), root, "alice", "ttbar")
     site.publish(bundle(tmp_path / "d.evdb", created="2026-11-01T00:00:00+00:00"), root, "alice", "last")
     entry, replaced = site.publish(bundle(tmp_path / "c.evdb", 5, "2026-11-03T00:00:00+00:00"), root, "alice", "ttbar")
-    assert replaced and [(e["file"], e["events"]) for e in site.listing(root, "alice")] == \
-        [("data/u/alice/ttbar.evdb", 5), ("data/u/alice/last.evdb", 2), ("data/u/alice/old.evdb", 2)]
+    assert replaced and [(e["file"], e["events"]) for e in site.listing(root, "alice")] == [
+        ("data/u/alice/ttbar.evdb", 5),
+        ("data/u/alice/last.evdb", 2),
+        ("data/u/alice/old.evdb", 2),
+    ]
     assert entry["published"] > site.listing(root, "alice")[1]["published"]  # publishing again renews it
     assert site.listing(root, "bob") == []
     assert not [f for f in os.listdir(os.path.join(root, "data/u/alice")) if ".tmp" in f]
@@ -87,8 +97,11 @@ def test_something_that_is_not_a_complete_bundle_is_not_published(tmp_path):
 
 
 def test_a_site_out_of_reach_or_not_writable_is_a_problem_with_a_way_out(tmp_path):
-    for call in (lambda: site.store(str(tmp_path / "nowhere")).check(), lambda: site.listing(str(tmp_path / "nowhere"), "alice"),
-                 lambda: site.remove(str(tmp_path / "nowhere"), "alice", "a")):
+    for call in (
+        lambda: site.store(str(tmp_path / "nowhere")).check(),
+        lambda: site.listing(str(tmp_path / "nowhere"), "alice"),
+        lambda: site.remove(str(tmp_path / "nowhere"), "alice", "a"),
+    ):
         with pytest.raises(Problem, match="does not exist.*-o FILE"):
             call()
     if os.geteuid() == 0:
@@ -109,7 +122,11 @@ def test_a_site_out_of_reach_or_not_writable_is_a_problem_with_a_way_out(tmp_pat
 def test_where_the_site_is_comes_from_the_argument_then_the_environment_then_the_default(monkeypatch):
     for name in ("EVD_SITE_DIR", "EVD_SITE_URL", "EVD_SERVICE_DIR", "EVD_USER"):
         monkeypatch.delenv(name, raising=False)
-    assert (site.site_dir(), site.site_url(), site.service_dir()) == (site.DEFAULT_DIR, site.DEFAULT_URL, site.DEFAULT_SERVICE)
+    assert (site.site_dir(), site.site_url(), site.service_dir()) == (
+        site.DEFAULT_DIR,
+        site.DEFAULT_URL,
+        site.DEFAULT_SERVICE,
+    )
     monkeypatch.setenv("EVD_SITE_DIR", "/env/site")
     monkeypatch.setenv("EVD_SITE_URL", "https://env.example/")
     monkeypatch.setenv("EVD_USER", "carol")
@@ -148,11 +165,17 @@ def test_clean_removes_expired_bundles_and_brings_the_lists_up_to_date(tmp_path)
     assert os.path.exists(kept_outside) and os.path.exists(area("bob", "now.evdb.tmp7")) and os.path.exists(orphan)
     alice = {os.path.basename(e["file"]): e for e in index(root)["bundles"]}
     assert set(alice) == {"fresh.evdb", "orphan.evdb"} and index(root, "bob")["bundles"] == []
-    assert alice["fresh.evdb"]["title"] == "fresh title · 2 events" and alice["orphan.evdb"]["title"] == "orphan · 3 events"
+    assert (
+        alice["fresh.evdb"]["title"] == "fresh title · 2 events"
+        and alice["orphan.evdb"]["title"] == "orphan · 3 events"
+    )
     # published: the file's modification time, 10 days ago; it expires 30 days after that
     assert abs(seconds(alice["fresh.evdb"]["published"]) - (time.time() - 10 * 86400)) < 5
     assert abs(seconds(alice["fresh.evdb"]["expires"]) - (time.time() + 20 * 86400)) < 5
-    assert [os.path.basename(e["file"]) for e in index(root)["bundles"]] == ["orphan.evdb", "fresh.evdb"]  # newest first
+    assert [os.path.basename(e["file"]) for e in index(root)["bundles"]] == [
+        "orphan.evdb",
+        "fresh.evdb",
+    ]  # newest first
     assert site.clean(root, log=said.append) == []
     assert site.clean(root, days=5, log=said.append) == [area("alice", "fresh.evdb")]
 
@@ -225,8 +248,11 @@ def test_a_login_that_is_not_a_plain_account_name_is_refused_everywhere(tmp_path
     (root / "data" / "simulation").mkdir(parents=True)
     kept = bundle(root / "data" / "simulation" / "ttbar.evdb")
     (root / "index.json").write_text('{"bundles": []}')
-    calls = [lambda: site.publish(bundle(tmp_path / "a.evdb"), str(root), user, "x"),
-             lambda: site.remove(str(root), user, "ttbar"), lambda: site.listing(str(root), user)]
+    calls = [
+        lambda: site.publish(bundle(tmp_path / "a.evdb"), str(root), user, "x"),
+        lambda: site.remove(str(root), user, "ttbar"),
+        lambda: site.listing(str(root), user),
+    ]
     for call in calls + ([lambda: site.login(user)] if user else []):  # (no login given: the account's)
         with pytest.raises(Problem, match="login"):
             call()
@@ -248,10 +274,10 @@ def test_clean_does_not_follow_a_symlinked_area_or_touch_what_is_not_a_plain_fil
     for v in victims:
         age(v, 40)
     site.publish(bundle(tmp_path / "a.evdb"), str(root), "alice", "mine")
-    os.symlink("../simulation", root / "data" / "u" / "mallory")                       # an area that is a link
-    os.symlink(victims[0], root / "data" / "u" / "alice" / "link.evdb")                # a link in an area
+    os.symlink("../simulation", root / "data" / "u" / "mallory")  # an area that is a link
+    os.symlink(victims[0], root / "data" / "u" / "alice" / "link.evdb")  # a link in an area
     os.symlink("/nonexistent", root / "data" / "u" / "alice" / "dangling.evdb")
-    (root / "data" / "u" / "alice" / "d.evdb").mkdir()                                 # directories with file names
+    (root / "data" / "u" / "alice" / "d.evdb").mkdir()  # directories with file names
     (root / "data" / "u" / "alice" / "x.evdb.tmp7").mkdir()
     said = []
     assert site.clean(str(root), log=said.append) == []
@@ -271,13 +297,14 @@ def test_clean_never_writes_through_a_link_planted_in_an_area(tmp_path):
     before = victim.read_bytes()
     area = root / "data" / "u" / "mallory"
     (area / "index.json").unlink()
-    os.symlink(victim, area / "index.json")                                       # her index is bob's
-    for pid in range(os.getpid() - 2, os.getpid() + 3):                           # and the old temporary names
+    os.symlink(victim, area / "index.json")  # her index is bob's
+    for pid in range(os.getpid() - 2, os.getpid() + 3):  # and the old temporary names
         os.symlink(victim, area / f"index.json.tmp{pid}")
     site.clean(str(root), log=lambda line: None)
     assert victim.read_bytes() == before
-    assert not (area / "index.json").is_symlink() and [e["file"] for e in index(str(root), "mallory")["bundles"]] == \
-        ["data/u/mallory/hers.evdb"]
+    assert not (area / "index.json").is_symlink() and [e["file"] for e in index(str(root), "mallory")["bundles"]] == [
+        "data/u/mallory/hers.evdb"
+    ]
 
 
 def test_clean_keeps_a_bundle_published_anew_while_it_ran(tmp_path, monkeypatch):
@@ -289,12 +316,17 @@ def test_clean_keeps_a_bundle_published_anew_while_it_ran(tmp_path, monkeypatch)
     old = root / "data" / "u" / "alice" / "a_old.evdb"
     age(old, 40)
     entry = site._entry
+
     def republish_meanwhile(path, *args):  # called for b_new.evdb, after a_old.evdb was found expired
         os.utime(old)
         return entry(path, *args)
+
     monkeypatch.setattr(site, "_entry", republish_meanwhile)
     assert site.clean(str(root), log=lambda line: None) == [] and old.exists()
-    assert sorted(e["file"] for e in index(str(root))["bundles"]) == ["data/u/alice/a_old.evdb", "data/u/alice/b_new.evdb"]
+    assert sorted(e["file"] for e in index(str(root))["bundles"]) == [
+        "data/u/alice/a_old.evdb",
+        "data/u/alice/b_new.evdb",
+    ]
 
 
 def test_an_area_swapped_for_a_link_while_clean_runs_does_not_redirect_it(tmp_path, monkeypatch):
@@ -310,11 +342,13 @@ def test_an_area_swapped_for_a_link_while_clean_runs_does_not_redirect_it(tmp_pa
     area = root / "data" / "u" / "mallory"
     age(area / "zz_old.evdb", 40)
     entry = site._entry
+
     def swap(path, *args):  # called for a_new.evdb, once the folder is read
         if area.is_dir() and not area.is_symlink():
             area.rename(root / "data" / "u" / "hidden")
             os.symlink("../simulation", area)
         return entry(path, *args)
+
     monkeypatch.setattr(site, "_entry", swap)
     site.clean(str(root), log=lambda line: None)
     assert os.path.exists(victim) and not (campaign / "index.json").exists()
@@ -363,10 +397,14 @@ def test_an_odd_file_in_one_area_does_not_stop_clean_or_list(tmp_path):
     os.mkdir(area("carol", "index.json"))
     said = []
     removed = site.clean(root, log=said.append)
-    assert sorted(os.path.relpath(p, root) for p in removed) == [f"data/u/{u}/old.evdb" for u in ("alice", "bob", "carol", "zed")]
+    assert sorted(os.path.relpath(p, root) for p in removed) == [
+        f"data/u/{u}/old.evdb" for u in ("alice", "bob", "carol", "zed")
+    ]
     assert [e["file"] for e in index(root)["bundles"]] == ["data/u/alice/nosource.evdb"]  # the one complete bundle
     assert index(root, "bob")["bundles"] == [] and index(root, "zed")["bundles"] == []
-    open(area("bob", "index.json"), "w").write('{"bundles": ["x", {"file": 3}, {"title": "t"}, {"file": "data/u/bob/b.evdb"}]}')
+    open(area("bob", "index.json"), "w").write(
+        '{"bundles": ["x", {"file": 3}, {"title": "t"}, {"file": "data/u/bob/b.evdb"}]}'
+    )
     assert site.listing(root, "bob") == [{"file": "data/u/bob/b.evdb"}]
 
 

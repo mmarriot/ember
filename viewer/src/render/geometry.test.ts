@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { boxPoint, endsOrCylinder, etaPhiDirection, perRow, toCylinder, towerPoint } from "./geometry";
 
 const col = (...v: number[]) => Float32Array.from(v);
-const near = (a: readonly number[], b: readonly number[], digits = 4) => a.forEach((v, i) => expect(v).toBeCloseTo(b[i], digits));
+const near = (a: readonly number[], b: readonly number[], digits = 4) =>
+  a.forEach((v, i) => expect(v).toBeCloseTo(b[i], digits));
 
 describe("perRow", () => {
   const columns = { e: col(0.5, 2, 200, -3, NaN) };
@@ -26,8 +27,13 @@ describe("perRow", () => {
 
 describe("etaPhiDirection", () => {
   it("is a unit vector at the polar angle of eta", () => {
-    for (const [eta, phi] of [[0, 0], [1.2, 2], [-3, -1]]) {
-      const d = etaPhiDirection(eta, phi), theta = 2 * Math.atan(Math.exp(-eta));
+    for (const [eta, phi] of [
+      [0, 0],
+      [1.2, 2],
+      [-3, -1],
+    ]) {
+      const d = etaPhiDirection(eta, phi),
+        theta = 2 * Math.atan(Math.exp(-eta));
       expect(Math.hypot(...d)).toBeCloseTo(1, 6);
       near(d, [Math.sin(theta) * Math.cos(phi), Math.sin(theta) * Math.sin(phi), Math.cos(theta)]);
     }
@@ -51,7 +57,12 @@ describe("toCylinder", () => {
 
 describe("towerPoint", () => {
   // An ECAL barrel crystal: front face centre at rho 129 cm, eta 0.5, phi 1; 0.0174 x 0.0174, 23 cm deep.
-  const phi = 1, eta = 0.5, rho = 129, x = rho * Math.cos(phi), y = rho * Math.sin(phi), z = rho * Math.sinh(eta);
+  const phi = 1,
+    eta = 0.5,
+    rho = 129,
+    x = rho * Math.cos(phi),
+    y = rho * Math.sin(phi),
+    z = rho * Math.sinh(eta);
   it("on a cylinder: the front centre is the position, the back is further out along rho at the same eta, phi", () => {
     near(towerPoint(x, y, z, 0.0174, 0.0174, 23, false, 0, 0, 0), [x, y, z], 3);
     const b = towerPoint(x, y, z, 0.0174, 0.0174, 23, false, 0, 0, 1);
@@ -66,7 +77,9 @@ describe("towerPoint", () => {
   });
   it("on a disc: faces at constant |z|, outwards on both ends", () => {
     for (const s of [1, -1]) {
-      const zf = s * 1115, r = 50, b = towerPoint(r, 0, zf, 0.175, 0.175, 30, true, 0, 0, 1);
+      const zf = s * 1115,
+        r = 50,
+        b = towerPoint(r, 0, zf, 0.175, 0.175, 30, true, 0, 0, 1);
       expect(b[2]).toBeCloseTo(s * 1145, 3);
       expect(Math.asinh(b[2] / Math.hypot(b[0], b[1]))).toBeCloseTo(Math.asinh(zf / r), 4); // same eta
       const corner = towerPoint(r, 0, zf, 0.175, 0.175, 30, true, 0.5, 0, 0);
@@ -78,7 +91,10 @@ describe("towerPoint", () => {
 
 describe("boxPoint", () => {
   it("places the corners of a trapezoid along its axes", () => {
-    const c = [0, 400, 100], u = [1, 0, 0], v = [0, 0, 1], size = [50, 80, 120, 10] as [number, number, number, number];
+    const c = [0, 400, 100],
+      u = [1, 0, 0],
+      v = [0, 0, 1],
+      size = [50, 80, 120, 10] as [number, number, number, number];
     near(boxPoint(c, u, v, size, 0, 0, 0), c);
     near(boxPoint(c, u, v, size, 1, -1, 0), [50, 400, -20]); // half width 50 at -v
     near(boxPoint(c, u, v, size, -1, 1, 0), [-80, 400, 220]); // half width 80 at +v
@@ -88,7 +104,8 @@ describe("boxPoint", () => {
 
 describe("endsOrCylinder", () => {
   it("keeps finite ends and puts the others where the momentum's line leaves the cylinder", () => {
-    const start = [col(0, 0), col(0, 0), col(0, 0)] as const, p = [col(1, 0), col(0, 1), col(0, 0)] as const;
+    const start = [col(0, 0), col(0, 0), col(0, 0)] as const,
+      p = [col(1, 0), col(0, 1), col(0, 0)] as const;
     const end: [Float32Array, Float32Array, Float32Array] = [col(5, NaN), col(6, NaN), col(7, NaN)];
     const out = endsOrCylinder(start, p, end, 2, { r: 129, z: 300 });
     near([out[0][0], out[1][0], out[2][0]], [5, 6, 7]);

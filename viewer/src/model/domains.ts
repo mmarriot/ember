@@ -4,7 +4,8 @@
 import type { DisplayLayer, Header } from "../io/bundle";
 
 /** The domains whose layers every domain draws. */
-export const sharedDomains = (h: Pick<Header, "domains"> | undefined) => new Set((h?.domains ?? []).filter((d) => d.shared).map((d) => d.name));
+export const sharedDomains = (h: Pick<Header, "domains"> | undefined) =>
+  new Set((h?.domains ?? []).filter((d) => d.shared).map((d) => d.name));
 
 /** Whether domain `current` (null: All) draws layer `d`: its own layers, those without a domain, and those of a
  *  shared domain. */
@@ -13,13 +14,19 @@ export const drawsLayer = (d: Pick<DisplayLayer, "domain">, current: string | nu
 
 /** The domain a bundle opens on: its `view.domain` if it names one of two or more domains, else All (null). */
 export function startDomain(h: Pick<Header, "domains" | "view"> | undefined): string | null {
-  const names = (h?.domains ?? []).map((d) => d.name), start = h?.view?.domain;
+  const names = (h?.domains ?? []).map((d) => d.name),
+    start = h?.view?.domain;
   return names.length >= 2 && start && names.includes(start) ? start : null;
 }
 
 /** The domain `by` steps (+1 next, -1 previous) from `current` in the cycle domains..., All. `has` (e.g. "the
  *  selection has objects there"): domains for which it is false are skipped; All never is. */
-export function stepDomain(names: string[], current: string | null, by: number, has: (name: string) => boolean = () => true): string | null {
+export function stepDomain(
+  names: string[],
+  current: string | null,
+  by: number,
+  has: (name: string) => boolean = () => true,
+): string | null {
   if (names.length < 2) return current;
   const cycle: (string | null)[] = [...names, null];
   let i = cycle.indexOf(current);
@@ -40,7 +47,12 @@ type Rows = Map<string, Set<number>>;
 /** The rows of `hl` (e.g. a focus's highlight) that domain `name` draws as its own: those of its layers (not of shared
  *  domains or of none, which every domain draws); with `name` null (All) or a shared domain, all of them. Null when it
  *  has none. */
-export function rowsInDomain(hl: Rows, display: Pick<DisplayLayer, "table" | "domain">[], name: string | null, shared: Set<string>): Rows | null {
+export function rowsInDomain(
+  hl: Rows,
+  display: Pick<DisplayLayer, "table" | "domain">[],
+  name: string | null,
+  shared: Set<string>,
+): Rows | null {
   if (!name || shared.has(name)) return [...hl.values()].some((s) => s.size) ? hl : null;
   const tables = new Set(display.filter((l) => l.domain === name).map((l) => l.table));
   const rows = new Map([...hl].filter(([t, set]) => tables.has(t) && set.size));

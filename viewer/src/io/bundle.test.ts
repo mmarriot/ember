@@ -4,7 +4,8 @@ import { related } from "../model/relations";
 import { around, blobSource, Bundle, httpSource, type Source } from "./bundle";
 
 // One TICL v6 GPU event, made by: evdtools from-nano ... --max-events 1 -o golden/v6_1event.evdb
-const golden = () => Bundle.open(blobSource(new Blob([readFileSync(new URL("../../../golden/v6_1event.evdb", import.meta.url))])));
+const golden = () =>
+  Bundle.open(blobSource(new Blob([readFileSync(new URL("../../../golden/v6_1event.evdb", import.meta.url))])));
 
 describe("bundle", () => {
   it("reads header, index and an event with consistent tables", async () => {
@@ -35,7 +36,9 @@ describe("bundle", () => {
     const ev = await b.event(0);
     const rel = ev.relations.soaTracksterLCs;
     const hl = related(ev, b.header, { table: "TICLSoATracksters", row: 0 });
-    expect([...hl.get("HGCalSoALayerClusters")!].sort((a, c) => a - c)).toEqual([...rel.indices.slice(rel.offsets[0], rel.offsets[1])].sort((a, c) => a - c));
+    expect([...hl.get("HGCalSoALayerClusters")!].sort((a, c) => a - c)).toEqual(
+      [...rel.indices.slice(rel.offsets[0], rel.offsets[1])].sort((a, c) => a - c),
+    );
   });
 });
 
@@ -46,8 +49,12 @@ describe("httpSource", () => {
     vi.stubGlobal("fetch", async (_url: string, init: RequestInit) => {
       calls++;
       const range = (init.headers as Record<string, string>).Range.match(/bytes=(\d+)-(\d+)/)!;
-      if (calls === 1) // the probe is answered partially (e.g. from a cache), later reads in full
-        return new Response(file.slice(0, 1), { status: 206, headers: { "Content-Range": `bytes ${range[1]}-${range[2]}/100` } });
+      if (calls === 1)
+        // the probe is answered partially (e.g. from a cache), later reads in full
+        return new Response(file.slice(0, 1), {
+          status: 206,
+          headers: { "Content-Range": `bytes ${range[1]}-${range[2]}/100` },
+        });
       return new Response(file, { status: 200 });
     });
     const src = await httpSource("x.evdb");
@@ -62,7 +69,10 @@ describe("httpSource", () => {
     vi.stubGlobal("fetch", async (url: string, init: RequestInit) => {
       asked.push([url, init]);
       const [, a, b] = (init.headers as Record<string, string>).Range.match(/bytes=(\d+)-(\d+)/)!.map(Number);
-      return new Response(new Uint8Array(b - a + 1), { status: 206, headers: { "Content-Range": `bytes ${a}-${b}/100`, ETag: '"5f-abc"' } });
+      return new Response(new Uint8Array(b - a + 1), {
+        status: 206,
+        headers: { "Content-Range": `bytes ${a}-${b}/100`, ETag: '"5f-abc"' },
+      });
     });
     const src = await httpSource("data/x.evdb");
     await src.read(10, 3);
@@ -77,7 +87,10 @@ describe("httpSource", () => {
     let etag = '"v1"';
     vi.stubGlobal("fetch", async (_url: string, init: RequestInit) => {
       const [, a, b] = (init.headers as Record<string, string>).Range.match(/bytes=(\d+)-(\d+)/)!.map(Number);
-      return new Response(new Uint8Array(b - a + 1), { status: 206, headers: { "Content-Range": `bytes ${a}-${b}/100`, ETag: etag } });
+      return new Response(new Uint8Array(b - a + 1), {
+        status: 206,
+        headers: { "Content-Range": `bytes ${a}-${b}/100`, ETag: etag },
+      });
     });
     const src = await httpSource("x.evdb");
     await src.read(0, 4);
@@ -90,12 +103,18 @@ describe("httpSource", () => {
 describe("event cache", () => {
   // The golden bundle, counting the reads of its one event record (header, index and trailer are read on open).
   const counted = async (failFirst = false) => {
-    const file = readFileSync(new URL("../../../golden/v6_1event.evdb", import.meta.url)), src = blobSource(new Blob([file]));
-    const counts = { events: 0 }, b = await Bundle.open(src), at = b.events[0].offset;
-    const reading: Source = { size: src.size, read: (o, l) => {
-      if (o === at && counts.events++ === 0 && failFirst) return Promise.reject(new Error("network"));
-      return src.read(o, l);
-    } };
+    const file = readFileSync(new URL("../../../golden/v6_1event.evdb", import.meta.url)),
+      src = blobSource(new Blob([file]));
+    const counts = { events: 0 },
+      b = await Bundle.open(src),
+      at = b.events[0].offset;
+    const reading: Source = {
+      size: src.size,
+      read: (o, l) => {
+        if (o === at && counts.events++ === 0 && failFirst) return Promise.reject(new Error("network"));
+        return src.read(o, l);
+      },
+    };
     (b as unknown as { source: Source }).source = reading;
     return { b, counts };
   };

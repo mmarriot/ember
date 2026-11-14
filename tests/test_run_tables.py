@@ -1,4 +1,5 @@
 """Per-run tables (NanoAOD Runs tree): lookups from event tables, cuts, run records and run info in the bundle."""
+
 import json
 
 import numpy as np
@@ -14,11 +15,22 @@ RUN_TYPES = {"Channel": {"size": F4, "fed": U2, "detid": I4}}
 EVENT = {"Hit": {"e": [5, 1, 7, 2], "dense": [2, 0, 3, 9]}}
 CHANNELS = {"Channel": {"size": [0.5, 0.6, 0.7, 0.0], "fed": [10, 10, 11, 11], "detid": [1, 2, 3, 0]}}  # dense 0..3
 PROFILE = {
-    "derive": [{"table": "Hit", "column": "cellSize", "neighbourDistance": ["e", "e"]},  # an estimate, overridden
-               {"table": "Hit", "lookup": "Channel", "index": "dense", "columns": {"cellSize": "size", "fed": "fed"}}],
+    "derive": [
+        {"table": "Hit", "column": "cellSize", "neighbourDistance": ["e", "e"]},  # an estimate, overridden
+        {"table": "Hit", "lookup": "Channel", "index": "dense", "columns": {"cellSize": "size", "fed": "fed"}},
+    ],
     "cuts": {"Channel": [["detid", "!=", 0]]},
-    "display": [{"table": "Channel", "repr": "cells", "group": "Detector", "label": "Channels",
-                 "position": ["size", "size", "size"], "context": True, "visible": True}],
+    "display": [
+        {
+            "table": "Channel",
+            "repr": "cells",
+            "group": "Detector",
+            "label": "Channels",
+            "position": ["size", "size", "size"],
+            "context": True,
+            "visible": True,
+        }
+    ],
 }
 
 
@@ -39,8 +51,15 @@ def test_lookup_copies_run_table_columns_by_row():
 
 
 def test_lookup_columns_take_the_narrowest_signed_type_that_holds_minus_one():
-    widened = {np.bool_: np.int8, np.uint8: np.int16, np.uint16: np.int32, np.uint32: np.int64,
-               np.uint64: np.int64, np.int16: np.int16, np.float32: np.float32}
+    widened = {
+        np.bool_: np.int8,
+        np.uint8: np.int16,
+        np.uint16: np.int32,
+        np.uint32: np.int64,
+        np.uint64: np.int64,
+        np.int16: np.int16,
+        np.float32: np.float32,
+    }
     assert {t: _lookup_dtype(t) for t in widened} == widened
 
 

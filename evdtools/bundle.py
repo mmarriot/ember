@@ -1,4 +1,5 @@
 """Read and write .evdb bundles (docs/format.md)."""
+
 import collections
 import gzip
 import json
@@ -9,8 +10,18 @@ from concurrent.futures import ThreadPoolExecutor
 import numpy as np
 
 MAGIC, RECORD_MAGIC, VERSION = b"EVDB", b"EVD1", 1
-TYPES = {"f32": "<f4", "f64": "<f8", "i8": "<i1", "u8": "<u1", "i16": "<i2", "u16": "<u2",
-         "i32": "<i4", "u32": "<u4", "i64": "<i8", "u64": "<u8"}
+TYPES = {
+    "f32": "<f4",
+    "f64": "<f8",
+    "i8": "<i1",
+    "u8": "<u1",
+    "i16": "<i2",
+    "u16": "<u2",
+    "i32": "<i4",
+    "u32": "<u4",
+    "i64": "<i8",
+    "u64": "<u8",
+}
 RELATION_TYPES = {"offsets": "<u4", "indices": "<u4", "weights": "<f4"}
 
 
@@ -43,12 +54,16 @@ def encode_record(event_id, tables, relations):
 
     meta = {"event": [int(x) for x in event_id], "tables": {}, "relations": {}}
     for name, (n, columns) in tables.items():
-        meta["tables"][name] = {"n": int(n), "columns": {c: put(a, TYPES[type_code(a.dtype)]) for c, a in columns.items()}}
+        meta["tables"][name] = {
+            "n": int(n),
+            "columns": {c: put(a, TYPES[type_code(a.dtype)]) for c, a in columns.items()},
+        }
     for name, rel in relations.items():
         meta["relations"][name] = {
             "offsets": put(rel["offsets"], RELATION_TYPES["offsets"]),
             "indices": put(rel["indices"], RELATION_TYPES["indices"]),
-            "weights": {w: put(a, RELATION_TYPES["weights"]) for w, a in rel.get("weights", {}).items()}}
+            "weights": {w: put(a, RELATION_TYPES["weights"]) for w, a in rel.get("weights", {}).items()},
+        }
     header = _json(meta, 8)
     base = 8 + len(header)
     # One buffer of the final size, each array copied into it once (zero-filled, which is the padding).
@@ -56,7 +71,7 @@ def encode_record(event_id, tables, relations):
     record[:base] = RECORD_MAGIC + struct.pack("<I", len(header)) + header
     for offset, data in arrays:
         if data.nbytes:
-            record[base + offset:base + offset + data.nbytes] = data.view(np.uint8).data
+            record[base + offset : base + offset + data.nbytes] = data.view(np.uint8).data
     return record
 
 
@@ -207,14 +222,20 @@ class Bundle:
         if data[:4] != RECORD_MAGIC:
             raise ValueError(f"record at {entry['offset']}: bad record")
         hlen = struct.unpack("<I", data[4:8])[0]
-        meta = json.loads(data[8:8 + hlen])
+        meta = json.loads(data[8 : 8 + hlen])
         base = 8 + hlen
         view = lambda loc, dtype: np.frombuffer(data, dtype=dtype, count=loc[1], offset=base + loc[0])
         types = self.header["tables"]
-        tables = {t: (m["n"], {c: view(loc, TYPES[types[t]["columns"][c]["type"]]) for c, loc in m["columns"].items()})
-                  for t, m in meta["tables"].items()}
-        relations = {r: {"offsets": view(m["offsets"], RELATION_TYPES["offsets"]),
-                         "indices": view(m["indices"], RELATION_TYPES["indices"]),
-                         "weights": {w: view(loc, RELATION_TYPES["weights"]) for w, loc in m["weights"].items()}}
-                     for r, m in meta["relations"].items()}
+        tables = {
+            t: (m["n"], {c: view(loc, TYPES[types[t]["columns"][c]["type"]]) for c, loc in m["columns"].items()})
+            for t, m in meta["tables"].items()
+        }
+        relations = {
+            r: {
+                "offsets": view(m["offsets"], RELATION_TYPES["offsets"]),
+                "indices": view(m["indices"], RELATION_TYPES["indices"]),
+                "weights": {w: view(loc, RELATION_TYPES["weights"]) for w, loc in m["weights"].items()},
+            }
+            for r, m in meta["relations"].items()
+        }
         return {"event": meta["event"], "tables": tables, "relations": relations}

@@ -7,6 +7,7 @@ available to lookups, written once per run.
 Per event: read tables -> derive columns -> relations (CSR) -> gather -> row cuts -> event selection -> renumber
 index columns and cut relations (links to removed rows dropped) -> drop internal and per-run tables.
 """
+
 import contextlib
 import datetime
 import fnmatch
@@ -29,8 +30,22 @@ from .bundle import BundleWriter, type_code
 PROFILES = importlib.resources.files("evdtools").joinpath("profiles")
 OPS = {"<": np.less, "<=": np.less_equal, ">": np.greater, ">=": np.greater_equal, "==": np.equal, "!=": np.not_equal}
 # Profile keys the converter acts on; every other top-level key is a viewer setting, copied to the header verbatim.
-PROFILE_KEYS = {"name", "note", "include", "exclude", "internal", "sameRows", "derive", "relations", "cuts", "select",
-                "display", "kinds", "prefer", "stages"}
+PROFILE_KEYS = {
+    "name",
+    "note",
+    "include",
+    "exclude",
+    "internal",
+    "sameRows",
+    "derive",
+    "relations",
+    "cuts",
+    "select",
+    "display",
+    "kinds",
+    "prefer",
+    "stages",
+}
 HEADER_KEYS = {"schema", "source", "profile", "tables"}  # written by the converter, not taken from the profile
 
 
@@ -49,13 +64,20 @@ def load_profile(name_or_path, _within=()):
     An included profile's `name` is not inherited."""
     # A profile is known by its real path, or as "builtin:<name>" (which has no directory to look beside).
     here = os.path.dirname(_within[-1]) if _within and not _within[-1].startswith("builtin:") else None
-    candidates = [name_or_path] if not _within else \
-        [os.path.join(here, name_or_path), os.path.join(here, f"{name_or_path}.json")] if here else []
+    candidates = (
+        [name_or_path]
+        if not _within
+        else [os.path.join(here, name_or_path), os.path.join(here, f"{name_or_path}.json")]
+        if here
+        else []
+    )
     path = next((os.path.realpath(c) for c in candidates if os.path.isfile(c)), None)
     builtin = PROFILES.joinpath(f"{name_or_path}.json")
     if path is None and not builtin.is_file():
         known = sorted(p.name[:-5] for p in PROFILES.iterdir() if p.name.endswith(".json"))
-        raise Problem(f"no profile {name_or_path}: neither a file nor one of the built-in profiles ({', '.join(known)})")
+        raise Problem(
+            f"no profile {name_or_path}: neither a file nor one of the built-in profiles ({', '.join(known)})"
+        )
     key = path or f"builtin:{name_or_path}"
     if key in _within:
         raise ValueError(f"profile {key} includes itself (through {' -> '.join(_within)})")
@@ -81,7 +103,7 @@ def discover(tree):
 
 
 def _column(spec):
-    """"Table.column" -> (table, column)."""
+    """ "Table.column" -> (table, column)."""
     table, _, column = spec.partition(".")
     return table, column
 
@@ -139,8 +161,10 @@ def _derived_columns(d, tables):
         names, doc = ["x", "y"], f"derived from {', '.join(d['xyFromEtaPhiZ'])}"
     else:
         names = [d["column"]]
-        doc = (f"derived: {d.get('scale', 1.0):g} x distance to neighbour {d.get('k', 1)} in "
-               f"({', '.join(d['neighbourDistance'])})" + (f" per {d['groupBy']}" if "groupBy" in d else ""))
+        doc = (
+            f"derived: {d.get('scale', 1.0):g} x distance to neighbour {d.get('k', 1)} in "
+            f"({', '.join(d['neighbourDistance'])})" + (f" per {d['groupBy']}" if "groupBy" in d else "")
+        )
     return {c: (np.dtype("f4"), doc) for c in names}
 
 
@@ -168,6 +192,7 @@ def _derive(d, tables):
 def _neighbour_distance(d, cols):
     """scale x the distance of each row to its k-th nearest other row of the same `groupBy` value."""
     from scipy.spatial import cKDTree  # only this derive needs scipy
+
     points = np.column_stack([cols[c] for c in d["neighbourDistance"]]).astype(np.float64)
     groups = cols[d["groupBy"]] if "groupBy" in d else np.zeros(len(points))
     k, out = d.get("k", 1), np.zeros(len(points), np.float32)
@@ -198,7 +223,9 @@ def _gather(d, tables, relations, profile_relations):
             out[c][todo] = target[src["columns"][c]][rows] if c in src["columns"] else 0
         placed |= todo
     if d.get("missing"):
-        out = {c: np.where(np.isnan(cols[c]), v, cols[c]).astype(np.float32) if c in cols else v for c, v in out.items()}
+        out = {
+            c: np.where(np.isnan(cols[c]), v, cols[c]).astype(np.float32) if c in cols else v for c, v in out.items()
+        }
     cols.update(out)
 
 
@@ -228,7 +255,7 @@ def _relation(rel, tables):
             ok = (idx >= 0) & (idx < len(via))
             idx = np.where(ok, via[np.where(ok, idx, 0)], -1)
         if _column(rel["index"])[0] == rel["to"]:  # on `to` (each hit names its cluster): a `from` row gets the
-            rows = np.flatnonzero(idx >= 0)        # `to` rows that name it
+            rows = np.flatnonzero(idx >= 0)  # `to` rows that name it
             indices = rows[np.argsort(idx[rows], kind="stable")]
             offsets = np.concatenate([[0], np.cumsum(np.bincount(idx[indices], minlength=n_from))])
         else:
@@ -237,14 +264,18 @@ def _relation(rel, tables):
         key_from, key_to = col(rel["fromKey"]), col(rel["toKey"])
         order = np.argsort(key_to, kind="stable")
         pos = np.searchsorted(key_to[order], key_from)
-        found = (pos < len(order)) & (key_to[order][np.minimum(pos, len(order) - 1)] == key_from) if len(order) else \
-            np.zeros(len(key_from), bool)
+        found = (
+            (pos < len(order)) & (key_to[order][np.minimum(pos, len(order) - 1)] == key_from)
+            if len(order)
+            else np.zeros(len(key_from), bool)
+        )
         offsets, indices = np.concatenate([[0], np.cumsum(found, dtype=np.int64)]), order[pos[found]]
     else:
         raise ValueError(f"relation {rel['name']}: unknown kind {kind}")
     if len(offsets) != n_from + 1 or offsets[-1] != len(indices) or (len(indices) and indices.max() >= n_to):
-        raise ValueError(f"relation {rel['name']}: inconsistent with tables {rel['from']} ({n_from}) and "
-                         f"{rel['to']} ({n_to})")
+        raise ValueError(
+            f"relation {rel['name']}: inconsistent with tables {rel['from']} ({n_from}) and {rel['to']} ({n_to})"
+        )
     return {"offsets": offsets, "indices": indices, "weights": weights}
 
 
@@ -253,13 +284,19 @@ def _compose(a, b):
     a_off, b_off = np.asarray(a["offsets"], np.int64), np.asarray(b["offsets"], np.int64)
     offsets, indices = [0], []
     for f in range(len(a_off) - 1):
-        mids = a["indices"][a_off[f]:a_off[f + 1]]
-        reached = np.unique(np.concatenate([b["indices"][b_off[m]:b_off[m + 1]] for m in mids])) \
-            if len(mids) else np.zeros(0, np.int64)
+        mids = a["indices"][a_off[f] : a_off[f + 1]]
+        reached = (
+            np.unique(np.concatenate([b["indices"][b_off[m] : b_off[m + 1]] for m in mids]))
+            if len(mids)
+            else np.zeros(0, np.int64)
+        )
         indices.append(reached)
         offsets.append(offsets[-1] + len(reached))
-    return {"offsets": np.array(offsets), "indices": np.concatenate(indices) if indices else np.zeros(0, np.int64),
-            "weights": {}}
+    return {
+        "offsets": np.array(offsets),
+        "indices": np.concatenate(indices) if indices else np.zeros(0, np.int64),
+        "weights": {},
+    }
 
 
 def cut_relation(rel, keep_from, keep_to):
@@ -278,19 +315,27 @@ def cut_relation(rel, keep_from, keep_to):
     counts = np.bincount(owner[keep], minlength=len(offsets) - 1)
     if keep_from is not None:
         counts = counts[keep_from]
-    return {"offsets": np.concatenate([[0], np.cumsum(counts)]), "indices": indices[keep],
-            "weights": {w: a[keep] for w, a in rel["weights"].items()}}
+    return {
+        "offsets": np.concatenate([[0], np.cumsum(counts)]),
+        "indices": indices[keep],
+        "weights": {w: a[keep] for w, a in rel["weights"].items()},
+    }
 
 
 def _check_same(s, tables, event_id):
     """sameRows: the dropped table must have the kept table's rows, in the same order."""
     (n_keep, keep), (n_drop, drop) = tables[s["keep"]], tables[s["drop"]]
-    bad = [f"{a}/{b}" for a, b in s["columns"]
-           if n_keep == n_drop and not np.allclose(keep[a], drop[b], rtol=1e-5, atol=1e-6)]
+    bad = [
+        f"{a}/{b}"
+        for a, b in s["columns"]
+        if n_keep == n_drop and not np.allclose(keep[a], drop[b], rtol=1e-5, atol=1e-6)
+    ]
     if n_keep != n_drop or bad:
-        raise ValueError(f"sameRows {s['keep']} / {s['drop']}: event {tuple(int(x) for x in event_id)} differs "
-                         f"({f'{n_keep} vs {n_drop} rows' if n_keep != n_drop else ', '.join(bad)}); "
-                         "remove this sameRows entry from the profile to keep both tables")
+        raise ValueError(
+            f"sameRows {s['keep']} / {s['drop']}: event {tuple(int(x) for x in event_id)} differs "
+            f"({f'{n_keep} vs {n_drop} rows' if n_keep != n_drop else ', '.join(bad)}); "
+            "remove this sameRows entry from the profile to keep both tables"
+        )
 
 
 def _display(profile, tables, relations):
@@ -363,13 +408,18 @@ class Converter:
             keep, drop = self.tables[s["keep"]]["columns"], self.tables[s["drop"]]["columns"]
             for c in s.get("copy", []):
                 if c not in drop or c in keep:
-                    raise ValueError(f"sameRows {s['keep']} / {s['drop']}: cannot copy column {c} (missing from "
-                                     f"{s['drop']}, or already in {s['keep']})")
+                    raise ValueError(
+                        f"sameRows {s['keep']} / {s['drop']}: cannot copy column {c} (missing from "
+                        f"{s['drop']}, or already in {s['keep']})"
+                    )
                 keep[c] = drop[c]
                 self.derived.add((s["keep"], c))
 
-        self.derive = [d for d in profile.get("derive", [])
-                       if d["table"] in self.tables and d.get("lookup", d["table"]) in self.tables]
+        self.derive = [
+            d
+            for d in profile.get("derive", [])
+            if d["table"] in self.tables and d.get("lookup", d["table"]) in self.tables
+        ]
         for d in self.derive:
             for c, meta in _derived_columns(d, self.tables).items():
                 if d.get("missing") and c in self.tables[d["table"]]["columns"]:
@@ -386,8 +436,11 @@ class Converter:
         for r in profile.get("relations", []):
             if r["kind"] == "compose":  # its ends are those of the chain
                 if all(v in self.relations for v in r["via"]):
-                    self.relations[r["name"]] = {**r, "from": self.relations[r["via"][0]]["from"],
-                                                 "to": self.relations[r["via"][-1]]["to"]}
+                    self.relations[r["name"]] = {
+                        **r,
+                        "from": self.relations[r["via"][0]]["from"],
+                        "to": self.relations[r["via"][-1]]["to"],
+                    }
                 continue
             r = {**r, "from": rename.get(r["from"], r["from"]), "to": rename.get(r["to"], r["to"])}
             if self._available(r):
@@ -395,17 +448,26 @@ class Converter:
         for r in self.relations.values():  # inverseOf: r points from a part back up to its container
             inverse = self.relations.get(r.get("inverseOf"))
             if inverse and (inverse["from"], inverse["to"]) != (r["to"], r["from"]):
-                raise ValueError(f"relation {r['name']} ({r['from']} -> {r['to']}) is not the inverse of "
-                                 f"{inverse['name']} ({inverse['from']} -> {inverse['to']})")
+                raise ValueError(
+                    f"relation {r['name']} ({r['from']} -> {r['to']}) is not the inverse of "
+                    f"{inverse['name']} ({inverse['from']} -> {inverse['to']})"
+                )
 
         def usable(c):  # a reachedBy condition keeps the relations present (as a list); none: the condition is dropped
             if not (isinstance(c, dict) and "reachedBy" in c):
                 return c
-            names = [r for r in ([c["reachedBy"]] if isinstance(c["reachedBy"], str) else c["reachedBy"])
-                     if r in self.relations]
+            names = [
+                r
+                for r in ([c["reachedBy"]] if isinstance(c["reachedBy"], str) else c["reachedBy"])
+                if r in self.relations
+            ]
             return {"reachedBy": names} if names else None
-        cuts = {t: [u for u in map(usable, conds) if u is not None] for t, conds in profile.get("cuts", {}).items()
-                if t in self.tables}
+
+        cuts = {
+            t: [u for u in map(usable, conds) if u is not None]
+            for t, conds in profile.get("cuts", {}).items()
+            if t in self.tables
+        }
         self.cuts = {t: conds for t, conds in cuts.items() if conds}
         self.select = [s for s in profile.get("select", []) if s["table"] in self.tables]
         for t, conds in self.cuts.items():
@@ -418,8 +480,11 @@ class Converter:
 
         # A path layer (polyline) needs its points relation: without it (a table absent) the layer is dropped, as layers
         # of absent tables are.
-        self.display = [layer for layer in _display(profile, self.written(), self.relations)
-                        if (layer.get("points") or {}).get("relation", None) in (None, *self.relations)]
+        self.display = [
+            layer
+            for layer in _display(profile, self.written(), self.relations)
+            if (layer.get("points") or {}).get("relation", None) in (None, *self.relations)
+        ]
         for layer in self.display:
             self._check_display(layer)
         self.viewer_hints = {k: v for k, v in profile.items() if k not in PROFILE_KEYS}
@@ -435,12 +500,16 @@ class Converter:
         keys = ("offsets", "counts", "indices", "index", "via", "fromIndex", "toIndex", "fromKey", "toKey")
         specs = [s for s in [rel.get(k) for k in keys] + rel.get("weights", []) if s]
         tables = {rel["from"], rel["to"], rel.get("table")} | {_column(s)[0] for s in specs}
-        if not all(t is None or t in self.tables for t in tables) or any(t in self.tables for t in rel.get("unless", [])):
+        if not all(t is None or t in self.tables for t in tables) or any(
+            t in self.tables for t in rel.get("unless", [])
+        ):
             return False
         for table, column in map(_column, specs):
             if column not in self.tables[table]["columns"]:
-                raise ValueError(f"relation {rel['name']}: table {table} has no column {column}; "
-                                 f"it has: {', '.join(self.tables[table]['columns'])}")
+                raise ValueError(
+                    f"relation {rel['name']}: table {table} has no column {column}; "
+                    f"it has: {', '.join(self.tables[table]['columns'])}"
+                )
         return True
 
     def _check(self, table, cond):
@@ -462,16 +531,31 @@ class Converter:
         cell, listing = layer.get("cell") or {}, layer.get("list") or {}
         # A hint value naming a column: a string, or {"column": ...} (a scaled column); numbers are constants.
         col = lambda v: v if isinstance(v, str) else v.get("column") if isinstance(v, dict) else None
-        named = [*layer["position"], *layer.get("end", []), *layer.get("axis", []), *layer.get("extent", []),
-                 *layer.get("momentum", []), *(layer.get(k) for k in ("colour", "size", "time", "charge")),
-                 cut.get("column"), *layer.get("direction", []), col(layer.get("radius")), col(layer.get("length")),
-                 *(col(cell.get(k)) for k in ("dEta", "dPhi", "depth")), *cell.get("u", []), *cell.get("v", []),
-                 *(map(col, cell["size"]) if isinstance(cell.get("size"), list) else ()),
-                 *listing.get("columns", []), listing.get("sort"), *layer.get("inspect", []), *layer.get("fractions", {})]
+        named = [
+            *layer["position"],
+            *layer.get("end", []),
+            *layer.get("axis", []),
+            *layer.get("extent", []),
+            *layer.get("momentum", []),
+            *(layer.get(k) for k in ("colour", "size", "time", "charge")),
+            cut.get("column"),
+            *layer.get("direction", []),
+            col(layer.get("radius")),
+            col(layer.get("length")),
+            *(col(cell.get(k)) for k in ("dEta", "dPhi", "depth")),
+            *cell.get("u", []),
+            *cell.get("v", []),
+            *(map(col, cell["size"]) if isinstance(cell.get("size"), list) else ()),
+            *listing.get("columns", []),
+            listing.get("sort"),
+            *layer.get("inspect", []),
+            *layer.get("fractions", {}),
+        ]
         missing = [c for c in named if c and c not in self.tables[table]["columns"]]
         if missing:
-            raise ValueError(f"display {table}: no column {', '.join(missing)}; "
-                             f"it has: {', '.join(self.tables[table]['columns'])}")
+            raise ValueError(
+                f"display {table}: no column {', '.join(missing)}; it has: {', '.join(self.tables[table]['columns'])}"
+            )
 
     def _writes(self, name):
         """A relation is written unless one of its tables is internal or the profile says `"written": false` (a
@@ -486,21 +570,36 @@ class Converter:
     def header(self, files, profile_name, cmssw=None):
         """`cmssw`: the release that wrote the input, when it says (see written_by)."""
         written = self.written()
-        relations = {n: r for n, r in self.relations.items() if self._writes(n) and r["from"] in written and r["to"] in written}
+        relations = {
+            n: r for n, r in self.relations.items() if self._writes(n) and r["from"] in written and r["to"] in written
+        }
         return {
             "schema": "evd/1",
-            "source": {"files": [os.path.basename(f) for f in files], "converter": f"evdtools {__version__}",
-                       **({"cmssw": cmssw} if cmssw else {}),
-                       "created": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")},
+            "source": {
+                "files": [os.path.basename(f) for f in files],
+                "converter": f"evdtools {__version__}",
+                **({"cmssw": cmssw} if cmssw else {}),
+                "created": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
+            },
             "profile": profile_name,
-            "tables": {t: {"doc": m["doc"], **({"scope": "run"} if t in self.run_scope else {}),
-                           "columns": {c: {"type": type_code(dt), "doc": doc} for c, (dt, doc) in m["columns"].items()}}
-                       for t, m in written.items()},
-            "relations": {n: {"from": r["from"], "to": r["to"],
-                              "weights": [_column(w)[1] for w in r.get("weights", [])],
-                              **{k: r[k] for k in ("association", "best", "match", "fact") if k in r},  # viewer hints
-                              **({"inverseOf": r["inverseOf"]} if r.get("inverseOf") in relations else {})}
-                          for n, r in relations.items()},
+            "tables": {
+                t: {
+                    "doc": m["doc"],
+                    **({"scope": "run"} if t in self.run_scope else {}),
+                    "columns": {c: {"type": type_code(dt), "doc": doc} for c, (dt, doc) in m["columns"].items()},
+                }
+                for t, m in written.items()
+            },
+            "relations": {
+                n: {
+                    "from": r["from"],
+                    "to": r["to"],
+                    "weights": [_column(w)[1] for w in r.get("weights", [])],
+                    **{k: r[k] for k in ("association", "best", "match", "fact") if k in r},  # viewer hints
+                    **({"inverseOf": r["inverseOf"]} if r.get("inverseOf") in relations else {}),
+                }
+                for n, r in relations.items()
+            },
             "display": self.display,
             **self.viewer_hints,
         }
@@ -529,14 +628,21 @@ class Converter:
 
     def _read(self, arrays, i):
         """Tables of entry i, with whichever of their columns `arrays` holds."""
-        return {t: (int(arrays[f"n{t}"][i]), {c: arrays[f"{t}_{c}"][i] for c in m["columns"] if f"{t}_{c}" in arrays})
-                for t, m in self.tables.items() if f"n{t}" in arrays}
+        return {
+            t: (int(arrays[f"n{t}"][i]), {c: arrays[f"{t}_{c}"][i] for c in m["columns"] if f"{t}_{c}" in arrays})
+            for t, m in self.tables.items()
+            if f"n{t}" in arrays
+        }
 
     def _derive(self, tables, skip=()):
         """Column derives (all but gather, which needs the relations) of the tables present, in profile order."""
         for d in self.derive:
-            if "gather" not in d and d["table"] in tables and d["table"] not in skip \
-                    and d.get("lookup", d["table"]) in tables:
+            if (
+                "gather" not in d
+                and d["table"] in tables
+                and d["table"] not in skip
+                and d.get("lookup", d["table"]) in tables
+            ):
                 _derive(d, tables)
 
     def _masks(self, tables, relations, skip=()):
@@ -576,8 +682,11 @@ class Converter:
 
     def _cut_tables(self, tables, masks, skip=()):
         """The tables to write: rows cut by `masks`, internal tables (and `skip`) left out."""
-        return {t: (int(masks[t].sum()), {c: a[masks[t]] for c, a in cols.items()}) if t in masks else (n, cols)
-                for t, (n, cols) in tables.items() if t not in self.internal and t not in skip}
+        return {
+            t: (int(masks[t].sum()), {c: a[masks[t]] for c, a in cols.items()}) if t in masks else (n, cols)
+            for t, (n, cols) in tables.items()
+            if t not in self.internal and t not in skip
+        }
 
     def _renumber_index_columns(self, tables, masks):
         """An index column that an `index` relation reads (e.g. a candidate's track row, or a hit's cluster) must
@@ -591,8 +700,10 @@ class Converter:
                 continue
             cols, keep = tables[table][1], masks[target]
             if cols[column].dtype.kind == "u":
-                raise ValueError(f"relation {rel['name']}: index column {rel['index']} is unsigned, so it cannot "
-                                 f"mark rows of the cut table {target} as removed")
+                raise ValueError(
+                    f"relation {rel['name']}: index column {rel['index']} is unsigned, so it cannot "
+                    f"mark rows of the cut table {target} as removed"
+                )
             idx = np.asarray(cols[column], np.int64)
             ok = (idx >= 0) & (idx < len(keep))
             ok[ok] = keep[idx[ok]]
@@ -625,8 +736,9 @@ class Converter:
         self._derive(tables, skip=self.run_scope)
         relations = {}
         for name, rel in self.relations.items():  # in profile order, so a composition follows its parts
-            relations[name] = _compose(*(relations[v] for v in rel["via"])) if rel["kind"] == "compose" \
-                else _relation(rel, tables)
+            relations[name] = (
+                _compose(*(relations[v] for v in rel["via"])) if rel["kind"] == "compose" else _relation(rel, tables)
+            )
         for d in self.derive:
             if "gather" in d:
                 _gather(d, tables, relations, self.relations)
@@ -635,8 +747,11 @@ class Converter:
             return None
         self._renumber_index_columns(tables, masks)
         ends = {name: (rel["from"], rel["to"]) for name, rel in self.relations.items()}
-        relations = {name: cut_relation(rel, masks.get(ends[name][0]), masks.get(ends[name][1]))
-                     for name, rel in relations.items() if self._writes(name)}
+        relations = {
+            name: cut_relation(rel, masks.get(ends[name][0]), masks.get(ends[name][1]))
+            for name, rel in relations.items()
+            if self._writes(name)
+        }
         return event_id, self._cut_tables(tables, masks, skip=self.run_scope), relations
 
 
@@ -711,6 +826,7 @@ def _records(conv, files, log, events=None, runs=None, first=None, pool=None):
     """(record, run tables) of the converted events of `files`, in order. `events`: only these event numbers;
     `runs`: per-run tables to use instead of each file's own; `first`: the first file, already open (reading the
     description of a tree of 2000 branches takes 0.3 s); `pool`: see _entries."""
+
     def progress(n):
         if events is not None:
             print(f"{name}: {n} of the requested events", file=log)
@@ -719,7 +835,7 @@ def _records(conv, files, log, events=None, runs=None, first=None, pool=None):
 
     for path in files:
         name, selected = os.path.basename(path), 0
-        with (first if first is not None and path == files[0] else _open(path)) as f:
+        with first if first is not None and path == files[0] else _open(path) as f:
             first = None
             file_runs = _run_tables(conv, f) if runs is None else runs
             for arrays, i in _entries(f["Events"], conv, events, progress, pool):
@@ -735,8 +851,19 @@ def threads_available(limit=4):
     return max(1, min(limit, len(os.sched_getaffinity(0)) if hasattr(os, "sched_getaffinity") else os.cpu_count() or 1))
 
 
-def convert(files, output, profile_name="hgcal", max_events=None, log=sys.stderr, data_time=None, run_info=None,
-            events=None, run_tables=None, sort=False, threads=None):
+def convert(
+    files,
+    output,
+    profile_name="hgcal",
+    max_events=None,
+    log=sys.stderr,
+    data_time=None,
+    run_info=None,
+    events=None,
+    run_tables=None,
+    sort=False,
+    threads=None,
+):
     """Write the (selected) events of `files` to the bundle `output`; `data_time`: when the input was produced;
     `run_info`: where to find information about the runs (see runinfo.load); `events`: only these event numbers;
     `run_tables`: a NanoAOD file whose Runs tree has the per-run tables (e.g. the channel table) of the same runs,
@@ -745,18 +872,22 @@ def convert(files, output, profile_name="hgcal", max_events=None, log=sys.stderr
     profile = load_profile(profile_name)
     first = _open(files[0])  # stays open for its events
     try:
-        with (_open(run_tables) if run_tables else contextlib.nullcontext(first)) as r:
+        with _open(run_tables) if run_tables else contextlib.nullcontext(first) as r:
             conv = Converter(discover(first["Events"]), profile, discover(r["Runs"]) if "Runs" in r else None)
             runs = _run_tables(conv, r) if run_tables else None
         if run_tables:
             print(f"per-run tables of run(s) {sorted(runs)} from {os.path.basename(run_tables)}", file=log)
-        print(f"{len(conv.written())} tables, {len(conv.relations)} relations, {len(conv.display)} display layers",
-              file=log)
+        print(
+            f"{len(conv.written())} tables, {len(conv.relations)} relations, {len(conv.display)} display layers",
+            file=log,
+        )
         if not conv.display:  # e.g. a physics NanoAOD: nothing of it would be drawn
             has = ", ".join(sorted(conv.tables)[:12]) + (", ..." if len(conv.tables) > 12 else "")
-            raise Problem(f"{files[0]} has none of the tables that the profile {profile.get('name', profile_name)} "
-                          f"draws (it has: {has or 'no table'}). Event-display NanoAOD is written by CMSSW with "
-                          "NANO:@EVD; another kind of file needs its own --profile")
+            raise Problem(
+                f"{files[0]} has none of the tables that the profile {profile.get('name', profile_name)} "
+                f"draws (it has: {has or 'no table'}). Event-display NanoAOD is written by CMSSW with "
+                "NANO:@EVD; another kind of file needs its own --profile"
+            )
         header = conv.header(files, profile.get("name", profile_name), written_by(first))
         if data_time:
             header["source"]["data_time"] = data_time.isoformat(timespec="seconds")
@@ -773,6 +904,7 @@ def convert(files, output, profile_name="hgcal", max_events=None, log=sys.stderr
             records.close()  # stopped at max_events: close the file it was reading
             if run_info:
                 from .runinfo import load
+
                 info = load(run_info, out.runs(), log=log)
                 print(f"run info for {len(info)} run(s) from {run_info}", file=log)
                 out.set_run_info(info)

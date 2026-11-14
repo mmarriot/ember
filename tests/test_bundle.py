@@ -1,4 +1,5 @@
 """Round trip of the bundle format and of relation normalisation (no ROOT file needed)."""
+
 import json
 import struct
 
@@ -9,19 +10,28 @@ from evdtools.__main__ import validate
 from evdtools.bundle import Bundle, BundleWriter, encode_record
 from evdtools.nano import _relation
 
-HEADER = {"schema": "evd/1", "source": {"files": []}, "profile": "test",
-          "tables": {"Hits": {"doc": "", "columns": {"x": {"type": "f32", "doc": ""}, "flag": {"type": "u8", "doc": ""}}},
-                     "Clusters": {"doc": "", "columns": {"e": {"type": "f64", "doc": ""}}}},
-          "relations": {"clusterHits": {"from": "Clusters", "to": "Hits", "weights": ["fraction"]}},
-          "display": []}
+HEADER = {
+    "schema": "evd/1",
+    "source": {"files": []},
+    "profile": "test",
+    "tables": {
+        "Hits": {"doc": "", "columns": {"x": {"type": "f32", "doc": ""}, "flag": {"type": "u8", "doc": ""}}},
+        "Clusters": {"doc": "", "columns": {"e": {"type": "f64", "doc": ""}}},
+    },
+    "relations": {"clusterHits": {"from": "Clusters", "to": "Hits", "weights": ["fraction"]}},
+    "display": [],
+}
 
 
 def event(seed):
     rng = np.random.default_rng(seed)
     hits = {"x": rng.random(7, dtype=np.float32), "flag": rng.integers(0, 2, 7).astype(bool)}
     clusters = {"e": rng.random(3)}
-    rel = {"offsets": np.array([0, 2, 2, 5]), "indices": np.array([0, 6, 1, 2, 3]),
-           "weights": {"fraction": np.array([1, .5, .5, 1, 1])}}
+    rel = {
+        "offsets": np.array([0, 2, 2, 5]),
+        "indices": np.array([0, 6, 1, 2, 3]),
+        "weights": {"fraction": np.array([1, 0.5, 0.5, 1, 1])},
+    }
     eid = (np.uint32(1), np.uint32(1), np.uint64(seed))  # as read from ROOT
     return eid, {"Hits": (7, hits), "Clusters": (3, clusters)}, {"clusterHits": rel}
 
@@ -47,19 +57,31 @@ def test_columns_are_8_byte_aligned():
     data = encode_record((1, 1, 1), {"T": (3, {"a": np.zeros(3, np.uint8), "b": np.zeros(3, np.float64)})}, {})
     hlen = struct.unpack("<I", data[4:8])[0]
     assert (8 + hlen) % 8 == 0
-    meta = json.loads(data[8:8 + hlen])
+    meta = json.loads(data[8 : 8 + hlen])
     assert all(loc[0] % 8 == 0 for loc in meta["tables"]["T"]["columns"].values())
 
 
-@pytest.mark.parametrize("rel, cols, expected", [
-    ({"kind": "offsets", "offsets": "L.o", "indices": "L.i"}, {"A": {}, "L": {"o": np.array([0, 1, 1, 3]), "i": np.array([2, 0, 4])}},
-     ([0, 1, 1, 3], [2, 0, 4])),
-    ({"kind": "counts", "counts": "A.n", "indices": "L.i"}, {"A": {"n": np.array([2, 0, 1])}, "L": {"i": np.array([4, 1, 3])}},
-     ([0, 2, 2, 3], [4, 1, 3])),
-    ({"kind": "links", "fromIndex": "L.f", "toIndex": "L.t"}, {"A": {}, "L": {"f": np.array([0, 0, 2]), "t": np.array([1, -1, 4])}},
-     ([0, 1, 1, 2], [1, 4])),
-    ({"kind": "index", "index": "A.k"}, {"A": {"k": np.array([3, -1, 0])}, "L": {}}, ([0, 1, 1, 2], [3, 0])),
-])
+@pytest.mark.parametrize(
+    "rel, cols, expected",
+    [
+        (
+            {"kind": "offsets", "offsets": "L.o", "indices": "L.i"},
+            {"A": {}, "L": {"o": np.array([0, 1, 1, 3]), "i": np.array([2, 0, 4])}},
+            ([0, 1, 1, 3], [2, 0, 4]),
+        ),
+        (
+            {"kind": "counts", "counts": "A.n", "indices": "L.i"},
+            {"A": {"n": np.array([2, 0, 1])}, "L": {"i": np.array([4, 1, 3])}},
+            ([0, 2, 2, 3], [4, 1, 3]),
+        ),
+        (
+            {"kind": "links", "fromIndex": "L.f", "toIndex": "L.t"},
+            {"A": {}, "L": {"f": np.array([0, 0, 2]), "t": np.array([1, -1, 4])}},
+            ([0, 1, 1, 2], [1, 4]),
+        ),
+        ({"kind": "index", "index": "A.k"}, {"A": {"k": np.array([3, -1, 0])}, "L": {}}, ([0, 1, 1, 2], [3, 0])),
+    ],
+)
 def test_relation_normalisation(rel, cols, expected):
     tables = {"A": (3, cols["A"]), "B": (5, {}), "L": (3, cols["L"])}
     out = _relation(dict(rel, name="r", **{"from": "A", "to": "B"}), tables)

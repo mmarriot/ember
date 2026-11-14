@@ -19,6 +19,7 @@ Config (JSON; service/campaigns.example.json shows every key):
   the event-display NanoAOD of their first `max_events` events is made first, in that CMSSW area (evdtools/export.py;
   optional "era", "conditions", "threads").
 """
+
 import datetime
 import glob
 import json
@@ -83,8 +84,12 @@ def pending(campaign, site, settle, failures, max_failures):
         stem = _stem(campaign, path)
         target = os.path.join(site, "data", campaign["name"], f"{stem}.evdb")
         key = f"{campaign['name']}/{stem}"
-        if os.path.exists(target) or target in targets or failures.get(key, 0) >= max_failures \
-                or time.time() - os.path.getmtime(path) < settle:
+        if (
+            os.path.exists(target)
+            or target in targets
+            or failures.get(key, 0) >= max_failures
+            or time.time() - os.path.getmtime(path) < settle
+        ):
             continue
         targets.add(target)
         out.append((path, target, key))
@@ -110,15 +115,18 @@ def build_index(site):
     (data/u/, see evdtools/site.py) is not a campaign: nothing in it is listed. A file that cannot be read is said
     and left out."""
     users = os.path.join(site, USERS)
-    campaign_files = lambda name: [p for p in glob.glob(os.path.join(site, "data", "*", name))
-                                   if os.path.dirname(p) != users]
+    campaign_files = lambda name: [
+        p for p in glob.glob(os.path.join(site, "data", "*", name)) if os.path.dirname(p) != users
+    ]
     titles, file_titles = {}, {}
     for path in campaign_files("campaign.json"):
         try:
             with open(path) as f:
                 meta = json.load(f)
             titles[os.path.basename(os.path.dirname(path))] = meta["title"]
-            file_titles.update({f"{os.path.basename(os.path.dirname(path))}/{k}": v for k, v in meta.get("files", {}).items()})
+            file_titles.update(
+                {f"{os.path.basename(os.path.dirname(path))}/{k}": v for k, v in meta.get("files", {}).items()}
+            )
         except (OSError, ValueError, KeyError, TypeError, AttributeError) as e:
             log(f"skipping unreadable {path}: {e!r}")
     bundles = []
@@ -133,12 +141,21 @@ def build_index(site):
         if not events:
             continue
         part = re.search(r"_(\d+)$", stem)
-        name = file_titles.get(f"{campaign}/{stem}") or f"{titles.get(campaign, campaign)} · {f'file {int(part.group(1))}' if part else stem}"
-        bundles.append({
-            "file": os.path.relpath(path, site), "campaign": campaign, "campaign_title": titles.get(campaign, campaign),
-            "events": events, "title": f"{name} · {events} events",
-            "data_time": source.get("data_time") or source.get("created"), "created": source.get("created"),
-        })
+        name = (
+            file_titles.get(f"{campaign}/{stem}")
+            or f"{titles.get(campaign, campaign)} · {f'file {int(part.group(1))}' if part else stem}"
+        )
+        bundles.append(
+            {
+                "file": os.path.relpath(path, site),
+                "campaign": campaign,
+                "campaign_title": titles.get(campaign, campaign),
+                "events": events,
+                "title": f"{name} · {events} events",
+                "data_time": source.get("data_time") or source.get("created"),
+                "created": source.get("created"),
+            }
+        )
     bundles.sort(key=lambda x: (x["data_time"] or "", _natural(x["file"])), reverse=True)
     return {"updated": now(), "bundles": bundles}
 
@@ -188,9 +205,14 @@ def sync(config, max_files=None, dry_run=False, convert=None, export=None):
                 with tempfile.TemporaryDirectory(prefix="evd-export-") as work:
                     if campaign.get("export"):  # a reconstruction file: its event-display NanoAOD first
                         source = export([source], work, campaign.get("max_events"), log=_Log(), **campaign["export"])
-                    n = convert([source], target, campaign["profile"], campaign.get("max_events"),
-                                data_time=datetime.datetime.fromtimestamp(os.path.getmtime(path), datetime.timezone.utc),
-                                **({"run_info": campaign["runInfo"]} if campaign.get("runInfo") else {}))
+                    n = convert(
+                        [source],
+                        target,
+                        campaign["profile"],
+                        campaign.get("max_events"),
+                        data_time=datetime.datetime.fromtimestamp(os.path.getmtime(path), datetime.timezone.utc),
+                        **({"run_info": campaign["runInfo"]} if campaign.get("runInfo") else {}),
+                    )
                 log(f"{key}: {n} events in {time.time() - started:.0f} s")
                 done += 1
             except Exception as e:  # keep going with the other files; give up on this one after max_failures
@@ -205,8 +227,9 @@ def sync(config, max_files=None, dry_run=False, convert=None, export=None):
         shutil.rmtree(lock, ignore_errors=True)
 
 
-def simulate(source, site, campaign="live_demo", title="Simulated live data", events=5, interval=60.0, start=0,
-             sleep=time.sleep):
+def simulate(
+    source, site, campaign="live_demo", title="Simulated live data", events=5, interval=60.0, start=0, sleep=time.sleep
+):
     """Stand-in for new data arriving: every `interval` seconds, publish the next `events` events of the bundle
     `source` as a new file data/<campaign>/part_NNNN.evdb (as sync would), then rewrite the index. Returns the number
     of files written. Records (events, and the per-run tables of their runs) are copied as they are, so the viewer

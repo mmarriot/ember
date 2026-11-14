@@ -1,4 +1,5 @@
 """Row cuts, event selection, and what they do to relations and index columns."""
+
 import numpy as np
 import pytest
 from nanoaod import chunk, converter
@@ -6,19 +7,28 @@ from nanoaod import chunk, converter
 from evdtools.nano import cut_relation, parse_events
 
 F4, I4 = np.dtype("f4"), np.dtype("i4")
-TYPES = {"Hit": {"e": F4, "noise": F4, "layer": I4, "dense": I4, "x": F4, "y": F4},
-         "Digi": {"adc": I4},
-         "Dense": {"digiIdx": I4}}  # dense index -> digi row
+TYPES = {
+    "Hit": {"e": F4, "noise": F4, "layer": I4, "dense": I4, "x": F4, "y": F4},
+    "Digi": {"adc": I4},
+    "Dense": {"digiIdx": I4},
+}  # dense index -> digi row
 EVENT = {  # 5 hits, 4 digis; dense index d has digi digiIdx[d] (-1: none)
-    "Hit": {"e": [10, 1, 8, 9, 0.5], "noise": [1, 1, 2, 0, 1], "layer": [25, 25, 26, 26, 26], "dense": [0, 1, 2, 3, 4],
-            "x": [0, 1, 0, 1, 2], "y": [0, 0, 0, 0, 0]},
+    "Hit": {
+        "e": [10, 1, 8, 9, 0.5],
+        "noise": [1, 1, 2, 0, 1],
+        "layer": [25, 25, 26, 26, 26],
+        "dense": [0, 1, 2, 3, 4],
+        "x": [0, 1, 0, 1, 2],
+        "y": [0, 0, 0, 0, 0],
+    },
     "Digi": {"adc": [100, 101, 103, 104]},
     "Dense": {"digiIdx": [0, 1, -1, 2, 3]},
 }
 PROFILE = {
     "internal": ["Dense"],
-    "relations": [{"name": "hitDigi", "kind": "index", "from": "Hit", "to": "Digi", "index": "Hit.dense",
-                   "via": "Dense.digiIdx"}],
+    "relations": [
+        {"name": "hitDigi", "kind": "index", "from": "Hit", "to": "Digi", "index": "Hit.dense", "via": "Dense.digiIdx"}
+    ],
     "cuts": {"Hit": [["e/noise", ">", 3]], "Digi": [{"reachedBy": "hitDigi"}]},
 }
 
@@ -60,8 +70,10 @@ def test_cut_relation_with_weights_and_both_sides_cut():
 
 
 def test_event_selection_counts_rows_after_cuts():
-    select = [{"table": "Hit", "where": [["layer", "==", 25]], "min": 1},
-              {"table": "Hit", "where": [["layer", "==", 26], ["e", ">=", 9]], "min": 1, "max": 1}]
+    select = [
+        {"table": "Hit", "where": [["layer", "==", 25]], "min": 1},
+        {"table": "Hit", "where": [["layer", "==", 26], ["e", ">=", 9]], "min": 1, "max": 1},
+    ]
     quiet = dict(EVENT, Hit=dict(EVENT["Hit"], e=[1, 1, 8, 9, 0.5]))  # layer 25 has nothing above 3 sigma
     two = dict(EVENT, Hit=dict(EVENT["Hit"], e=[10, 1, 18, 9, 0.5]))  # two layer-26 hits with e >= 9: above max
     _, records = convert(dict(PROFILE, select=select), EVENT, quiet, two)
@@ -100,10 +112,13 @@ def test_cuts_on_an_empty_event():
 
 def test_index_column_on_from_follows_the_cut_of_its_target():
     """Each candidate names its track; tracks no candidate uses are cut: the column is renumbered (removed: -1)."""
-    profile = {"relations": [{"name": "candTrack", "kind": "index", "from": "C", "to": "T", "index": "C.track"}],
-               "cuts": {"T": [{"reachedBy": "candTrack"}]}}
-    _, [(_, tables, rels)] = convert(profile, {"C": {"track": [3, -1, 1]}, "T": {"pt": [0, 1, 2, 3, 4]}},
-                                     types={"C": {"track": I4}, "T": {"pt": F4}})
+    profile = {
+        "relations": [{"name": "candTrack", "kind": "index", "from": "C", "to": "T", "index": "C.track"}],
+        "cuts": {"T": [{"reachedBy": "candTrack"}]},
+    }
+    _, [(_, tables, rels)] = convert(
+        profile, {"C": {"track": [3, -1, 1]}, "T": {"pt": [0, 1, 2, 3, 4]}}, types={"C": {"track": I4}, "T": {"pt": F4}}
+    )
     assert tables["T"][1]["pt"].tolist() == [1, 3]  # tracks 1 and 3 are used
     assert tables["C"][1]["track"].tolist() == [1, -1, 0]  # renumbered like the relation
     assert rels["candTrack"]["indices"].tolist() == [1, 0]
@@ -111,9 +126,10 @@ def test_index_column_on_from_follows_the_cut_of_its_target():
 
 def test_index_column_on_to_follows_the_cut_of_its_target():
     """Each hit names its cluster; clusters are cut: hit.cluster is renumbered (removed cluster: -1)."""
-    profile = {"relations": [{"name": "clusterHits", "kind": "index", "from": "Cl", "to": "Hit",
-                              "index": "Hit.cluster"}],
-               "cuts": {"Cl": [["layer", ">", 0]]}}
+    profile = {
+        "relations": [{"name": "clusterHits", "kind": "index", "from": "Cl", "to": "Hit", "index": "Hit.cluster"}],
+        "cuts": {"Cl": [["layer", ">", 0]]},
+    }
     event = {"Cl": {"layer": [0, 3, 4]}, "Hit": {"cluster": [2, 0, -1, 1, 2]}}
     _, [(_, tables, rels)] = convert(profile, event, types={"Cl": {"layer": I4}, "Hit": {"cluster": I4}})
     assert tables["Cl"][0] == 2 and tables["Hit"][0] == 5  # hits are not cut
@@ -122,8 +138,10 @@ def test_index_column_on_to_follows_the_cut_of_its_target():
 
 
 def test_unsigned_index_column_of_a_cut_table_is_rejected():
-    profile = {"relations": [{"name": "r", "kind": "index", "from": "C", "to": "T", "index": "C.track"}],
-               "cuts": {"T": [["pt", ">", 1]]}}
+    profile = {
+        "relations": [{"name": "r", "kind": "index", "from": "C", "to": "T", "index": "C.track"}],
+        "cuts": {"T": [["pt", ">", 1]]},
+    }
     types = {"C": {"track": np.dtype("u2")}, "T": {"pt": F4}}
     with pytest.raises(ValueError, match="index column C.track is unsigned"):
         convert(profile, {"C": {"track": [0]}, "T": {"pt": [2]}}, types=types)
@@ -136,12 +154,17 @@ def test_event_lists():
 def test_reached_by_any_of_several_relations():
     """A list of relations keeps the rows reached through any of them (e.g. the production or the decay vertex of a
     kept particle); relations absent from the file are left out, and with none the condition is dropped."""
-    profile = {"relations": [{"name": "prod", "kind": "index", "from": "P", "to": "V", "index": "P.prod"},
-                             {"name": "dec", "kind": "index", "from": "P", "to": "V", "index": "P.dec"}],
-               "cuts": {"P": [["bx", "==", 0]], "V": [{"reachedBy": ["prod", "dec", "absent"]}]}}
+    profile = {
+        "relations": [
+            {"name": "prod", "kind": "index", "from": "P", "to": "V", "index": "P.prod"},
+            {"name": "dec", "kind": "index", "from": "P", "to": "V", "index": "P.dec"},
+        ],
+        "cuts": {"P": [["bx", "==", 0]], "V": [{"reachedBy": ["prod", "dec", "absent"]}]},
+    }
     types = {"P": {"bx": I4, "prod": I4, "dec": I4}, "V": {"t": F4}}
-    conv, [(_, tables, _)] = convert(profile, {"P": {"bx": [0, 1, 0], "prod": [0, 1, 0], "dec": [2, 3, -1]},
-                                               "V": {"t": [0, 25, 1, 26]}}, types=types)
+    conv, [(_, tables, _)] = convert(
+        profile, {"P": {"bx": [0, 1, 0], "prod": [0, 1, 0], "dec": [2, 3, -1]}, "V": {"t": [0, 25, 1, 26]}}, types=types
+    )
     assert tables["V"][1]["t"].tolist() == [0, 1]  # vertices 0 (prod of P0, P2) and 2 (dec of P0)
     assert tables["P"][1]["prod"].tolist() == [0, 0] and tables["P"][1]["dec"].tolist() == [1, -1]  # renumbered
     assert "reached by prod or dec" in conv.tables["V"]["doc"]
@@ -153,15 +176,22 @@ def test_hgcal_keeps_in_time_truth_only():
     """The hgcal profile keeps the truth particles of bunch crossing 0 and the vertices they are produced or decay at;
     vertex indices and parent -> child links follow the renumbering."""
     from evdtools.nano import load_profile
-    types = {"TruthParticles": {c: F4 for c in ("x", "y", "z", "endX", "endY", "endZ", "energy")} |
-             {c: I4 for c in ("bunchCrossing", "prodVertex", "decayVertex", "isSignal", "pdgId")},
-             "TruthVertices": {"x": F4, "y": F4, "z": F4, "reason": I4},
-             "TruthParticleChildren": {"parentIdx": I4, "childIdx": I4}}
+
+    types = {
+        "TruthParticles": {c: F4 for c in ("x", "y", "z", "endX", "endY", "endZ", "energy")}
+        | {c: I4 for c in ("bunchCrossing", "prodVertex", "decayVertex", "isSignal", "pdgId")},
+        "TruthVertices": {"x": F4, "y": F4, "z": F4, "reason": I4},
+        "TruthParticleChildren": {"parentIdx": I4, "childIdx": I4},
+    }
     zeros = lambda n: [0] * n
     event = {  # P0 (bx 0) -> child P2 (bx 0); P1 (bx -1) -> child P3 (bx 2): only P0, P2 and their vertices stay
-        "TruthParticles": {**{c: zeros(4) for c in ("x", "y", "z", "endX", "endY", "endZ", "isSignal", "pdgId")},
-                           "energy": [10, 20, 5, 7], "bunchCrossing": [0, -1, 0, 2],
-                           "prodVertex": [0, 1, 2, 4], "decayVertex": [2, 3, 5, -1]},
+        "TruthParticles": {
+            **{c: zeros(4) for c in ("x", "y", "z", "endX", "endY", "endZ", "isSignal", "pdgId")},
+            "energy": [10, 20, 5, 7],
+            "bunchCrossing": [0, -1, 0, 2],
+            "prodVertex": [0, 1, 2, 4],
+            "decayVertex": [2, 3, 5, -1],
+        },
         "TruthVertices": {"x": [0, 1, 2, 3, 4, 5], "y": zeros(6), "z": zeros(6), "reason": [1, 1, 2, 2, 2, 2]},
         "TruthParticleChildren": {"parentIdx": [0, 1], "childIdx": [2, 3]},
     }

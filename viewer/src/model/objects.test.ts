@@ -11,7 +11,8 @@ describe("object rows", () => {
     expect(topRows(t, "pt", pass, 2)).toEqual([1, 2]);
   });
   it("keeps a short list's largest rows in one pass, in the order a sort gives (equal ones in row order)", () => {
-    const big = { n: 200, columns: { e: Float32Array.from({ length: 200 }, (_, i) => (i * 37) % 23) } }, all = () => true;
+    const big = { n: 200, columns: { e: Float32Array.from({ length: 200 }, (_, i) => (i * 37) % 23) } },
+      all = () => true;
     expect(topRows(big, "e", all, 8)).toEqual(topRows(big, "e", all, 1000).slice(0, 8));
     expect(topRows(big, "e", (i) => i % 3 === 0, 5)).toEqual(topRows(big, "e", (i) => i % 3 === 0, 1000).slice(0, 5));
   });

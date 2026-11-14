@@ -31,21 +31,37 @@ describe("2D framing beside a panel", () => {
     expect(beside.target.x - 10).toBeCloseTo((0.5 * 0.3 * 1280) / beside.zoom, 6); // front: screen right is +x
     const side = flatAim(ctr, flatView("side").dir, 1280, 640, 600, 260, 0.7);
     expect(side.target.z - 30).toBeCloseTo((-0.5 * 0.3 * 1280) / side.zoom, 6); // side: screen right is -z
-    expect(flatAim(ctr, flatView("front").dir, 1280, 640, 600, 260, 0.1).zoom).toBeCloseTo(flatZoom(0.4 * 1280, 640, 600, 260), 9); // at most 60% covered
+    expect(flatAim(ctr, flatView("front").dir, 1280, 640, 600, 260, 0.1).zoom).toBeCloseTo(
+      flatZoom(0.4 * 1280, 640, 600, 260),
+      9,
+    ); // at most 60% covered
   });
 });
 
 describe("framing boxes", () => {
-  const layer = (table: string, x: number[], extra: Partial<Layer> = {}) => ({
-    table, x: Float32Array.from(x), y: Float32Array.from(x.map(() => 0)), z: Float32Array.from(x.map(() => 0)), passes: () => true, ...extra,
-  }) as unknown as Layer;
-  const toView = (X: Float32Array, Y: Float32Array, Z: Float32Array, i: number, out: THREE.Vector3) => out.set(X[i], Y[i], Z[i]);
+  const layer = (table: string, x: number[], extra: Partial<Layer> = {}) =>
+    ({
+      table,
+      x: Float32Array.from(x),
+      y: Float32Array.from(x.map(() => 0)),
+      z: Float32Array.from(x.map(() => 0)),
+      passes: () => true,
+      ...extra,
+    }) as unknown as Layer;
+  const toView = (X: Float32Array, Y: Float32Array, Z: Float32Array, i: number, out: THREE.Vector3) =>
+    out.set(X[i], Y[i], Z[i]);
   it("leave out points that are not finite, for the whole event and for a selection", () => {
     const l = layer("T", [1, NaN, 5, Infinity]);
     const [lo, hi] = boxOf([l], undefined, toView)!;
     expect([lo.x, hi.x]).toEqual([1, 5]);
     expect(boxOf([l], new Map([["T", [1]]]), toView)).toBeNull(); // only a NaN row selected: nothing to frame
-    const path = { points: 2, x: Float32Array.from([0, 1, NaN, NaN]), y: new Float32Array(4), z: new Float32Array(4), fill() {} };
+    const path = {
+      points: 2,
+      x: Float32Array.from([0, 1, NaN, NaN]),
+      y: new Float32Array(4),
+      z: new Float32Array(4),
+      fill() {},
+    };
     const line = layer("P", [1, NaN], { line: true, path });
     const [a, b] = boxOf([line], new Map([["P", [0, 1]]]), toView)!;
     expect([a.x, b.x]).toEqual([0, 1]);

@@ -11,14 +11,45 @@ import { engine } from "./Viewport";
 const WORDS = { clean: "clean match", impure: "impure match", unmatched: "no truth match", matched: "matched" };
 const glide = () => engine?.frame(highlight.peek() ?? undefined, true, 800);
 
-export function ObjChip({ table, row, text, title = "" }: { table: string; row: number; text?: string; title?: string }) {
-  const sel = selection.value, viewing = !!anchor.value && sel?.table === table && sel.row === row, q = matchOf(table, row), ref = { table, row };
+export function ObjChip({
+  table,
+  row,
+  text,
+  title = "",
+}: {
+  table: string;
+  row: number;
+  text?: string;
+  title?: string;
+}) {
+  const sel = selection.value,
+    viewing = !!anchor.value && sel?.table === table && sel.row === row,
+    q = matchOf(table, row),
+    ref = { table, row };
   // A chip removed under the pointer (its card opened, the event changed) gets no mouseleave: its ring goes with it.
-  useEffect(() => () => { if (sameRef(rowHover.peek(), ref)) rowHover.value = null; }, [table, row]);
+  useEffect(
+    () => () => {
+      if (sameRef(rowHover.peek(), ref)) rowHover.value = null;
+    },
+    [table, row],
+  );
   return (
-    <button class={`chip${q ? ` q-${q}` : ""}${viewing ? " viewing" : ""}`} aria-pressed={viewing}
+    <button
+      class={`chip${q ? ` q-${q}` : ""}${viewing ? " viewing" : ""}`}
+      aria-pressed={viewing}
       title={`${labelOf(table)} #${row}${q ? ` · ${WORDS[q]}` : ""}${title && ` · ${title}`}\nClick: look at it · double click: open its card`}
-      onClick={() => { look(ref); glide(); }} onDblClick={() => { openCard(ref); glide(); }}
-      onMouseEnter={() => (rowHover.value = ref)} onMouseLeave={() => (rowHover.value = null)}>{text ?? (describe(table, row) || `#${row}`)}</button>
+      onClick={() => {
+        look(ref);
+        glide();
+      }}
+      onDblClick={() => {
+        openCard(ref);
+        glide();
+      }}
+      onMouseEnter={() => (rowHover.value = ref)}
+      onMouseLeave={() => (rowHover.value = null)}
+    >
+      {text ?? (describe(table, row) || `#${row}`)}
+    </button>
   );
 }

@@ -6,6 +6,7 @@ Sources:
     with a "Run" column; read through the HGCal DPG run registry's read-only guest account by default. Needs the
     mysql-connector-python package; without it (or without network) no information is added and a warning is given.
 """
+
 import datetime
 import json
 import sys
@@ -30,8 +31,11 @@ def _clean(row):
 def from_json(path, runs):
     with open(path) as f:
         data = json.load(f)
-    by_run = {int(k): v for k, v in data.items()} if isinstance(data, dict) else \
-        {int(r.get("Run", r.get("run"))): {k: v for k, v in r.items() if k not in ("Run", "run")} for r in data}
+    by_run = (
+        {int(k): v for k, v in data.items()}
+        if isinstance(data, dict)
+        else {int(r.get("Run", r.get("run"))): {k: v for k, v in r.items() if k not in ("Run", "run")} for r in data}
+    )
     return {r: _clean(by_run[r]) for r in runs if r in by_run}
 
 
@@ -61,5 +65,5 @@ def load(source, runs, log=sys.stderr):
     if not source or not runs:
         return {}
     if source.startswith("registry:"):
-        return from_registry(source[len("registry:"):], sorted(runs), log=log)
+        return from_registry(source[len("registry:") :], sorted(runs), log=log)
     return from_json(source, runs)

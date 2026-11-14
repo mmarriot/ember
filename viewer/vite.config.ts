@@ -23,8 +23,17 @@ const site = (): Plugin => ({
         return res.end(login ? JSON.stringify({ login }) : "{}");
       }
       const file = path.startsWith("/data/") ? path.slice(5) : path;
-      const decoded = (() => { try { return decodeURIComponent(path); } catch { return null; } })(); // e.g. "%E0": no such file
-      if (decoded === null || (/\.evdb$|\/index\.json$/.test(file) && !existsSync(join(DATA, decodeURIComponent(file))))) {
+      const decoded = (() => {
+        try {
+          return decodeURIComponent(path);
+        } catch {
+          return null;
+        }
+      })(); // e.g. "%E0": no such file
+      if (
+        decoded === null ||
+        (/\.evdb$|\/index\.json$/.test(file) && !existsSync(join(DATA, decodeURIComponent(file))))
+      ) {
         res.statusCode = 404;
         return res.end();
       }

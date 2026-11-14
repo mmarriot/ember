@@ -2,8 +2,16 @@
 // Columns are typed-array views on the decompressed record: no parsing and no copies.
 
 const TYPES = {
-  f32: Float32Array, f64: Float64Array, i8: Int8Array, u8: Uint8Array, i16: Int16Array,
-  u16: Uint16Array, i32: Int32Array, u32: Uint32Array, i64: BigInt64Array, u64: BigUint64Array,
+  f32: Float32Array,
+  f64: Float64Array,
+  i8: Int8Array,
+  u8: Uint8Array,
+  i16: Int16Array,
+  u16: Uint16Array,
+  i32: Int32Array,
+  u32: Uint32Array,
+  i64: BigInt64Array,
+  u64: BigUint64Array,
 } as const;
 export type TypeCode = keyof typeof TYPES;
 export type Column = InstanceType<(typeof TYPES)[TypeCode]>;
@@ -11,9 +19,17 @@ export type Column = InstanceType<(typeof TYPES)[TypeCode]>;
 /** How layers can be drawn (render/layers.ts `builders`); a bundle may name others, from a newer format. */
 export const REPRS = ["cells", "markers", "ellipsoids", "segments", "helix", "cones", "polyline"] as const;
 /** A value per row from a column, scaled and clamped (cm per unit; `log`: cm per decade of 1 + |value|). */
-export interface Scaled { column: string; scale: number; min?: number; max?: number; log?: boolean }
+export interface Scaled {
+  column: string;
+  scale: number;
+  min?: number;
+  max?: number;
+  log?: boolean;
+}
 /** A length to a cylinder around the beam (cm): from the object's start along its direction until it leaves it. */
-export interface ToCylinder { to: { r: number; z: number } }
+export interface ToCylinder {
+  to: { r: number; z: number };
+}
 /** A number per row: a constant, a column, or a scaled column. */
 export type PerRow = number | string | Scaled;
 export type ViewName = "3d" | "front" | "side" | "rz";
@@ -49,7 +65,12 @@ export interface DisplayLayer {
    *  the others share one); the colour of the partner across a relation; the colour of the `content` table's object
    *  with the most weight in its hits; or one colour per value of a column (`abs`: of its absolute value; `names`:
    *  legend names per value, as {value: name} or, to keep the order of integer values, [value, name] pairs). */
-  colourBy?: "row" | "identity" | "none" | { relation: string } | { content: string }
+  colourBy?:
+    | "row"
+    | "identity"
+    | "none"
+    | { relation: string }
+    | { content: string }
     | { category: string; abs?: boolean; names?: Record<string, string> | [string | number, string][] };
   stage?: number; // reconstruction step (0, 1, ...) of the replay; the default view shows the last one
   /** `helix`: the replay builds each path along its length, after the hits arrive and before the clustering and the
@@ -120,9 +141,21 @@ export interface DisplayLayer {
 }
 /** A per-event chart: `table` rows grouped by the integer column `groupBy`, counted or summed over `value`. */
 /** `where`: an expression (as for filters) choosing the rows that count, e.g. "time > 0". */
-export interface Summary { title: string; table: string; groupBy: string; value?: string; op: "sum" | "count" | "mean"; unit?: string; where?: string }
+export interface Summary {
+  title: string;
+  table: string;
+  groupBy: string;
+  value?: string;
+  op: "sum" | "count" | "mean";
+  unit?: string;
+  where?: string;
+}
 /** A named way of looking at the data: colour columns per table and row filters (expressions) per table. */
-export interface Preset { name: string; colour?: Record<string, string>; filters?: Record<string, string> }
+export interface Preset {
+  name: string;
+  colour?: Record<string, string>;
+  filters?: Record<string, string>;
+}
 export type RunInfo = Record<string, string | number | boolean>;
 export interface Header {
   schema: string;
@@ -137,7 +170,19 @@ export interface Header {
    *  `inverseOf`: the relation points from a part back up to its container, the inverse of the named relation (a
    *  track's vertex, next to the vertex's tracks). `fact`: truth -> hits, the simulated energy per particle and cell
    *  (a simulation fact, not a match; model/facts.ts). */
-  relations: Record<string, { from: string; to: string; weights: string[]; association?: boolean; best?: { weight: string; order: "min" | "max" }; inverseOf?: string; match?: Match; fact?: Fact }>;
+  relations: Record<
+    string,
+    {
+      from: string;
+      to: string;
+      weights: string[];
+      association?: boolean;
+      best?: { weight: string; order: "min" | "max" };
+      inverseOf?: string;
+      match?: Match;
+      fact?: Fact;
+    }
+  >;
   display: DisplayLayer[];
   /** How particles move through the detector, for the reconstruction replay: away from a point (default: the
    *  origin, i.e. collisions), along a direction (e.g. [0, -1, 0] for cosmics), or in a fixed random order (hits
@@ -170,16 +215,30 @@ export interface Header {
 /** A truth -> hit relation of simulated energy per particle and cell, in detector `in` (model/facts.ts). `unit`: what
  *  one row of the simulation's record covers when it is coarser than a hit, in words: a phrase, or one per value of a
  *  hit column (e.g. {"column": "subdet", "names": {"2": "CSC layer"}}), so a hit says "in this CSC layer". */
-export interface Fact { in: string; unit?: string | { column: string; names: Record<string, string> } }
+export interface Fact {
+  in: string;
+  unit?: string | { column: string; names: Record<string, string> };
+}
 export interface Match {
-  measure: "hits" | "energy" | "pt2"; in: string; target?: "trackerHits" | "caloBoundary" | "particle" | "interaction" | "decayVertex";
-  shared?: string; over?: string[]; good?: number; completeness?: { weight: string; complement?: boolean };
+  measure: "hits" | "energy" | "pt2";
+  in: string;
+  target?: "trackerHits" | "caloBoundary" | "particle" | "interaction" | "decayVertex";
+  shared?: string;
+  over?: string[];
+  good?: number;
+  completeness?: { weight: string; complement?: boolean };
   /** A weight that already is the purity (constituent-based maps, e.g. a vertex's pT² share), instead of shared / over. */
   purity?: string;
 }
-export interface Outline { name: string; r: [number, number]; z: [number, number] }
+export interface Outline {
+  name: string;
+  r: [number, number];
+  z: [number, number];
+}
 export interface Domain {
-  name: string; region: { rMax: number; zMax: number }; view?: "3d" | "front" | "side" | "rz";
+  name: string;
+  region: { rMax: number; zMax: number };
+  view?: "3d" | "front" | "side" | "rz";
   /** Its layers are drawn in every domain's view (e.g. physics objects); seen from another domain, as outlines. */
   shared?: boolean;
   /** A colour mode id: "layers": while this domain is looked at, each layer takes its own colours, also in a bundle
@@ -194,16 +253,41 @@ export const unitOf = (doc = "") => doc.match(/\[([^\]]+)\]/)?.[1] ?? "";
 export const kindName = (d: DisplayLayer) => (d.kind ? d.group : d.label);
 
 export interface IndexEntry {
-  run: number; lumi: number; event: number; offset: number; length: number; counts: Record<string, number>;
+  run: number;
+  lumi: number;
+  event: number;
+  offset: number;
+  length: number;
+  counts: Record<string, number>;
 }
 /** A run of the bundle: where its per-run tables are (if it has any), and what is known about it. */
-export interface RunEntry { run: number; offset?: number; length?: number; counts?: Record<string, number>; info?: RunInfo }
-export interface Table { n: number; columns: Record<string, Column> }
-export interface Relation { offsets: Uint32Array; indices: Uint32Array; weights: Record<string, Float32Array> }
-export interface EventData { id: [number, number, number]; tables: Record<string, Table>; relations: Record<string, Relation> }
+export interface RunEntry {
+  run: number;
+  offset?: number;
+  length?: number;
+  counts?: Record<string, number>;
+  info?: RunInfo;
+}
+export interface Table {
+  n: number;
+  columns: Record<string, Column>;
+}
+export interface Relation {
+  offsets: Uint32Array;
+  indices: Uint32Array;
+  weights: Record<string, Float32Array>;
+}
+export interface EventData {
+  id: [number, number, number];
+  tables: Record<string, Table>;
+  relations: Record<string, Relation>;
+}
 
 /** Random access to bytes: an HTTP URL or a Blob (local file, tests). */
-export interface Source { size: number; read(offset: number, length: number): Promise<ArrayBuffer> }
+export interface Source {
+  size: number;
+  read(offset: number, length: number): Promise<ArrayBuffer>;
+}
 
 export function blobSource(blob: Blob): Source {
   return { size: blob.size, read: (offset, length) => blob.slice(offset, offset + length).arrayBuffer() };
@@ -212,17 +296,30 @@ export function blobSource(blob: Blob): Source {
 /** The server's refusal of a file (404: not there, 403: not for this person), kept apart from a file that is there
  *  but unreadable, so the page can say which. */
 export class HttpError extends Error {
-  constructor(readonly url: string, readonly status: number) { super(`${url}: HTTP ${status}`); }
+  constructor(
+    readonly url: string,
+    readonly status: number,
+  ) {
+    super(`${url}: HTTP ${status}`);
+  }
 }
 /** No answer at all: the connection, or a request the browser would not make or let the page read (another site
  *  without permission for this one; an expired sign-on, which redirects to the login page of another site). */
 export class NetworkError extends Error {
-  constructor(readonly url: string, cause: unknown) { super(`${url}: ${cause instanceof Error ? cause.message : cause}`); }
+  constructor(
+    readonly url: string,
+    cause: unknown,
+  ) {
+    super(`${url}: ${cause instanceof Error ? cause.message : cause}`);
+  }
 }
 /** The bytes are there but are not a bundle: wrong first bytes, no trailer (cut short), or a header that is not JSON. */
 export class FormatError extends Error {}
 /** fetch, with its rejection (a TypeError, whatever the cause) as a NetworkError: other TypeErrors are bugs. */
-const request = (url: string, init: RequestInit) => fetch(url, init).catch((e) => { throw new NetworkError(url, e); });
+const request = (url: string, init: RequestInit) =>
+  fetch(url, init).catch((e) => {
+    throw new NetworkError(url, e);
+  });
 
 export async function httpSource(url: string): Promise<Source> {
   // A file replaced under the same name (a data set converted again) must not be read from the browser's cache of the
@@ -232,7 +329,8 @@ export async function httpSource(url: string): Promise<Source> {
   if (!probe.ok) throw new HttpError(url, probe.status);
   if (probe.status === 200) return blobSource(await probe.blob()); // server ignores Range: keep the whole file
   const size = Number(probe.headers.get("Content-Range")?.split("/")[1]);
-  const validator = probe.headers.has("ETag") ? "ETag" : "Last-Modified", version = probe.headers.get(validator);
+  const validator = probe.headers.has("ETag") ? "ETag" : "Last-Modified",
+    version = probe.headers.get(validator);
   const at = version ? `${url}${url.includes("?") ? "&" : "?"}v=${encodeURIComponent(version)}` : url;
   // Servers (or caches in between) may answer any range request with the whole file (HTTP 200): from then on
   // keep that copy and serve every read from it.
@@ -242,8 +340,10 @@ export async function httpSource(url: string): Promise<Source> {
     async read(offset, length) {
       if (!whole) {
         const r = await request(at, { headers: { Range: `bytes=${offset}-${offset + length - 1}` } });
-        if (r.status === 206) { // from the file opened: one replaced since would give its bytes at this one's offsets
-          if (version && r.headers.get(validator) !== version) throw new Error(`${url} changed on the server since it was opened: open it again`);
+        if (r.status === 206) {
+          // from the file opened: one replaced since would give its bytes at this one's offsets
+          if (version && r.headers.get(validator) !== version)
+            throw new Error(`${url} changed on the server since it was opened: open it again`);
           return r.arrayBuffer();
         }
         if (!r.ok) throw new HttpError(url, r.status);
@@ -259,7 +359,9 @@ const inflate = (buf: ArrayBuffer) =>
   new Response(new Blob([buf]).stream().pipeThrough(new DecompressionStream("gzip"))).arrayBuffer();
 // Inflating a PU200 record (~35 MB to ~100 MB) blocks the thread that does it for a few hundred ms: a worker does it,
 // so the view keeps responding, also while the next event is read ahead. Without workers (tests), it is done here.
-let worker: Worker | null = null, jobs = 0, noWorker = false;
+let worker: Worker | null = null,
+  jobs = 0,
+  noWorker = false;
 const waiting = new Map<number, { done: (buf: ArrayBuffer) => void; fail: (e: Error) => void }>();
 function gunzip(buf: ArrayBuffer): Promise<ArrayBuffer> {
   if (typeof Worker === "undefined" || noWorker) return inflate(buf);
@@ -271,7 +373,8 @@ function gunzip(buf: ArrayBuffer): Promise<ArrayBuffer> {
       if (data.buf) job?.done(data.buf);
       else job?.fail(new Error(data.error));
     };
-    worker.onerror = () => { // it could not start (e.g. its file is missing): the reads waiting on it fail, later
+    worker.onerror = () => {
+      // it could not start (e.g. its file is missing): the reads waiting on it fail, later
       for (const job of waiting.values()) job.fail(new Error("the decompression worker failed")); // ones inflate here
       waiting.clear();
       worker?.terminate();
@@ -289,28 +392,38 @@ function gunzip(buf: ArrayBuffer): Promise<ArrayBuffer> {
 /** The events to keep decoded once event `i` of `n` is shown, coming from event `from`: it and its neighbours; and the
  *  one to read ahead, the next in the direction of travel (forward after a jump; the events wrap around). */
 export function around(i: number, from: number, n: number): { keep: number[]; next: number | null } {
-  const step = (from - i + n) % n === 1 ? -1 : 1, at = (k: number) => (((i + k) % n) + n) % n;
+  const step = (from - i + n) % n === 1 ? -1 : 1,
+    at = (k: number) => (((i + k) % n) + n) % n;
   return { keep: [...new Set([i, at(step), at(-step)])], next: n > 1 ? at(step) : null };
 }
 
 export class Bundle {
   private readonly runTables = new Map<number, Promise<Record<string, Table>>>(); // read once per run
   private readonly decoded = new Map<number, Promise<EventData>>(); // events read, until keep() lets them go
-  private constructor(readonly header: Header, readonly events: IndexEntry[], readonly runs: RunEntry[], private readonly source: Source) {}
+  private constructor(
+    readonly header: Header,
+    readonly events: IndexEntry[],
+    readonly runs: RunEntry[],
+    private readonly source: Source,
+  ) {}
 
   static async open(source: Source): Promise<Bundle> {
     try {
       const head = new DataView(await source.read(0, 12));
-      if (text(head.buffer.slice(0, 4)) !== "EVDB" || head.getUint32(4, true) !== 1) throw new FormatError("not an evd/1 bundle");
+      if (text(head.buffer.slice(0, 4)) !== "EVDB" || head.getUint32(4, true) !== 1)
+        throw new FormatError("not an evd/1 bundle");
       const header: Header = JSON.parse(text(await source.read(12, head.getUint32(8, true))));
       const trailer = new DataView(await source.read(source.size - 16, 16));
       if (text(trailer.buffer.slice(12, 16)) !== "EVDB") throw new FormatError("bundle has no trailer (incomplete?)");
-      const index = JSON.parse(text(await source.read(Number(trailer.getBigUint64(0, true)), trailer.getUint32(8, true))));
+      const index = JSON.parse(
+        text(await source.read(Number(trailer.getBigUint64(0, true)), trailer.getUint32(8, true))),
+      );
       return new Bundle(header, index.events, index.runs ?? [], source);
     } catch (e) {
       // A file too short for its header or trailer (RangeError from the DataView), or whose header or index is not
       // JSON (SyntaxError): not a bundle either. What the source itself reports (HTTP, network) is passed on.
-      if (e instanceof RangeError || e instanceof SyntaxError) throw new FormatError(`not a complete evd/1 bundle (${e.message})`);
+      if (e instanceof RangeError || e instanceof SyntaxError)
+        throw new FormatError(`not a complete evd/1 bundle (${e.message})`);
       throw e;
     }
   }
@@ -322,7 +435,9 @@ export class Bundle {
     if (!ev) {
       const read = (ev = this.read(i));
       this.decoded.set(i, read);
-      read.catch(() => { if (this.decoded.get(i) === read) this.decoded.delete(i); });
+      read.catch(() => {
+        if (this.decoded.get(i) === read) this.decoded.delete(i);
+      });
     }
     return ev;
   }
@@ -342,7 +457,11 @@ export class Bundle {
   private run(run: number): Promise<Record<string, Table>> {
     const entry = this.runs.find((r) => r.run === run);
     if (entry?.offset === undefined || entry.length === undefined) return Promise.resolve({});
-    if (!this.runTables.has(run)) this.runTables.set(run, this.record({ offset: entry.offset, length: entry.length }).then((r) => r.tables));
+    if (!this.runTables.has(run))
+      this.runTables.set(
+        run,
+        this.record({ offset: entry.offset, length: entry.length }).then((r) => r.tables),
+      );
     return this.runTables.get(run)!;
   }
 
@@ -353,9 +472,11 @@ export class Bundle {
 
   /** The profile's run title filled in for `run`: parts naming a field the run lacks are dropped. */
   runTitle(run: number): string {
-    const info = this.runInfo(run), template = this.header.runTitle;
+    const info = this.runInfo(run),
+      template = this.header.runTitle;
     if (!template) return "";
-    return template.split(" · ")
+    return template
+      .split(" · ")
       .filter((part) => [...part.matchAll(/\{(\w+)\}/g)].every(([, k]) => info[k] !== undefined && info[k] !== ""))
       .map((part) => part.replace(/\{(\w+)\}/g, (_, k) => String(info[k])))
       .join(" · ");

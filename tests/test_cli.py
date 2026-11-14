@@ -1,4 +1,5 @@
 """The evd command: view (convert, publish, link), list, rm, clean, the older commands, and the single-file build."""
+
 import json
 import os
 import subprocess
@@ -39,7 +40,10 @@ def test_a_file_alone_is_converted_published_and_its_link_printed_last(setup, ca
     assert "ttbar.root: NanoAOD, 12 events" in out and "10 events of 12 (--max-events 0 for all)" in out
     assert "published ttbar: kept until" in out
     published = setup / "site" / "data" / "u" / "alice" / "ttbar.evdb"
-    assert len(Bundle(str(published))) == 10 and Bundle(str(published)).header["source"]["converter"] == f"evdtools {__version__}"
+    assert (
+        len(Bundle(str(published))) == 10
+        and Bundle(str(published)).header["source"]["converter"] == f"evdtools {__version__}"
+    )
     [entry] = json.load(open(published.parent / "index.json"))["bundles"]
     assert entry["file"] == "data/u/alice/ttbar.evdb" and entry["title"] == "ttbar · 10 events"
     assert set(entry) == {"file", "title", "events", "size", "created", "published", "expires"}
@@ -47,7 +51,23 @@ def test_a_file_alone_is_converted_published_and_its_link_printed_last(setup, ca
 
 
 def test_view_takes_a_name_a_title_and_every_event(setup, capsys):
-    assert main(["view", "ttbar.root", "--profile", "test.json", "--name", "run1", "--title", "My sample", "--max-events", "0"]) == 0
+    assert (
+        main(
+            [
+                "view",
+                "ttbar.root",
+                "--profile",
+                "test.json",
+                "--name",
+                "run1",
+                "--title",
+                "My sample",
+                "--max-events",
+                "0",
+            ]
+        )
+        == 0
+    )
     out = capsys.readouterr().out
     assert "12 events, " in out and "of 12" not in out and "published run1" in out
     assert main(["ttbar.root", "--profile", "test.json", "--name", "run1", "--events", "0-10"]) == 0
@@ -77,17 +97,24 @@ def test_list_and_rm(setup, capsys):
     assert main(["rm", "a", "nope"]) == 1
     captured = capsys.readouterr()
     assert "removed a" in captured.out and "no bundle named nope" in captured.err
-    assert [e["file"] for e in json.load(open(setup / "site/data/u/alice/index.json"))["bundles"]] == ["data/u/alice/bb.evdb"]
+    assert [e["file"] for e in json.load(open(setup / "site/data/u/alice/index.json"))["bundles"]] == [
+        "data/u/alice/bb.evdb"
+    ]
 
 
 def test_inputs_that_cannot_be_shown_are_explained(setup, capsys):
-    (setup / "physics.json").write_text(json.dumps({"name": "physics", "display": [{"table": "Jet", "label": "Jets", "position": ["x"] * 3}]}))
+    (setup / "physics.json").write_text(
+        json.dumps({"name": "physics", "display": [{"table": "Jet", "label": "Jets", "position": ["x"] * 3}]})
+    )
     assert main(["ttbar.root", "--profile", "physics.json"]) == 1
     assert "has none of the tables that the profile physics draws (it has: Hit)" in capsys.readouterr().err
     assert main(["missing.root"]) == 1 and "no such file" in capsys.readouterr().err
     assert main(["ttbar.root", "--profile", "nope"]) == 1 and "built-in profiles (calo, cms" in capsys.readouterr().err
     assert main(["ttbar.root", "--profile", "test.json", "--name", "a/b"]) == 1
-    assert main(["ttbar.root", "--profile", "test.json", "--events", "99"]) == 1 and "no event was converted" in capsys.readouterr().err
+    assert (
+        main(["ttbar.root", "--profile", "test.json", "--events", "99"]) == 1
+        and "no event was converted" in capsys.readouterr().err
+    )
     assert main(["ttbar.root", "--profile", "test.json", "--site", str(setup / "nowhere")]) == 1
     assert "does not exist" in capsys.readouterr().err and not os.listdir(setup / "site")
 
@@ -99,9 +126,15 @@ def test_a_reconstruction_file_is_exported_first(setup, capsys, monkeypatch):
         calls.append((inputs, events, geometry, era, conditions, more))
         print("geometry ExtendedRun4D110 (from the file's geometry files)", file=log)
         return str(setup / "ttbar.root")
+
     monkeypatch.setattr(export, "export", fake_export)
-    monkeypatch.setattr(export, "describe", lambda path: ("edm", 50, "CMSSW_20_1_0") if path == "step3.root" else ("nano", 12, None))
-    assert main(["step3.root", "--profile", "test.json", "--max-events", "4", "--geometry", "D110", "--nano", "kept.root"]) == 0
+    monkeypatch.setattr(
+        export, "describe", lambda path: ("edm", 50, "CMSSW_20_1_0") if path == "step3.root" else ("nano", 12, None)
+    )
+    assert (
+        main(["step3.root", "--profile", "test.json", "--max-events", "4", "--geometry", "D110", "--nano", "kept.root"])
+        == 0
+    )
     out = capsys.readouterr().out
     assert calls == [(["step3.root"], 4, "D110", None, None, {})]
     assert "step3.root: CMSSW reconstruction from CMSSW_20_1_0, 50 events" in out and "the first 4 with cmsRun" in out
@@ -113,7 +146,23 @@ def test_a_reconstruction_file_is_exported_first(setup, capsys, monkeypatch):
 
 def test_the_older_commands_still_work(setup, capsys):
     for command in ("convert", "from-nano"):
-        assert main([command, "ttbar.root", "-o", f"{command}.evdb", "--profile", "test.json", "--max-events", "3", "-j", "1"]) == 0
+        assert (
+            main(
+                [
+                    command,
+                    "ttbar.root",
+                    "-o",
+                    f"{command}.evdb",
+                    "--profile",
+                    "test.json",
+                    "--max-events",
+                    "3",
+                    "-j",
+                    "1",
+                ]
+            )
+            == 0
+        )
         assert len(Bundle(f"{command}.evdb")) == 3
     assert main(["validate", "convert.evdb"]) == 0 and main(["inspect", "convert.evdb"]) == 0
     out = capsys.readouterr().out
@@ -187,6 +236,7 @@ def test_a_site_that_cannot_be_written_is_found_before_converting(setup, capsys,
     users.mkdir(parents=True)
     os.chmod(users, 0o555)
     from evdtools import nano
+
     monkeypatch.setattr(nano, "convert", lambda *a, **k: pytest.fail("converted before checking the site"))
     try:
         assert main(["ttbar.root", "--profile", "test.json"]) == 1
@@ -217,7 +267,9 @@ def test_rm_takes_the_name_with_or_without_its_suffix(setup, capsys):
 
 
 def test_options_for_reconstruction_files_are_said_to_be_ignored_for_nanoaod(setup, capsys):
-    assert main(["ttbar.root", "--profile", "test.json", "--geometry", "D110", "--nano", "kept.root", "-o", "o.evdb"]) == 0
+    assert (
+        main(["ttbar.root", "--profile", "test.json", "--geometry", "D110", "--nano", "kept.root", "-o", "o.evdb"]) == 0
+    )
     err = capsys.readouterr().err
     assert "--geometry" in err and "--nano" in err and "ignored" in err and not os.path.exists("kept.root")
 
@@ -225,6 +277,7 @@ def test_options_for_reconstruction_files_are_said_to_be_ignored_for_nanoaod(set
 def test_threads_give_the_same_records_as_one_thread(setup):
     from evdtools.nano import convert
     import gzip, io
+
     for threads in (1, 4):
         convert(["ttbar.root"], f"t{threads}.evdb", "test.json", log=io.StringIO(), threads=threads)
     one, four = Bundle("t1.evdb"), Bundle("t4.evdb")

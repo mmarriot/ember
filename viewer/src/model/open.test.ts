@@ -4,15 +4,30 @@ import { blobSource, HttpError, type Source } from "../io/bundle";
 import { type Listed, recent } from "./library";
 // The store sets the page's theme as it loads: a stand-in page (the tests run without a DOM).
 Object.assign(globalThis, { document: { documentElement: { dataset: {} } } });
-const { bundle, bundleName, catalogue, keepShown, openBundle, opened, openFailure, opening, toasts } = await import("./store");
+const { bundle, bundleName, catalogue, keepShown, openBundle, opened, openFailure, opening, toasts } = await import(
+  "./store"
+);
 
-const golden = async () => blobSource(new Blob([readFileSync(new URL("../../../golden/v6_1event.evdb", import.meta.url))]));
-const gone = (name: string) => async () => { throw new HttpError(name, 404); };
+const golden = async () =>
+  blobSource(new Blob([readFileSync(new URL("../../../golden/v6_1event.evdb", import.meta.url))]));
+const gone = (name: string) => async () => {
+  throw new HttpError(name, 404);
+};
 const settle = () => new Promise((r) => setTimeout(r, 0)); // the background naming of what was opened
 /** The owners' indexes, as the site would send them: nobody's, unless a test says. */
-const indexes = (lists: Record<string, Listed[]> = {}) => async (owner: string) => lists[owner] ?? [];
+const indexes =
+  (lists: Record<string, Listed[]> = {}) =>
+  async (owner: string) =>
+    lists[owner] ?? [];
 
-beforeEach(() => { bundle.value = null; bundleName.value = ""; catalogue.value = { bundles: [] }; openFailure.value = null; toasts.value = []; recent.value = []; });
+beforeEach(() => {
+  bundle.value = null;
+  bundleName.value = "";
+  catalogue.value = { bundles: [] };
+  openFailure.value = null;
+  toasts.value = [];
+  recent.value = [];
+});
 
 describe("openBundle", () => {
   it("says in full why a data set did not open when there is nothing else to show", async () => {
@@ -50,7 +65,9 @@ describe("openBundle", () => {
   it("lists a data set from a link under the recent ones, and a local file as one that cannot be reopened", async () => {
     await openBundle("data/u/alice/golden.evdb", golden, 0, false, indexes());
     await settle();
-    expect(recent.value.map((r) => [r.file, r.title, !!r.local])).toEqual([["data/u/alice/golden.evdb", "golden · alice", false]]);
+    expect(recent.value.map((r) => [r.file, r.title, !!r.local])).toEqual([
+      ["data/u/alice/golden.evdb", "golden · alice", false],
+    ]);
     await openBundle("mine.evdb", golden, 0, true);
     await settle();
     expect(opened.value).toMatchObject({ file: "mine.evdb", title: "mine.evdb", local: true });
@@ -67,7 +84,10 @@ describe("openBundle", () => {
 
   it("drops what an owner's index says once another data set was asked for", async () => {
     let answer!: () => void;
-    const late = (owner: string) => new Promise<Listed[]>((done) => { answer = () => done([{ file: `data/u/${owner}/golden.evdb`, title: "Arrived too late" }]); });
+    const late = (owner: string) =>
+      new Promise<Listed[]>((done) => {
+        answer = () => done([{ file: `data/u/${owner}/golden.evdb`, title: "Arrived too late" }]);
+      });
     await openBundle("data/u/alice/golden.evdb", golden, 0, false, late);
     await openBundle("data/sim/golden.evdb", golden, 0, false, indexes());
     answer();
@@ -86,7 +106,10 @@ describe("openBundle", () => {
   // Review, finding 1: opens overlap (a slow link, then a choice in the chooser; Live; two quick picks).
   it("does not let an earlier, slower open replace the data set chosen after it", async () => {
     let arrive!: () => Promise<void>;
-    const slow = () => new Promise<Source>((done) => { arrive = async () => done(await golden()); });
+    const slow = () =>
+      new Promise<Source>((done) => {
+        arrive = async () => done(await golden());
+      });
     const first = openBundle("data/sim/first.evdb", slow, 0);
     const second = await openBundle("data/sim/second.evdb", golden);
     await arrive();
@@ -100,7 +123,13 @@ describe("openBundle", () => {
   it("keeps the data set on screen when it is chosen again while a slower one opens", async () => {
     await openBundle("data/sim/first.evdb", golden);
     let arrive!: () => Promise<void>;
-    const slow = openBundle("data/sim/second.evdb", () => new Promise<Source>((done) => { arrive = async () => done(await golden()); }));
+    const slow = openBundle(
+      "data/sim/second.evdb",
+      () =>
+        new Promise<Source>((done) => {
+          arrive = async () => done(await golden());
+        }),
+    );
     expect(opening.value).toBe("data/sim/second.evdb");
     keepShown(); // the chooser, picking first.evdb again
     expect(opening.value).toBeNull();
@@ -111,8 +140,20 @@ describe("openBundle", () => {
 
   it("says nothing about an open that failed after another was asked for, and keeps that one's Opening…", async () => {
     let fail!: () => void, arrive!: () => Promise<void>;
-    const first = openBundle("data/sim/first.evdb", () => new Promise<Source>((_, reject) => { fail = () => reject(new HttpError("data/sim/first.evdb", 404)); }));
-    const second = openBundle("data/sim/second.evdb", () => new Promise<Source>((done) => { arrive = async () => done(await golden()); }));
+    const first = openBundle(
+      "data/sim/first.evdb",
+      () =>
+        new Promise<Source>((_, reject) => {
+          fail = () => reject(new HttpError("data/sim/first.evdb", 404));
+        }),
+    );
+    const second = openBundle(
+      "data/sim/second.evdb",
+      () =>
+        new Promise<Source>((done) => {
+          arrive = async () => done(await golden());
+        }),
+    );
     fail();
     expect(await first).toBe(false);
     expect(opening.value).toBe("data/sim/second.evdb");
@@ -133,7 +174,12 @@ describe("openBundle", () => {
 
   it("does not save the settings of a bundle from another site under its profile, which it names itself", async () => {
     const saved = new Map<string, string>();
-    Object.assign(globalThis, { localStorage: { getItem: (k: string) => saved.get(k) ?? null, setItem: (k: string, v: string) => saved.set(k, v) } });
+    Object.assign(globalThis, {
+      localStorage: {
+        getItem: (k: string) => saved.get(k) ?? null,
+        setItem: (k: string, v: string) => saved.set(k, v),
+      },
+    });
     try {
       await openBundle("https://elsewhere.example/data/u/alice/x.evdb", golden);
       const { filters } = await import("./custom");
@@ -149,7 +195,14 @@ describe("openBundle", () => {
   });
 
   it("refuses a name that is neither a file of this site nor an address", async () => {
-    for (const name of ["data/u/alice/..\\tester\\x.evdb", "data/u/../x.evdb", "data/sim/x.evdb?x=1", "/etc/x.evdb", "//elsewhere.example/x.evdb", "javascript:alert(1)"]) {
+    for (const name of [
+      "data/u/alice/..\\tester\\x.evdb",
+      "data/u/../x.evdb",
+      "data/sim/x.evdb?x=1",
+      "/etc/x.evdb",
+      "//elsewhere.example/x.evdb",
+      "javascript:alert(1)",
+    ]) {
       expect(await openBundle(name, golden)).toBe(false);
       expect(bundle.value).toBeNull();
       expect(openFailure.value).toMatchObject({ kind: "badname" });

@@ -11,7 +11,7 @@ import numpy as np
 import pytest
 import uproot
 
-from evdtools import Problem, export
+from embertools import Problem, export
 
 pytest.importorskip("awkward")  # writes the input files
 
@@ -84,14 +84,14 @@ def test_the_cmsdriver_command_line(tmp_path):
     )
     assert command == [
         "cmsDriver.py",
-        "evd",
+        "ember",
         "-s",
         "NANO:@EVD",
         "--mc",
         "--filein",
         f"file:{os.path.abspath('step3.root')},root://eoscms.cern.ch//store/relval/x.root",
         "--fileout",
-        "file:evd_nano.root",
+        "file:ember_nano.root",
         "--eventcontent",
         "NANOAODSIM",
         "--datatier",
@@ -107,7 +107,7 @@ def test_the_cmsdriver_command_line(tmp_path):
         "--nThreads",
         "2",
         "--python_filename",
-        "evd_nano_cfg.py",
+        "ember_nano_cfg.py",
     ]
     assert export.cmsdriver(["a.root"], None, "D110", "E", "C")[13:15] == ["-n", "-1"]  # every event
 
@@ -174,8 +174,8 @@ def driver(tmp_path, monkeypatch):
 def test_export_runs_cmsdriver_in_the_work_directory_and_returns_the_nanoaod(driver):
     log = io.StringIO()
     nano = export.export(["step3.root"], driver, 5, "D110", "E", "C", log=log)
-    assert nano == os.path.join(driver, "evd_nano.root") and Path(nano).read_text() == "nano\n"
-    assert "running cmsDriver.py evd -s NANO:@EVD" in log.getvalue()
+    assert nano == os.path.join(driver, "ember_nano.root") and Path(nano).read_text() == "nano\n"
+    assert "running cmsDriver.py ember -s NANO:@EVD" in log.getvalue()
     assert "-n 5 --geometry ExtendedRun4D110 --era E --conditions C" in Path(driver, "cmsRun.log").read_text()
 
 
@@ -208,6 +208,6 @@ def test_another_failure_keeps_the_job_output_where_it_survives(driver, monkeypa
     monkeypatch.setattr(tempfile, "tempdir", None)
     with pytest.raises(Problem) as e:
         export.export(["step3.root"], driver, 5, "D110", "E", "C", log=io.StringIO())
-    kept = [f for f in os.listdir(tmp_path) if f.startswith("evd-cmsRun-")]
+    kept = [f for f in os.listdir(tmp_path) if f.startswith("ember-cmsRun-")]
     assert len(kept) == 1 and kept[0] in str(e.value) and "ProductNotFound" in (tmp_path / kept[0]).read_text()
     assert "exit code 8" in str(e.value) and "ProductNotFound" in str(e.value)

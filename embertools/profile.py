@@ -1,6 +1,6 @@
 """Display profiles: what to read from a file, how its tables relate, what to cut and how to draw it.
 
-A profile is a JSON file (the built-in ones are in evdtools/profiles/; docs/profiles.md describes every key). It can
+A profile is a JSON file (the built-in ones are in embertools/profiles/; docs/profiles.md describes every key). It can
 `include` other profiles, which load_profile() merges in.
 """
 
@@ -10,10 +10,10 @@ import os
 
 from . import Problem
 
-# The built-in profiles, read as package data so that they are also found when evdtools runs from a zip file. The
+# The built-in profiles, read as package data so that they are also found when embertools runs from a zip file. The
 # package is named, not taken from __package__: under Python 3.9 a module loaded from a zip has no __package__ yet when
 # this line runs.
-BUILTIN = importlib.resources.files("evdtools").joinpath("profiles")
+BUILTIN = importlib.resources.files("embertools").joinpath("profiles")
 
 
 def load_profile(name_or_path, _within=()):

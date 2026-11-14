@@ -1,12 +1,12 @@
 """Where the event-display site is, and each user's area on it.
 
-    <site>/data/u/<login>/<name>.evdb   a user's bundles, written by `evd view`
+    <site>/data/u/<login>/<name>.evdb   a user's bundles, written by `ember view`
     <site>/data/u/<login>/index.json    that user's list, most recently published first:
                                         {"updated", "bundles": [{"file", "title", "events", "size", "created",
                                                                  "published", "expires"}]}
 
 `file` is relative to the site, so a share link is <url>/#b=<file>. `created` is when the bundle was converted,
-`published` when it was last put on the site. A bundle is kept KEEP_DAYS days after it was published (`evd clean`,
+`published` when it was last put on the site. A bundle is kept KEEP_DAYS days after it was published (`ember clean`,
 run from cron, removes older ones); publishing it again renews it.
 
 The site is a directory. Where it is mounted (lxplus mounts /eos) files are copied into it; elsewhere an /eos path is
@@ -34,11 +34,11 @@ import time
 from . import Problem
 
 # Placeholders until the CMS site exists: the EOS project space the site is served from, its address, and the folder
-# beside the site that holds what the cron jobs run and their state. Set EVD_SITE_DIR, EVD_SITE_URL and
-# EVD_SERVICE_DIR to use another site.
-DEFAULT_DIR = "/eos/project/c/cms-evd/www"
-DEFAULT_URL = "https://cms-evd.web.cern.ch"
-DEFAULT_SERVICE = "/eos/project/c/cms-evd/service"
+# beside the site that holds what the cron jobs run and their state. Set EMBER_SITE_DIR, EMBER_SITE_URL and
+# EMBER_SERVICE_DIR to use another site.
+DEFAULT_DIR = "/eos/project/c/cms-ember/www"
+DEFAULT_URL = "https://cms-ember.web.cern.ch"
+DEFAULT_SERVICE = "/eos/project/c/cms-ember/service"
 KEEP_DAYS = 30
 DAY = 86400  # seconds
 USERS = "data/u"  # the per-user areas, relative to the site
@@ -51,18 +51,18 @@ PARTIAL = re.compile(r"\.(evdb|json)\.tmp\w+$")  # a file being copied in (repla
 
 
 def site_dir(given=None):
-    """The site's directory: `given`, else $EVD_SITE_DIR, else the default."""
-    return given or os.environ.get("EVD_SITE_DIR") or DEFAULT_DIR
+    """The site's directory: `given`, else $EMBER_SITE_DIR, else the default."""
+    return given or os.environ.get("EMBER_SITE_DIR") or DEFAULT_DIR
 
 
 def site_url(given=None):
-    """The site's address, without a trailing slash: `given`, else $EVD_SITE_URL, else the default."""
-    return (given or os.environ.get("EVD_SITE_URL") or DEFAULT_URL).rstrip("/")
+    """The site's address, without a trailing slash: `given`, else $EMBER_SITE_URL, else the default."""
+    return (given or os.environ.get("EMBER_SITE_URL") or DEFAULT_URL).rstrip("/")
 
 
 def service_dir(given=None):
-    """The folder of the cron jobs' code and state: `given`, else $EVD_SERVICE_DIR, else the default."""
-    return given or os.environ.get("EVD_SERVICE_DIR") or DEFAULT_SERVICE
+    """The folder of the cron jobs' code and state: `given`, else $EMBER_SERVICE_DIR, else the default."""
+    return given or os.environ.get("EMBER_SERVICE_DIR") or DEFAULT_SERVICE
 
 
 def check_login(user):
@@ -72,15 +72,15 @@ def check_login(user):
     if not re.fullmatch(r"[a-z][a-z0-9_-]{1,31}", user):
         raise Problem(
             f"'{user}' cannot be a login: a letter, then letters, digits, '-' and '_', 2 to 32 characters "
-            "(give your CERN login with --user or EVD_USER)"
+            "(give your CERN login with --user or EMBER_USER)"
         )
     return user
 
 
 def login(given=None):
-    """Whose area to use: `given`, else $EVD_USER, else the account name, which on lxplus is the CERN login the site
+    """Whose area to use: `given`, else $EMBER_USER, else the account name, which on lxplus is the CERN login the site
     knows the user by."""
-    return check_login(given or os.environ.get("EVD_USER") or getpass.getuser())
+    return check_login(given or os.environ.get("EMBER_USER") or getpass.getuser())
 
 
 def link(url, user, name):
@@ -152,7 +152,7 @@ class _Mounted:
         does not exist yet is checked in the nearest folder above it that does, where it will be created."""
         if not os.path.isdir(self.root):
             raise Problem(
-                f"the site directory {self.root} does not exist (set EVD_SITE_DIR or --site, or write the "
+                f"the site directory {self.root} does not exist (set EMBER_SITE_DIR or --site, or write the "
                 "bundle here with -o FILE)"
             )
         folder = os.path.join(self.root, area or "")
@@ -243,7 +243,7 @@ class _XRootD:
         result = self._run("xrdfs", self.host, "stat", self.root)
         if result.returncode and self.MISSING.search(result.stderr):
             raise Problem(
-                f"the site directory {self.root} does not exist on {self.host} (set EVD_SITE_DIR or "
+                f"the site directory {self.root} does not exist on {self.host} (set EMBER_SITE_DIR or "
                 "--site, or write the bundle here with -o FILE)"
             )
         if result.returncode:
@@ -350,7 +350,7 @@ def publish(bundle, site, user, name, title=None, days=KEEP_DAYS):
 
     The index is read, changed and written back with no lock (there is none that works both on a mounted directory
     and through XRootD): two publishes of one user at the same moment can leave one of the two bundles out of the
-    list, until that name is published again or the next `evd clean`, which lists the files present. The bundle
+    list, until that name is published again or the next `ember clean`, which lists the files present. The bundle
     itself is there, and its link works."""
     file = f"{USERS}/{check_login(user)}/{check_name(name)}.evdb"
     entry = _entry(bundle, file, title or name, time.time(), days)
@@ -468,7 +468,7 @@ def clean(site, days=KEEP_DAYS, dry_run=False, log=print, now=None):
     return removed
 
 
-if __name__ == "__main__":  # for the shell scripts in service/: eval "$(python3 -m evdtools.site)"
+if __name__ == "__main__":  # for the shell scripts in service/: eval "$(python3 -m embertools.site)"
     print(
-        f"export EVD_SITE_DIR='{site_dir()}'\nexport EVD_SITE_URL='{site_url()}'\nexport EVD_SERVICE_DIR='{service_dir()}'"
+        f"export EMBER_SITE_DIR='{site_dir()}'\nexport EMBER_SITE_URL='{site_url()}'\nexport EMBER_SERVICE_DIR='{service_dir()}'"
     )

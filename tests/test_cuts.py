@@ -4,8 +4,8 @@ import numpy as np
 import pytest
 from nanoaod import chunk, converter
 
-from evdtools.nano import parse_events
-from evdtools.relations import cut_relation
+from embertools.nano import parse_events
+from embertools.relations import cut_relation
 
 F4, I4 = np.dtype("f4"), np.dtype("i4")
 TYPES = {
@@ -176,7 +176,7 @@ def test_reached_by_any_of_several_relations():
 def test_hgcal_keeps_in_time_truth_only():
     """The hgcal profile keeps the truth particles of bunch crossing 0 and the vertices they are produced or decay at;
     vertex indices and parent -> child links follow the renumbering."""
-    from evdtools.profile import load_profile
+    from embertools.profile import load_profile
 
     types = {
         "TruthParticles": {c: F4 for c in ("x", "y", "z", "endX", "endY", "endZ", "energy")}

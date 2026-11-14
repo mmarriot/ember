@@ -6,8 +6,8 @@ import json
 import pytest
 from nanoaod import write_nano
 
-from evdtools.bundle import Bundle, validate
-from evdtools.nano import convert
+from embertools.bundle import Bundle, validate
+from embertools.nano import convert
 
 pytest.importorskip("awkward")  # writes the input files
 

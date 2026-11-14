@@ -18,8 +18,10 @@ from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
 
+# The magic bytes are from the time the project was called evd. They identify format version 1, and every bundle
+# written so far has them, so they keep that name (as does the header's "schema": "evd/1", see converter.py).
 MAGIC, RECORD_MAGIC, VERSION = b"EVDB", b"EVD1", 1
-TYPES = {  # evd column type -> numpy dtype (little-endian)
+TYPES = {  # bundle column type -> numpy dtype (little-endian)
     "f32": "<f4",
     "f64": "<f8",
     "i8": "<i1",
@@ -35,7 +37,7 @@ RELATION_TYPES = {"offsets": "<u4", "indices": "<u4", "weights": "<f4"}
 
 
 def type_code(dtype):
-    """The evd type code of a numpy dtype (booleans are stored as u8)."""
+    """The bundle type code of a numpy dtype (booleans are stored as u8)."""
     dt = np.dtype(dtype)
     if dt.kind == "b":
         return "u8"
@@ -206,7 +208,7 @@ class Bundle:
         try:
             magic, version, hlen = struct.unpack("<4sII", self._file.read(12))
             if magic != MAGIC or version != VERSION:
-                raise ValueError(f"{path}: not an evd/{VERSION} bundle")
+                raise ValueError(f"{path}: not an Ember bundle of format version {VERSION}")
             self.header = json.loads(self._file.read(hlen))
             self._file.seek(-16, os.SEEK_END)
             offset, length, magic = struct.unpack("<QI4s", self._file.read(16))

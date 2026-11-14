@@ -10,13 +10,13 @@ Config (JSON; service/campaigns.example.json shows every key):
   {"campaigns": [{"name": "mct_22000077", "title": "MCT run 22000077", "profile": "mct", "max_events": 1000,
                   "inputs": "/eos/cms/store/.../Run22000077/*/NANO_22000077_*.root",
                   "xrootd": "root://eoscms.cern.ch/"}]}
-  "site" and "state" default to the site of evdtools/site.py (EVD_SITE_DIR) and <EVD_SERVICE_DIR>/state.
+  "site" and "state" default to the site of embertools/site.py (EMBER_SITE_DIR) and <EMBER_SERVICE_DIR>/state.
   Optional per campaign: "stem": "wildcards" names bundles after the wildcard parts of the input path, and with
   "stem_parts": [0, 2] after those wildcards only, so that inputs differing in the others share a name and only the
   first of them is converted (one bundle per RelVal sample, whatever its files are called);
-  "runInfo": where to find information about the runs (see evdtools/runinfo.py), e.g. "registry:RunRegistryP5.RunTable";
+  "runInfo": where to find information about the runs (see embertools/runinfo.py), e.g. "registry:RunRegistryP5.RunTable";
   "export": {"cmssw": area, "geometry": "D110", ...}: the inputs are CMSSW reconstruction files (e.g. RelVals), and
-  the event-display NanoAOD of their first `max_events` events is made first, in that CMSSW area (evdtools/export.py;
+  the event-display NanoAOD of their first `max_events` events is made first, in that CMSSW area (embertools/export.py;
   optional "era", "conditions", "threads").
 """
 
@@ -118,7 +118,7 @@ def _remember_title(site, campaign, file_titles=None):
 
 def build_index(site):
     """The site's index.json for the viewer: every non-empty bundle of the campaigns, newest data first. The users'
-    folder (data/u/, see evdtools/site.py) is not a campaign: nothing in it is listed. A file that cannot be read is
+    folder (data/u/, see embertools/site.py) is not a campaign: nothing in it is listed. A file that cannot be read is
     logged and left out."""
     users = os.path.join(site, USERS)
 
@@ -243,7 +243,7 @@ def _take_lock(lock, site):
 def _convert_input(campaign, path, source, target, convert, export):
     """Convert the input `path` of a campaign (read from `source`) to the bundle `target`; returns the number of
     events. A reconstruction file is first exported to NanoAOD, in a temporary folder."""
-    with tempfile.TemporaryDirectory(prefix="evd-export-") as work:
+    with tempfile.TemporaryDirectory(prefix="ember-export-") as work:
         if campaign.get("export"):
             source = export([source], work, campaign.get("max_events"), log=_Log(), **campaign["export"])
         return convert(

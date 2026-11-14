@@ -10,9 +10,9 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from evdtools import Problem, site
-from evdtools.bundle import BundleWriter
-from evdtools.service import build_index
+from embertools import Problem, site
+from embertools.bundle import BundleWriter
+from embertools.service import build_index
 
 
 def bundle(path, events=2, created="2026-11-09T00:00:00+00:00"):
@@ -50,7 +50,7 @@ def test_publish_lists_the_bundle_in_the_users_area_and_gives_its_link(tmp_path)
     assert entry["created"] == "2026-11-09T00:00:00+00:00"  # when it was converted
     assert abs(seconds(entry["published"]) - time.time()) < 5  # when it was put here
     assert seconds(entry["expires"]) - seconds(entry["published"]) == site.KEEP_DAYS * 86400
-    assert site.link("https://evd.example", "alice", "ttbar") == "https://evd.example/#b=data/u/alice/ttbar.evdb"
+    assert site.link("https://ember.example", "alice", "ttbar") == "https://ember.example/#b=data/u/alice/ttbar.evdb"
     assert build_index(root)["bundles"] == []  # the site's own list does not show the users' bundles
 
 
@@ -121,16 +121,16 @@ def test_a_site_out_of_reach_or_not_writable_is_a_problem_with_a_way_out(tmp_pat
 
 
 def test_where_the_site_is_comes_from_the_argument_then_the_environment_then_the_default(monkeypatch):
-    for name in ("EVD_SITE_DIR", "EVD_SITE_URL", "EVD_SERVICE_DIR", "EVD_USER"):
+    for name in ("EMBER_SITE_DIR", "EMBER_SITE_URL", "EMBER_SERVICE_DIR", "EMBER_USER"):
         monkeypatch.delenv(name, raising=False)
     assert (site.site_dir(), site.site_url(), site.service_dir()) == (
         site.DEFAULT_DIR,
         site.DEFAULT_URL,
         site.DEFAULT_SERVICE,
     )
-    monkeypatch.setenv("EVD_SITE_DIR", "/env/site")
-    monkeypatch.setenv("EVD_SITE_URL", "https://env.example/")
-    monkeypatch.setenv("EVD_USER", "carol")
+    monkeypatch.setenv("EMBER_SITE_DIR", "/env/site")
+    monkeypatch.setenv("EMBER_SITE_URL", "https://env.example/")
+    monkeypatch.setenv("EMBER_USER", "carol")
     assert (site.site_dir(), site.site_url(), site.login()) == ("/env/site", "https://env.example", "carol")
     assert (site.site_dir("/arg"), site.site_url("https://arg/"), site.login("dave")) == ("/arg", "https://arg", "dave")
 
@@ -229,9 +229,9 @@ def test_a_site_reached_through_xrootd_is_published_to_listed_and_removed_from(t
 
 def test_an_eos_path_that_is_not_mounted_goes_through_xrootd(monkeypatch):
     monkeypatch.setattr(os.path, "isdir", lambda path: False)
-    files = site.store("/eos/project/c/cms-evd/www")
-    assert (files.host, files.root) == ("root://eosproject.cern.ch/", "/eos/project/c/cms-evd/www")
-    assert files._url("data/u/a/x.evdb") == "root://eosproject.cern.ch//eos/project/c/cms-evd/www/data/u/a/x.evdb"
+    files = site.store("/eos/project/c/cms-ember/www")
+    assert (files.host, files.root) == ("root://eosproject.cern.ch/", "/eos/project/c/cms-ember/www")
+    assert files._url("data/u/a/x.evdb") == "root://eosproject.cern.ch//eos/project/c/cms-ember/www/data/u/a/x.evdb"
     files = site.store("root://eosuser.cern.ch//eos/user/a/alice/site/")
     assert (files.host, files.root) == ("root://eosuser.cern.ch/", "/eos/user/a/alice/site")
 
@@ -262,7 +262,7 @@ def test_a_login_that_is_not_a_plain_account_name_is_refused_everywhere(tmp_path
 
 
 def test_a_login_is_lower_cased_as_the_viewer_does(monkeypatch):
-    monkeypatch.setenv("EVD_USER", "Alice_B-2")
+    monkeypatch.setenv("EMBER_USER", "Alice_B-2")
     assert site.login() == "alice_b-2" and site.login("BOB") == "bob"
 
 

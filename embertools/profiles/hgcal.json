@@ -147,7 +147,7 @@
     "rechit": {"label": "Hits", "domain": "HGCal", "repr": "cells", "palette": "heat", "visible": true,
                "cut": {"group": "Hit energy", "unit": "GeV", "default": 0.035}},
     "layerCluster": {"label": "Layer clusters", "domain": "HGCal", "repr": "markers", "palette": "cool", "visible": true,
-                     "truthGap": {"reason": "no layer-cluster associator in CMSSW; the colour is evd's stand-in: the particle with the most simulated energy in its hits", "gap": 1, "derived": "content"},
+                     "truthGap": {"reason": "no layer-cluster associator in CMSSW; the colour is Ember's stand-in: the particle with the most simulated energy in its hits", "gap": 1, "derived": "content"},
                      "cut": {"group": "Layer cluster energy", "unit": "GeV", "default": 0.0}},
     "trackster": {"label": "Tracksters", "domain": "HGCal", "repr": "ellipsoids", "colourBy": "row", "visible": true},
     "linkedTrackster": {"label": "Linked tracksters", "domain": "HGCal", "repr": "ellipsoids", "shape": "shell", "colourBy": "row", "visible": true},

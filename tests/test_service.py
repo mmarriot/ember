@@ -9,8 +9,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from evdtools.bundle import BundleWriter
-from evdtools.service import sync
+from embertools.bundle import BundleWriter
+from embertools.service import sync
 
 
 def fake_convert(events_per_file):
@@ -109,7 +109,7 @@ def test_a_fresh_lock_blocks_and_a_stale_one_is_taken_over(tmp_path):
 
 
 def test_simulate_publishes_parts_newest_first(tmp_path):
-    from evdtools.service import simulate
+    from embertools.service import simulate
 
     convert, _ = fake_convert({"NANO_1.root": 7})
     source = tmp_path / "source.evdb"
@@ -122,8 +122,8 @@ def test_simulate_publishes_parts_newest_first(tmp_path):
 
 
 def test_simulated_parts_carry_the_per_run_tables_and_run_info_of_their_runs(tmp_path):
-    from evdtools.bundle import Bundle, validate
-    from evdtools.service import simulate
+    from embertools.bundle import Bundle, validate
+    from embertools.service import simulate
 
     columns = {"e": {"type": "f32", "doc": ""}}
     tables = {"Hit": {"doc": "", "columns": columns}, "Channel": {"doc": "", "scope": "run", "columns": columns}}
@@ -160,7 +160,7 @@ def test_taking_over_a_stale_lock_removes_partial_bundles(tmp_path):
 
 
 def test_publish_adds_a_titled_bundle_to_the_site(tmp_path):
-    from evdtools.service import publish
+    from embertools.service import publish
 
     convert, _ = fake_convert({"x.root": 2})
     source = tmp_path / "ttbar.evdb"
@@ -173,7 +173,7 @@ def test_publish_adds_a_titled_bundle_to_the_site(tmp_path):
 
 
 def test_wildcard_stems_name_bundles_after_the_matched_path_parts(tmp_path):
-    from evdtools.service import _stem
+    from embertools.service import _stem
 
     campaign = {"inputs": str(tmp_path / "*" / "v3" / "Events_1.root"), "stem": "wildcards"}
     assert _stem(campaign, str(tmp_path / "117135" / "v3" / "Events_1.root")) == "117135"
@@ -182,8 +182,8 @@ def test_wildcard_stems_name_bundles_after_the_matched_path_parts(tmp_path):
 
 def test_the_site_and_the_state_default_to_the_configured_site(tmp_path, monkeypatch):
     config = setup(tmp_path, ["NANO_1.root"])
-    monkeypatch.setenv("EVD_SITE_DIR", config.pop("site"))
-    monkeypatch.setenv("EVD_SERVICE_DIR", str(tmp_path / "service"))
+    monkeypatch.setenv("EMBER_SITE_DIR", config.pop("site"))
+    monkeypatch.setenv("EMBER_SERVICE_DIR", str(tmp_path / "service"))
     del config["state"]
     assert sync(config, convert=fake_convert({})[0]) == 1
     assert os.path.exists(tmp_path / "site" / "data" / "mct" / "NANO_1.evdb") and os.path.isdir(
@@ -192,7 +192,7 @@ def test_the_site_and_the_state_default_to_the_configured_site(tmp_path, monkeyp
 
 
 def test_the_users_areas_are_not_a_campaign(tmp_path):
-    from evdtools.service import build_index
+    from embertools.service import build_index
 
     config = setup(tmp_path, ["NANO_1.root"])
     convert, _ = fake_convert({})
@@ -271,7 +271,7 @@ def test_a_campaign_of_reconstruction_files_is_exported_then_converted_once_per_
 
 
 def test_a_failed_export_counts_as_a_failure_of_the_file(tmp_path):
-    from evdtools import Problem
+    from embertools import Problem
 
     config = relval(tmp_path, ["RelValTTbar_14TeV/GEN-SIM-RECO/PU_201X_D110_PU-v1/2580000/aaa.root"])
 
@@ -285,7 +285,7 @@ def test_a_failed_export_counts_as_a_failure_of_the_file(tmp_path):
 
 
 def test_files_directly_in_the_users_folder_neither_show_in_the_site_index_nor_break_it(tmp_path):
-    from evdtools.service import build_index
+    from embertools.service import build_index
 
     config = setup(tmp_path, ["NANO_1.root"])
     convert, _ = fake_convert({})
@@ -299,7 +299,7 @@ def test_files_directly_in_the_users_folder_neither_show_in_the_site_index_nor_b
 
 
 def test_a_broken_file_in_a_campaign_does_not_stop_the_index(tmp_path):
-    from evdtools.service import build_index
+    from embertools.service import build_index
 
     config = setup(tmp_path, ["NANO_1.root"])
     sync(config, convert=fake_convert({})[0])

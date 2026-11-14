@@ -1,9 +1,9 @@
 # Sourced by the cron entry points (run_sync.sh, run_clean.sh): the site this copy of the code was deployed for, a
-# python3 with what evdtools needs, and the code's directory as the working directory.
+# python3 with what embertools needs, and the code's directory as the working directory.
 HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)   # <code>/service
-CODE=$(dirname "$HERE")                              # <code>, which contains evdtools/
+CODE=$(dirname "$HERE")                              # <code>, which contains embertools/
 
-# deploy.sh records the site it deployed to; without that file, the environment or evdtools/site.py's defaults apply.
+# deploy.sh records the site it deployed to; without that file, the environment or embertools/site.py's defaults apply.
 [ -f "$CODE/site.env" ] && source "$CODE/site.env"
 
 # Needs python3 with uproot, numpy, scipy and the XRootD bindings: use the current one if it has them (e.g. inside

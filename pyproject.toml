@@ -3,8 +3,8 @@ requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "evdtools"
-description = "Convert CMS NanoAOD event-display tables to .evdb bundles and publish them for the evd web event display"
+name = "embertools"
+description = "Convert CMS NanoAOD event-display tables to .evdb bundles and publish them for the Ember web event display"
 readme = "README.md"
 requires-python = ">=3.9"
 dependencies = ["numpy", "uproot>=5"]
@@ -17,16 +17,16 @@ test = ["pytest", "awkward", "scipy"]
 dev = ["ruff==0.17.5"]                  # formatting and lint: ruff format, ruff check
 
 [project.scripts]
-evd = "evdtools.__main__:main"
+ember = "embertools.__main__:main"
 
 [tool.setuptools]
-packages = ["evdtools"]
+packages = ["embertools"]
 
 [tool.setuptools.package-data]
-evdtools = ["profiles/*.json"]
+embertools = ["profiles/*.json"]
 
 [tool.setuptools.dynamic]
-version = { attr = "evdtools.__version__" }
+version = { attr = "embertools.__version__" }
 
 [tool.ruff]
 line-length = 120

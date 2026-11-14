@@ -1,4 +1,4 @@
-"""The evd command: view (convert, publish, link), list, rm, clean, the older commands, and the single-file build."""
+"""The `ember` command: view (convert, publish, link), list, rm, clean, the older commands, and the single-file build."""
 
 import gzip
 import io
@@ -11,9 +11,9 @@ import time
 import pytest
 from nanoaod import write_nano
 
-from evdtools import __version__, export
-from evdtools.__main__ import main
-from evdtools.bundle import Bundle
+from embertools import __version__, export
+from embertools.__main__ import main
+from embertools.bundle import Bundle
 
 pytest.importorskip("awkward")  # writes the input files
 
@@ -28,9 +28,9 @@ def setup(tmp_path, monkeypatch):
     (tmp_path / "test.json").write_text(json.dumps(PROFILE))
     write_nano(str(tmp_path / "ttbar.root"), EVENTS)
     (tmp_path / "site").mkdir()
-    monkeypatch.setenv("EVD_SITE_DIR", str(tmp_path / "site"))
-    monkeypatch.setenv("EVD_SITE_URL", "https://evd.example")
-    monkeypatch.setenv("EVD_USER", "alice")
+    monkeypatch.setenv("EMBER_SITE_DIR", str(tmp_path / "site"))
+    monkeypatch.setenv("EMBER_SITE_URL", "https://ember.example")
+    monkeypatch.setenv("EMBER_USER", "alice")
     monkeypatch.chdir(tmp_path)
     return tmp_path
 
@@ -38,13 +38,13 @@ def setup(tmp_path, monkeypatch):
 def test_a_file_alone_is_converted_published_and_its_link_printed_last(setup, capsys):
     assert main(["ttbar.root", "--profile", "test.json"]) == 0
     out = capsys.readouterr().out
-    assert out.splitlines()[-1] == "https://evd.example/#b=data/u/alice/ttbar.evdb" and out.splitlines()[-2] == ""
+    assert out.splitlines()[-1] == "https://ember.example/#b=data/u/alice/ttbar.evdb" and out.splitlines()[-2] == ""
     assert "ttbar.root: NanoAOD, 12 events" in out and "10 events of 12 (--max-events 0 for all)" in out
     assert "published ttbar: kept until" in out
     published = setup / "site" / "data" / "u" / "alice" / "ttbar.evdb"
     assert (
         len(Bundle(str(published))) == 10
-        and Bundle(str(published)).header["source"]["converter"] == f"evdtools {__version__}"
+        and Bundle(str(published)).header["source"]["converter"] == f"embertools {__version__}"
     )
     [entry] = json.loads((published.parent / "index.json").read_text())["bundles"]
     assert entry["file"] == "data/u/alice/ttbar.evdb" and entry["title"] == "ttbar · 10 events"
@@ -95,7 +95,7 @@ def test_list_and_rm(setup, capsys):
     lines = capsys.readouterr().out.splitlines()
     assert lines[0].split() == ["NAME", "EVENTS", "SIZE", "EXPIRES", "TITLE"]
     assert [line.split()[:2] for line in lines[1::2]] == [["bb", "2"], ["a", "10"]]  # newest first
-    assert lines[2].strip() == "https://evd.example/#b=data/u/alice/bb.evdb"
+    assert lines[2].strip() == "https://ember.example/#b=data/u/alice/bb.evdb"
     assert main(["rm", "a", "nope"]) == 1
     captured = capsys.readouterr()
     assert "removed a" in captured.out and "no bundle named nope" in captured.err
@@ -143,7 +143,7 @@ def test_a_reconstruction_file_is_exported_first(setup, capsys, monkeypatch):
     assert "  geometry ExtendedRun4D110" in out and out.splitlines()[-1].endswith("#b=data/u/alice/step3.evdb")
     assert os.path.exists("kept.root")
     assert main(["step3.root", "ttbar.root"]) == 1 and "mix" in capsys.readouterr().err
-    assert main(["convert", "step3.root", "-o", "x.evdb"]) == 1 and "evd view" in capsys.readouterr().err
+    assert main(["convert", "step3.root", "-o", "x.evdb"]) == 1 and "ember view" in capsys.readouterr().err
 
 
 def test_the_older_commands_still_work(setup, capsys):
@@ -168,7 +168,7 @@ def test_the_older_commands_still_work(setup, capsys):
         assert len(Bundle(f"{command}.evdb")) == 3
     assert main(["validate", "convert.evdb"]) == 0 and main(["inspect", "convert.evdb"]) == 0
     out = capsys.readouterr().out
-    assert "ok" in out and "3 events, profile test, from ttbar.root, by evdtools" in out
+    assert "ok" in out and "3 events, profile test, from ttbar.root, by embertools" in out
     assert main(["publish", "convert.evdb", "--campaign", "simulation", "--title", "Simulation"]) == 0
     assert (
         json.loads((setup / "site" / "index.json").read_text())["bundles"][0]["file"] == "data/simulation/convert.evdb"
@@ -187,20 +187,20 @@ def test_clean_removes_what_expired(setup, capsys):
     assert main(["clean", "--site", str(setup / "nowhere")]) == 1
 
 
-def test_evd_runs_as_one_file_with_its_profiles_inside(setup):
+def test_ember_runs_as_one_file_with_its_profiles_inside(setup):
     sys.path.insert(0, os.path.join(REPO, "tools"))
     try:
         from build_zipapp import build
     finally:
         sys.path.pop(0)
-    evd = build(str(setup / "bin" / "evd"))
-    assert os.access(evd, os.X_OK)
+    ember = build(str(setup / "bin" / "ember"))
+    assert os.access(ember, os.X_OK)
     run = lambda *args: subprocess.run(
-        [sys.executable, evd, *args], capture_output=True, text=True, cwd=setup, check=False
+        [sys.executable, ember, *args], capture_output=True, text=True, cwd=setup, check=False
     )
-    assert run("--version").stdout.strip() == f"evd {__version__}"
+    assert run("--version").stdout.strip() == f"ember {__version__}"
     done = run("ttbar.root", "--profile", "test.json")
-    assert done.returncode == 0 and done.stdout.splitlines()[-1] == "https://evd.example/#b=data/u/alice/ttbar.evdb"
+    assert done.returncode == 0 and done.stdout.splitlines()[-1] == "https://ember.example/#b=data/u/alice/ttbar.evdb"
     failed = run("ttbar.root")  # the built-in cms profile is found in the file, and draws nothing of this input
     assert failed.returncode == 1 and "none of the tables that the profile cms draws" in failed.stderr
 
@@ -214,7 +214,7 @@ def test_options_may_come_before_the_file(setup, capsys):
         with pytest.raises(SystemExit) as e:
             main([flag])
         assert e.value.code == 0
-    assert "evd view" not in capsys.readouterr().out.split("usage:")[1].splitlines()[0]  # the top-level help
+    assert "ember view" not in capsys.readouterr().out.split("usage:")[1].splitlines()[0]  # the top-level help
 
 
 def test_a_hostile_user_option_is_refused_before_anything_is_written(setup, capsys):
@@ -241,7 +241,7 @@ def test_a_site_that_cannot_be_written_is_found_before_converting(setup, capsys,
     users = setup / "site" / "data" / "u"
     users.mkdir(parents=True)
     os.chmod(users, 0o555)
-    from evdtools import nano
+    from embertools import nano
 
     monkeypatch.setattr(nano, "convert", lambda *a, **k: pytest.fail("converted before checking the site"))
     try:
@@ -281,7 +281,7 @@ def test_options_for_reconstruction_files_are_said_to_be_ignored_for_nanoaod(set
 
 
 def test_threads_give_the_same_records_as_one_thread(setup):
-    from evdtools.nano import convert
+    from embertools.nano import convert
 
     for threads in (1, 4):
         convert(["ttbar.root"], f"t{threads}.evdb", "test.json", log=io.StringIO(), threads=threads)
@@ -295,4 +295,4 @@ def test_list_gives_the_link_of_a_bundle_named_like_a_column_heading(setup, caps
     main(["ttbar.root", "--profile", "test.json", "--name", "NAME"])
     capsys.readouterr()
     assert main(["list", "-l"]) == 0
-    assert capsys.readouterr().out.splitlines()[2].strip() == "https://evd.example/#b=data/u/alice/NAME.evdb"
+    assert capsys.readouterr().out.splitlines()[2].strip() == "https://ember.example/#b=data/u/alice/NAME.evdb"

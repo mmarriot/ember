@@ -245,10 +245,10 @@ class Converter:
             n: r for n, r in self.relations.items() if self._writes(n) and r["from"] in written and r["to"] in written
         }
         return {
-            "schema": "evd/1",
+            "schema": "evd/1",  # the format's name since version 1, kept like the magic bytes (bundle.py)
             "source": {
                 "files": [os.path.basename(f) for f in files],
-                "converter": f"evdtools {__version__}",
+                "converter": f"embertools {__version__}",
                 **({"cmssw": cmssw} if cmssw else {}),
                 "created": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
             },

@@ -8,9 +8,9 @@ import numpy as np
 import pytest
 from nanoaod import chunk, converter
 
-from evdtools.derive import gather
-from evdtools.profile import load_profile
-from evdtools.relations import compose_relations
+from embertools.derive import gather
+from embertools.profile import load_profile
+from embertools.relations import compose_relations
 
 F4, I4, U4 = np.dtype("f4"), np.dtype("i4"), np.dtype("u4")
 XYZE = dict.fromkeys(("x", "y", "z", "e"), F4)

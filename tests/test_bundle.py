@@ -6,8 +6,8 @@ import struct
 import numpy as np
 import pytest
 
-from evdtools.bundle import Bundle, BundleWriter, encode_record, validate
-from evdtools.relations import build_relation
+from embertools.bundle import Bundle, BundleWriter, encode_record, validate
+from embertools.relations import build_relation
 
 HEADER = {
     "schema": "evd/1",

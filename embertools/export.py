@@ -1,7 +1,7 @@
 """From a reconstruction (EDM) file to the NanoAOD the converter reads, by running the CMSSW event-display NanoAOD
 flavour on it:
 
-    cmsDriver.py evd -s NANO:@EVD --mc --filein file:step3.root --fileout file:evd_nano.root \\
+    cmsDriver.py ember -s NANO:@EVD --mc --filein file:step3.root --fileout file:ember_nano.root \\
         --eventcontent NANOAODSIM --datatier NANOAODSIM -n 10 --geometry G --era E --conditions C
 
 The job needs the geometry, era and conditions the file was made with. The file records its global tag and the list
@@ -21,7 +21,7 @@ import tempfile
 from . import Problem
 
 STEP = "NANO:@EVD"
-OUTPUT = "evd_nano.root"
+OUTPUT = "ember_nano.root"
 
 
 def describe(path):
@@ -113,7 +113,7 @@ def _environment(cmssw):
         ' && cd "$OLDPWD" && exec "$@"'
     )
     keep = {k: os.environ[k] for k in ("HOME", "USER", "KRB5CCNAME", "X509_USER_PROXY", "TMPDIR") if k in os.environ}
-    return ["bash", "-c", setup, "evd"], {**keep, "PATH": "/usr/bin:/bin"}
+    return ["bash", "-c", setup, "ember"], {**keep, "PATH": "/usr/bin:/bin"}
 
 
 def settings(path, geometry=None, era=None, conditions=None, cmssw=None, log=sys.stderr):
@@ -179,7 +179,7 @@ def cmsdriver(inputs, events, geometry, era, conditions, threads=4, output=OUTPU
 
     return [
         "cmsDriver.py",
-        "evd",
+        "ember",
         "-s",
         STEP,
         "--mc",
@@ -202,7 +202,7 @@ def cmsdriver(inputs, events, geometry, era, conditions, threads=4, output=OUTPU
         "--nThreads",
         str(threads),
         "--python_filename",
-        "evd_nano_cfg.py",
+        "ember_nano_cfg.py",
     ]
 
 
@@ -232,9 +232,9 @@ def export(
             raise Problem(
                 f"this CMSSW release has no {STEP}. The event-display NanoAOD is the package "
                 "DPGAnalysis/EventDisplayNanoAOD: use a release that has it, or add the package to your "
-                "area as the evd documentation says (Getting started), then cmsenv and try again"
+                "area as the Ember documentation says (Getting started), then cmsenv and try again"
             )
-        fd, kept = tempfile.mkstemp(prefix="evd-cmsRun-", suffix=".log")  # a new file, never one planted in /tmp
+        fd, kept = tempfile.mkstemp(prefix="ember-cmsRun-", suffix=".log")  # a new file, never one planted in /tmp
         with os.fdopen(fd, "w") as f:
             f.write(output)
         tail = "\n".join(output.splitlines()[-25:])

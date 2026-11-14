@@ -1,6 +1,6 @@
-"""The evd command: `evd FILE.root`, or `evd COMMAND ...` (`evd --help` lists the commands).
+"""The `ember` command: `ember FILE.root`, or `ember COMMAND ...` (`ember --help` lists the commands).
 
-`evd` is this module (python3 -m evdtools ...), installed as a script by pip or built into a single file by
+`ember` is this module (python3 -m embertools ...), installed as a script by pip or built into a single file by
 tools/build_zipapp.py. Each command is a function below that takes the parsed arguments and returns the exit status.
 The commands import what they need when they run: uproot, for example, is needed to convert but not to inspect a
 bundle.
@@ -24,16 +24,16 @@ def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
     top, commands = parser()
     if argv and argv[0] not in commands | {"-h", "--help", "--version"}:
-        argv.insert(0, "view")  # evd FILE.root ..., evd -o out.evdb FILE.root
+        argv.insert(0, "view")  # ember FILE.root ..., ember -o out.evdb FILE.root
     args = top.parse_args(argv)
     try:
         return COMMANDS[args.command](args)
     except (Problem, ValueError, OSError) as e:
         # These messages are written to be read: a ValueError of the converter says what in the profile or the file
-        # is wrong, an OSError which file could not be read or written. EVD_DEBUG=1 shows where it came from.
-        if os.environ.get("EVD_DEBUG"):
+        # is wrong, an OSError which file could not be read or written. EMBER_DEBUG=1 shows where it came from.
+        if os.environ.get("EMBER_DEBUG"):
             raise
-        print(f"evd: {e}", file=sys.stderr)
+        print(f"ember: {e}", file=sys.stderr)
         return 1
     except KeyboardInterrupt:
         return 130
@@ -42,11 +42,11 @@ def main(argv=None):
 def parser():
     """(the argument parser, the names of its commands)."""
     top = argparse.ArgumentParser(
-        prog="evd",
+        prog="ember",
         description="Turn CMS events into event-display bundles and publish them on the event-display "
-        "site. `evd FILE.root` is `evd view FILE.root`: convert, publish to your area, print the link.",
+        "site. `ember FILE.root` is `ember view FILE.root`: convert, publish to your area, print the link.",
     )
-    top.add_argument("--version", action="version", version=f"evd {__version__}")
+    top.add_argument("--version", action="version", version=f"ember {__version__}")
     sub = top.add_subparsers(dest="command", required=True, metavar="command")
 
     # A user's own bundles on the site
@@ -110,7 +110,7 @@ def parser():
 
     # Running the site (service/README.md)
     p = sub.add_parser("sync", help="site: convert new input files of the configured campaigns and update the index")
-    p.add_argument("--config", required=True, help="JSON: campaigns (see evdtools/service.py)")
+    p.add_argument("--config", required=True, help="JSON: campaigns (see embertools/service.py)")
     p.add_argument("--max-files", type=int, help="convert at most this many files in this run")
     p.add_argument("--dry-run", action="store_true", help="only list what would be converted")
 
@@ -141,13 +141,13 @@ def parser():
 
 
 def _site_dir_option(p):
-    p.add_argument("--site", help="the site's directory (default: $EVD_SITE_DIR, else the CMS site)")
+    p.add_argument("--site", help="the site's directory (default: $EMBER_SITE_DIR, else the CMS site)")
 
 
 def _site_options(p):
     _site_dir_option(p)
-    p.add_argument("--url", help="the site's address (default: $EVD_SITE_URL, else the CMS site)")
-    p.add_argument("--user", help="whose area on the site (default: $EVD_USER, else your login)")
+    p.add_argument("--url", help="the site's address (default: $EMBER_SITE_URL, else the CMS site)")
+    p.add_argument("--user", help="whose area on the site (default: $EMBER_USER, else your login)")
 
 
 def _convert_options(p, profile, max_events=None, cmsrun=False):
@@ -210,13 +210,13 @@ def _view(args):
     unused = [f"--{o}" for o in ("geometry", "era", "conditions", "nano") if getattr(args, o)] if kind == "nano" else []
     if unused:
         print(
-            f"evd: {', '.join(unused)} ignored: for CMSSW reconstruction files, and the input is NanoAOD",
+            f"ember: {', '.join(unused)} ignored: for CMSSW reconstruction files, and the input is NanoAOD",
             file=sys.stderr,
         )
 
     # At most 10 events unless told otherwise; events asked for by number are all converted.
     limit = (None if args.events else 10) if args.max_events is None else args.max_events or None
-    with tempfile.TemporaryDirectory(prefix="evd-") as work:
+    with tempfile.TemporaryDirectory(prefix="ember-") as work:
         made = f" from {' and '.join(dict.fromkeys(filter(None, releases)))}" if any(releases) else ""
         print(
             f"{', '.join(map(os.path.basename, args.inputs))}: "
@@ -252,7 +252,7 @@ def _view(args):
 
     print(
         f"{'replaced' if replaced else 'published'} {name}: kept until {entry['expires'][:10]} "
-        f"(evd list, evd rm {name})\n"
+        f"(ember list, ember rm {name})\n"
     )
     print(site.link(site.site_url(args.url), user, name))
     return 0
@@ -290,7 +290,7 @@ def _list(args):
     user, url = site.login(args.user), site.site_url(args.url)
     entries = site.listing(site.site_dir(args.site), user)
     if not entries:
-        print(f"{user} has no published bundle (evd FILE.root publishes one)")
+        print(f"{user} has no published bundle (ember FILE.root publishes one)")
         return 0
     rows = [
         (
@@ -322,7 +322,7 @@ def _rm(args):
         else:
             missing.append(name)
     if missing:
-        raise Problem(f"{user} has no bundle named {', '.join(missing)} (evd list)")
+        raise Problem(f"{user} has no bundle named {', '.join(missing)} (ember list)")
     return 0
 
 
@@ -335,7 +335,7 @@ def _convert(args):
 
     for path in args.inputs:
         if describe(path)[0] != "nano":
-            raise Problem(f"{path} is a CMSSW reconstruction file, not NanoAOD: `evd view` makes its NanoAOD first")
+            raise Problem(f"{path} is a CMSSW reconstruction file, not NanoAOD: `ember view` makes its NanoAOD first")
     n = convert(
         args.inputs,
         args.output,

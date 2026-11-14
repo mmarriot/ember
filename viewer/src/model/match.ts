@@ -162,10 +162,6 @@ export function opensPair(
   return !s || (s.kind !== "none" && (!reco || reachesRoot(header, reco, table)));
 }
 
-/** What truth particles left in the given objects' hits, one group per detector (simulated energy is never summed
- *  across detectors: sampling and homogeneous calorimeters, photoelectrons in HF): per particle, the sum of the fact
- *  relations' weight over those hits, in hit layers for which `use` holds (e.g. drawn, so a hit is not counted twice
- *  through two hit tables). Largest first; groups without any energy are left out. */
 /** Truth -> hit relation `name` read from the hit side: per hit, its particles and their entries in the relation. Once
  *  per event (one pass over the relation: about 10 ms for the 600k HGCal entries of a PU200 event). */
 function byHit(ev: EventData, name: string, nHits: number) {
@@ -189,6 +185,10 @@ function byHit(ev: EventData, name: string, nHits: number) {
   });
 }
 
+/** What truth particles left in the given objects' hits, one group per detector (simulated energy is never summed
+ *  across detectors: sampling and homogeneous calorimeters, photoelectrons in HF): per particle, the sum of the fact
+ *  relations' weight over those hits, in hit layers for which `use` holds (e.g. drawn, so a hit is not counted twice
+ *  through two hit tables). Largest first; groups without any energy are left out. */
 export function simEnergyByParticle(ev: EventData, header: Header, objects: Related, use: (table: string) => boolean) {
   const groups = new Map<
     string,

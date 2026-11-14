@@ -79,11 +79,12 @@ export const PALETTES = {
 export type ThemeName = keyof typeof PALETTES;
 export type Pal = (typeof PALETTES)[ThemeName];
 export type Palette = keyof Pal["ramps"];
+/** A value scale: `lo` and `hi` are the values at its two ends (in log10 units for "log"). */
 export interface Range {
   scale: "log" | "linear";
   lo: number;
   hi: number;
-} // lo/hi in log10 units for "log"
+}
 
 export type Legend =
   | { kind: "ramp"; palette: Palette; range: Range; column: string; unit: string }

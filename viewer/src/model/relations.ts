@@ -282,11 +282,9 @@ function identityKeys(d: DisplayLayer, t: Table, ev: EventData, header: Header) 
     const flags = d.particle ? t.columns[d.particle.flags] : undefined,
       bit = d.particle?.bit ?? 0;
     const member = flags ? (j: number) => (Number(flags[j]) >>> bit) & 1 : (j: number) => anchor[j];
-    for (
-      let i = 0;
-      i < n;
-      i++ // walk up to the root, keeping the highest member seen (bounded: no loop on bad data)
-    )
+    // Each particle walks up to its root, keeping the highest member seen (at most n steps: no endless loop on bad
+    // data with a cycle).
+    for (let i = 0; i < n; i++)
       for (let j = i, steps = 0; j >= 0 && steps < n; j = parent[j], steps++) if (member(j)) key[i] = j;
   }
   const used = new Uint8Array(n);

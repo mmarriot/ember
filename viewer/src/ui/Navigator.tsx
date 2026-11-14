@@ -10,7 +10,7 @@
 import type { ComponentChildren } from "preact";
 import { useState } from "preact/hooks";
 import { colourBy, customColumns, customDoc } from "../model/custom";
-import { type Table, unitOf } from "../io/bundle";
+import { type Table, unitOf } from "../io/format";
 import type { Link, Rung } from "../model/chain";
 import { percent } from "../model/match";
 import { PAIR } from "../model/pair";

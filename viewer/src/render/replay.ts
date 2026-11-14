@@ -12,7 +12,7 @@
 //     With reconstruction stages (display hint `stage`: tracksters, linked tracksters, ..., candidates), each stage
 //     grows in turn and the previous one gives way to it; the replay ends on the last stage present.
 // Phases 2 to 4 show what the reconstruction produced, in arrival order; not the algorithms' real sequence.
-import type { DisplayLayer, Header, Table } from "../io/bundle";
+import type { DisplayLayer, Header, Table } from "../io/format";
 import type { Layer } from "./layers";
 
 export const REPLAY_OFF = 1e30; // clock value meaning "no replay": everything in its final state

@@ -1,5 +1,5 @@
 // Navigation over the CSR relations of an event: what is related to a selected object.
-import type { DisplayLayer, EventData, Header, Relation, Table } from "../io/bundle";
+import type { DisplayLayer, EventData, Header, Relation, RelationInfo, Table } from "../io/format";
 import { isFactTable } from "./facts";
 
 export interface Ref {
@@ -196,8 +196,6 @@ function closure(
   }
   return seen;
 }
-
-type RelationInfo = Header["relations"][string];
 
 /** Compares two weights of a relation by its `best` hint: negative when the first is better. */
 export const bestFirst = (best: NonNullable<RelationInfo["best"]>) => (a: number, b: number) =>

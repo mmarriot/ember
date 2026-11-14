@@ -2,7 +2,7 @@
 // the camera glides to the new focus, conservatively. Moving between the parts of the detector (domains), keeping the
 // focus.
 import { batch } from "@preact/signals";
-import { type DisplayLayer, kindName } from "../io/bundle";
+import { type DisplayLayer, kindName } from "../io/format";
 import { filterMask, filters } from "../model/custom";
 import { rowsInDomain, stepDomain, withFocus } from "../model/domains";
 import { passes, stepRow, topRows } from "../model/objects";

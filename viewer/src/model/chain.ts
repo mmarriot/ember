@@ -7,7 +7,7 @@
 // Nothing here is a new truth statement: the links are the associations, facts and stand-ins the bundle already has,
 // counted per step. A kind that gains an associator in CMSSW gets a relation with a `match` hint in its profile, and
 // its steps then show that match instead of "no truth" with no change here.
-import { type DisplayLayer, type EventData, type Header, kindName } from "../io/bundle";
+import { type DisplayLayer, type EventData, type Header, kindName } from "../io/format";
 import { factIn, facts } from "./facts";
 import { focusLevels } from "./levels";
 import { bestPurities, simEnergyByParticle, type TruthStatus } from "./match";

@@ -5,7 +5,7 @@
 // columns). Under it only its colour scale, when the colour key does not explain it.
 import { computed, signal } from "@preact/signals";
 import { useState } from "preact/hooks";
-import { type DisplayLayer, kindName, unitOf } from "../io/bundle";
+import { type DisplayLayer, kindName, unitOf } from "../io/format";
 import { colourBy, customColumns, filterMask, filters, RELATION, removeFilter } from "../model/custom";
 import { columnName, passes, topRows } from "../model/objects";
 import { PALETTES, relatedColourText, type Legend } from "../render/colour";

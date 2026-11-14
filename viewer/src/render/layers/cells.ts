@@ -2,7 +2,7 @@
 // oriented boxes (`cell.shape: "box"`). One instanced draw per layer; the vertex shader places, lights and fades each
 // cell.
 import * as THREE from "three";
-import type { DisplayLayer, PerRow } from "../../io/bundle";
+import type { DisplayLayer, PerRow } from "../../io/format";
 import { toF32 } from "../colour";
 import { perRow, towerPoint } from "../geometry";
 import {

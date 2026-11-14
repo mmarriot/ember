@@ -1,7 +1,7 @@
 // Paths through measured points (`polyline`), e.g. a muon track through its hits and segments: one straight piece
 // per pair of consecutive points, one instance each.
 import * as THREE from "three";
-import type { DisplayLayer } from "../../io/bundle";
+import type { DisplayLayer } from "../../io/format";
 import {
   baseUniforms,
   commonFields,

@@ -1,7 +1,7 @@
 // Where the camera goes, as pure geometry (render/engine.ts moves the cameras): the preset directions, fitting a box
 // into a 2D view, the bounding box of what is drawn, and the envelope the tour camera stays out of.
 import * as THREE from "three";
-import type { ViewName } from "../io/bundle";
+import type { ViewName } from "../io/format";
 import { toCylinder } from "./geometry";
 import type { Layer } from "./layers";
 

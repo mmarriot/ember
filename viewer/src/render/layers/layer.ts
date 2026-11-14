@@ -7,7 +7,7 @@
 // `shaderLayer` builds the per-object attributes these shaders read. Showers (ellipsoids.ts) are the exception: a
 // few thousand objects at most, updated on the CPU.
 import * as THREE from "three";
-import type { DisplayLayer, Table, ViewName } from "../../io/bundle";
+import type { DisplayLayer, Table, ViewName } from "../../io/format";
 import { toF32, type Pal } from "../colour";
 import type { Field } from "../helix";
 import { HIDDEN } from "../../model/cuts";

@@ -2,7 +2,7 @@
 // every control, share and help.
 import { signal } from "@preact/signals";
 import logo from "../../logo.svg";
-import { type Domain, kindName } from "../io/bundle";
+import { type Domain, kindName } from "../io/format";
 import { DOCS_URL, expiryText, ownerOf, PUBLISH_COMMAND } from "../model/library";
 import {
   activeMode,

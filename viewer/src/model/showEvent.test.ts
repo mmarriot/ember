@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { Bundle, EventData } from "../io/bundle";
+import type { Bundle } from "../io/bundle";
+import type { EventData } from "../io/format";
 // The store sets the page's theme as it loads: a stand-in page (the tests run without a DOM).
 Object.assign(globalThis, { document: { documentElement: { dataset: {} } } });
 const { bundle, eventIndex, loading, rawEvent, showEvent, stepEvent } = await import("./store");

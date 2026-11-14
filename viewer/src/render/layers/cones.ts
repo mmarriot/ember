@@ -1,7 +1,7 @@
 // Cones (`cones`): objects with an eta-phi extent seen from a point, e.g. jets. Translucent cones in 3D; in the 2D
 // views, with outlines on, each is drawn as its wedge in the view's plane (lines computed on the CPU).
 import * as THREE from "three";
-import type { ViewName } from "../../io/bundle";
+import type { ViewName } from "../../io/format";
 import { toF32 } from "../colour";
 import { etaPhiDirection, isToCylinder, perRow, toCylinder } from "../geometry";
 import {

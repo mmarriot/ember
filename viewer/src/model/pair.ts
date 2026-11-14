@@ -1,7 +1,7 @@
 // The truth <-> reco pair: a truth particle (its whole shower) and the candidate that best reconstructs it, and where
 // each of their objects ended up. Selecting the particle, the candidate or anything inside them gives the same pair,
 // so the picture does not change when you click from one to the other.
-import type { DisplayLayer, EventData, Header } from "../io/bundle";
+import type { DisplayLayer, EventData, Header } from "../io/format";
 import type { ColourBy } from "./modes";
 import { facts } from "./facts";
 import { bestPartners, cached, contentPartners, identities, levelsOf, type Ref, relatedParts } from "./relations";

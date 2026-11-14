@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Header } from "../io/bundle";
+import type { Header } from "../io/format";
 import { modeColouring, modeRoots, reachesRoot, recoColourOf } from "./modes";
 import all from "./fixtures/all_header.json";
 import { truthStatus } from "./match";

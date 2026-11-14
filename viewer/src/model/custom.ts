@@ -2,7 +2,7 @@
 // which column colours each layer and the chosen preset. Columns are added to every event as it is
 // shown (one loop per column).
 import { effect, signal } from "@preact/signals";
-import type { Column, DisplayLayer, EventData, Table } from "../io/bundle";
+import type { Column, DisplayLayer, EventData, Table } from "../io/format";
 import { compile } from "./expr";
 
 export interface CustomColumn {

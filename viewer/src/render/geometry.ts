@@ -2,7 +2,7 @@
 // calorimeter towers, oriented boxes, and where a line leaves a cylinder around the beam. The vertex shaders build the
 // same shapes on the GPU (layers/cells.ts, layers/cones.ts); these CPU twins give picking, framing and the tests the
 // same answers.
-import type { Column, PerRow, ToCylinder } from "../io/bundle";
+import type { Column, PerRow, ToCylinder } from "../io/format";
 
 type Columns = Record<string, Column>;
 

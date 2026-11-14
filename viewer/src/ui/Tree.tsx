@@ -2,7 +2,7 @@
 // objects linked to objects of the same table (e.g. particles -> their children) as a collapsible tree. Clicking an
 // object focuses on it; selecting one elsewhere opens the tree down to it. Named "Tree" for a tree without truth.
 import { useEffect, useMemo, useState } from "preact/hooks";
-import type { Relation, Table } from "../io/bundle";
+import type { Relation, Table } from "../io/format";
 import { PALETTES } from "../render/colour";
 import { filterMask, filters } from "../model/custom";
 import {

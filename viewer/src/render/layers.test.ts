@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
-import type { DisplayLayer, Table } from "../io/bundle";
+import type { DisplayLayer, Table } from "../io/format";
 import { PALETTES } from "./colour";
 import { builders, type Layer } from "./layers";
 import { hexPrism } from "./layers/cells";

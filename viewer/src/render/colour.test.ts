@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { DisplayLayer, EventData, Header, Table } from "../io/bundle";
+import type { DisplayLayer, EventData, Header, Table } from "../io/format";
 import { colours, PALETTES } from "./colour";
 
 // candidate 0 -> clusters 0, 2; cluster 1 in no candidate; clusters -> hits: 0 -> [0, 1], 1 -> [2], 2 -> [3]; hit 4 in none

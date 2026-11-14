@@ -11,7 +11,7 @@ import {
   kindName,
   type Table,
   unitOf,
-} from "../io/bundle";
+} from "../io/format";
 import { bestPurities, percent } from "../model/match";
 import { bestPartners, contentPartners, identities } from "../model/relations";
 

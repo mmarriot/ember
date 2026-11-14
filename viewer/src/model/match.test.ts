@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { EventData, Header } from "../io/bundle";
+import type { EventData, Header } from "../io/format";
 import { bestPurities, completeness, NO_EXPORT, opensPair, quality, simEnergyByParticle, truthStatus } from "./match";
 import cms from "./fixtures/cms_header.json";
 import { facts, unitOf } from "./facts";

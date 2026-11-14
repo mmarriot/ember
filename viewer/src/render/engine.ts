@@ -3,7 +3,7 @@
 // knows nothing about bundles or tables beyond the Layer interface (render/layers).
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import type { Outline, ViewName } from "../io/bundle";
+import type { Outline, ViewName } from "../io/format";
 import {
   angle,
   boxOf,

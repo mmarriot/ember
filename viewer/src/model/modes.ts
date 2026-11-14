@@ -3,7 +3,7 @@
 // colour chain such as hit -> layer cluster -> candidate is worked out from the bundle's relations, not named in the
 // profile. Used by the "pid" colour mode (everything takes its candidate's colour) and by the pair view
 // (model/pair.ts: which candidate and which truth particle each object belongs to); the signals are in store.ts.
-import type { DisplayLayer, Header } from "../io/bundle";
+import type { DisplayLayer, Header, RelationInfo } from "../io/format";
 import { factIn } from "./facts";
 
 export type ColourBy = NonNullable<DisplayLayer["colourBy"]>;
@@ -64,8 +64,7 @@ export function modeColouring(header: Header, root: string, truthRoot = false): 
   // By truth, never upwards (see above).
   const staged = (table: string) =>
     !truthRoot && header.display.some((d) => d.table === table && d.stage !== undefined);
-  const inverse = (r: Header["relations"][string]) =>
-    rels.some(([, o]) => !o.association && o.from === r.to && o.to === r.from);
+  const inverse = (r: RelationInfo) => rels.some(([, o]) => !o.association && o.from === r.to && o.to === r.from);
   // Bundles made before `truthGap` and `fact` existed keep the vote wherever it applied (HGCal layer clusters).
   const legacy = !header.display.some((d) => d.truthGap) && !Object.values(header.relations).some((r) => r.fact);
   // By truth, nearest the root first, so that a table only steps towards one that already has its colour.
@@ -76,7 +75,7 @@ export function modeColouring(header: Header, root: string, truthRoot = false): 
     const gap = truthRoot ? header.display.find((d) => d.table === table)?.truthGap : undefined;
     // By truth, an association is crossed only to the root itself: a vertex matched to a truth vertex is not given the
     // colour of whatever particle that vertex belongs to.
-    const usable = (r: Header["relations"][string]) =>
+    const usable = (r: RelationInfo) =>
       (r.association && (!truthRoot || r.from === root || r.to === root)) ||
       staged(table) ||
       (r.to === table && !inverse(r) && !(truthRoot && r.association));

@@ -1,19 +1,7 @@
 // Application state. Components and the renderer react to these signals.
 import { batch, computed, effect, signal } from "@preact/signals";
-import {
-  around,
-  blobSource,
-  Bundle,
-  type DisplayLayer,
-  type EventData,
-  type Header,
-  httpSource,
-  kindName,
-  REPRS,
-  type Source,
-  type Table,
-  unitOf,
-} from "../io/bundle";
+import { around, blobSource, Bundle, httpSource, type Source } from "../io/bundle";
+import { type DisplayLayer, type EventData, type Header, kindName, REPRS, type Table, unitOf } from "../io/format";
 import { describeNoLink, type Legend, type ThemeName } from "../render/colour";
 import type { Caption } from "../render/replay";
 import type { Hit, ViewName } from "../render/engine";

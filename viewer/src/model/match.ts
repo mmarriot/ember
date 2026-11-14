@@ -2,7 +2,7 @@
 // share of the reco object's hits or energy that came from the particle) and completeness (the share of the
 // particle's hits or energy that the object has), from an association's `match` hint. The associator's own score is
 // a ranking (0 best, squared for calorimeter objects), not a fraction, so it is shown next to these, never instead.
-import type { EventData, Fact, Header, Match } from "../io/bundle";
+import type { EventData, Fact, Header, Match } from "../io/format";
 import { evaluate } from "./custom";
 import { facts } from "./facts";
 import { type ColourBy, modeColouring, modeRoots, reachesRoot } from "./modes";

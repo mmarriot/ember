@@ -9,7 +9,7 @@ The first version for CMS users other than its authors. One command takes you fr
 
 ### Renamed
 
-The project is now called **Ember**. The entries below were written before the rename and keep the old names.
+The project is now called **Ember**. The other entries for this version use the new names.
 
 | what | before | now |
 |---|---|---|
@@ -36,16 +36,16 @@ with a message while an old one is set without its new name. `deploy.sh` links `
 
 ### Added
 
-- **The `evd` command.** `evd FILE.root` converts event-display NanoAOD, publishes the bundle to your user area on
+- **The `ember` command.** `ember FILE.root` converts event-display NanoAOD, publishes the bundle to your user area on
   the site, and prints the link. It also takes a CMSSW reconstruction file: it then runs
-  `cmsDriver.py -s NANO:@EVD` first. `evd list` and `evd rm` manage what you published. `-o FILE.evdb` writes a file
-  and publishes nothing.
+  `cmsDriver.py -s NANO:@EVD` first. `ember list` and `ember rm` manage what you published. `-o FILE.ember` writes a
+  file and publishes nothing.
 - **User areas** on the site (`data/u/<login>/`). A bundle expires 30 days after it was last published; the site's
-  cron job runs `evd clean` to remove it.
-- **RelVal campaigns** for `evd sync`, for shared samples: `evd sync` makes the NanoAOD of reconstruction files
+  cron job runs `ember clean` to remove it.
+- **RelVal campaigns** for `ember sync`, for shared samples: `ember sync` makes the NanoAOD of reconstruction files
   before it converts them.
-- **Packaging:** `pyproject.toml`, so that `pip install` gives you `evd`, and `tools/build_zipapp.py`, which builds
-  `evd` as one file that runs in any CMSSW environment.
+- **Packaging:** `pyproject.toml`, so that `pip install` gives you `ember`, and `tools/build_zipapp.py`, which builds
+  `ember` as one file that runs in any CMSSW environment.
 - **Viewer:**
   - a data set chooser, which lists your own files (My files), the data sets you opened recently (Recent), and the
     site's shared groups;
@@ -63,11 +63,35 @@ with a message while an old one is set without its new name. `deploy.sh` links `
   release.
 - The converter is three to four times faster. It compresses the records on several threads, at level 4, and
   decompresses the input on the same threads. The content of a bundle, once decompressed, is unchanged.
-- The site's location is set in one place (`evdtools/site.py`), and `EVD_SITE_DIR`, `EVD_SITE_URL` and
-  `EVD_SERVICE_DIR` override it. `service/` has no personal paths.
-- `python3 -m evdtools from-nano` is now `evd convert` (the old name still works).
+- The site's location is set in one place (`embertools/site.py`), and `EMBER_SITE_DIR`, `EMBER_SITE_URL` and
+  `EMBER_SERVICE_DIR` override it. `service/` has no personal paths.
+- `python3 -m evdtools from-nano` is now `ember convert` (`from-nano` still works).
+
+### Fixed
+
+- **Viewer:**
+  - Opening another data set changes the page in one step, once its first event is read. Before, the address and the
+    share link could name the new data set with the previous one's event and selection while it loaded, and a new data
+    set whose first event could not be read left the previous event on screen under its name.
+  - A bundle whose event records point outside their tables is refused with a message, instead of drawing wrong
+    objects or freezing the tab.
+  - A link with an event or selection that is not a number (`e=abc`, `s=Tracks:-1`) opens the data set at its first
+    event, instead of showing nothing.
+  - Reading a run's tables is tried again after a network error (test beam data).
+  - Pressing R with nothing drawn, and a dropped file during the tour, no longer leave the replay's or the tour's
+    drawing on.
+- **The command:**
+  - `ember step3.root --events ... --max-events N` finds the events anywhere in the file.
+  - `ember validate` reports a damaged record and goes on to the others.
+  - `ember list` and `ember rm` run without numpy (before `cmsenv`); a command that needs it says to run `cmsenv`.
+    The single-file `ember` says when the Python is too old.
+  - A profile with a missing key says which, and where. A missing `--run-info` file stops the conversion before it
+    starts.
+- **The site:** a sync pass that runs for hours keeps its lock; campaign globs may use `?` and `[...]`; a campaign's
+  `"max_events": 0` means all events; `deploy.sh` stops when a copy or the build fails, instead of going on to remove
+  the assets that the page still loads.
 
 ## 0.1
 
-The development versions before the `evd` command. They had the converter (`python3 -m evdtools from-nano`), the
+The development versions before the `ember` command. They had the converter (`python3 -m evdtools from-nano`), the
 profiles for HGCal, the whole detector, cassette tests and test beam, the bundle format (version 1), and the viewer.

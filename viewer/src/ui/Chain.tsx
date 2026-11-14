@@ -21,14 +21,12 @@ import {
   shared,
   shownLevel,
 } from "../model/store";
-import { ObjChip } from "./chips";
+import { chip } from "./chips";
 import { Info, togglePopover } from "./Info";
 import { chooseDomain } from "./navigate";
 
 const INLINE = 3; // a step with at most this many objects names them; a longer one counts them and unfolds
 const LISTED = 40; // objects listed in an unfolded step
-
-const chip = (t: string, r: number, title = "") => <ObjChip table={t} row={r} title={title} />;
 
 /** What the chain's words mean, behind its "i". */
 const CHAIN_HELP = (

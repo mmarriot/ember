@@ -37,7 +37,7 @@ import {
   truthStatuses,
 } from "../model/store";
 import { Chain } from "./Chain";
-import { ObjChip } from "./chips";
+import { chip } from "./chips";
 import { keyColumns, Properties, Rows } from "./Columns";
 import { Info } from "./Info";
 import { back } from "./navigate";
@@ -50,7 +50,6 @@ const name = (r: Ref) => {
   const n = describe(r.table, r.row);
   return `${kindOf(r.table)}${n ? ` · ${n}` : ` #${r.row}`}`;
 };
-const chip = (t: string, r: number, title = "") => <ObjChip table={t} row={r} title={title} />;
 
 export function Navigator() {
   const b = bundle.value,

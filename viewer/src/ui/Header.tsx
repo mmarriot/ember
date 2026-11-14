@@ -31,7 +31,7 @@ export function Header() {
   // is read, not the name of the event its index pointed at in the data set before.
   const b = bundle.value,
     e = shownEntry.value;
-  const jump = (value: string) => {
+  const goToEvent = (value: string) => {
     const [run, ev] = value.includes(":") ? value.split(":").map(Number) : [undefined, Number(value)];
     const i = b?.events.findIndex((x) => x.event === ev && (run === undefined || x.run === run)) ?? -1;
     if (i >= 0) showEvent(i);
@@ -88,7 +88,7 @@ export function Header() {
           title="Event number, or run:event"
           onKeyDown={(ev) => {
             if (ev.key === "Enter") {
-              jump((ev.target as HTMLInputElement).value.trim());
+              goToEvent((ev.target as HTMLInputElement).value.trim());
               (ev.target as HTMLInputElement).blur();
             }
           }}

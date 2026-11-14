@@ -11,6 +11,9 @@ import { engine } from "./scene";
 const WORDS = { clean: "clean match", impure: "impure match", unmatched: "no truth match", matched: "matched" };
 const glide = () => engine?.frame(highlight.peek() ?? undefined, true, 800);
 
+/** The chip of row `r` of table `t`, named as its kind describes it; `title`: more to say on hover. */
+export const chip = (t: string, r: number, title = "") => <ObjChip table={t} row={r} title={title} />;
+
 export function ObjChip({
   table,
   row,

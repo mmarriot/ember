@@ -3,10 +3,8 @@ import { percent } from "../model/match";
 import { PAIR } from "../model/pair";
 import { PALETTES } from "../render/colour";
 import { bundle, focus, layerOf, pairView, short, theme } from "../model/store";
-import { ObjChip } from "./chips";
+import { chip } from "./chips";
 import { Info } from "./Info";
-
-const chip = (t: string, r: number, title = "") => <ObjChip table={t} row={r} title={title} />;
 
 /** The truth ↔ reco pair the view is coloured by (model/pair.ts): where the particle's energy went and what the
  *  candidate is made of, as two bars in the view's colours. Hit by hit, the whole generator particle against its

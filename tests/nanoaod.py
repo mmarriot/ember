@@ -3,7 +3,7 @@
 
 import numpy as np
 
-from evdtools.nano import Converter
+from evdtools.converter import Converter
 
 
 def converter(types, profile, run_types=None):

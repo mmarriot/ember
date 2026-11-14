@@ -6,9 +6,8 @@ import struct
 import numpy as np
 import pytest
 
-from evdtools.__main__ import validate
-from evdtools.bundle import Bundle, BundleWriter, encode_record
-from evdtools.nano import _relation
+from evdtools.bundle import Bundle, BundleWriter, encode_record, validate
+from evdtools.relations import build_relation
 
 HEADER = {
     "schema": "evd/1",
@@ -84,7 +83,7 @@ def test_columns_are_8_byte_aligned():
 )
 def test_relation_normalisation(rel, cols, expected):
     tables = {"A": (3, cols["A"]), "B": (5, {}), "L": (3, cols["L"])}
-    out = _relation(dict(rel, name="r", **{"from": "A", "to": "B"}), tables)
+    out = build_relation(dict(rel, name="r", **{"from": "A", "to": "B"}), tables)
     np.testing.assert_array_equal(out["offsets"], expected[0])
     np.testing.assert_array_equal(out["indices"], expected[1])
 
@@ -92,7 +91,7 @@ def test_relation_normalisation(rel, cols, expected):
 def test_relation_out_of_range_is_rejected():
     tables = {"A": (1, {"k": np.array([9])}), "B": (5, {})}
     with pytest.raises(ValueError):
-        _relation({"name": "r", "kind": "index", "from": "A", "to": "B", "index": "A.k"}, tables)
+        build_relation({"name": "r", "kind": "index", "from": "A", "to": "B", "index": "A.k"}, tables)
 
 
 def _write(path, threads, events=7, **kw):
@@ -102,7 +101,7 @@ def _write(path, threads, events=7, **kw):
         for i in range(events):
             n = int(rng.integers(0, 2000))
             w.add((1, 1, events - i), {"Hits": (n, {"x": rng.random(n, np.float32), "flag": rng.random(n) > 0.5})}, {})
-    return open(path, "rb").read()
+    return path.read_bytes()
 
 
 def test_records_compressed_on_threads_are_written_in_the_order_added(tmp_path):
@@ -117,9 +116,8 @@ def test_records_compressed_on_threads_are_written_in_the_order_added(tmp_path):
 
 def test_a_record_that_cannot_be_written_leaves_no_file(tmp_path):
     path = tmp_path / "broken.evdb"
-    with pytest.raises(KeyError):
-        with BundleWriter(str(path), HEADER, threads=2) as w:
-            w.add((1, 1, 1), {"Hits": (1, {"x": np.ones(1, np.float32)})}, {})
-            w.add((1, 1, 2), {"Hits": (1, {"x": np.ones(1, np.complex64)})}, {})  # no such column type
-            w.add((1, 1, 3), {"Hits": (1, {"x": np.ones(1, np.float32)})}, {})
+    with pytest.raises(KeyError), BundleWriter(str(path), HEADER, threads=2) as w:
+        w.add((1, 1, 1), {"Hits": (1, {"x": np.ones(1, np.float32)})}, {})
+        w.add((1, 1, 2), {"Hits": (1, {"x": np.ones(1, np.complex64)})}, {})  # no such column type
+        w.add((1, 1, 3), {"Hits": (1, {"x": np.ones(1, np.float32)})}, {})
     assert not path.exists() and not list(tmp_path.glob("broken.evdb.tmp*"))

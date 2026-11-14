@@ -2,13 +2,15 @@
 columns, relation kinds beyond the plain ones, and the hints passed to the viewer."""
 
 import json
-import os
+from pathlib import Path
 
 import numpy as np
 import pytest
 from nanoaod import chunk, converter
 
-from evdtools.nano import _compose, _gather, load_profile
+from evdtools.derive import gather
+from evdtools.profile import load_profile
+from evdtools.relations import compose_relations
 
 F4, I4, U4 = np.dtype("f4"), np.dtype("i4"), np.dtype("u4")
 XYZE = dict.fromkeys(("x", "y", "z", "e"), F4)
@@ -171,7 +173,7 @@ def test_same_rows_drops_the_copy_redirects_relations_and_is_checked():
 def test_compose_and_gather():
     a = {"offsets": np.array([0, 1, 1, 3]), "indices": np.array([1, 0, 1])}  # candidate -> shower
     b = {"offsets": np.array([0, 2, 3]), "indices": np.array([5, 6, 6])}  # shower -> cluster
-    c = _compose(a, b)
+    c = compose_relations(a, b)
     assert c["offsets"].tolist() == [0, 1, 1, 3] and c["indices"].tolist() == [6, 5, 6]
     track = {"offsets": np.array([0, 0, 1, 1, 1]), "indices": np.array([0])}  # only candidate 1 has a track
     a4 = {"offsets": np.append(a["offsets"], 3), "indices": a["indices"]}  # candidate 3: no shower, no track
@@ -184,7 +186,7 @@ def test_compose_and_gather():
         "table": "Cand",
         "gather": [{"relation": "a", "columns": {"x": "bx", "ext": "ev"}}, {"relation": "t", "columns": {"x": "hx"}}],
     }
-    _gather(d, tables, {"a": a4, "t": track}, {"a": {"to": "Shower"}, "t": {"to": "Track"}})
+    gather(d, tables, {"a": a4, "t": track}, {"a": {"to": "Shower"}, "t": {"to": "Track"}})
     x, ext = tables["Cand"][1]["x"], tables["Cand"][1]["ext"]
     assert x[:3].tolist() == [20.0, 7.0, 10.0]  # the first shower; else the track
     assert ext[:3].tolist() == [9.0, 0.0, 4.0]  # placed by the track: the columns it does not give are 0
@@ -923,7 +925,7 @@ def test_tracker_profile_alone_and_tracker_only():
 
 STOCK = {
     t: {c: np.dtype(d) for c, d in cols.items()}  # the tables NANO:@EVD writes on an unmodified release
-    for t, cols in json.load(open(os.path.join(os.path.dirname(__file__), "stock_tables.json"))).items()
+    for t, cols in json.loads(Path(__file__).with_name("stock_tables.json").read_text()).items()
 }
 
 

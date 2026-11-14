@@ -1,7 +1,7 @@
 // What passes the cuts and filters. A layer gets one value per object (its cut column, or a placeholder) that the
 // shader and Layer.passes() compare with the cut's minimum, so filters and "only the selection's objects" ride on
 // the same comparison: a hidden object's value is below any minimum, a forced one above.
-import type { DisplayLayer, Table } from "../io/bundle";
+import type { DisplayLayer, Table } from "../io/format";
 import { toF32 } from "../render/colour";
 import { filterMask } from "./custom";
 

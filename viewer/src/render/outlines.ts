@@ -5,7 +5,7 @@
 // end-on); in 3D the rings also fade where they come near the camera, so parts around the camera (the camera is
 // often inside the muon system) do not criss-cross the view. Not pickable, never framed, drawn behind everything.
 import * as THREE from "three";
-import type { Outline, ViewName } from "../io/bundle";
+import type { Outline, ViewName } from "../io/format";
 
 const RING = 64,
   LINES = 4; // segments per ring; lines along z and spokes per face, evenly in phi (between the axes)

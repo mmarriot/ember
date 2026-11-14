@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { DisplayLayer } from "../io/bundle";
+import type { DisplayLayer } from "../io/format";
 import { focusLevels, levelLayers, mergeAcrossDomains, scopeLevels, stepLevel } from "./levels";
 
 // Display layers as a profile orders them, from the bottom up (hits first, candidates last), then truth.

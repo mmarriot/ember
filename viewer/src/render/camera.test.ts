@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
-import { boxOf, flatAim, flatView, flatZoom } from "./engine";
+import { boxOf, flatAim, flatView, flatZoom } from "./camera";
 import type { Layer } from "./layers";
 
 describe("2D views", () => {

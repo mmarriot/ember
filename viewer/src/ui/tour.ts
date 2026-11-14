@@ -7,7 +7,7 @@
 // whole detector and never enters it (Engine.tourCamera); "orbit" (default): it frames the objects at their own scale
 // and orbits them.
 import { batch, signal } from "@preact/signals";
-import type { DisplayLayer } from "../io/bundle";
+import type { DisplayLayer } from "../io/format";
 import {
   bundle,
   cuts,

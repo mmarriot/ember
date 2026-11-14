@@ -6,7 +6,7 @@
 import { effect, signal } from "@preact/signals";
 import { Color, LinearSRGBColorSpace } from "three";
 import { useEffect, useRef } from "preact/hooks";
-import { type DisplayLayer, type EventData, type Header, type Table, unitOf } from "../io/bundle";
+import { type DisplayLayer, type EventData, type Header, type Table, unitOf } from "../io/format";
 import { colourBy, filterMask, filters } from "../model/custom";
 import { cutMin, cutValues, HIDDEN, rescued } from "../model/cuts";
 import { colours, type LayerFor, type Legend, PALETTES, valueRange, type Pal, type Range } from "../render/colour";

@@ -1,5 +1,5 @@
 // Navigation over the CSR relations of an event: what is related to a selected object.
-import type { DisplayLayer, EventData, Header, Relation, Table } from "../io/bundle";
+import type { DisplayLayer, EventData, Header, Relation, RelationInfo, Table } from "../io/format";
 import { isFactTable } from "./facts";
 
 export interface Ref {
@@ -197,8 +197,6 @@ function closure(
   return seen;
 }
 
-type RelationInfo = Header["relations"][string];
-
 /** Compares two weights of a relation by its `best` hint: negative when the first is better. */
 export const bestFirst = (best: NonNullable<RelationInfo["best"]>) => (a: number, b: number) =>
   best.order === "min" ? a - b : b - a;
@@ -284,11 +282,9 @@ function identityKeys(d: DisplayLayer, t: Table, ev: EventData, header: Header) 
     const flags = d.particle ? t.columns[d.particle.flags] : undefined,
       bit = d.particle?.bit ?? 0;
     const member = flags ? (j: number) => (Number(flags[j]) >>> bit) & 1 : (j: number) => anchor[j];
-    for (
-      let i = 0;
-      i < n;
-      i++ // walk up to the root, keeping the highest member seen (bounded: no loop on bad data)
-    )
+    // Each particle walks up to its root, keeping the highest member seen (at most n steps: no endless loop on bad
+    // data with a cycle).
+    for (let i = 0; i < n; i++)
       for (let j = i, steps = 0; j >= 0 && steps < n; j = parent[j], steps++) if (member(j)) key[i] = j;
   }
   const used = new Uint8Array(n);

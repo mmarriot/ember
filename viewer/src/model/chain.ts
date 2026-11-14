@@ -7,17 +7,26 @@
 // Nothing here is a new truth statement: the links are the associations, facts and stand-ins the bundle already has,
 // counted per step. A kind that gains an associator in CMSSW gets a relation with a `match` hint in its profile, and
 // its steps then show that match instead of "no truth" with no change here.
-import { type DisplayLayer, type EventData, type Header, kindName } from "../io/bundle";
+import { type DisplayLayer, type EventData, type Header, kindName } from "../io/format";
 import { factIn, facts } from "./facts";
 import { focusLevels } from "./levels";
 import { bestPurities, simEnergyByParticle, type TruthStatus } from "./match";
 import { bestPartners, contentPartners, levelsOf, type Ref, type Related } from "./relations";
 
-/** What the truth says about the objects of one step. `partners`: truth rows, most objects first. `label`: the
- *  collections the line is about, where those of the step differ in truth (muon rechits: fact; hits on muon tracks:
- *  none). `unranked`: the particles are not listed, because the selected object's kind has no truth of its own and a
- *  ranking of the particles in its parts would be a match through them (docs/truth.md "Constituents"): the statement
- *  stays on each hit or cluster. */
+/** What the truth says about the objects of one step, one line per truth table, detector or reason:
+ *  - `match`: the CMSSW associator's matches into truth table `truth`: of `of` objects, `matched` have a match and
+ *    `clean` a clean one (purity >= `good`); `partners`: [truth row, objects matched to it], most objects first;
+ *    `purity`: the purity of the match, for a step of one object;
+ *  - `fact`: the simulated energy left in the hits in detector `in`, `total` in all; `particles`: [truth row, share
+ *    0..1], largest first;
+ *  - `derived`: evd's stand-in (the particle with the most simulated energy in an object's hits), for a kind without
+ *    an associator (`reason`, and the gap's number in docs/truth-graph.md);
+ *  - `none`: no truth for the kind, and why;
+ *  - `container`: drawn in the colour of what contains it.
+ *  `label`: the collections the line is about, where those of the step differ in truth (muon rechits: fact; hits on
+ *  muon tracks: none). `unranked`: the particles are not listed, because the selected object's kind has no truth of
+ *  its own and a ranking of the particles in its parts would be a match through them (docs/truth.md
+ *  "Constituents"): the statement stays on each hit or cluster. */
 export type Link = { label?: string } & (
   | {
       kind: "match";
@@ -29,8 +38,8 @@ export type Link = { label?: string } & (
       clean: number;
       partners: [number, number][];
       purity?: number;
-    } // purity: of a single object's match
-  | { kind: "fact"; in: string; truth: string; total: number; particles: [number, number][]; unranked?: boolean } // [truth row, share 0..1], largest first
+    }
+  | { kind: "fact"; in: string; truth: string; total: number; particles: [number, number][]; unranked?: boolean }
   | {
       kind: "derived";
       truth: string;

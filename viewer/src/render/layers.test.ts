@@ -1,8 +1,12 @@
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
-import type { DisplayLayer, Table } from "../io/bundle";
+import type { DisplayLayer, Table } from "../io/format";
 import { PALETTES } from "./colour";
-import { builders, hexPrism, type Layer, polylinePoints, segmentEnds, unitCone } from "./layers";
+import { builders, type Layer } from "./layers";
+import { hexPrism } from "./layers/cells";
+import { unitCone } from "./layers/cones";
+import { polylinePoints } from "./layers/polylines";
+import { segmentEnds } from "./layers/segments";
 
 const col = (...v: number[]) => Float32Array.from(v);
 const table = (columns: Record<string, Float32Array>): Table => ({ n: Object.values(columns)[0].length, columns });

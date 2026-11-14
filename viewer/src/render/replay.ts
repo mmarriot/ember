@@ -12,18 +12,22 @@
 //     With reconstruction stages (display hint `stage`: tracksters, linked tracksters, ..., candidates), each stage
 //     grows in turn and the previous one gives way to it; the replay ends on the last stage present.
 // Phases 2 to 4 show what the reconstruction produced, in arrival order; not the algorithms' real sequence.
-import type { DisplayLayer, Header, Table } from "../io/bundle";
+import type { DisplayLayer, Header, Table } from "../io/format";
 import type { Layer } from "./layers";
 
 export const REPLAY_OFF = 1e30; // clock value meaning "no replay": everything in its final state
+// The phases' timing, in seconds of replay: the physics phase takes TRAVEL, and arrivals after its window come in
+// over a further (LATE - 1) * TRAVEL; clustering and linking start at their first number and take their second;
+// the end state is held for SETTLE.
 const TRAVEL = 3,
   CLUSTER = [3.2, 1.2],
   LINK = [4.6, 2.0],
   SETTLE = 0.8,
-  LATE = 1.15; // s; LATE: tail beyond the window
+  LATE = 1.15;
 const STAGE = [2.4, 1.6]; // s: interval between reconstruction stages, and how long each takes to grow in
-// Path building (s): seeds found over SEEDS from the end of the physics phase, building after a pause of PAUSE over at
-// most BUILD (a path as long as the longest tenth takes all of it: one speed), then FIT for the last flashes.
+// Path building (s): seeds are found over SEEDS from the end of the physics phase; after a pause of PAUSE the paths
+// are built over at most BUILD (one speed: a path as long as the longest tenth takes all of it), then FIT for the
+// last flashes. SEED: the parts in a seed when the hint does not say (`grow.seed`).
 const SEEDS = 1.0,
   PAUSE = 0.3,
   BUILD = 2.4,

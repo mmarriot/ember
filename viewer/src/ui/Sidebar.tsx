@@ -6,7 +6,7 @@ import { signal } from "@preact/signals";
 import type { ComponentChildren } from "preact";
 import { activePreset } from "../model/custom";
 import { applyPreset } from "../model/presets";
-import type { DisplayLayer } from "../io/bundle";
+import type { DisplayLayer } from "../io/format";
 import { bundle, bundleName, DETECTOR, domain, openTab } from "../model/store";
 import { chooseDomain } from "./navigate";
 import { EventInfo } from "./EventInfo";

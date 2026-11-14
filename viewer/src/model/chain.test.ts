@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { DisplayLayer, EventData, Header } from "../io/bundle";
+import type { DisplayLayer, EventData, Header } from "../io/format";
 import { matchClass, matchTally, recoLadder, recoOfTruth, type Ladder } from "./chain";
 import { truthStatus, type TruthStatus } from "./match";
 import { relatedParts } from "./relations";

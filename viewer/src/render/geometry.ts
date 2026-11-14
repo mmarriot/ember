@@ -1,7 +1,8 @@
-// Geometry shared by the representations of render/layers.ts: per-row values from display hints, eta-phi directions,
+// Geometry shared by the representations in render/layers/: per-row values from display hints, eta-phi directions,
 // calorimeter towers, oriented boxes, and where a line leaves a cylinder around the beam. The vertex shaders build the
-// same shapes on the GPU (layers.ts); these CPU twins give picking, framing and the tests the same answers.
-import type { Column, PerRow, ToCylinder } from "../io/bundle";
+// same shapes on the GPU (layers/cells.ts, layers/cones.ts); these CPU twins give picking, framing and the tests the
+// same answers.
+import type { Column, PerRow, ToCylinder } from "../io/format";
 
 type Columns = Record<string, Column>;
 
@@ -65,7 +66,7 @@ export function toCylinder(
 /** Where a calorimeter tower's corner is: the eta-phi bin of the cell whose front-face centre is (x, y, z), widths
  *  dEta x dPhi, from that face outwards by `depth` (cm); `u`, `v` in [-1/2, 1/2] across eta and phi, `w` in [0, 1]
  *  front to back. On a `cylinder` the faces are at constant rho (barrel), on a `disc` at constant |z| (endcap,
- *  forward). The vertex shader of `towers` (layers.ts) does the same. */
+ *  forward). The vertex shader of `towers` (layers/cells.ts) does the same. */
 export function towerPoint(
   x: number,
   y: number,
@@ -92,7 +93,7 @@ export function towerPoint(
 
 /** A corner of an oriented box (a trapezoid when the half widths differ): centre c, unit axes u (width) and v
  *  (length), normal u x v; half widths `bottom` at -v and `top` at +v, half `length` along v, half `thickness` along
- *  the normal; (a, b, c) in [-1, 1]^3. The vertex shader of `boxes` (layers.ts) does the same. */
+ *  the normal; (a, b, c) in [-1, 1]^3. The vertex shader of `boxes` (layers/cells.ts) does the same. */
 export function boxPoint(
   centre: readonly number[],
   u: readonly number[],

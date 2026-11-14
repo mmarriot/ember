@@ -20,6 +20,7 @@ Config (JSON; service/campaigns.example.json shows every key):
   optional "era", "conditions", "threads").
 """
 
+import copy
 import datetime
 import glob
 import json
@@ -36,15 +37,18 @@ LOCK_STALE = 3 * 3600  # s: a lock older than this was left by a run that died
 
 
 def now():
+    """The time now, as ISO 8601 text in UTC."""
     return datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")
 
 
 def log(*args):
+    """Print a line to the cron log, with the time."""
     print(now(), *args, flush=True)
 
 
 class _Log:
-    """A file for the messages of a step of the pass, each line with the time, as log() writes them."""
+    """A file-like object for the messages of a step of the pass (e.g. the export): each line is logged with the time,
+    as log() writes it."""
 
     def write(self, text):
         for line in text.splitlines():
@@ -61,6 +65,7 @@ def _natural(path):
 
 
 def _write_json(path, data):
+    """Replace the JSON file `path` by a rename, so that a reader never sees half of it."""
     with replacing(path, "w") as f:
         json.dump(data, f, indent=1)
 
@@ -77,8 +82,9 @@ def _stem(campaign, path):
 
 
 def pending(campaign, site, settle, failures, max_failures):
-    """Inputs of a campaign without a bundle yet, oldest first, skipping files still being written or given up on;
-    of inputs that would make the same bundle (see stem_parts), the first."""
+    """(input path, bundle path, key in failures) of the inputs of a campaign that have no bundle yet, oldest first.
+    Files still being written (modified less than `settle` seconds ago) and files given up on are skipped. Of inputs
+    that would make the same bundle (see stem_parts), only the first is taken."""
     out, targets = [], set()
     for path in sorted(glob.glob(campaign["inputs"]), key=_natural):
         stem = _stem(campaign, path)
@@ -97,8 +103,8 @@ def pending(campaign, site, settle, failures, max_failures):
 
 
 def _remember_title(site, campaign, file_titles=None):
-    """data/<campaign>/campaign.json keeps the campaign's title (and optional titles per file), so any process
-    rewriting the index can show them."""
+    """Write the campaign's title (and titles of files, if given) to data/<campaign>/campaign.json, so that whichever
+    process rewrites the index can show them."""
     folder = os.path.join(site, "data", campaign["name"])
     os.makedirs(folder, exist_ok=True)
     path = os.path.join(folder, "campaign.json")
@@ -111,13 +117,14 @@ def _remember_title(site, campaign, file_titles=None):
 
 
 def build_index(site):
-    """index.json for the viewer: every non-empty bundle of the campaigns, newest data first. The users' folder
-    (data/u/, see evdtools/site.py) is not a campaign: nothing in it is listed. A file that cannot be read is said
-    and left out."""
+    """The site's index.json for the viewer: every non-empty bundle of the campaigns, newest data first. The users'
+    folder (data/u/, see evdtools/site.py) is not a campaign: nothing in it is listed. A file that cannot be read is
+    logged and left out."""
     users = os.path.join(site, USERS)
-    campaign_files = lambda name: [
-        p for p in glob.glob(os.path.join(site, "data", "*", name)) if os.path.dirname(p) != users
-    ]
+
+    def campaign_files(pattern):
+        return [p for p in glob.glob(os.path.join(site, "data", "*", pattern)) if os.path.dirname(p) != users]
+
     titles, file_titles = {}, {}
     for path in campaign_files("campaign.json"):
         try:
@@ -161,7 +168,9 @@ def build_index(site):
 
 
 def sync(config, max_files=None, dry_run=False, convert=None, export=None):
-    """One pass: convert up to `max_files` new inputs, then rewrite the index. Returns the number converted."""
+    """One pass: convert up to `max_files` new inputs, then rewrite the index. Returns the number converted.
+    `config` is the campaigns configuration (see the top of this file); `convert` and `export` stand in for
+    nano.convert and export.export in tests."""
     site = config.get("site") or site_dir()
     state = config.get("state") or os.path.join(service_dir(), "state")
     if any(c["name"] == "u" for c in config["campaigns"]):
@@ -170,17 +179,10 @@ def sync(config, max_files=None, dry_run=False, convert=None, export=None):
     os.makedirs(state, exist_ok=True)
     os.makedirs(site, exist_ok=True)
     lock = os.path.join(state, "lock")
-    try:
-        os.mkdir(lock)  # atomic: only one run gets it
-    except FileExistsError:
-        if time.time() - os.path.getmtime(lock) < LOCK_STALE:
-            log("another sync is running; nothing to do")
-            return 0
-        log("removing a stale lock, and partial bundles of the run that left it")
-        shutil.rmtree(lock, ignore_errors=True)
-        for tmp in glob.glob(os.path.join(site, "data", "*", "*.evdb.tmp*")):
-            os.remove(tmp)
-        os.mkdir(lock)
+    if not _take_lock(lock, site):
+        log("another sync is running; nothing to do")
+        return 0
+
     try:
         failures_path = os.path.join(state, "failures.json")
         failures = {}
@@ -205,17 +207,7 @@ def sync(config, max_files=None, dry_run=False, convert=None, export=None):
             source = campaign["xrootd"] + path if campaign.get("xrootd") else path
             started = time.time()
             try:
-                with tempfile.TemporaryDirectory(prefix="evd-export-") as work:
-                    if campaign.get("export"):  # a reconstruction file: its event-display NanoAOD first
-                        source = export([source], work, campaign.get("max_events"), log=_Log(), **campaign["export"])
-                    n = convert(
-                        [source],
-                        target,
-                        campaign["profile"],
-                        campaign.get("max_events"),
-                        data_time=datetime.datetime.fromtimestamp(os.path.getmtime(path), datetime.timezone.utc),
-                        **({"run_info": campaign["runInfo"]} if campaign.get("runInfo") else {}),
-                    )
+                n = _convert_input(campaign, path, source, target, convert, export)
                 log(f"{key}: {n} events in {time.time() - started:.0f} s")
                 done += 1
             except Exception as e:  # noqa: BLE001 (keep going with the other files; give up on this one after max_failures)
@@ -228,6 +220,40 @@ def sync(config, max_files=None, dry_run=False, convert=None, export=None):
         return done
     finally:
         shutil.rmtree(lock, ignore_errors=True)
+
+
+def _take_lock(lock, site):
+    """Take the lock of the sync passes, a directory (os.mkdir is atomic: only one pass creates it). False if another
+    pass holds it. A lock older than LOCK_STALE was left by a pass that died: it is taken over, and the partial
+    bundles that pass left are removed."""
+    try:
+        os.mkdir(lock)
+        return True
+    except FileExistsError:
+        if time.time() - os.path.getmtime(lock) < LOCK_STALE:
+            return False
+    log("removing a stale lock, and partial bundles of the run that left it")
+    shutil.rmtree(lock, ignore_errors=True)
+    for tmp in glob.glob(os.path.join(site, "data", "*", "*.evdb.tmp*")):
+        os.remove(tmp)
+    os.mkdir(lock)
+    return True
+
+
+def _convert_input(campaign, path, source, target, convert, export):
+    """Convert the input `path` of a campaign (read from `source`) to the bundle `target`; returns the number of
+    events. A reconstruction file is first exported to NanoAOD, in a temporary folder."""
+    with tempfile.TemporaryDirectory(prefix="evd-export-") as work:
+        if campaign.get("export"):
+            source = export([source], work, campaign.get("max_events"), log=_Log(), **campaign["export"])
+        return convert(
+            [source],
+            target,
+            campaign["profile"],
+            campaign.get("max_events"),
+            data_time=datetime.datetime.fromtimestamp(os.path.getmtime(path), datetime.timezone.utc),
+            **({"run_info": campaign["runInfo"]} if campaign.get("runInfo") else {}),
+        )
 
 
 def simulate(
@@ -245,7 +271,7 @@ def simulate(
     written = 0
     for first in range(start, len(src), events):
         part = os.path.join(folder, f"part_{first // events + 1:04d}.evdb")
-        header = json.loads(json.dumps(src.header))  # a copy
+        header = copy.deepcopy(src.header)
         header["source"].update(data_time=now(), created=now())
         with BundleWriter(part, header) as out:
             for i in range(first, min(first + events, len(src))):

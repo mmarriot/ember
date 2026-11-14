@@ -1,5 +1,5 @@
 // The ladder of a selection: its place in the chain of objects, and at every step what the truth says. One layout
-// for every kind (ui/Navigator.tsx):
+// for every kind (drawn by ui/Chain.tsx):
 // - a reco object: what it is part of (above), itself, what it is made of (below, top first) and what else is built
 //   only from its parts (beside: a secondary vertex whose tracks are all in the jet); each step with its link to the
 //   truth, in the words of docs/truth.md: matched by CMSSW, a simulation fact, derived in evd, or no truth for the kind;

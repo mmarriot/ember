@@ -98,7 +98,8 @@ type check and unit tests; and, when `docs/` or `zensical.toml` changes, the str
 checks need a development server and bundles, so you run them by hand.
 
 **Tests:** a change comes with its test. A converter or command change gets a case in `tests/`. Viewer logic gets a
-`*.test.ts` file next to it. Something visible gets a check in `viewer/e2e/smoke.mjs`. A bug fix starts with a test
+`*.test.ts` file next to it. Something visible gets a check in the browser checks
+(`viewer/e2e/smoke.mjs` runs them; the checks are in `site.mjs` and `bundle.mjs` beside it). A bug fix starts with a test
 that fails without the fix.
 
 **Builds:** `python3 tools/build_zipapp.py` builds `dist/evd`, the command as one file, which users run.

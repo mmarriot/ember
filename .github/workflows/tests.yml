@@ -26,7 +26,7 @@ jobs:
       - run: ruff format --check .
       - run: ruff check .
       - run: python3 -m pytest tests
-      - run: bash -n service/*.sh # the deployment and cron scripts: syntax only, nothing runs them here
+      - run: for f in service/*.sh; do bash -n "$f"; done # the deployment and cron scripts: syntax only
   viewer:
     runs-on: ubuntu-latest
     defaults:

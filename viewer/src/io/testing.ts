@@ -28,10 +28,18 @@ export interface TestBundle {
   indices?: number[];
   /** Run 1 has a per-run table C. */
   runTable?: boolean;
+  /** Changes each event's record JSON (docs/format.md "Record"), e.g. to break it. */
+  record?: (meta: Record<string, unknown>) => object;
 }
 
 /** A bundle file made in memory. */
-export function testBundle({ events = 1, offsets = [0, 1, 2], indices = [1, 0], runTable = false }: TestBundle = {}) {
+export function testBundle({
+  events = 1,
+  offsets = [0, 1, 2],
+  indices = [1, 0],
+  runTable = false,
+  record: change = (meta) => meta,
+}: TestBundle = {}) {
   const f32 = (doc = "") => ({ type: "f32", doc });
   const header = {
     schema: "evd/1",
@@ -47,13 +55,14 @@ export function testBundle({ events = 1, offsets = [0, 1, 2], indices = [1, 0], 
   const arrays = new Uint8Array(4 * (6 + offsets.length + indices.length));
   new Float32Array(arrays.buffer, 0, 6).set([1, 2, 3, 4, 5, 6]);
   new Uint32Array(arrays.buffer, 24).set([...offsets, ...indices]);
-  const meta = (i: number) => ({
-    event: [1, 1, i],
-    tables: { T: { n: 2, columns: { x: [0, 2], y: [8, 2], z: [16, 2] } } },
-    relations: {
-      R: { offsets: [24, offsets.length], indices: [24 + 4 * offsets.length, indices.length], weights: {} },
-    },
-  });
+  const meta = (i: number) =>
+    change({
+      event: [1, 1, i],
+      tables: { T: { n: 2, columns: { x: [0, 2], y: [8, 2], z: [16, 2] } } },
+      relations: {
+        R: { offsets: [24, offsets.length], indices: [24 + 4 * offsets.length, indices.length], weights: {} },
+      },
+    });
 
   const head = padded(JSON.stringify(header), 12),
     start = new Uint8Array(12);

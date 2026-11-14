@@ -170,6 +170,17 @@ describe("a bundle from anyone", () => {
     }
   });
 
+  it("refuses a record that names a table the header lacks, or arrays outside the record", async () => {
+    const broken = [
+      (m: Record<string, unknown>) => ({ ...m, tables: { Nope: { n: 1, columns: { x: [0, 1] } } }, relations: {} }),
+      (m: Record<string, unknown>) => ({ ...m, tables: { T: { n: 2, columns: { x: [4096, 2] } } }, relations: {} }),
+    ];
+    for (const record of broken) {
+      const b = await Bundle.open(blobSource(testBundle({ record })));
+      await expect(b.event(0)).rejects.toBeInstanceOf(FormatError);
+    }
+  });
+
   it("refuses an event it does not have", async () => {
     const b = await Bundle.open(blobSource(testBundle()));
     await expect(b.event(1)).rejects.toBeInstanceOf(RangeError);

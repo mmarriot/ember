@@ -127,6 +127,9 @@ export async function openBundle(
     dropUndrawable(b);
     // The first event is read before anything changes: until it is in, the data set on screen stays whole (its
     // event, selection and address), and one whose first event cannot be read fails to open, as a whole.
+    // The data set on screen keeps only the event shown meanwhile: its neighbours read ahead (100 MB each at PU200)
+    // would otherwise be held alongside the new data set's first event.
+    bundle.peek()?.keep([eventIndex.peek()]);
     const n = b.events.length,
       at = n && Number.isInteger(start) ? ((start % n) + n) % n : 0,
       t0 = performance.now(),

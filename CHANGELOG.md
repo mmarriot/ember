@@ -75,8 +75,8 @@ with a message while an old one is set without its new name. `deploy.sh` links `
     set whose first event could not be read left the previous event on screen under its name.
   - A bundle whose event records point outside their tables is refused with a message, instead of drawing wrong
     objects or freezing the tab.
-  - A link with an event or selection that is not a number (`e=abc`, `s=Tracks:-1`) opens the data set at its first
-    event, instead of showing nothing.
+  - A link whose event is not a number (`e=abc`) opens the data set at its first event, instead of showing no event;
+    a selection that is not a row (`s=Tracks:-1`) is ignored, instead of selecting a row that does not exist.
   - Reading a run's tables is tried again after a network error (test beam data).
   - Pressing R with nothing drawn, and a dropped file during the tour, no longer leave the replay's or the tour's
     drawing on.

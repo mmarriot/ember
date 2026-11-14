@@ -25,7 +25,8 @@ import {
 import { toggleLive } from "./live";
 import { back, cross, nextDomain, nextObject, showWhole } from "./navigate";
 import { stopTour, toggleTour } from "./tour";
-import { engine, replayEvent, VIEWS } from "./Viewport";
+import { engine, replayEvent } from "./scene";
+import { VIEWS } from "./Viewport";
 
 /** Open or closed; Esc closes it first (App.tsx). */
 export const menuOpen = signal(false);

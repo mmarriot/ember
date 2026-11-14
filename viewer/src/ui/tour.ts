@@ -34,7 +34,7 @@ import { startDomain } from "../model/domains";
 import { tourPlan } from "../model/tour";
 import { stopLive } from "./live";
 import { chooseDomain, ranked } from "./navigate";
-import { engine, growTables, replayEvent } from "./Viewport";
+import { engine, growTables, replayEvent } from "./scene";
 
 const ORBIT = 1.2; // turns per minute (orbit tours)
 const SHOWERS = 3; // visited per event

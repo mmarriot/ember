@@ -43,7 +43,7 @@ import { Info } from "./Info";
 import { back } from "./navigate";
 import { PairBars } from "./PairBars";
 import { Lineage, TruthCard } from "./TruthCard";
-import { engine } from "./Viewport";
+import { engine } from "./scene";
 import { Icon } from "./widgets";
 
 const name = (r: Ref) => {

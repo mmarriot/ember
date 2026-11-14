@@ -52,7 +52,8 @@ import { DropHint, Start } from "./Start";
 import { back, chooseDomain, cross, nextDomain, nextObject, showWhole } from "./navigate";
 import { stopLive } from "./live";
 import { stopTour, toggleTour } from "./tour";
-import { engine, replayEvent, Viewport } from "./Viewport";
+import { engine, replayEvent } from "./scene";
+import { Viewport } from "./Viewport";
 import { Toasts } from "./widgets";
 
 const VIEW_KEYS: Record<string, ViewName> = { "1": "3d", "2": "front", "3": "side", "4": "rz" };

@@ -33,7 +33,7 @@ import {
   view,
 } from "../model/store";
 import type { Ref } from "../model/relations";
-import { engine } from "./Viewport";
+import { engine } from "./scene";
 
 export function jump(ref: Ref) {
   focusOn(ref);

@@ -1,5 +1,5 @@
 // Small shared UI pieces: tabs, icons, modal dialog, notifications.
-import type { ComponentChildren } from "preact";
+import type { ComponentChildren, RefObject } from "preact";
 import { useEffect, useState } from "preact/hooks";
 import { dialog, toasts } from "../model/store";
 
@@ -32,6 +32,19 @@ export function Tabs({ tabs, open }: { tabs: [string, () => ComponentChildren][]
       </div>
     </div>
   );
+}
+
+/** While `open`, call `close` on a press anywhere outside the element of `ref` (a menu, a panel). A hook: it adds a
+ *  document listener when `open` turns true, and removes it when `open` turns false or the component goes. */
+export function usePressOutside(ref: RefObject<HTMLElement>, open: boolean, close: () => void) {
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: PointerEvent) => {
+      if (!ref.current?.contains(e.target as Node)) close();
+    };
+    document.addEventListener("pointerdown", away);
+    return () => document.removeEventListener("pointerdown", away);
+  }, [open]);
 }
 
 const PATHS = {

@@ -12,7 +12,8 @@ import { chooseDomain } from "./navigate";
 import { EventInfo } from "./EventInfo";
 import { ColourKey } from "./Key";
 import { Collections, tabOf } from "./Layers";
-import { Truth, treeRelations } from "./Tree";
+import { treeRelations } from "./Tree";
+import { TruthTab } from "./TruthTab";
 import { stopTour } from "./tour";
 import { Icon, Tabs } from "./widgets";
 
@@ -37,7 +38,7 @@ export function Sidebar() {
   ]);
   if (names.some((name) => detectors.includes(name)))
     tabs.push([DETECTOR, () => <Detector names={detectors.filter((name) => names.includes(name))} layers={reco} />]);
-  if (truth || treeRelations().length) tabs.push([truth ? "Truth" : "Tree", Truth]);
+  if (truth || treeRelations().length) tabs.push([truth ? "Truth" : "Tree", TruthTab]);
   tabs.push(["Event", EventInfo]);
   return (
     <>

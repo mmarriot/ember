@@ -1,5 +1,5 @@
 /* The selection's card (Navigator.tsx): its header, its chain with the truth link of every step (Chain.tsx), the
-   truth card and lineage (Truth.tsx), the pair (PairBars.tsx), the levels in the view, the object looked at, its
+   truth card and lineage (TruthCard.tsx), the pair (PairBars.tsx), the levels in the view, the object looked at, its
    associations and its columns (Columns.tsx). */
 .inspector {
   position: absolute;

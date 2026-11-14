@@ -4,7 +4,7 @@
 // - its chain (Chain.tsx), or for a truth object its lineage and what was reconstructed from it (TruthSide, below);
 // - the levels drawn in the view, when they are not the chain's own steps (ViewLevels);
 // - the truth <-> reco pair the view is coloured by (PairBars.tsx);
-// - for a reco object, its truth match (Truth.tsx);
+// - for a reco object, its truth match (TruthCard.tsx);
 // - every association it has, with the relation's weights (Associations), and its columns (Columns.tsx);
 // - at the bottom edge, the object looked at from the card, while there is one (Looking).
 //
@@ -42,7 +42,7 @@ import { keyColumns, Properties, Rows } from "./Columns";
 import { Info } from "./Info";
 import { back } from "./navigate";
 import { PairBars } from "./PairBars";
-import { Lineage, TruthCard } from "./Truth";
+import { Lineage, TruthCard } from "./TruthCard";
 import { engine } from "./Viewport";
 import { Icon } from "./widgets";
 

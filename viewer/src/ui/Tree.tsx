@@ -1,38 +1,14 @@
-// Truth tab: the truth collections, what became of each object that left hits (e.g. each truth-graph particle), and
-// objects linked to objects of the same table (e.g. particles -> their children) as a collapsible tree. Clicking an
-// object focuses on it; selecting one elsewhere opens the tree down to it. Named "Tree" for a tree without truth.
+// Objects linked to objects of the same table (e.g. truth particles -> their daughters) as a tree that folds, in the
+// Truth tab (TruthTab.tsx). A click on an object selects it; an object selected elsewhere opens the tree down to it.
 import { useEffect, useMemo, useState } from "preact/hooks";
-import type { Relation, Table } from "../io/bundle";
-import { PALETTES } from "../render/colour";
+import type { Relation } from "../io/bundle";
 import { filterMask, filters } from "../model/custom";
-import {
-  bundle,
-  describe,
-  event,
-  isHitLayer,
-  labelOf,
-  layerOf,
-  selection,
-  short,
-  sizeColumn,
-  theme,
-} from "../model/store";
-import { factIn } from "../model/facts";
-import { bestPartners } from "../model/relations";
-import { Info } from "./Info";
-import { Coverage, Scorecard } from "./Truth";
-import { Collections } from "./Layers";
+import { bundle, describe, event, labelOf, largestFirst, layerOf, selection, theme } from "../model/store";
+import { PALETTES } from "../render/colour";
 import { jump } from "./navigate";
 
 const go = (table: string, row: number) => jump({ table, row });
-/** Larger first, by the table's size column (e.g. energy), if it has one. */
-function largestFirst(table: string, t: Table) {
-  const c = sizeColumn(table, t),
-    key = c ? t.columns[c] : undefined;
-  return (rows: number[]) => (key ? rows.sort((a, k) => Number(key[k]) - Number(key[a])) : rows);
-}
-
-const MAX = 100; // children (or roots) listed per node; the rest are summarised
+const MAX = 100; // children (or roots) listed per node; the rest are counted
 
 /** Relations from a table to itself present in this event: [name, table]. */
 export function treeRelations(): [string, string][] {
@@ -44,117 +20,15 @@ export function treeRelations(): [string, string][] {
     .map(([n, r]) => [n, r.from]);
 }
 
-/** Called as a function by the tabs: no hooks here. */
-export function Truth() {
-  const trees = treeRelations(),
-    truth = bundle.value?.header.display.filter((d) => d.truth) ?? [];
-  return (
-    <div>
-      {truth.length > 0 && <Scorecard />}
-      {truth.length > 0 && <Coverage />}
-      {truth.length > 0 && <Collections layers={truth} />}
-      {trees.map(([, table]) => (
-        <Outcome table={table} />
-      ))}
-      {trees.map(([name, table]) => (
-        <OneTree name={name} table={table} />
-      ))}
-    </div>
-  );
-}
-
-/** What became of each object of `table` that left hits (associations to a layer drawn as cells; e.g. each simulated
- *  particle): its best match (by the association's `best` weight) among the objects of the latest reconstruction
- *  stage it has associations to. Only reads the associations in the file; objects with none are flagged. */
-function Outcome({ table }: { table: string }) {
-  const b = bundle.value!,
-    ev = event.value!,
-    t = ev.tables[table],
-    sel = selection.value;
-  const rels = Object.entries(b.header.relations).filter(
-    ([n, r]) => r.from === table && r.association && ev.relations[n],
-  );
-  const hitRels = rels.filter(([n, r]) => factIn(b.header, n) !== undefined || isHitLayer(layerOf(r.to))); // facts; cells without truth (a tree)
-  const final = b.header.display
-    .filter((l) => l.stage !== undefined && !l.alternative && rels.some(([, r]) => r.to === l.table))
-    .reduce<(typeof b.header.display)[number] | undefined>((a, l) => (!a || l.stage! > a.stage! ? l : a), undefined);
-  const toFinal = final && rels.find(([, r]) => r.to === final.table);
-  if (!hitRels.length || !final || !toFinal) return null;
-  const keep = filterMask(t, filters.value[table]);
-  const withHits = largestFirst(
-    table,
-    t,
-  )(
-    [...Array(t.n).keys()].filter(
-      (r) =>
-        (!keep || keep[r]) &&
-        hitRels.some(([n]) => {
-          const o = ev.relations[n].offsets;
-          return o[r + 1] > o[r];
-        }),
-    ),
-  );
-  const [relName, info] = toFinal,
-    rel = ev.relations[relName],
-    w = info.best ? rel.weights[info.best.weight] : undefined;
-  const best = bestPartners(rel, info, true, t.n).entry;
-  const matched = withHits.filter((r) => best[r] >= 0),
-    missed = withHits.filter((r) => best[r] < 0);
-  const chip = (tab: string, r: number) => (
-    <button class={sel?.table === tab && sel.row === r ? "chip selected" : "chip"} onClick={() => go(tab, r)}>
-      {describe(tab, r) || `#${r}`}
-    </button>
-  );
-  return (
-    <section class="outcome">
-      <h3>
-        What became of each {layerOf(table)?.truth ? "particle" : "object"}{" "}
-        <Info title="What became of each one">
-          <p>
-            {withHits.length} left hits{keep ? ` (filter: ${filters.value[table]})` : ""}: {matched.length}{" "}
-            reconstructed as {final.group.toLowerCase()}.
-          </p>
-          <p>
-            Each one with its best match by {info.best?.weight ?? "order"}
-            {w ? " (the number on the right)" : ""}, from the associations in the file.
-          </p>
-        </Info>
-      </h3>
-      <table class="kv outcome">
-        <tbody>
-          {matched.slice(0, MAX).map((r) => {
-            const k = best[r];
-            return (
-              <tr>
-                <td>{chip(table, r)}</td>
-                <td>→ {chip(info.to, rel.indices[k])}</td>
-                <td title={info.best?.weight}>{w && short(w[k])}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-      {matched.length > MAX && <p class="hint">… {matched.length - MAX} more</p>}
-      {missed.length > 0 && (
-        <>
-          <p class="hint">Not reconstructed: {missed.length}</p>
-          <div class="missed">
-            {missed.slice(0, MAX).map((r) => chip(table, r))}
-            {missed.length > MAX && <span class="muted"> … {missed.length - MAX} more</span>}
-          </div>
-        </>
-      )}
-    </section>
-  );
-}
-
-function OneTree({ name, table }: { name: string; table: string }) {
+/** The rows of `table` as a tree along relation `name` (from a row to its children), largest first, with a box that
+ *  finds an object by the start of its name. */
+export function Tree({ name, table }: { name: string; table: string }) {
   const ev = event.value!,
     rel = ev.relations[name],
     t = ev.tables[table],
     d = layerOf(table);
   const parents = useMemo(() => parentsOf(rel, t.n), [rel, t.n]),
-    order = largestFirst(table, t);
+    order = (rows: number[]) => largestFirst(table, rows);
   const keep = filterMask(t, filters.value[table]); // the layer's filter (e.g. signal only) applies to the tree too
   const kept = (r: number) => !keep || keep[r] !== 0;
   const children = (r: number) => order([...rel.indices.subarray(rel.offsets[r], rel.offsets[r + 1])].filter(kept));

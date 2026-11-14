@@ -6,7 +6,7 @@
 // with d the unit direction at the start, theta = k l the turn about z so far, S = sin(theta) / theta and
 // C = (1 - cos(theta)) / theta. Written with half angles (S = s(h) cos h, C = s(h) sin h, h = theta / 2,
 // s(h) = sin h / h), this has no cancellation for a nearly straight track (huge radius), so it is exact in float32 too:
-// the vertex shader of the helix layer (render/layers.ts) evaluates the same formula.
+// the vertex shader of the helix layer (render/layers/helices.ts) evaluates the same formula.
 //
 // Where a path stops: when the start and the end point are both inside the field, the path is the helix tangent to
 // the momentum at the start that passes through the end point, if its curvature is within 50% of the momentum's

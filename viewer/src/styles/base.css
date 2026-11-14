@@ -2,7 +2,7 @@
    the controls (buttons, links, fields, chips), tables of names and values, tags and badges, and the marks that say
    what the associator found for an object. */
 
-/* Colour tokens: light by default, dark when the root has data-theme="dark" (model/store.ts sets it). */
+/* Colour tokens: light by default, dark when the root has data-theme="dark" (model/store/view.ts sets it). */
 :root {
   --bg: #ffffff;
   --surface: #ffffff;

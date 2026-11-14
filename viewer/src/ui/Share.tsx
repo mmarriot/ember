@@ -1,7 +1,7 @@
 // The share button's pop-up (Header.tsx): it copies the link to this view and says what the link opens, or why a
 // local file has none.
 import { signal } from "@preact/signals";
-import { kindName } from "../io/bundle";
+import { kindName } from "../io/format";
 import { DOCS_URL, expiryText, ownerOf, PUBLISH_COMMAND } from "../model/library";
 import {
   activeMode,

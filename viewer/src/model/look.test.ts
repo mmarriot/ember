@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import type { Bundle, EventData, Header } from "../io/bundle";
+import type { Bundle } from "../io/bundle";
+import type { EventData, Header } from "../io/format";
 import type { Ref } from "./relations";
 // The store sets the page's theme as it loads: a stand-in page (the tests run without a DOM).
 Object.assign(globalThis, { document: { documentElement: { dataset: {} } } });

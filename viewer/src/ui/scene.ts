@@ -8,7 +8,7 @@
 // The layers drawn now are `entries`. replayEvent and growTables animate them (the replay, the tour).
 import { effect, signal } from "@preact/signals";
 import { Color, LinearSRGBColorSpace } from "three";
-import type { DisplayLayer, EventData, Header, Table } from "../io/bundle";
+import type { DisplayLayer, EventData, Header, Table } from "../io/format";
 import { colourBy, filterMask, filters } from "../model/custom";
 import { cutMin, cutValues, HIDDEN, rescued } from "../model/cuts";
 import { PAIR } from "../model/pair";
@@ -55,7 +55,7 @@ export let engine: Engine | null = null;
 
 /** A layer drawn now, with what it was built from. */
 interface Entry {
-  d: DisplayLayer; // its display hints as drawn: with the colour mode's and the user's colours (store.ts shownLayer)
+  d: DisplayLayer; // its display hints as drawn: with the colour mode's and the user's colours (store/colours.ts shownLayer)
   t: Table; // its table in the event
   key: string; // layerKey(d)
   cut?: Float32Array; // per row, the value compared with the cut; filtered-out rows hidden (model/cuts.ts cutValues)
@@ -118,7 +118,7 @@ export function growTables(tables: Set<string>, seconds: number) {
   const layers = entries.filter((e) => tables.has(e.d.table)).map((e) => e.layer);
   if (!layers.length) return;
   growIn(layers, seconds);
-  engine.replay(seconds + 0.6, layers); // + the last objects' growth (render/layers.ts: 0.5 s)
+  engine.replay(seconds + 0.6, layers); // + the last objects' growth (render/layers/: 0.5 s)
 }
 
 /** Create the engine on `canvas` and keep what it draws in step with the store. Returns the function that stops the

@@ -1,6 +1,6 @@
 // Event tab: event identity, run information and summary charts (where the bundle has them), provenance with every
 // table of the event, and the custom columns no collection lists. (Each collection's count is on its row in its tab.)
-import type { Summary } from "../io/bundle";
+import type { Summary } from "../io/format";
 import { customColumns, evaluate, filters } from "../model/custom";
 import { provenance } from "../model/about";
 import { cutMin, cutValues } from "../model/cuts";

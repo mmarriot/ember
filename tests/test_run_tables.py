@@ -6,7 +6,7 @@ import numpy as np
 from nanoaod import chunk, converter
 
 from evdtools.bundle import Bundle, BundleWriter
-from evdtools.nano import _lookup_dtype
+from evdtools.derive import lookup_dtype
 from evdtools.runinfo import load
 
 F4, I4, U2 = np.dtype("f4"), np.dtype("i4"), np.dtype("u2")
@@ -60,7 +60,7 @@ def test_lookup_columns_take_the_narrowest_signed_type_that_holds_minus_one():
         np.int16: np.int16,
         np.float32: np.float32,
     }
-    assert {t: _lookup_dtype(t) for t in widened} == widened
+    assert {t: lookup_dtype(t) for t in widened} == widened
 
 
 def test_run_record_is_cut_and_round_trips(tmp_path):

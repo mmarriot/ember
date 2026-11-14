@@ -8,7 +8,7 @@
 // The camera follows the profile's view.tour: "beam" (collider data) starts on the whole detector and never enters it
 // (Engine.tourCamera); "orbit" (the default) frames the objects at their own scale and orbits them.
 import { batch, signal } from "@preact/signals";
-import type { DisplayLayer } from "../io/bundle";
+import type { DisplayLayer } from "../io/format";
 import {
   bundle,
   cuts,

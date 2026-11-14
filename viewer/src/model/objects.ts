@@ -1,6 +1,6 @@
 // The object rows of a layer with a `list` hint (the Physics tab's event summary): the largest objects that pass the
 // layer's cut and filter, and the headline that counts them.
-import type { DisplayLayer, Table } from "../io/bundle";
+import type { DisplayLayer, Table } from "../io/format";
 
 /** The rows of `t` that `pass`, largest first by column `sort` (all of them if `t` has no such column, in row order),
  *  at most `max`. For a short list (the side panel's object rows) one pass keeps the `max` largest in order, without

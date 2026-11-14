@@ -1,7 +1,7 @@
 // A side-panel tab's objects as rows: the event in one line over the collections (Headline), and a collection's
 // largest objects, one row each with its columns (ObjectRows). A click on a row selects the object; pointing at one
 // rings it in the view.
-import { type DisplayLayer, kindName, unitOf } from "../io/bundle";
+import { type DisplayLayer, kindName, unitOf } from "../io/format";
 import { filterMask, filters } from "../model/custom";
 import { columnName, passes, topRows } from "../model/objects";
 import {

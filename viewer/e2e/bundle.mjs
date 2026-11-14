@@ -403,7 +403,7 @@ async function checkFocusFilters(page, h, fail, tag) {
         .getEntriesByType("resource")
         .map((r) => r.name)
         .find((n) => n.includes(f)); // ?t= after hot updates
-    const store = await import(url("/src/model/store.ts")),
+    const store = await import(url("/src/model/store/index.ts")),
       custom = await import(url("/src/model/custom.ts"));
     const frames = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
     const b = store.bundle.peek(),

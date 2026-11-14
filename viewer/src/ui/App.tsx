@@ -2,7 +2,7 @@
 // one), keeps the address and the tab's title in step with what is shown, keeps the lists of data sets current,
 // answers the keyboard, and opens a file dropped on it.
 //
-// How the components read the state (model/store.ts), here and in every file of ui/: a component that reads a
+// How the components read the state (model/store/), here and in every file of ui/: a component that reads a
 // signal's `.value` while it renders is rendered again whenever that signal changes. Event handlers and effects read
 // `.peek()` where they must not depend on a signal, and assign `.value` to change it, which updates every reader.
 import { effect, signal } from "@preact/signals";
@@ -110,7 +110,7 @@ function openFromAddress() {
       const name = linked ?? catalogue.value.bundles[0]?.file ?? mine.value[0]?.file;
       started.value = true;
       // The address's view, selection and colours are for its data set, once its event is on screen. Another data set
-      // chosen while the link's was on its way wins: openBundle then returns false (store.ts).
+      // chosen while the link's was on its way wins: openBundle then returns false (store/open.ts).
       if (!name || !(await openBundle(name, undefined, Number(url.get("e") ?? 0))) || !linked) return;
 
       const d = url.get("d"); // "All": everything, in a bundle that opens on a domain
@@ -125,7 +125,7 @@ function openFromAddress() {
         selection.value = { table, row: Number(row) };
       if (url.get("c") === "truth" && truthColours.peek()) colourChoice.value = "truth";
       const lv = url.get("lv");
-      if (lv && selection.peek()) focusLevel.value = lv; // a level the focus does not have is ignored (store.ts shownLevel)
+      if (lv && selection.peek()) focusLevel.value = lv; // a level the focus does not have is ignored (store/selection.ts shownLevel)
     })
     .finally(() => (restoring.value = null));
 }

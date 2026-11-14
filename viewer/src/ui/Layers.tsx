@@ -6,7 +6,7 @@
 // colour key does not explain it.
 import { signal } from "@preact/signals";
 import { useState } from "preact/hooks";
-import type { DisplayLayer } from "../io/bundle";
+import type { DisplayLayer } from "../io/format";
 import { filters, removeFilter } from "../model/custom";
 import {
   activeMode,

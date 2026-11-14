@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { DisplayLayer, EventData, Header } from "../io/bundle";
+import type { DisplayLayer, EventData, Header } from "../io/format";
 import { bestPartners, contentPartners, identities, levelsOf, related, relatedParts } from "./relations";
 
 // candidate 0 -> trackster 1 -> clusters 0, 2 -> hits; candidate 0 -> track 1; trackster 0 -> cluster 1 (no candidate)

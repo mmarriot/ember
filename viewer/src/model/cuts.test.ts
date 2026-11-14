@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { DisplayLayer, Table } from "../io/bundle";
+import type { DisplayLayer, Table } from "../io/format";
 import { cutMin, cutValues, rescued } from "./cuts";
 import { filterMask } from "./custom";
 

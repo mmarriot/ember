@@ -5,7 +5,7 @@
 import type { ComponentChildren } from "preact";
 import { useState } from "preact/hooks";
 import type { Link, Rung } from "../model/chain";
-import { facts, unitOf as factUnit } from "../model/facts";
+import { factUnit, facts } from "../model/facts";
 import { percent } from "../model/match";
 import {
   anchor,
@@ -115,7 +115,7 @@ function RungRow({ rung, role }: { rung: Rung; role: "above" | "self" | "below" 
   const [open, setOpen] = useState(false);
   const tables = new Set(rung.groups.map((g) => g.table)),
     few = rung.count <= INLINE;
-  // The level of the focus this step is (store.ts levels): one drawn on request, or always (the smallest objects,
+  // The level of the focus this step is (store/selection.ts levels): one drawn on request, or always (the smallest objects,
   // lines). Not while another object is looked at: the view's levels are then that object's (ViewLevels).
   const level =
     !anchor.value && (role === "below" || role === "beside")

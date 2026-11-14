@@ -1,7 +1,7 @@
 // A cut group's minimum (e.g. the pT of jets): a chip on a kind's heading or a collection's row that names it, and in
 // its pop-up a slider on a log scale with the exact value. A cut applies to every collection of its group.
 import { computed } from "@preact/signals";
-import type { DisplayLayer } from "../io/bundle";
+import type { DisplayLayer } from "../io/format";
 import { cutGroups, cuts, event, labelOf, layerName, short } from "../model/store";
 import { togglePopover } from "./Info";
 import { Icon } from "./widgets";

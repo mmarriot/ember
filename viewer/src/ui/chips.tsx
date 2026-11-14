@@ -1,5 +1,5 @@
 // An object's name as a button, wherever the selection's card names one. A click looks at it: the view shows it as a
-// selection (with its parts), and the card stays where it is (store.ts look). A double click opens its own card.
+// selection (with its parts), and the card stays where it is (store/selection.ts look). A double click opens its own card.
 // Pointing at it rings it in the view. For a kind the CMSSW associator matches, a dot says what it found for this
 // object: clean, impure or no match, so a list shows at a glance which are which.
 import { useEffect } from "preact/hooks";

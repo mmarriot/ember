@@ -4,7 +4,7 @@
 // double click zooms to the selection, and a drag rotates or pans without changing the selection.
 import { effect } from "@preact/signals";
 import { useEffect, useRef } from "preact/hooks";
-import { unitOf } from "../io/bundle";
+import { unitOf } from "../io/format";
 import { colourBy } from "../model/custom";
 import {
   activeMode,

@@ -4,6 +4,7 @@ import datetime
 import json
 import os
 import time
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -64,7 +65,7 @@ def setup(tmp_path, names, age=3600):
 
 
 def index(config):
-    return json.load(open(os.path.join(config["site"], "index.json")))["bundles"]
+    return json.loads(Path(config["site"], "index.json").read_text())["bundles"]
 
 
 def stale_lock(config):
@@ -94,7 +95,7 @@ def test_waits_for_files_still_being_written_and_gives_up_on_broken_ones(tmp_pat
     for _ in range(4):
         sync(config, convert=convert)
     assert len(calls) == 3  # max_failures
-    assert json.load(open(os.path.join(config["state"], "failures.json"))) == {"mct/NANO_1": 3}
+    assert json.loads(Path(config["state"], "failures.json").read_text()) == {"mct/NANO_1": 3}
 
 
 def test_a_fresh_lock_blocks_and_a_stale_one_is_taken_over(tmp_path):
@@ -116,13 +117,12 @@ def test_simulate_publishes_parts_newest_first(tmp_path):
     naps = []
     assert simulate(str(source), str(tmp_path / "site"), events=3, interval=5, sleep=naps.append) == 3
     assert naps == [5, 5]  # no wait after the last part
-    parts = json.load(open(tmp_path / "site" / "index.json"))["bundles"]
+    parts = json.loads((tmp_path / "site" / "index.json").read_text())["bundles"]
     assert [b["events"] for b in parts] == [1, 3, 3] and parts[0]["file"] == "data/live_demo/part_0003.evdb"
 
 
 def test_simulated_parts_carry_the_per_run_tables_and_run_info_of_their_runs(tmp_path):
-    from evdtools.__main__ import validate
-    from evdtools.bundle import Bundle
+    from evdtools.bundle import Bundle, validate
     from evdtools.service import simulate
 
     columns = {"e": {"type": "f32", "doc": ""}}
@@ -167,7 +167,7 @@ def test_publish_adds_a_titled_bundle_to_the_site(tmp_path):
     convert(["x.root"], str(source), "hgcal", None, data_time=datetime.datetime(2026, 1, 1))
     site = str(tmp_path / "site")
     publish(str(source), site, "simulation", "Simulation", name="ttbar", file_title="ttbar 14 TeV")
-    [entry] = json.load(open(os.path.join(site, "index.json")))["bundles"]
+    [entry] = json.loads(Path(site, "index.json").read_text())["bundles"]
     assert entry["file"] == "data/simulation/ttbar.evdb" and entry["title"] == "ttbar 14 TeV · 2 events"
     assert entry["campaign_title"] == "Simulation"
 
@@ -279,7 +279,7 @@ def test_a_failed_export_counts_as_a_failure_of_the_file(tmp_path):
         raise Problem("the export job failed (exit code 1)")
 
     assert sync(config, convert=fake_convert({})[0], export=export) == 0
-    assert json.load(open(os.path.join(config["state"], "failures.json"))) == {
+    assert json.loads(Path(config["state"], "failures.json").read_text()) == {
         "relval_20_1_0/TTbar_14TeV_PU_201X_PU-v1": 1
     }
 

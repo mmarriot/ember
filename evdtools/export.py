@@ -18,8 +18,6 @@ import subprocess
 import sys
 import tempfile
 
-import uproot
-
 from . import Problem
 
 STEP = "NANO:@EVD"
@@ -29,11 +27,11 @@ OUTPUT = "evd_nano.root"
 def describe(path):
     """("nano" or "edm", number of events, the CMSSW release that wrote it or None) of a ROOT file; a Problem if it
     is neither kind."""
-    from .nano import _open, written_by
+    from .nano import open_file, written_by
 
     try:
-        f = _open(path)
-    except Exception as e:  # uproot raises several kinds for a missing file, a non-ROOT file, no access
+        f = open_file(path)
+    except Exception as e:  # noqa: BLE001 (uproot raises several kinds for a missing file, a non-ROOT file, no access)
         if not path.startswith("root://") and not os.path.exists(path):
             raise Problem(f"{path}: no such file") from None
         raise Problem(f"{path}: cannot be read as a ROOT file ({str(e).splitlines()[0][:200]})") from None
@@ -54,7 +52,7 @@ def _stored_settings(blobs):
     tags = [m.decode() for m in re.findall(rb"globaltag=\+Z\(([^\x00)]+)\x00\)", blobs)]
     xml = [
         tuple(part.rstrip(b"\x00").decode() for part in m.split(b"\x00,") if part.strip(b"\x00"))
-        for m in re.findall(rb"geomXMLFiles=\+z\(\{\x00?(.*?)\}\)", blobs, re.S)
+        for m in re.findall(rb"geomXMLFiles=\+z\(\{\x00?(.*?)\}\)", blobs, re.DOTALL)
     ]
     return list(dict.fromkeys(tags)), list(dict.fromkeys(xml))
 
@@ -62,13 +60,12 @@ def _stored_settings(blobs):
 def provenance(path):
     """(global tags, lists of geometry XML files) an EDM file was made with (see _stored_settings); two empty
     lists if its parameter sets cannot be read."""
-    from .nano import _open
+    from .nano import branch_bytes, open_file
 
     try:
-        with _open(path) as f:
-            branch = f["ParameterSets/IdToParameterSetsBlobs"]
-            return _stored_settings(b"".join(bytes(branch.basket(i).data) for i in range(branch.num_baskets)))
-    except Exception:
+        with open_file(path) as f:
+            return _stored_settings(branch_bytes(f["ParameterSets/IdToParameterSetsBlobs"]))
+    except Exception:  # noqa: BLE001 (no such tree, or not readable: the settings are then asked for)
         return [], []
 
 
@@ -111,7 +108,10 @@ def _environment(cmssw):
                 "in a release that has the event-display NanoAOD (NANO:@EVD) first"
             )
         return [], None
-    setup = f'source /cvmfs/cms.cern.ch/cmsset_default.sh && cd {shlex.quote(cmssw)} && eval $(scram runtime -sh) && cd "$OLDPWD" && exec "$@"'
+    setup = (
+        f"source /cvmfs/cms.cern.ch/cmsset_default.sh && cd {shlex.quote(cmssw)} && eval $(scram runtime -sh)"
+        ' && cd "$OLDPWD" && exec "$@"'
+    )
     keep = {k: os.environ[k] for k in ("HOME", "USER", "KRB5CCNAME", "X509_USER_PROXY", "TMPDIR") if k in os.environ}
     return ["bash", "-c", setup, "evd"], {**keep, "PATH": "/usr/bin:/bin"}
 
@@ -124,24 +124,22 @@ def settings(path, geometry=None, era=None, conditions=None, cmssw=None, log=sys
         return geometry_name(geometry), era, conditions
     tags, xml = provenance(path)
     result = subprocess.run(
-        [*prefix, "python3", "-c", _RUN4], input=json.dumps(xml), capture_output=True, text=True, env=env
+        [*prefix, "python3", "-c", _RUN4], input=json.dumps(xml), capture_output=True, text=True, env=env, check=False
     )
     run4 = json.loads(result.stdout) if result.returncode == 0 else {"known": {}, "matches": []}
-    # why the release's geometries could not be read, for whichever message below needs them
-    why = (
-        f"\n(this release's Run4 geometries could not be read:\n{result.stderr.strip()[-500:]})"
-        if result.returncode
-        else ""
-    )
+    # Why the release's geometries could not be read, for whichever message below needs it.
+    why = ""
+    if result.returncode:
+        why = f"\n(this release's Run4 geometries could not be read:\n{result.stderr.strip()[-500:]})"
+
     if geometry is None:
         if len(run4["matches"]) != 1:
-            found = (
-                f"it matches {' and '.join(run4['matches'])}"
-                if run4["matches"]
-                else "none of this release's Run4 geometries lists its geometry files"
-                if xml
-                else "the file does not record its geometry files"
-            )
+            if run4["matches"]:
+                found = f"it matches {' and '.join(run4['matches'])}"
+            elif xml:
+                found = "none of this release's Run4 geometries lists its geometry files"
+            else:
+                found = "the file does not record its geometry files"
             raise Problem(
                 f"{path}: cannot tell which geometry it was made with ({found}); give --geometry, "
                 "e.g. --geometry D110" + why
@@ -175,7 +173,10 @@ def settings(path, geometry=None, era=None, conditions=None, cmssw=None, log=sys
 def cmsdriver(inputs, events, geometry, era, conditions, threads=4, output=OUTPUT):
     """The cmsDriver.py command line that writes the event-display NanoAOD of the first `events` events (None:
     all) of the EDM files `inputs` to `output`, in the directory it runs in."""
-    source = lambda p: p if re.match(r"\w+:", p) else f"file:{os.path.abspath(p)}"
+
+    def source(path):  # a URL or file:... as it is, a local path as file:<absolute path>
+        return path if re.match(r"\w+:", path) else f"file:{os.path.abspath(path)}"
+
     return [
         "cmsDriver.py",
         "evd",
@@ -218,7 +219,9 @@ def export(
     log_path = os.path.join(workdir, "cmsRun.log")
     with open(log_path, "w") as out:
         try:
-            result = subprocess.run([*prefix, *command], cwd=workdir, stdout=out, stderr=subprocess.STDOUT, env=env)
+            result = subprocess.run(
+                [*prefix, *command], cwd=workdir, stdout=out, stderr=subprocess.STDOUT, env=env, check=False
+            )
         except FileNotFoundError:
             raise Problem("cmsDriver.py not found: run cmsenv first") from None
     nano = os.path.join(workdir, OUTPUT)

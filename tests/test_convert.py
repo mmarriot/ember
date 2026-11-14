@@ -6,8 +6,7 @@ import json
 import pytest
 from nanoaod import write_nano
 
-from evdtools.__main__ import validate
-from evdtools.bundle import Bundle
+from evdtools.bundle import Bundle, validate
 from evdtools.nano import convert
 
 pytest.importorskip("awkward")  # writes the input files
@@ -84,8 +83,8 @@ def test_sorted_writes_events_in_event_order(tmp_path):
     profile = tmp_path / "test.json"
     profile.write_text(json.dumps(PROFILE))
     write_nano(str(tmp_path / "shuffled.root"), EVENTS, event_numbers=[7, 3, 9, 5])
-    b, log = run([str(tmp_path / "shuffled.root")], tmp_path / "a.evdb", str(profile))
+    b, _ = run([str(tmp_path / "shuffled.root")], tmp_path / "a.evdb", str(profile))
     assert [e["event"] for e in b.events] == [7, 9, 5]  # file order; event 3 (the second) fails the selection
-    b, log = run([str(tmp_path / "shuffled.root")], tmp_path / "b.evdb", str(profile), sort=True)
+    b, _ = run([str(tmp_path / "shuffled.root")], tmp_path / "b.evdb", str(profile), sort=True)
     assert [e["event"] for e in b.events] == [5, 7, 9]
     assert [int(b.event(i)["event"][2]) for i in range(len(b))] == [5, 7, 9]  # each index entry finds its own record

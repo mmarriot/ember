@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { DisplayLayer, EventData, Header } from "../io/bundle";
+import type { DisplayLayer, EventData, Header } from "../io/format";
 import { modeColouring, modeRoots } from "./modes";
 import { PAIR, pairFor, pairShows } from "./pair";
 

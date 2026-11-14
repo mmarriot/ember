@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { DisplayLayer, Table } from "../io/bundle";
+import type { DisplayLayer, Table } from "../io/format";
 import type { Layer } from "./layers";
 import { growIn, type Parts, planReplay, type ReplayItem } from "./replay";
 

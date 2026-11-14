@@ -15,7 +15,8 @@ REGISTRY = {"host": "dbod-cms-hgcal-dpg-runtable.cern.ch", "port": 5501, "user":
 
 
 def _clean(row):
-    """JSON-friendly values; empty ones (None, "", "nan", "N/A", "[]") dropped."""
+    """The row with values JSON can hold (dates as text, whole floats as integers), and empty ones (None, "", "nan",
+    "N/A", "[]", ...) dropped."""
     out = {}
     for k, v in row.items():
         if isinstance(v, (datetime.datetime, datetime.date)):
@@ -29,18 +30,21 @@ def _clean(row):
 
 
 def from_json(path, runs):
+    """The information about `runs` in a JSON file: {"<run>": {field: value}} or [{"Run": <run>, field: value}]."""
     with open(path) as f:
         data = json.load(f)
-    by_run = (
-        {int(k): v for k, v in data.items()}
-        if isinstance(data, dict)
-        else {int(r.get("Run", r.get("run"))): {k: v for k, v in r.items() if k not in ("Run", "run")} for r in data}
-    )
+    if isinstance(data, dict):
+        by_run = {int(k): v for k, v in data.items()}
+    else:
+        by_run = {
+            int(r.get("Run", r.get("run"))): {k: v for k, v in r.items() if k not in ("Run", "run")} for r in data
+        }
     return {r: _clean(by_run[r]) for r in runs if r in by_run}
 
 
 def from_registry(table, runs, connection=None, log=sys.stderr):
-    """Rows of `table` ("database.table") for `runs`."""
+    """The rows of the run registry table `table` ("database.table") for `runs`; {} (and a warning on `log`) if it
+    cannot be read."""
     try:
         import mysql.connector
     except ImportError:
@@ -54,7 +58,7 @@ def from_registry(table, runs, connection=None, log=sys.stderr):
         cur.execute(f"SELECT * FROM `{database}`.`{name}` WHERE Run IN ({marks})", list(runs))
         rows = cur.fetchall()
         conn.close()
-    except Exception as e:  # no network, no access: the bundle is still useful without it
+    except Exception as e:  # noqa: BLE001 (no network, no access: the bundle is still useful without it)
         print(f"run info: could not read {table}: {e}", file=log)
         return {}
     return {int(r["Run"]): _clean({k: v for k, v in r.items() if k != "Run"}) for r in rows}

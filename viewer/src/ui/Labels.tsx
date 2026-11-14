@@ -4,7 +4,7 @@
 // transform each, a handful per frame.
 import { computed, signal } from "@preact/signals";
 import { useEffect, useRef } from "preact/hooks";
-import { kindName, type DisplayLayer } from "../io/bundle";
+import { kindName, type DisplayLayer } from "../io/format";
 import type { Ref } from "../model/relations";
 import { filters } from "../model/custom";
 import {

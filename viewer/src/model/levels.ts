@@ -2,7 +2,7 @@
 // tracksters, tracksters, layer clusters, hits). The view shows the focus and its bottom levels (its smallest objects,
 // one per branch: a candidate's hits and its track's hits), with the levels drawn as lines (its track: lines do not
 // hide the hits); the other levels in between are shown one at a time, on request, so they do not cover each other.
-import { type DisplayLayer, type Header, kindName } from "../io/bundle";
+import { type DisplayLayer, type Header, kindName } from "../io/format";
 import { ownDomains } from "./domains";
 import type { Related } from "./relations";
 

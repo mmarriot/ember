@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import type { EventData, Header } from "../io/bundle";
+import type { EventData, Header } from "../io/format";
 import { bestPurities, completeness, NO_EXPORT, opensPair, quality, simEnergyByParticle, truthStatus } from "./match";
 import cms from "./fixtures/cms_header.json";
-import { facts, unitOf } from "./facts";
+import { factUnit, facts } from "./facts";
 
 const csr = (rows: number[][], weights: Record<string, number[]> = {}) => ({
   offsets: Uint32Array.from(rows.reduce((o, r) => [...o, o[o.length - 1] + r.length], [0])),
@@ -251,8 +251,8 @@ describe("truth status", () => {
       },
     } as unknown as Header;
     const f = facts(h).find((x) => x.to === "MHit")!;
-    expect(unitOf(f, { subdet: Uint8Array.from([1, 2]) }, 1)).toBe("CSC layer");
+    expect(factUnit(f, { subdet: Uint8Array.from([1, 2]) }, 1)).toBe("CSC layer");
     expect(truthStatus(h, "MHit")).toMatchObject({ kind: "fact", in: "Muon", unit: { column: "subdet" } });
-    expect(unitOf(facts(kinds).find((x) => x.to === "Hit")!, {}, 0)).toBeUndefined(); // the hit itself
+    expect(factUnit(facts(kinds).find((x) => x.to === "Hit")!, {}, 0)).toBeUndefined(); // the hit itself
   });
 });

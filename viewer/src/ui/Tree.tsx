@@ -1,7 +1,7 @@
 // Objects linked to objects of the same table (e.g. truth particles -> their daughters) as a tree that folds, in the
 // Truth tab (TruthTab.tsx). A click on an object selects it; an object selected elsewhere opens the tree down to it.
 import { useEffect, useMemo, useState } from "preact/hooks";
-import type { Relation } from "../io/bundle";
+import type { Relation } from "../io/format";
 import { filterMask, filters } from "../model/custom";
 import { bundle, describe, event, labelOf, largestFirst, layerOf, selection, theme } from "../model/store";
 import { PALETTES } from "../render/colour";

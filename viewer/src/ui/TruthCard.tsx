@@ -5,7 +5,7 @@
 // - for a truth particle (and for a reco object's match), its lineage: where it sits in the truth graph, from the
 //   collision down to its daughters, with the levels it belongs to and the reco objects matched to it.
 // Every line says where it comes from: the simulation (a fact), the CMSSW associator (a match, never "is"), or evd.
-import type { Header } from "../io/bundle";
+import type { Header } from "../io/format";
 import { completeness, percent, quality, TARGETS } from "../model/match";
 import { bestPartners, identities } from "../model/relations";
 import { bundle, describe, event, kindOf, labelOf, layerOf, modes, short, truthStatuses } from "../model/store";

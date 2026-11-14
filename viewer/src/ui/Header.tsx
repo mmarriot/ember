@@ -1,7 +1,7 @@
 // The top bar: the data set chooser, the event's navigation (with a box to jump to an event), the parts of the
 // detector (or the views), Live, the menu of every control, and the actions (show everything, share, help).
 import logo from "../../logo.svg";
-import { type Domain } from "../io/bundle";
+import { type Domain } from "../io/format";
 import {
   bundle,
   catalogue,
@@ -27,7 +27,7 @@ import { Views } from "./Viewport";
 import { Icon } from "./widgets";
 
 export function Header() {
-  // The event named is the one shown (store.ts shownEntry): a data set just opened says "Opening…" until its event
+  // The event named is the one shown (store/data.ts shownEntry): a data set just opened says "Opening…" until its event
   // is read, not the name of the event its index pointed at in the data set before.
   const b = bundle.value,
     e = shownEntry.value;

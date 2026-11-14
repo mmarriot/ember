@@ -130,7 +130,8 @@ profile entry here ([docs/cmssw.md](docs/cmssw.md#adding-a-collection)).
 `testbeam.json`. Per-run tables (such as a channel map), event selection and run information are all profile keys.
 
 **Add a new way to draw** (a shape the viewer cannot draw yet). This is viewer code:
-`viewer/src/render/layers.ts`, a `repr` name in `viewer/src/io/bundle.ts`, and its hints in `docs/format.md`. Older
+a module in `viewer/src/render/layers/` added to `builders` in `layers/index.ts`, a `repr` name in `REPRS` in
+`viewer/src/io/format.ts`, and its hints in `docs/format.md`. Older
 viewers skip a `repr` they do not know, so a new bundle stays readable.
 
 **Truth.** evd's truth is CMSSW's truth graph and its associators. evd matches nothing that CMSSW does not match

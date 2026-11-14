@@ -1,7 +1,7 @@
 # evd bundle format, version 1
 
 This page describes what a `.evdb` bundle contains. It is the contract between the writer (`evdtools/bundle.py`) and
-the reader (`viewer/src/io/bundle.ts`). How the converter fills a bundle from NanoAOD is in [Profiles](profiles.md).
+the reader (`viewer/src/io/bundle.ts`, with the format's types in `viewer/src/io/format.ts`). How the converter fills a bundle from NanoAOD is in [Profiles](profiles.md).
 
 All integers are little-endian.
 

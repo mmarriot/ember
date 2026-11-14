@@ -1,4 +1,4 @@
-// The drawable layers, one builder per representation a display hint can name (`repr`, io/bundle.ts REPRS). Each
+// The drawable layers, one builder per representation a display hint can name (`repr`, io/format.ts REPRS). Each
 // builder takes a LayerInput and returns a Layer (layer.ts), which the engine draws, picks and frames.
 import { cells } from "./cells";
 import { cones } from "./cones";

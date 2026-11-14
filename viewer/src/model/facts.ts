@@ -41,7 +41,7 @@ const factsOf = new WeakMap<Header, FactRelation[]>();
 
 /** What one row of the simulation's record covers for hit `row` of a fact relation's table, when coarser than a hit
  *  (e.g. "CSC layer"); undefined when it is the hit itself. */
-export function unitOf(
+export function factUnit(
   f: FactRelation,
   columns: Record<string, ArrayLike<number | bigint>> | undefined,
   row: number,

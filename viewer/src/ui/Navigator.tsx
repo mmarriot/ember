@@ -50,7 +50,7 @@ import {
   truthName,
   truthStatuses,
 } from "../model/store";
-import { facts, unitOf as factUnit } from "../model/facts";
+import { factUnit, facts } from "../model/facts";
 import { ObjChip } from "./chips";
 import { Info, togglePopover } from "./Info";
 import { engine } from "./Viewport";

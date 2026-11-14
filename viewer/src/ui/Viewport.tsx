@@ -343,7 +343,7 @@ export function Views() {
   return (
     <div class="segmented views" role="group" aria-label="View">
       {VIEWS.map(([v, name, key]) => (
-        <button class={view.value === v ? "on" : ""} title={`${name} view (${key})`} onClick={() => (view.value = v)}>{name}</button>
+        <button class={view.value === v ? "on" : ""} title={`${name} view (${key})`} disabled={!bundle.value} onClick={() => (view.value = v)}>{name}</button>
       ))}
     </div>
   );

@@ -1,34 +1,51 @@
 // Page layout, start-up (bundle list, URL state), keyboard shortcuts, help dialog and drag-and-drop.
-import { effect } from "@preact/signals";
+import { effect, signal } from "@preact/signals";
 import { useEffect } from "preact/hooks";
-import { blobSource } from "../io/bundle";
 import type { ViewName } from "../render/engine";
 import { startDomain } from "../model/domains";
-import { activeMode, anchor, bundle, bundleName, catalogue, colourChoice, dialog, domain, event, eventIndex, focusLevel, highlight, labelsOn, openBundle, refreshCatalogue, selection, shownLevel, solo, soloKey, stepEvent, stepFocusLevel, truthColours, unlook, view } from "../model/store";
+import { loadIdentity, loadRecent, mine, pruneRecent, PUBLISH_COMMAND, refreshMine } from "../model/library";
+import { activeMode, anchor, bundle, bundleName, catalogue, colourChoice, dialog, domain, event, eventIndex, focusLevel, highlight, labelsOn, openBundle, opened, opening, openLocal, refreshCatalogue, selection, shownEntry, shownLevel, solo, soloKey, started, stepEvent, stepFocusLevel, truthColours, unlook, view } from "../model/store";
+import { chooserOpen } from "./Chooser";
 import { SYNTAX } from "./ExprForm";
 import { Header } from "./Header";
 import { Popover, popover } from "./Info";
 import { Navigator } from "./Navigator";
 import { menuOpen } from "./Menu";
 import { Sidebar } from "./Sidebar";
+import { DropHint, Start } from "./Start";
 import { back, chooseDomain, cross, nextDomain, nextObject, showWhole } from "./navigate";
+import { stopLive } from "./live";
 import { stopTour, toggleTour } from "./tour";
 import { engine, replayEvent, Viewport } from "./Viewport";
 import { Modal, Toasts } from "./widgets";
 
 const VIEW_KEYS: Record<string, ViewName> = { "1": "3d", "2": "front", "3": "side", "4": "rz" };
 const ALL = "All"; // the URL's name for everything (domain null) in a bundle that opens on a domain
-const POLL = 30_000; // ms between index.json checks (keeps the data set list current): one small request per page
+const POLL = 30_000; // ms between index checks (keeps the data set lists current): two small requests per page
+const NAME = "Event display";
+/** A file is being dragged over the page. */
+const dropping = signal(false);
+/** The data set named by the link the page was opened with, until its state (event, view, selection) is applied. */
+const restoring = signal<string | null>(null);
 
 export function App() {
   useEffect(() => {
     // The state is in the hash (#b=…&e=…); a link written as a query (?b=…&e=…) works too. `e` is the event's place in
     // the file, from 0 (the top bar shows it from 1: "2 of 50"), not its event number (the Event… box takes that).
     const url = new URLSearchParams(location.hash.slice(1) || location.search.slice(1));
-    refreshCatalogue().then(async () => {
-      const name = url.get("b") ?? catalogue.value.bundles[0]?.file;
-      if (!name) return;
-      await openBundle(name, undefined, Number(url.get("e") ?? 0));
+    // Who the page is for and their files: asked for at once, in the background. A link's data set does not wait for
+    // them. A bare address opens the site's newest shared data set as soon as the site's list is in; only a site
+    // without one waits to know who I am, to open my newest (whoami has a time limit, library.ts).
+    loadRecent();
+    const shared = refreshCatalogue(), own = loadIdentity().then(() => refreshMine());
+    const linked = url.get("b") || null; // "b=" names nothing
+    restoring.value = linked;
+    (linked ? Promise.resolve() : shared.then(() => (catalogue.value.bundles.length ? undefined : own))).then(async () => {
+      const name = linked ?? catalogue.value.bundles[0]?.file ?? mine.value[0]?.file;
+      started.value = true;
+      // The link's view, selection and colours are for the link's data set with its event on screen: not for another
+      // one chosen while it was on its way (it then changes nothing: store.ts openBundle).
+      if (!name || !(await openBundle(name, undefined, Number(url.get("e") ?? 0))) || !linked) return;
       const d = url.get("d"); // "All": everything, in a bundle that opens on a domain
       if (d) chooseDomain(d === ALL ? null : d, false);
       const v = url.get("v") as ViewName | null;
@@ -41,14 +58,28 @@ export function App() {
       if (url.get("c") === "truth" && truthColours.peek()) colourChoice.value = "truth";
       const lv = url.get("lv");
       if (lv && selection.peek()) focusLevel.value = lv; // a level the focus does not have is ignored (store.ts shownLevel)
+    }).finally(() => (restoring.value = null));
+    const onStorage = (e: StorageEvent) => { if (e.key === "evd.recent") loadRecent(); }; // another tab opened or forgot one
+    const poll = setInterval(() => { if (document.visibilityState === "visible") { void refreshCatalogue(); void refreshMine(); } }, POLL);
+    const stopRecent = effect(() => pruneRecent([...catalogue.value.bundles, ...mine.value].map((x) => x.file)));
+    const stopTitle = effect(() => { // the tab's name: the data set and event, so tabs of several can be told apart
+      const o = opened.value, e = shownEntry.value;
+      document.title = o ? `${o.title}${e ? ` · event ${e.event}` : ""} – ${NAME}` : NAME;
     });
-    const poll = setInterval(() => document.visibilityState === "visible" && void refreshCatalogue(), POLL);
 
     const stopUrl = effect(() => {
       const s = selection.value, d = domain.value ?? (startDomain(bundle.value?.header) ? ALL : null), lv = s && shownLevel.value;
       const p = new URLSearchParams({ b: bundleName.value, e: String(eventIndex.value), v: view.value, ...(d ? { d } : {}), ...(s ? { s: `${s.table}:${s.row}` } : {}),
         ...(lv ? { lv } : {}), ...(activeMode.value === "truth" ? { c: "truth" } : {}), ...(solo.value ? { only: solo.value } : {}) });
-      if (bundleName.value) history.replaceState(null, "", `#${p}`);
+      // A link being opened stays in the address until its event, view and selection are applied: written earlier, the
+      // address would say e=0 and the default view while the link's event is read, and a reload (or the "reload" of a
+      // link that failed) would open that instead. Another data set chosen meanwhile ends the wait.
+      const link = restoring.value, held = link !== null && (opening.value === link || (opening.value === null && (!bundleName.value || bundleName.value === link)));
+      if (held) return;
+      // A local file has no address: a link to it would open nothing, also for me after a reload.
+      if (opened.value?.local) history.replaceState(null, "", location.pathname + location.search);
+      // "/" and ":" are themselves in a fragment: the link reads b=data/u/alice/x.evdb, not b=data%2Fu%2F…
+      else if (bundleName.value) history.replaceState(null, "", `#${p}`.replace(/%2F/g, "/").replace(/%3A/g, ":"));
     });
 
     const onKey = (e: KeyboardEvent) => {
@@ -57,7 +88,8 @@ export function App() {
       if (e.key === "p" || e.key === "P") return toggleTour();
       stopTour(); // any other key takes over from the tour
       if (e.key === "Escape") { // close a dialog; else back to the normal view: no selection, the whole event
-        if (menuOpen.value) menuOpen.value = false;
+        if (chooserOpen.value) chooserOpen.value = false;
+        else if (menuOpen.value) menuOpen.value = false;
         else if (dialog.value) dialog.value = null;
         else if (anchor.value) unlook(); // back to the card's own object
         else { selection.value = null; showWhole(true); }
@@ -77,26 +109,43 @@ export function App() {
       else if (e.key === "Home") showWhole();
       else if (e.key === "r" || e.key === "R") void replayEvent();
     };
+    // A file dragged over the page: say that it can be dropped, until it is or leaves. `depth`: enter and leave fire
+    // for every element crossed.
+    let depth = 0;
+    const files = (e: DragEvent) => !!e.dataTransfer?.types.includes("Files");
     const onDrop = (e: DragEvent) => {
       e.preventDefault();
+      depth = 0;
+      dropping.value = false;
       const file = e.dataTransfer?.files[0];
-      if (file) openBundle(file.name, async () => blobSource(file));
+      if (file) { stopLive(); void openLocal(file); }
     };
     const onDragOver = (e: DragEvent) => e.preventDefault();
+    const onDragEnter = (e: DragEvent) => { if (files(e) && ++depth === 1) dropping.value = true; };
+    const onDragLeave = (e: DragEvent) => { if (files(e) && --depth <= 0) { depth = 0; dropping.value = false; } };
     window.addEventListener("keydown", onKey);
     window.addEventListener("drop", onDrop);
     window.addEventListener("dragover", onDragOver);
-    return () => { clearInterval(poll); stopUrl(); window.removeEventListener("keydown", onKey); window.removeEventListener("drop", onDrop); window.removeEventListener("dragover", onDragOver); };
+    window.addEventListener("dragenter", onDragEnter);
+    window.addEventListener("dragleave", onDragLeave);
+    window.addEventListener("storage", onStorage);
+    return () => {
+      clearInterval(poll); stopUrl(); stopRecent(); stopTitle();
+      window.removeEventListener("keydown", onKey); window.removeEventListener("drop", onDrop); window.removeEventListener("dragover", onDragOver);
+      window.removeEventListener("dragenter", onDragEnter); window.removeEventListener("dragleave", onDragLeave);
+      window.removeEventListener("storage", onStorage);
+    };
   }, []);
 
   return (
-    <div class="app">
+    <div class={bundle.value ? "app" : "app nodata"}>
       <Header />
       <Sidebar />
-      <main><Viewport /><Navigator /></main>
+      <main><Viewport /><Start /><Navigator /></main>
       {dialog.value === "help" && <HelpDialog />}
       <Popover />
       <Toasts />
+      {dropping.value && <DropHint />}
     </div>
   );
 }
@@ -137,9 +186,15 @@ function HelpDialog() {
       [["P"], "the play button; any key or touch stops it", "Tour: each event built up step by step, out from the collision point and from hits to physics objects, then its leading objects"],
       [[], "the Live button", "Live: play new data as it arrives"],
     ]],
-    ["Side panel and files", [
+    ["Data sets", [
+      [[], "its name in the top bar; type to filter, ↑ ↓ and Enter to open", "Choose a data set: your own files, the ones you opened lately from links, and the site's shared ones"],
+      [[], `in a CMSSW area: ${PUBLISH_COMMAND}`, "Publish a file: it is converted, listed under My files and gets a link (it is removed after a while)"],
+      [[], "drop it on the page, or Open a local file… in the chooser", "Open a local .evdb file: it stays on your computer"],
+      [[], "the share button", "Copy a link to this view"],
+    ]],
+    ["Side panel", [
       [[], "⋯ at the end of its row in the side panel", "Colour, filter or a new column for a collection"],
-      [[], "drop it on the page", "Open a local .evdb file"], [[], "drag its edge; double-click to reset", "Resize the side panel"],
+      [[], "drag its edge; double-click to reset", "Resize the side panel"],
       [[], "Menu in the top bar", "Every control and its key, in one place"],
     ]],
   ];
@@ -178,8 +233,10 @@ function HelpDialog() {
       <p class="hint">A filter or a new column (⋯ on a row) is an expression of the table's columns: {SYNTAX}. A filter hides the rows where
         it is 0; a new column is shown in the object's card and can colour or filter.</p>
       <h3>Sharing</h3>
-      <p class="hint">The address bar keeps the data set, event, view, part of the detector, a kind looked at alone, selection, the level
-        shown and the truth colours; the share button copies it.</p>
+      <p class="hint">The share button copies a link to what is on screen: the data set, event, view, part of the detector, a kind looked
+        at alone, the selection with the level shown, and the truth colours (the address bar always holds it). Anyone who can open this
+        site can open the link, also for a file someone else published; it works while the file is on the site. A local file has no
+        link: publish it with <code>{PUBLISH_COMMAND}</code>.</p>
     </Modal>
   );
 }

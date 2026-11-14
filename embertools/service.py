@@ -38,6 +38,9 @@ from .bundle import Bundle, summary
 from .site import EXTENSION, EXTENSIONS, USERS, replacing, service_dir, site_dir
 
 LOCK_STALE = 3 * 3600  # s: a lock untouched for this long was left by a pass that died (see _take_lock)
+PARTIAL_QUIET = (
+    1800  # s: a partial bundle unwritten for this long is not being written (a writer adds a record every few s)
+)
 
 
 def now():
@@ -86,10 +89,11 @@ def _stem(campaign, path):
 
 def _wildcards(pattern):
     """The glob `pattern` as a regular expression with one group per wildcard (*, ? or [...]), as glob matches them:
-    none of them matches a "/"."""
+    none of them matches a "/". In a class, "!" first negates it and a "]" right after the "[" (or "[!") is a
+    character, as in glob; everything else in it is taken literally, except ranges such as 0-9."""
     out = []
-    for part in re.split(r"(\*|\?|\[!?\]?[^\]]*\])", pattern):
-        if part == "*":
+    for part in re.split(r"(\*+|\?|\[!?\]?[^\]]*\])", pattern):
+        if part.startswith("*"):  # "**" matches as "*" does, without recursive=True
             out.append("([^/]*)")
         elif part == "?":
             out.append("([^/])")
@@ -97,7 +101,8 @@ def _wildcards(pattern):
             body = part[1:-1]
             negated = body.startswith("!")
             body = body[1:] if negated else body
-            out.append(f"([{'^/' if negated else ''}{body.replace(chr(92), chr(92) * 2)}])")
+            body = "".join("\\" + c if c in "\\]^[" else c for c in body)
+            out.append(f"([{'^/' if negated else ''}{body}])")
         else:
             out.append(re.escape(part))
     return "".join(out)
@@ -260,7 +265,8 @@ def _take_lock(lock, site):
     """Take the lock of the sync passes, a directory: os.mkdir is atomic, so only one pass creates it. Returns the
     token written in it, or None if another pass holds it. The holder touches the lock before each input, so a lock
     untouched for LOCK_STALE was left by a pass that died. It is taken over by a rename, which only one of several
-    passes can win, and the partial bundles that pass left (as old as the lock) are removed."""
+    passes can win, and the partial bundles that pass left are removed: those not written for PARTIAL_QUIET (the dead
+    pass may have written its last record well after it last touched the lock)."""
     token = f"{socket.gethostname()}.{os.getpid()}.{secrets.token_hex(4)}"
     try:
         os.mkdir(lock)
@@ -275,7 +281,7 @@ def _take_lock(lock, site):
         shutil.rmtree(f"{lock}.stale.{token}", ignore_errors=True)
         for extension in EXTENSIONS:
             for tmp in glob.glob(os.path.join(site, "data", "*", f"*{extension}.tmp*")):
-                if time.time() - os.path.getmtime(tmp) >= LOCK_STALE:
+                if time.time() - os.path.getmtime(tmp) >= PARTIAL_QUIET:
                     os.remove(tmp)
         try:
             os.mkdir(lock)

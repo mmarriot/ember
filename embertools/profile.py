@@ -64,6 +64,7 @@ REQUIRED = {
 def check_shape(profile, where):
     """A Problem that says what is missing where, for a profile whose lists and cuts are not shaped as
     docs/profiles.md says; without it, a missing key would surface as a traceback deep in the converter."""
+    kinds = profile.get("kinds", {})
     for section, keys in REQUIRED.items():
         entries = profile.get(section, [])
         if not isinstance(entries, list):
@@ -71,6 +72,8 @@ def check_shape(profile, where):
         for k, entry in enumerate(entries):
             if not isinstance(entry, dict):
                 raise Problem(f"profile {where}: {section}[{k}] must be an object")
+            if section == "display":  # a layer takes the keys of its kind (display.py)
+                entry = {**kinds.get(entry.get("kind"), {}), **entry}
             label = f"{section}[{k}]" + (f" ({entry['name']})" if "name" in entry else "")
             needed = (
                 [*keys, *(("via",) if entry.get("kind") == "compose" else ("from", "to"))]

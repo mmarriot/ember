@@ -523,3 +523,10 @@ def test_a_profile_of_the_wrong_shape_says_what_is_missing_where(tmp_path, profi
     path.write_text(json.dumps(profile))
     with pytest.raises(Problem, match=re.escape(message)):
         load_profile(str(path))
+
+
+def test_a_layer_may_take_its_position_and_label_from_its_kind(tmp_path):
+    path = tmp_path / "p.json"
+    kinds = {"hit": {"label": "Hits", "position": ["x", "y", "z"]}}
+    path.write_text(json.dumps({"kinds": kinds, "display": [{"table": "A", "kind": "hit"}]}))
+    assert load_profile(str(path))["display"][0]["kind"] == "hit"

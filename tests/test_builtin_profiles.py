@@ -5,9 +5,10 @@ import json
 from pathlib import Path
 
 import numpy as np
+import pytest
 from nanoaod import chunk, converter
 
-from embertools.profile import load_profile
+from embertools.profile import BUILTIN, load_profile
 
 F4, I4, U4 = np.dtype("f4"), np.dtype("i4"), np.dtype("u4")
 XYZE = dict.fromkeys(("x", "y", "z", "e"), F4)
@@ -515,3 +516,9 @@ def test_clue3d_tracksters_are_matched_to_truth():
     assert {"ticlTrackstersCLUE3DHighToTruth", "ticlTrackstersCLUE3DHighFromTruth"} <= set(
         load_profile("hgcal")["internal"]
     )
+
+
+@pytest.mark.parametrize("name", sorted(p.name[:-5] for p in BUILTIN.iterdir() if p.name.endswith(".json")))
+def test_every_builtin_profile_loads(name):
+    """Each has the shape load_profile checks (profile.py check_shape)."""
+    assert load_profile(name)

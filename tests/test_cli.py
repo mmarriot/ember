@@ -355,3 +355,23 @@ def test_the_command_starts_without_numpy():
     code = "import sys; import embertools.__main__; print('numpy' in sys.modules)"
     out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True).stdout
     assert out.strip() == "False"
+
+
+def test_a_command_that_needs_numpy_says_to_run_cmsenv(monkeypatch, capsys):
+    from embertools import __main__
+
+    def needs_numpy(args):
+        raise ModuleNotFoundError("No module named 'numpy'", name="numpy")
+
+    monkeypatch.setitem(__main__.COMMANDS, "inspect", needs_numpy)
+    assert main(["inspect", "x.ember"]) == 1
+    assert capsys.readouterr().err == "ember: this command needs the Python package numpy: run cmsenv first\n"
+
+
+def test_inspect_says_what_an_empty_bundle_holds(setup, capsys):
+    from embertools.bundle import BundleWriter
+
+    header = {"schema": "evd/1", "profile": "t", "source": {"files": ["x.root"]}, "tables": {}, "relations": {}}
+    with BundleWriter("empty.ember", {**header, "display": []}):
+        pass
+    assert main(["inspect", "empty.ember"]) == 0 and "empty.ember: 0 events" in capsys.readouterr().out

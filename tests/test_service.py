@@ -156,31 +156,33 @@ def test_taking_over_a_stale_lock_removes_the_partial_bundles_it_left(tmp_path):
     left, live = os.path.join(folder, "NANO_1.ember.tmp999"), os.path.join(folder, "NANO_9.ember.tmp998")
     open(left, "w").close()
     open(live, "w").close()
-    old = time.time() - 4 * 3600
-    os.utime(left, (old, old))
+    last_written = time.time() - 3600  # the dead pass wrote on after it last touched the lock, 4 h ago
+    os.utime(left, (last_written, last_written))
     stale_lock(config)
     assert sync(config, convert=fake_convert({})[0]) == 1
     assert not os.path.exists(left)
-    assert os.path.exists(live)  # written lately: by a pass that may still be running
+    assert os.path.exists(live)  # written seconds ago: by a pass that may still be running
 
 
 def test_a_pass_touches_the_lock_and_leaves_one_it_lost_alone(tmp_path):
     from embertools import service
 
-    config = setup(tmp_path, ["NANO_1.root"])
-    lock, seen = os.path.join(config["state"], "lock"), []
+    config = setup(tmp_path, ["NANO_1.root", "NANO_2.root"])
+    lock, ages = os.path.join(config["state"], "lock"), []
 
     def convert(files, output, profile, max_events, data_time=None):
-        seen.append(time.time() - os.path.getmtime(lock))
-        # Another pass took the lock over meanwhile: its lock must survive this pass's end.
-        service._release_lock(lock, Path(lock, "owner").read_text())
-        os.mkdir(lock)
-        Path(lock, "owner").write_text("other")
+        ages.append(time.time() - os.path.getmtime(lock))
+        if len(ages) == 1:  # the first input took hours: the lock looks stale unless it is touched before the next
+            old = time.time() - 4 * 3600
+            os.utime(lock, (old, old))
+        else:  # another pass took the lock over meanwhile: its lock must survive this pass's end
+            service._release_lock(lock, Path(lock, "owner").read_text())
+            os.mkdir(lock)
+            Path(lock, "owner").write_text("other")
         return fake_convert({})[0](files, output, profile, max_events, data_time)
 
-    stale_lock(config)
-    assert sync(config, convert=convert) == 1
-    assert seen[0] < 60  # touched before the input, so it does not look stale during a long pass
+    assert sync(config, convert=convert, max_files=2) == 2
+    assert ages[1] < 60  # touched before the second input
     assert Path(lock, "owner").read_text() == "other"
 
 
@@ -192,9 +194,8 @@ def test_a_lock_taken_over_by_another_pass_first_is_not_taken_twice(tmp_path, mo
     lock = os.path.join(config["state"], "lock")
     rename = os.rename
 
-    def lose_the_race(src, dst):  # the other pass renames the stale lock away just before this one
-        rename(src, dst + ".other")
-        rename(dst + ".other", dst)
+    def lose_the_race(src, dst):  # the other pass renames the stale lock away (to its own name) just before this one
+        rename(src, src + ".stale.other")
         raise FileNotFoundError(src)
 
     monkeypatch.setattr(service.os, "rename", lose_the_race)
@@ -215,6 +216,20 @@ def test_wildcards_name_bundles_with_question_marks_and_classes(tmp_path):
         "2_1.ember",
         "campaign.json",
     ]
+
+
+@pytest.mark.parametrize(
+    ("pattern", "path", "stem"),
+    [
+        ("/a/r[!]x]/f.root", "/a/rb/f.root", "b"),  # "]" first in a class is a character
+        ("/a/r[^x]/f.root", "/a/r^/f.root", "^"),  # "^" is a character in a glob class
+        ("/a/**/f.root", "/a/xy/f.root", "xy"),  # "**" is one wildcard, as without recursive=True
+    ],
+)
+def test_wildcards_follow_glob(pattern, path, stem):
+    from embertools.service import _stem
+
+    assert _stem({"inputs": pattern, "stem": "wildcards"}, path) == stem
 
 
 def test_max_events_0_converts_all_events_as_on_the_command_line(tmp_path):

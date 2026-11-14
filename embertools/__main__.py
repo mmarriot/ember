@@ -370,7 +370,8 @@ def _inspect(args):
     relations = [f"{name} ({r['from']} -> {r['to']})" for name, r in h["relations"].items()]
     print(f"  relations: {', '.join(relations)}")
     sizes = [e["length"] for e in b.events]
-    print(f"  record size: mean {sum(sizes) / len(sizes) / 1024:.0f} KB, max {max(sizes) / 1024:.0f} KB (gzip)")
+    if sizes:
+        print(f"  record size: mean {sum(sizes) / len(sizes) / 1024:.0f} KB, max {max(sizes) / 1024:.0f} KB (gzip)")
     for r in b.runs:
         if r.get("info"):
             print(f"  run {r['run']}: " + ", ".join(f"{k} {v}" for k, v in r["info"].items()))

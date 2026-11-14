@@ -45,6 +45,14 @@ def type_code(dtype):
     return {"f": "f", "i": "i", "u": "u"}[dt.kind] + str(8 * dt.itemsize)
 
 
+def _type_or_none(dtype):
+    """type_code(dtype), or None for a type that a bundle cannot store (e.g. complex)."""
+    try:
+        return type_code(dtype)
+    except KeyError:
+        return None
+
+
 # Writing
 
 
@@ -125,10 +133,13 @@ class BundleWriter:
         oldest is written, which bounds the memory they hold."""
         for t, (_, columns) in tables.items():
             for c, a in columns.items():
-                # A reader views the bytes as the header's type: other bytes would read back as other numbers.
+                # A reader views the bytes as the header's type: other bytes would read back as other numbers, and a
+                # column the header lacks could not be read at all.
                 declared = self._types.get(t, {}).get(c)
-                if declared and type_code(a.dtype) != declared:
-                    raise ValueError(f"{t}.{c} is {type_code(a.dtype)}, but the header says {declared}")
+                if declared is None:
+                    raise ValueError(f"{t}.{c} is not in the header")
+                if _type_or_none(a.dtype) != declared:
+                    raise ValueError(f"{t}.{c} is {a.dtype}, but the header says {declared}")
         entry.update(offset=0, length=0, counts={t: int(n) for t, (n, _) in tables.items()})
         if self.pool is None:
             return self._store(entry, _pack(self._level, record_id, tables, relations))

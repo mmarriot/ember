@@ -1,0 +1,406 @@
+/* The top bar (Header.tsx): the brand, the data set chooser, the event's navigation, the parts of the detector or
+   the views, Live, the menu and the actions; with the pop-ups it opens (the chooser's panel, the menu, sharing). */
+.topbar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  box-shadow: 0 1px 0 rgba(31, 35, 40, 0.03);
+  z-index: 3;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 15px;
+  white-space: nowrap;
+}
+
+/* Event navigation: previous and next, the event's name, the tour, and the box that jumps to an event number. */
+.eventnav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  min-width: 0;
+}
+.eventid {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 150px;
+  white-space: nowrap;
+  flex: none;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+.eventid small {
+  color: var(--muted);
+}
+.jump {
+  width: 120px;
+  min-width: 70px;
+  flex: 0 1 120px;
+  margin-left: 6px;
+}
+
+/* The parts of the detector ("Look at"): buttons, or a drop-down list in narrow windows (narrow.css). */
+.domainbar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.domainlist {
+  display: none;
+  flex: none;
+}
+
+/* Live, and the bar that moves under the top bar while a data set or an event is read. */
+.live {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  padding: 4px 10px;
+}
+.live .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+.live.on {
+  border-color: var(--error);
+  color: var(--error);
+}
+.live.on .dot {
+  background: var(--error);
+  animation: pulse 1.6s ease-in-out infinite;
+}
+@keyframes pulse {
+  50% {
+    opacity: 0.3;
+  }
+}
+.progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  background-size: 50% 100%;
+  animation: slide 1s linear infinite;
+}
+@keyframes slide {
+  from {
+    background-position: -50% 0;
+  }
+  to {
+    background-position: 150% 0;
+  }
+}
+/* The data set chooser (Chooser.tsx): a button and its panel. The button's width is set by the window alone: what the
+   bar's other items leave at that width in the worst case (measured: about 1180 px of them without the parts of the
+   detector, more with their buttons, which the narrower bars below fold away). So it is the same for every data set of
+   a kind, whatever the length of its name or of its event's title, and the bar does not move when another one opens.
+   It may still shrink (to 120 px) before the bar overflows. */
+.chooser {
+  position: relative;
+  flex: 0 1 clamp(120px, calc(100vw - 1180px), 340px);
+  min-width: 120px;
+}
+.topbar.parts .chooser {
+  flex-basis: clamp(120px, calc(100vw - 1330px), 340px);
+}
+.dataset {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  text-align: left;
+  padding: 5px 8px;
+}
+.dataset.on {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+.dataset .name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dataset .caret {
+  flex: none;
+  color: var(--muted);
+  font-size: 10px;
+}
+.dataset .tag {
+  flex: none;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  border: 1px solid var(--line-strong);
+  border-radius: 3px;
+  padding: 0 4px;
+}
+.chooserpanel {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 6px);
+  z-index: 7;
+  display: flex;
+  flex-direction: column;
+  width: min(480px, calc(100vw - 16px));
+  max-height: calc(100vh - var(--topbar) - 16px);
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+.chooserpanel .about {
+  padding: 10px 12px 8px;
+  border-bottom: 1px solid var(--line);
+}
+.about .open {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.about .open b {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.about small {
+  color: var(--muted);
+}
+.about table {
+  margin-top: 6px;
+}
+.chooserpanel .filter,
+.whoami input,
+.sharepop input {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 6px 8px;
+}
+.chooserpanel .filter {
+  flex: none;
+  margin: 8px 12px 4px;
+}
+.datasets {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 4px 4px;
+}
+.sectionhead {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 8px 8px 3px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  background: var(--surface);
+}
+.sectionhead .count {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+.sectionhead .link {
+  font-size: 11px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.dataset-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+.dataset-row.active {
+  background: var(--accent-soft);
+}
+.dataset-row.off {
+  cursor: default;
+  color: var(--muted);
+}
+.dataset-row .tick {
+  flex: none;
+  width: 12px;
+  color: var(--accent);
+}
+.dataset-row .what {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.3;
+}
+.dataset-row .title,
+.dataset-row small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dataset-row small {
+  color: var(--muted);
+  font-size: 11px;
+}
+.dataset-row[aria-current] .title {
+  font-weight: 600;
+}
+.chooserpanel footer {
+  flex: none;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--line);
+}
+.whoami {
+  padding: 2px 8px 8px;
+  font-size: 12px;
+}
+.whoami label {
+  display: block;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+.whoami div {
+  display: flex;
+  gap: 6px;
+}
+.whoami input {
+  flex: 1;
+  min-width: 0;
+}
+.whoami input[aria-invalid="true"] {
+  border-color: var(--error);
+}
+.hint.none {
+  margin: 0;
+  padding: 2px 8px 6px;
+}
+.hint.error {
+  color: var(--error);
+  margin: 6px 0 0;
+}
+/* The share pop-up (Share.tsx): the link, whether it was copied, and what it opens. */
+.sharepop input {
+  width: 100%;
+  font:
+    11.5px ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+  background: var(--surface-2);
+}
+.sharepop .status {
+  min-height: 1.45em;
+  margin: 4px 0 8px;
+  color: var(--muted);
+}
+.sharepop .status.ok {
+  color: var(--clean);
+}
+.sharepop code,
+.command code,
+.startpanel code,
+.chooserpanel code {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+/* The menu (Menu.tsx): every control, grouped, with its key. */
+.menu {
+  position: relative;
+  flex: none;
+}
+.menubutton {
+  font-size: 12px;
+  padding: 4px 10px;
+}
+.menubutton.on {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+.menupanel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 6;
+  display: grid;
+  grid-template-columns: repeat(2, 240px);
+  gap: 4px 12px;
+  padding: 8px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  max-height: calc(100vh - var(--topbar) - 16px);
+  overflow-y: auto;
+}
+.menugroup {
+  display: flex;
+  flex-direction: column;
+}
+.menuhead {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  padding: 6px 8px 2px;
+}
+.menuitem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  background: none;
+  text-align: left;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+.menuitem:hover:not(:disabled) {
+  background: var(--surface-2);
+}
+.menuitem:disabled {
+  color: var(--muted);
+  opacity: 0.6;
+  cursor: default;
+}
+.menuitem .check {
+  width: 12px;
+  flex: none;
+  color: var(--accent);
+}
+.menuitem .what {
+  flex: 1;
+  min-width: 0;
+}
+.menuitem kbd {
+  flex: none;
+  color: var(--muted);
+}

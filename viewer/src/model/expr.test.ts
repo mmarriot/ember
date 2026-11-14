@@ -3,7 +3,12 @@ import { compile } from "./expr";
 
 const run = (src: string, cols: Record<string, number[]>) => {
   const c = compile(src, Object.keys(cols));
-  return [...c.run(c.columns.map((k) => cols[k]), Object.values(cols)[0]?.length ?? 1)];
+  return [
+    ...c.run(
+      c.columns.map((k) => cols[k]),
+      Object.values(cols)[0]?.length ?? 1,
+    ),
+  ];
 };
 
 describe("expressions", () => {
@@ -23,7 +28,20 @@ describe("expressions", () => {
     expect(compile("b + a * b", ["a", "b"]).columns).toEqual(["b", "a"]);
   });
   it("rejects anything that is not a column, number, operator or listed function", () => {
-    for (const bad of ["", "a +", "nope", "a; alert(1)", "toString(a)", "constructor", "alert(a)", "a[0]", "a.length", "`a`", "a = 1", "max()"])
+    for (const bad of [
+      "",
+      "a +",
+      "nope",
+      "a; alert(1)",
+      "toString(a)",
+      "constructor",
+      "alert(a)",
+      "a[0]",
+      "a.length",
+      "`a`",
+      "a = 1",
+      "max()",
+    ])
       expect(() => compile(bad, ["a"]), bad).toThrow();
   });
 });

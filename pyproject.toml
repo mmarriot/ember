@@ -3,8 +3,8 @@ requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "evdtools"
-description = "Convert CMS NanoAOD event-display tables to .evdb bundles and publish them for the evd web event display"
+name = "embertools"
+description = "Convert CMS NanoAOD event-display tables to .ember bundles and publish them for the Ember web event display"
 readme = "README.md"
 requires-python = ">=3.9"
 dependencies = ["numpy", "uproot>=5"]
@@ -14,15 +14,30 @@ dynamic = ["version"]
 scipy = ["scipy"]                      # the neighbourDistance derive (cell sizes from the hits' spacing)
 runinfo = ["mysql-connector-python"]   # run information from the run registry
 test = ["pytest", "awkward", "scipy"]
+dev = ["ruff==0.17.5"]                  # formatting and lint: ruff format, ruff check
 
 [project.scripts]
-evd = "evdtools.__main__:main"
+ember = "embertools.__main__:main"
 
 [tool.setuptools]
-packages = ["evdtools"]
+packages = ["embertools"]
 
 [tool.setuptools.package-data]
-evdtools = ["profiles/*.json"]
+embertools = ["profiles/*.json"]
 
 [tool.setuptools.dynamic]
-version = { attr = "evdtools.__version__" }
+version = { attr = "embertools.__version__" }
+
+[tool.ruff]
+line-length = 120
+target-version = "py39"
+
+[tool.ruff.lint]
+# Ruff's default rule set for the version pinned in the dev extra (0.17.5), which CI installs. It is broad: pyflakes
+# (F), likely bugs (B), modern syntax for the Python 3.9 floor (UP, which follows target-version), simplifications
+# (SIM), pylint (PL), Ruff's own (RUF), naive datetimes (DTZ), blind excepts (BLE) and more. Bumping the pin can
+# change the set: run `ruff check .` and fix or ignore what is new.
+
+[tool.ruff.lint.per-file-ignores]
+# It runs under whatever python3 is first on the path, so it checks the version itself, in syntax old ones can parse.
+"tools/build_zipapp.py" = ["UP031", "UP036"]

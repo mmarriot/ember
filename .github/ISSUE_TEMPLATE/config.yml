@@ -1,5 +1,5 @@
 blank_issues_enabled: true
 contact_links:
   - name: Documentation
-    url: https://mmarriot.github.io/evd/
-    about: The tutorial, the command reference, and a page of questions and problems.
+    url: https://mmarriot.github.io/ember/
+    about: The tutorial, how-to guides, the command reference, and a page of questions and problems.

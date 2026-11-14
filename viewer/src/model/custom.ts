@@ -2,10 +2,14 @@
 // which column colours each layer and the chosen preset. Columns are added to every event as it is
 // shown (one loop per column).
 import { effect, signal } from "@preact/signals";
-import type { Column, DisplayLayer, EventData, Table } from "../io/bundle";
+import type { Column, DisplayLayer, EventData, Table } from "../io/format";
 import { compile } from "./expr";
 
-export interface CustomColumn { table: string; name: string; expr: string }
+export interface CustomColumn {
+  table: string;
+  name: string;
+  expr: string;
+}
 export const customColumns = signal<CustomColumn[]>([]); // in order: later ones may use earlier ones
 /** Table -> expression; rows where it is 0 are hidden. "" marks a default filter the user removed. */
 export const filters = signal<Record<string, string>>({});
@@ -13,19 +17,27 @@ export const colourBy = signal<Record<string, string>>({}); // display layer key
 export const activePreset = signal(0); // index into the profile's presets
 /** pid: candidates by particle type, a selection as its truth <-> reco pair (bundles with candidates); layers: each
  *  layer coloured on its own (the others); truth: everything by the generator particle it comes from (docs/truth.md),
- *  reco objects only where they are a clean match. Set by the bundle and the Reco | Truth switch (store.ts
+ *  reco objects only where they are a clean match. Set by the bundle and the Reco | Truth switch (store/colours.ts
  *  activeMode). */
 export type ColourMode = "pid" | "layers" | "truth";
 let defaultFilters: Record<string, string> = {}; // from the display hints (`filter`) of the open bundle
 
 const numeric = (c: Column): ArrayLike<number> =>
-  c instanceof BigInt64Array || c instanceof BigUint64Array ? Float64Array.from(c as ArrayLike<bigint>, Number) : (c as ArrayLike<number>);
+  c instanceof BigInt64Array || c instanceof BigUint64Array
+    ? Float64Array.from(c as ArrayLike<bigint>, Number)
+    : (c as ArrayLike<number>);
 
 /** Values of `expr` for every row of `t`, or the reason it cannot be computed. */
 export function evaluate(t: Table, expr: string): { values: Float32Array; boolean: boolean } | { error: string } {
   try {
     const c = compile(expr, Object.keys(t.columns));
-    return { values: c.run(c.columns.map((k) => numeric(t.columns[k])), t.n), boolean: c.boolean };
+    return {
+      values: c.run(
+        c.columns.map((k) => numeric(t.columns[k])),
+        t.n,
+      ),
+      boolean: c.boolean,
+    };
   } catch (e) {
     return { error: (e as Error).message };
   }
@@ -64,8 +76,11 @@ export const RELATION = "rel:";
 /** The display hint with the user's colour choice, if any: a column (a value scale, replacing any categorical
  *  colouring), or RELATION + relation name (the colour of the related object, e.g. a trackster's truth particle). */
 export function withColour(d: DisplayLayer, column: string | undefined): DisplayLayer {
-  if (column?.startsWith(RELATION)) return { ...d, colourBy: { relation: column.slice(RELATION.length) }, fixedColour: undefined };
-  return column ? { ...d, colour: column, colourBy: undefined, fixedColour: undefined, palette: d.palette ?? "heat" } : d;
+  if (column?.startsWith(RELATION))
+    return { ...d, colourBy: { relation: column.slice(RELATION.length) }, fixedColour: undefined };
+  return column
+    ? { ...d, colour: column, colourBy: undefined, fixedColour: undefined, palette: d.palette ?? "heat" }
+    : d;
 }
 
 export const customDoc = (table: string, column: string) => {
@@ -79,8 +94,17 @@ let storageKey = "";
  *  `remember` false (a bundle from another site, which names its own profile): changes are not saved. */
 export function loadCustom(profile: string, defaults: Record<string, string>, remember = true) {
   storageKey = "";
-  let saved: Partial<{ columns: CustomColumn[]; filters: Record<string, string>; colourBy: Record<string, string>; preset: number }> = {};
-  try { saved = JSON.parse(localStorage.getItem(`evd.custom.${profile}`) ?? "{}"); } catch { /* defaults */ }
+  let saved: Partial<{
+    columns: CustomColumn[];
+    filters: Record<string, string>;
+    colourBy: Record<string, string>;
+    preset: number;
+  }> = {};
+  try {
+    saved = JSON.parse(localStorage.getItem(`evd.custom.${profile}`) ?? "{}"); // old prefix kept: see model/library.ts
+  } catch {
+    /* defaults */
+  }
   defaultFilters = defaults;
   customColumns.value = Array.isArray(saved.columns) ? saved.columns : [];
   filters.value = { ...defaults, ...(saved.filters ?? {}) };
@@ -89,6 +113,16 @@ export function loadCustom(profile: string, defaults: Record<string, string>, re
   if (remember) storageKey = `evd.custom.${profile}`;
 }
 effect(() => {
-  const data = JSON.stringify({ columns: customColumns.value, filters: filters.value, colourBy: colourBy.value, preset: activePreset.value });
-  if (storageKey) try { localStorage.setItem(storageKey, data); } catch { /* not remembered */ }
+  const data = JSON.stringify({
+    columns: customColumns.value,
+    filters: filters.value,
+    colourBy: colourBy.value,
+    preset: activePreset.value,
+  });
+  if (storageKey)
+    try {
+      localStorage.setItem(storageKey, data);
+    } catch {
+      /* not remembered */
+    }
 });

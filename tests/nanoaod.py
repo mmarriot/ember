@@ -1,14 +1,16 @@
 """Synthetic NanoAOD input for the converter tests. Tables are {table: {column: values}}, their types
 {table: {column: dtype}}."""
+
 import numpy as np
 
-from evdtools.nano import Converter
+from embertools.converter import Converter
 
 
 def converter(types, profile, run_types=None):
     """A Converter for a file with these per-event (and per-run) tables."""
-    meta = lambda types: {t: {"doc": t, "columns": {c: (np.dtype(dt), "") for c, dt in cols.items()}}
-                          for t, cols in (types or {}).items()}
+    meta = lambda types: {
+        t: {"doc": t, "columns": {c: (np.dtype(dt), "") for c, dt in cols.items()}} for t, cols in (types or {}).items()
+    }
     return Converter(meta(types), profile, meta(run_types))
 
 
@@ -16,8 +18,11 @@ def chunk(conv, *events, run=1):
     """An uproot library="np" chunk holding `events` (or per-run tables) as the converter reads them: one n<T> per
     entry, and per <T>_<column> one array per entry, of the column's type; tables it does not know are not read.
     Event numbers are 0, 1, ..."""
-    out = {"run": np.full(len(events), run, np.uint32), "luminosityBlock": np.ones(len(events), np.uint32),
-           "event": np.arange(len(events), dtype=np.uint64)}
+    out = {
+        "run": np.full(len(events), run, np.uint32),
+        "luminosityBlock": np.ones(len(events), np.uint32),
+        "event": np.arange(len(events), dtype=np.uint64),
+    }
     for t in [t for t in events[0] if t in conv.tables]:
         out[f"n{t}"] = np.array([len(next(iter(ev[t].values()))) for ev in events])
         for c in events[0][t]:
@@ -39,12 +44,25 @@ def write_nano(path, events, runs=None, first_event=0, event_numbers=None):
 
     with uproot.recreate(path) as f:
         n = len(events)
-        trees = {"Events": tree(events, {"run": np.ones(n, np.uint32), "luminosityBlock": np.ones(n, np.uint32),
-                                         "event": np.asarray(np.arange(first_event, first_event + n)
-                                                             if event_numbers is None else event_numbers, np.uint64)})}
+        trees = {
+            "Events": tree(
+                events,
+                {
+                    "run": np.ones(n, np.uint32),
+                    "luminosityBlock": np.ones(n, np.uint32),
+                    "event": np.asarray(
+                        np.arange(first_event, first_event + n) if event_numbers is None else event_numbers, np.uint64
+                    ),
+                },
+            )
+        }
         if runs:
             trees["Runs"] = tree(list(runs.values()), {"run": np.array(list(runs), np.uint32)})
         for name, data in trees.items():
-            f.mktree(name, {k: v.type if hasattr(v, "layout") else v.dtype for k, v in data.items()},
-                     field_name=lambda outer, inner: f"{outer}_{inner}", counter_name=lambda counted: f"n{counted}")
+            f.mktree(
+                name,
+                {k: v.type if hasattr(v, "layout") else v.dtype for k, v in data.items()},
+                field_name=lambda outer, inner: f"{outer}_{inner}",
+                counter_name=lambda counted: f"n{counted}",
+            )
             f[name].extend(data)

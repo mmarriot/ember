@@ -1,14 +1,32 @@
-// Guided tour: each event is built up step by step (model/tour.ts: outwards from the collision point, from the
-// detector's hits to the physics objects), each step's objects growing in while the camera frames them and a caption
-// says what they are; then the bundle's own view, whose leading objects (else main showers) are visited one by one
-// (selected, so the inspector describes them); then the next event; until any key or touch, or the play button.
-// A bundle without the kinds of object the steps name (test beam, cosmics) replays each event instead
-// (render/replay.ts), then visits its main showers. Profile view.tour "beam" (collider data): the camera starts on the
-// whole detector and never enters it (Engine.tourCamera); "orbit" (default): it frames the objects at their own scale
-// and orbits them.
+// The guided tour (key P), event after event until any key or touch, or the play button:
+// 1. The event is built up step by step (model/tour.ts: outwards from the collision point, from the detector's hits to
+//    the physics objects). Each step's objects grow in while the camera frames them and a caption says what they are.
+//    A bundle without the kinds of object the steps name (test beam, cosmics) is replayed instead (render/replay.ts).
+// 2. The event as the bundle shows it: its leading objects (else its main showers) are visited one by one, each
+//    selected so that the card describes it.
+// 3. The next event.
+// The camera follows the profile's view.tour: "beam" (collider data) starts on the whole detector and never enters it
+// (Engine.tourCamera); "orbit" (the default) frames the objects at their own scale and orbits them.
 import { batch, signal } from "@preact/signals";
-import type { DisplayLayer } from "../io/bundle";
-import { bundle, cuts, domain, event, eventIndex, highlight, layerKey, selection, showAll, showEvent, sizeColumn, solo, touring, view, drawnLayers, visible } from "../model/store";
+import type { DisplayLayer } from "../io/format";
+import {
+  bundle,
+  cuts,
+  domain,
+  event,
+  eventIndex,
+  highlight,
+  layerKey,
+  selection,
+  showAll,
+  showEvent,
+  sizeColumn,
+  solo,
+  touring,
+  view,
+  drawnLayers,
+  visible,
+} from "../model/store";
 import { filterMask, filters } from "../model/custom";
 import { passes } from "../model/objects";
 import { related, type Ref } from "../model/relations";
@@ -17,7 +35,7 @@ import { startDomain } from "../model/domains";
 import { tourPlan } from "../model/tour";
 import { stopLive } from "./live";
 import { chooseDomain, ranked } from "./navigate";
-import { engine, growTables, replayEvent } from "./Viewport";
+import { engine, growTables, replayEvent } from "./scene";
 
 const ORBIT = 1.2; // turns per minute (orbit tours)
 const SHOWERS = 3; // visited per event
@@ -38,7 +56,12 @@ export function toggleTour() {
 
 // The tour draws what each step shows, in All, and every object of layers normally drawn only for a selection (e.g.
 // track hits): the user's choices (and domain) are restored afterwards.
-let saved: { bundle: unknown; showAll: Record<string, boolean>; visible: Record<string, boolean>; domain: string | null } | null = null;
+let saved: {
+  bundle: unknown;
+  showAll: Record<string, boolean>;
+  visible: Record<string, boolean>;
+  domain: string | null;
+} | null = null;
 
 export function stopTour() {
   if (!touring.value) return;
@@ -51,22 +74,31 @@ export function stopTour() {
   const s = saved;
   saved = null;
   // One rebuild, of what the user's domain draws (not first everything in All); nothing to restore in another bundle.
-  if (s && s.bundle === bundle.peek()) batch(() => { domain.value = s.domain; showAll.value = s.showAll; visible.value = s.visible; });
+  if (s && s.bundle === bundle.peek())
+    batch(() => {
+      domain.value = s.domain;
+      showAll.value = s.showAll;
+      visible.value = s.visible;
+    });
 }
 
 async function startTour() {
-  const me = ++generation, e = engine;
+  const me = ++generation,
+    e = engine;
   if (!e) return;
   stopLive();
   touring.value = true;
   solo.value = null; // the tour builds the whole event up, not one kind
   view.value = "3d";
-  const pace = import.meta.env.DEV ? Number((window as { evdTourPace?: number }).evdTourPace ?? 1) : 1; // e2e tests: slower
+  const pace = import.meta.env.DEV ? Number((window as { emberTourPace?: number }).emberTourPace ?? 1) : 1; // e2e tests: slower
   const opened = bundle.value; // another bundle opened (the data set list, a dropped file) stops the tour
-  const wait = (ms: number) => new Promise<boolean>((done) => setTimeout(() => {
-    if (generation === me && bundle.peek() !== opened) stopTour();
-    done(generation === me);
-  }, ms * pace));
+  const wait = (ms: number) =>
+    new Promise<boolean>((done) =>
+      setTimeout(() => {
+        if (generation === me && bundle.peek() !== opened) stopTour();
+        done(generation === me);
+      }, ms * pace),
+    );
   const beam = bundle.value?.header.view?.tour === "beam";
   // `room` (beam tours): how much is kept in view around the target, larger is further out.
   const move = (rows: Map<string, Iterable<number>> | undefined, ms: number, swing: number, room?: number) =>
@@ -79,7 +111,12 @@ async function startTour() {
   else e.autoRotate(ORBIT);
   const header = bundle.value?.header;
   saved = { bundle: opened, showAll: showAll.value, visible: visible.value, domain: domain.value };
-  showAll.value = { ...showAll.value, ...Object.fromEntries((header?.display ?? []).filter((d) => d.onSelection && !d.truth).map((d) => [layerKey(d), true])) };
+  showAll.value = {
+    ...showAll.value,
+    ...Object.fromEntries(
+      (header?.display ?? []).filter((d) => d.onSelection && !d.truth).map((d) => [layerKey(d), true]),
+    ),
+  };
   const steps = tourPlan(header?.display ?? []);
   // A bundle that opens on a shared domain (e.g. Physics): the build-up (or replay) in All, the visits in that domain,
   // to its leading labelled objects.
@@ -87,11 +124,16 @@ async function startTour() {
 
   /** The event built up step by step; false if the tour was stopped. */
   const buildUp = async () => {
-    const here = steps.map(({ step, layers }) => ({ step, layers: layers.filter(showsAny) })).filter((s) => s.layers.length);
-    if (import.meta.env.DEV) Object.assign(window, { evdTourPlan: here.map((s) => s.step.title) }); // for the e2e tests
+    const here = steps
+      .map(({ step, layers }) => ({ step, layers: layers.filter(showsAny) }))
+      .filter((s) => s.layers.length);
+    if (import.meta.env.DEV) Object.assign(window, { emberTourPlan: here.map((s) => s.step.title) }); // for the e2e tests
     let shown = new Set<string>();
     for (const { step, layers: now } of here) {
-      const stays = (d: DisplayLayer) => shown.has(layerKey(d)) && !(d.kind && step.hide?.includes(d.kind)) && (!step.fresh || !!(d.kind && step.keep?.includes(d.kind)));
+      const stays = (d: DisplayLayer) =>
+        shown.has(layerKey(d)) &&
+        !(d.kind && step.hide?.includes(d.kind)) &&
+        (!step.fresh || !!(d.kind && step.keep?.includes(d.kind)));
       shown = new Set([...header!.display.filter(stays), ...now].map(layerKey));
       visible.value = Object.fromEntries(header!.display.map((d) => [layerKey(d), shown.has(layerKey(d))])); // builds the new layers only
       tourCaption.value = { title: step.title, detail: step.detail };
@@ -105,16 +147,20 @@ async function startTour() {
 
   /** The event replayed (render/replay.ts) while the camera follows it; false if the tour was stopped. */
   const replay = async () => {
-    const plan = replayEvent(), start = performance.now(), targets = showers(SHOWERS);
+    const plan = replayEvent(),
+      start = performance.now(),
+      targets = showers(SHOWERS);
     const until = (s: number) => wait(Math.max(0, start + s * 1000 - performance.now())); // s on the replay clock
     if (!plan) return wait(4000);
     // Start wide (collider data: the whole detector, both endcaps) while the particles travel; orbit tours come
     // closer to the action straight away.
     move(beam ? undefined : around(targets), plan.travel * 1000, 0.6);
-    if (plan.growth) { // closer on the paths while they are built (e.g. tracks in the tracker)
+    if (plan.growth) {
+      // closer on the paths while they are built (e.g. tracks in the tracker)
       if (!(await until(plan.growth.start))) return false;
       move(everything(plan.growth.tables), (plan.growth.build - plan.growth.start) * 1000 + 800, 0.3, 1.15);
-      if (plan.linkEnd > plan.growth.end) { // back out for what follows (e.g. clusters forming in the endcaps)
+      if (plan.linkEnd > plan.growth.end) {
+        // back out for what follows (e.g. clusters forming in the endcaps)
         if (!(await until(plan.growth.end))) return false;
         move(beam ? undefined : around(targets), (plan.linkStart - plan.growth.end) * 1000, 0.4);
       }
@@ -137,18 +183,27 @@ async function startTour() {
     if (physics || (steps.length && domain.value)) chooseDomain(null, false);
     if (!(await (steps.length ? buildUp() : replay()))) return;
     if (physics) chooseDomain(physics, false); // first, so that only its layers are built below
-    if (steps.length) { // the event as the bundle shows it: the user's layers, in the domain it opens on
+    if (steps.length) {
+      // the event as the bundle shows it: the user's layers, in the domain it opens on
       engine?.stopReplay();
-      tourCaption.value = { title: "The whole event", detail: "Reconstructed and ready for physics analysis: its leading objects, one by one." };
+      tourCaption.value = {
+        title: "The whole event",
+        detail: "Reconstructed and ready for physics analysis: its leading objects, one by one.",
+      };
       visible.value = saved!.visible;
     }
-    const lead = physics ? leading(LEADING) : [], targets = lead.length ? lead : showers(SHOWERS);
+    const lead = physics ? leading(LEADING) : [],
+      targets = lead.length ? lead : showers(SHOWERS);
     if (!(await fly(undefined, steps.length ? 4000 : 1600, 0.3))) return;
     tourCaption.value = null; // the inspector describes each object visited
-    for (const [k, ref] of targets.entries()) { // the selection cross-fades while the camera glides over
+    for (const [k, ref] of targets.entries()) {
+      // the selection cross-fades while the camera glides over
       // To the next one: out towards the whole event and back in without stopping (the next goal arrives
       // mid-glide); the current one stays selected on the way out.
-      if (k > 0) { move(undefined, 1600, 0); if (!(await wait(beam ? 800 : 1600))) return; }
+      if (k > 0) {
+        move(undefined, 1600, 0);
+        if (!(await wait(beam ? 800 : 1600))) return;
+      }
       selection.value = ref;
       if (!(await fly(highlight.value ?? undefined, 2400, 0.3, 1.35))) return; // closer on the candidate itself
       if (!(await wait(3000))) return;
@@ -165,7 +220,7 @@ async function startTour() {
 function showsAny(d: DisplayLayer) {
   const t = event.value?.tables[d.table];
   if (!t?.n) return false;
-  const ok = passes(d, t, d.cut ? cuts.value[d.cut.group] ?? 0 : 0, filterMask(t, filters.value[d.table]));
+  const ok = passes(d, t, d.cut ? (cuts.value[d.cut.group] ?? 0) : 0, filterMask(t, filters.value[d.table]));
   for (let i = 0; i < t.n; i++) if (ok(i)) return true;
   return false;
 }
@@ -173,19 +228,25 @@ function showsAny(d: DisplayLayer) {
 /** The `k` largest objects (by their size column, e.g. pT) of the drawn layers with labels (layer hint `labels`), each
  *  among its layer's labelled ones: e.g. the leading jets, the lepton, MET. */
 function leading(k: number): Ref[] {
-  const b = bundle.value, ev = event.value;
+  const b = bundle.value,
+    ev = event.value;
   if (!b || !ev) return [];
   const all: [Ref, number][] = [];
   for (const d of b.header.display.filter((l) => l.labels && drawnLayers.value[layerKey(l)])) {
-    const t = ev.tables[d.table], c = t && sizeColumn(d.table, t);
+    const t = ev.tables[d.table],
+      c = t && sizeColumn(d.table, t);
     for (const row of ranked(d, d.labels)) all.push([{ table: d.table, row }, c ? Number(t.columns[c][row]) : 0]);
   }
-  return all.sort((a, c) => c[1] - a[1]).slice(0, k).map(([ref]) => ref);
+  return all
+    .sort((a, c) => c[1] - a[1])
+    .slice(0, k)
+    .map(([ref]) => ref);
 }
 
 /** All objects of the given tables, to frame them. */
 function everything(tables: string[]) {
-  const ev = event.value, rows = new Map<string, number[]>();
+  const ev = event.value,
+    rows = new Map<string, number[]>();
   for (const t of tables) if (ev?.tables[t]?.n) rows.set(t, [...Array(ev.tables[t].n).keys()]);
   return rows.size ? rows : undefined;
 }
@@ -193,25 +254,31 @@ function everything(tables: string[]) {
 /** Everything related to the given showers (their clusters and hits), to frame the replay where the action is;
  *  undefined (the whole event) when there are none. */
 function around(targets: Ref[]) {
-  const b = bundle.value, ev = event.value;
+  const b = bundle.value,
+    ev = event.value;
   if (!b || !ev || !targets.length) return undefined;
   const rows = new Map<string, Set<number>>();
-  for (const ref of targets) for (const [t, set] of related(ev, b.header, ref)) rows.set(t, new Set([...(rows.get(t) ?? []), ...set]));
+  for (const ref of targets)
+    for (const [t, set] of related(ev, b.header, ref)) rows.set(t, new Set([...(rows.get(t) ?? []), ...set]));
   return rows;
 }
 
 /** The largest objects (by their size column, e.g. energy) of the latest visible reconstruction stage, else of the
  *  first visible shower layer, that pass its cut; none if the data has no such layer (then the tour only orbits). */
 function showers(k: number): Ref[] {
-  const b = bundle.value, ev = event.value;
+  const b = bundle.value,
+    ev = event.value;
   if (!b || !ev) return [];
   const drawn = b.header.display.filter((l) => drawnLayers.value[layerKey(l)] && ev.tables[l.table]?.n);
-  const d = drawn.filter((l) => l.stage !== undefined).sort((a, c) => c.stage! - a.stage!)[0]
-    ?? drawn.find(isShower);
+  const d = drawn.filter((l) => l.stage !== undefined).sort((a, c) => c.stage! - a.stage!)[0] ?? drawn.find(isShower);
   if (!d) return [];
   const t = ev.tables[d.table];
   const column = sizeColumn(d.table, t);
   const value = (i: number) => (column ? Number(t.columns[column][i]) : 0);
-  const min = d.cut ? cuts.value[d.cut.group] ?? 0 : -Infinity;
-  return [...Array(t.n).keys()].filter((i) => value(i) >= min).sort((a, c) => value(c) - value(a)).slice(0, k).map((row) => ({ table: d.table, row }));
+  const min = d.cut ? (cuts.value[d.cut.group] ?? 0) : -Infinity;
+  return [...Array(t.n).keys()]
+    .filter((i) => value(i) >= min)
+    .sort((a, c) => value(c) - value(a))
+    .slice(0, k)
+    .map((row) => ({ table: d.table, row }));
 }

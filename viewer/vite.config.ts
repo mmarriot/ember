@@ -4,27 +4,39 @@ import { fileURLToPath } from "node:url";
 import preact from "@preact/preset-vite";
 import { defineConfig, type Plugin } from "vite";
 
-// The development server stands in for the site, which serves the viewer next to index.json and data/:
-// - bundles and indexes are in ../data, answered at / (index.json's own entries) and also under /data/, where the
-//   site keeps them, so a person's area ../data/u/<login>/ is at data/u/<login>/ as on the site;
-// - a bundle or an index that is not there is a 404, as on the site (Vite would answer with the page itself);
-// - `whoami` (on the site a small script behind the single sign-on, saying who is signed in): EVD_WHOAMI=<login>
-//   answers with that login, unset there is no such page, so both ways of knowing whose "My files" to list can be tried.
+// The bundles and indexes the development server serves (the repository's data/ folder).
 const DATA = fileURLToPath(new URL("../data", import.meta.url));
+
+/** Makes the development server answer as the site does, which serves the viewer next to index.json and data/:
+ *  - bundles and indexes in ../data are answered at / (where the site's own index.json names them) and also under
+ *    /data/, where the site keeps them, so a person's area ../data/u/<login>/ is at data/u/<login>/ as on the site;
+ *  - a bundle or an index that is not there is a 404, as on the site (Vite would answer with the page itself);
+ *  - `whoami`, on the site a small script behind the single sign-on that says who is signed in, answers with the
+ *    login in the environment variable EMBER_WHOAMI; without it there is no such page. So both ways the viewer learns
+ *    whose "My files" to list (the site says, or the person types it) can be tried. */
 const site = (): Plugin => ({
-  name: "evd-site",
+  name: "ember-site",
   configureServer(server) {
     server.middlewares.use((req, res, next) => {
       const [path, query = ""] = (req.url ?? "").split("?");
       if (path === "/whoami") {
-        const login = process.env.EVD_WHOAMI;
+        const login = process.env.EMBER_WHOAMI;
         res.statusCode = login ? 200 : 404;
         res.setHeader("Content-Type", "application/json");
         return res.end(login ? JSON.stringify({ login }) : "{}");
       }
       const file = path.startsWith("/data/") ? path.slice(5) : path;
-      const decoded = (() => { try { return decodeURIComponent(path); } catch { return null; } })(); // e.g. "%E0": no such file
-      if (decoded === null || (/\.evdb$|\/index\.json$/.test(file) && !existsSync(join(DATA, decodeURIComponent(file))))) {
+      const decoded = (() => {
+        try {
+          return decodeURIComponent(path);
+        } catch {
+          return null; // e.g. "%E0": no such file
+        }
+      })();
+      if (
+        decoded === null ||
+        (/\.(ember|evdb)$|\/index\.json$/.test(file) && !existsSync(join(DATA, decodeURIComponent(file))))
+      ) {
         res.statusCode = 404;
         return res.end();
       }
@@ -34,8 +46,8 @@ const site = (): Plugin => ({
   },
 });
 
-// Development serves bundles and index.json from ../data. A build is only the viewer (relative paths, so it works in
-// any folder of a site); the site provides index.json and data/ next to it (evdtools sync).
+// Development serves the bundles and index.json from ../data. A build is the viewer alone, with relative paths so
+// that it works in any folder of a site; the site provides index.json and data/ next to it (ember sync).
 export default defineConfig(({ command }) => ({
   plugins: [preact(), site()],
   base: "./",

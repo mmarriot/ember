@@ -1,13 +1,14 @@
 // The object rows of a layer with a `list` hint (the Physics tab's event summary): the largest objects that pass the
 // layer's cut and filter, and the headline that counts them.
-import type { DisplayLayer, Table } from "../io/bundle";
+import type { DisplayLayer, Table } from "../io/format";
 
 /** The rows of `t` that `pass`, largest first by column `sort` (all of them if `t` has no such column, in row order),
  *  at most `max`. For a short list (the side panel's object rows) one pass keeps the `max` largest in order, without
  *  sorting the table: 110k layer clusters at PU200 are a scan, not a 40 ms sort on every render. Otherwise (N steps
  *  through all of them) a sort, O(n log n) in the passing rows. */
 export function topRows(t: Table, sort: string | undefined, pass: (row: number) => boolean, max: number): number[] {
-  const key = sort ? t.columns[sort] : undefined, rows: number[] = [];
+  const key = sort ? t.columns[sort] : undefined,
+    rows: number[] = [];
   if (key && max <= 64) {
     for (let i = 0; i < t.n; i++) {
       if (!pass(i) || (rows.length === max && !(Number(key[i]) > Number(key[rows[max - 1]])))) continue;

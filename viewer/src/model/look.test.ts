@@ -1,25 +1,74 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import type { Bundle, EventData, Header } from "../io/bundle";
+import type { Bundle } from "../io/bundle";
+import type { EventData, Header } from "../io/format";
 import type { Ref } from "./relations";
 // The store sets the page's theme as it loads: a stand-in page (the tests run without a DOM).
 Object.assign(globalThis, { document: { documentElement: { dataset: {} } } });
-const { anchor, bundle, focus, focusBack, focusHistory, focusOn, look, openCard, rawEvent, selection, subject, unlook } = await import("./store");
+const {
+  anchor,
+  bundle,
+  focus,
+  focusBack,
+  focusHistory,
+  focusOn,
+  look,
+  openCard,
+  rawEvent,
+  selection,
+  subject,
+  unlook,
+} = await import("./store");
 
 // jet 0 -> candidate 0 -> layer clusters 0, 1 -> hits 0, 1; a track on its own
-const csr = (rows: number[][]) => ({ offsets: Uint32Array.from(rows.reduce((o, r) => [...o, o[o.length - 1] + r.length], [0])), indices: Uint32Array.from(rows.flat()), weights: {} });
+const csr = (rows: number[][]) => ({
+  offsets: Uint32Array.from(rows.reduce((o, r) => [...o, o[o.length - 1] + r.length], [0])),
+  indices: Uint32Array.from(rows.flat()),
+  weights: {},
+});
 const header = {
-  tables: {}, relations: { jetCand: { from: "Jet", to: "Cand", weights: [] }, candLCs: { from: "Cand", to: "LC", weights: [] }, lcHits: { from: "LC", to: "Hit", weights: [] } },
-  display: ["Hit", "LC", "Cand", "Jet", "Trk"].map((table) => ({ table, group: table, label: table, repr: "markers", visible: true, position: ["x", "y", "z"] })),
+  tables: {},
+  relations: {
+    jetCand: { from: "Jet", to: "Cand", weights: [] },
+    candLCs: { from: "Cand", to: "LC", weights: [] },
+    lcHits: { from: "LC", to: "Hit", weights: [] },
+  },
+  display: ["Hit", "LC", "Cand", "Jet", "Trk"].map((table) => ({
+    table,
+    group: table,
+    label: table,
+    repr: "markers",
+    visible: true,
+    position: ["x", "y", "z"],
+  })),
 } as unknown as Header;
-const ev = { id: [1, 1, 1], tables: Object.fromEntries(["Jet", "Cand", "Trk"].map((t) => [t, { n: 1, columns: {} }]).concat(["LC", "Hit"].map((t) => [t, { n: 2, columns: {} }]))),
-  relations: { jetCand: csr([[0]]), candLCs: csr([[0, 1]]), lcHits: csr([[0], [1]]) } } as unknown as EventData;
+const ev = {
+  id: [1, 1, 1],
+  tables: Object.fromEntries(
+    ["Jet", "Cand", "Trk"]
+      .map((t) => [t, { n: 1, columns: {} }])
+      .concat(["LC", "Hit"].map((t) => [t, { n: 2, columns: {} }])),
+  ),
+  relations: { jetCand: csr([[0]]), candLCs: csr([[0, 1]]), lcHits: csr([[0], [1]]) },
+} as unknown as EventData;
 const at = (table: string, row = 0): Ref => ({ table, row });
 const name = (r: Ref | null) => (r ? `${r.table}${r.row}` : "none");
-const state = () => ({ card: name(subject.value), view: name(selection.value), focus: name(focus.value), back: focusHistory.value.map(name) });
+const state = () => ({
+  card: name(subject.value),
+  view: name(selection.value),
+  focus: name(focus.value),
+  back: focusHistory.value.map(name),
+});
 /** As ui/navigate.ts jump: a list row, N, a linked object clicked in the view. */
-const jump = (ref: Ref) => { focusOn(ref); selection.value = { ...ref }; };
+const jump = (ref: Ref) => {
+  focusOn(ref);
+  selection.value = { ...ref };
+};
 
-beforeEach(() => { bundle.value = { header, events: [{}] } as unknown as Bundle; rawEvent.value = ev; selection.value = null; });
+beforeEach(() => {
+  bundle.value = { header, events: [{}] } as unknown as Bundle;
+  rawEvent.value = ev;
+  selection.value = null;
+});
 
 describe("looking at an object from another's card", () => {
   it("moves the view and keeps the card, with nothing added to the way back; stopping returns to the card's object", () => {

@@ -1,123 +1,91 @@
 <p align="center"><img src="viewer/logo.svg" width="96" alt=""></p>
 
-# evd
+# Ember
 
-A web event display for CMS: hits, clusters, tracks and physics objects of an event in the browser, with what the
-simulation says was really there next to what was reconstructed. CMSSW writes the event as NanoAOD tables, one command
-turns the file into a link, and the link opens the same event, selection and view for anyone it is sent to.
+A web event display for CMS. It shows the hits, clusters, tracks and physics objects of an event in your browser,
+and next to them what the simulation says was really there.
+
+You run one command on a CMSSW output file, and it prints a link. Anyone in CMS who opens the link sees the same
+event, the same selected object and the same view.
 
 <!-- A screenshot belongs here. None is tracked yet: an image of a CMS event is CMS material, and adding one is the
      owner's decision. -->
 
-**Status:** version 0.2, in development, used by its authors. The CMSSW side (`NANO:@EVD`) is a pull request that is
-not merged yet, and the CMS site is not set up yet: the addresses below are provisional. What works today and what
-does not is in [the documentation](https://mmarriot.github.io/evd/getting-started/#what-works-today).
+**Status:** version 0.2, in development. The CMSSW side (`NANO:@EVD`) is not merged yet, and the CMS site is not set
+up yet, so the addresses below are provisional. See [Status](https://mmarriot.github.io/ember/#status) for what works
+today.
 
 ## Quick start
 
-In a CMSSW area that has the event-display NanoAOD (Phase-2 full simulation):
+In a CMSSW area for Phase-2 full simulation that has the `NANO:@EVD` step:
 
 ```bash
-# 1. your own reconstruction command, with one more step and one more output
+# 1. Your own step3 command, with one more step, event content and data tier
 cmsDriver.py step3 ... -s RAW2DIGI,RECO,RECOSIM,NANO:@EVD \
     --eventcontent FEVTDEBUGHLT,NANOAODSIM --datatier GEN-SIM-RECO,NANOAODSIM
-# 2. convert, publish to your area of the site, print the link
-evd step3_inNANOAODSIM.root
-# 3. open the link, or send it to someone
+
+# 2. Convert the NanoAOD, publish it to your user area on the site, and print the link
+ember step3_inNANOAODSIM.root
+
+# 3. Open the link, or send it to someone
 ```
 
-A `step3.root` you already have works too: `evd step3.root` makes the NanoAOD first. The
-[tutorial](https://mmarriot.github.io/evd/getting-started/) goes through both, and through the first things to try in
-the viewer.
+Already have a `step3.root`? Run `ember step3.root`: it makes the NanoAOD first.
+
+The [Getting started](https://mmarriot.github.io/ember/getting-started/) tutorial goes through every step, including
+how to get the `ember` command.
 
 ## Documentation
 
-https://mmarriot.github.io/evd/, built from [`docs/`](docs/):
+The documentation is at **https://mmarriot.github.io/ember/**. It is built from [`docs/`](docs/):
 
-| page | for |
-|---|---|
-| [Getting started](docs/getting-started.md) | a first look, your own events, sharing a link |
-| [The `evd` command](docs/cli.md) | every command, option, message and exit code |
-| [CMSSW side](docs/cmssw.md) | the `NANO:@EVD` flavour: what it writes, what it costs, how to add a collection |
-| [Viewer](docs/viewer.md) | controls, side panel, colours, the selection's card |
-| [Truth](docs/truth.md), [Truth graph](docs/truth-graph.md) | what a reco object is compared with, and what CMSSW's truth graph has and lacks |
-| [Profiles](docs/profiles.md), [Bundle format](docs/format.md) | how tables become a bundle, and what a bundle is |
-| [Hosting](docs/hosting.md) | running the site |
-| [Questions and problems](docs/faq.md) | what a first user runs into |
+- [Getting started](docs/getting-started.md): a tutorial, from a CMSSW job to a link.
+- [How-to guides](docs/how-to.md) and [Questions and problems](docs/faq.md): recipes and answers.
+- Reference: [the `ember` command](docs/cli.md), [the viewer](docs/viewer.md), [the CMSSW side](docs/cmssw.md),
+  [profiles](docs/profiles.md) and [the bundle format](docs/format.md).
+- Background: [how truth is shown](docs/truth.md) and [the truth graph](docs/truth-graph.md).
+- [Hosting](docs/hosting.md): for the people who run the site.
 
-## How the pieces fit
+## How it works
 
 ```
-CMSSW ── NANO:@EVD ──► NanoAOD ── evd ──► .evdb bundle ──► viewer (a static page)
-(DPGAnalysis/           tables: hits,      header: tables, relations,     one ranged read
- EventDisplayNanoAOD)   objects, links,    display hints                  per event
-                        truth graph        records: one per event
+CMSSW ── NANO:@EVD ──► NanoAOD ── ember ──► .ember bundle ──► viewer (a static web page)
 ```
 
-- **CMSSW flavour** (`NANO:@EVD`, package `DPGAnalysis/EventDisplayNanoAOD` in CMSSW, not in this repository): the
-  reconstructed event as flat tables, from hits to physics objects, with the links between them and the truth graph.
-  See [docs/cmssw.md](docs/cmssw.md).
-- **Converter and command** (`evdtools/`, Python, numpy + uproot): `evd` reads the tables, applies a profile (derived
-  columns, relations, cuts, what to draw) and writes a self-describing bundle; it also publishes bundles to the site
-  and runs the site's cron jobs. See [docs/cli.md](docs/cli.md).
-- **Profiles** (`evdtools/profiles/*.json`): `cms` (the whole detector and the physics objects), its modules, and
-  profiles for other data: HGCal cassette tests (`mct`) and test beam (`testbeam`). A new kind of data normally needs
-  only a new profile. See [docs/profiles.md](docs/profiles.md).
-- **Bundle format**: one file, a JSON header and index plus gzip records of typed column arrays, read with one ranged
-  request per event. See [docs/format.md](docs/format.md).
-- **Viewer** (`viewer/`, TypeScript, Preact signals, three.js): a static page that draws what the bundle says; it has
-  no detector-specific code. See [docs/viewer.md](docs/viewer.md).
-- **Site** (`service/`): a static website on EOS with no server process; users' bundles in their own areas, shared
-  samples kept current by cron. See [docs/hosting.md](docs/hosting.md).
+| part | where | what it does |
+| --- | --- | --- |
+| `NANO:@EVD` | CMSSW package `DPGAnalysis/EventDisplayNanoAOD` (not in this repository) | writes the reconstructed event as flat tables, from hits to physics objects, with the links between them and the truth graph |
+| `ember` command | `embertools/` (Python, numpy, uproot) | turns the tables into a bundle, following a profile; publishes bundles to the site; runs the site's cron jobs |
+| profiles | `embertools/profiles/*.json` | say which tables to keep, how they relate, how to cut them and how to draw them. `cms` covers the whole detector; `mct` and `testbeam` cover HGCal cassette tests and test beam. A new kind of data normally needs only a new profile. |
+| bundle | one `.ember` file | a JSON header and index, then one compressed record per event. The viewer reads one event with one request. |
+| viewer | `viewer/` (TypeScript, Preact, three.js) | a static web page that draws what the bundle describes. It has no detector-specific code. |
+| site | `service/` | a static website on EOS, with no server process. It holds each user's bundles and shared samples that cron keeps up to date. |
 
-## Repository
+## Repository layout
 
 ```
-evdtools/          the evd command: converter, bundle reader/writer, site and user areas, export from step3
-evdtools/profiles/ the profiles
-viewer/            the viewer (src/io: reader, src/model: state, src/render: three.js, src/ui); e2e/: browser checks
-tests/             Python tests
-golden/            one simulated event as a bundle, read by the viewer's tests
-docs/              the documentation site (zensical.toml)
-service/           deployment and cron scripts of the site
-tools/             build_zipapp.py: evd as one file
-data/              bundles for the development server (not tracked)
+embertools/          the `ember` command: converter, bundle reader and writer, site and user areas, export from step3
+embertools/profiles/ the profiles
+viewer/              the viewer: src/io (reader), src/model (state), src/render (three.js), src/ui; e2e/ (browser checks)
+tests/               Python tests
+golden/              one simulated event as a bundle, read by the viewer's tests
+docs/                the documentation site (built with zensical.toml)
+service/             deployment and cron scripts for the site
+tools/               build_zipapp.py: builds `ember` as one file
+data/                bundles for the development server (not tracked)
 ```
 
-## Development
+## Contributing
 
-Python 3.9 or later with numpy and uproot (scipy for one derive, awkward for the tests); a CMSSW environment has all
-of them. Node 18 or later for the viewer.
+Contributions are welcome: a table that is not drawn yet, a profile for another kind of data, a fix, a clearer page.
+[CONTRIBUTING.md](CONTRIBUTING.md) explains how to set up, which checks to run and how to make the usual changes.
 
-```bash
-python3 -m pip install -e ".[test]"       # or, inside cmsenv, nothing: python3 -m evdtools ... works from the clone
-python3 -m pytest tests                   # converter, format, command, site
-python3 tools/build_zipapp.py             # dist/evd: the command as one file
+## Help
 
-cd viewer && npm ci
-npm run dev                  # http://127.0.0.1:5173, serves ../data (index.json: {"bundles": [{"file", "title"}]})
-npm run typecheck && npm test
-npm run build                # viewer/dist: the static page
-PLAYWRIGHT_BROWSERS_PATH=<cache> node e2e/smoke.mjs http://127.0.0.1:5173/ e2e/shots   # browser checks
-```
-
-The documentation site builds with [Zensical](https://zensical.org) (Python 3.11 or later):
-
-```bash
-python3 -m venv .venv && .venv/bin/pip install zensical==0.1.1
-.venv/bin/zensical serve            # http://127.0.0.1:8000, rebuilds on every change to docs/
-.venv/bin/zensical build --strict   # site/, as the workflow builds it: fails on a broken link or anchor
-```
-
-[CONTRIBUTING.md](CONTRIBUTING.md) has the checks to run before a pull request, the commit style and how to add a
-table or a profile.
-
-## Help and issues
-
-Questions, problems and ideas: the repository's
-[issue tracker](https://github.com/mmarriot/evd/issues). [docs/faq.md](docs/faq.md) covers what a first user runs
-into. For a problem with a file, the output of `evd inspect FILE.evdb` (or the `evd: ...` line the command printed)
-says most of what is needed.
+Ask questions, report problems and suggest ideas in the
+[issue tracker](https://github.com/mmarriot/ember/issues). [Questions and problems](docs/faq.md) answers what new
+users run into. For a problem with a file, include the `ember: ...` line that the command printed, or the output of
+`ember inspect FILE.ember`.
 
 ## Licence
 

@@ -1,76 +1,147 @@
-# Contributing to evd
+# Contributing to Ember
 
 Changes are welcome: a table that is not drawn yet, a profile for another kind of data, a fix, a clearer page. This
-file says how to set up, what to run before a pull request, and how the usual changes are made.
+file explains how to set up, which checks to run before a pull request, and how to make the usual changes.
 
-## Setting up
+## Set up
+
+You need:
+
+- **Python 3.9 or later** with numpy and uproot. The tests also need scipy and awkward, and the `mct` and `testbeam`
+  profiles need scipy (`pip install ".[scipy]"`). A CMSSW environment has all of them.
+- **Node 18 or later**, for the viewer.
 
 ```bash
-git clone https://github.com/mmarriot/evd.git && cd evd
+git clone https://github.com/mmarriot/ember.git && cd ember
 
-# Python side (3.9 or later): numpy, uproot; scipy and awkward for the tests
-python3 -m pip install -e ".[test]"      # in a virtual environment; inside cmsenv everything is already there
+# Python: the `ember` command, the tests and Ruff (best in a virtual environment)
+python3 -m pip install -e ".[test,dev]"
 
-# viewer (Node 18 or later)
-cd viewer && npm ci
+# Viewer: its dependencies, exactly as locked in package-lock.json
+cd viewer && npm ci && cd ..
+
+# Let git blame skip the commits that only reformatted the code
+git config blame.ignoreRevsFile .git-blame-ignore-revs
 ```
 
-To see events while you work, put bundles in `data/` with an `index.json`
-(`{"bundles": [{"file": "x.evdb", "title": "..."}]}`) and run `npm run dev` in `viewer/` (http://127.0.0.1:5173).
-`golden/v6_1event.evdb` is one event to start with; `evd FILE.root -o data/x.evdb` makes more.
+Inside `cmsenv` you can skip the `pip install`: `python3 -m embertools ...` runs the command straight from the clone.
+You then need Ruff from elsewhere to format the code (see [Formatting](#formatting)).
+
+## See events while you work
+
+The development server serves the viewer and the bundles in `data/`:
+
+```bash
+cd viewer && npm run dev        # http://127.0.0.1:5173
+```
+
+1. Put bundles in `data/`. `golden/v6_1event.ember` is one event to start with. `ember FILE.root -o data/x.ember` makes
+   more.
+2. List them in `data/index.json`: `{"bundles": [{"file": "x.ember", "title": "My bundle"}]}`.
+3. Open http://127.0.0.1:5173. Without bundles, you can still drop a `.ember` file on the page.
+
+The server answers `whoami` (who is signed in) only when `EMBER_WHOAMI=<login>` is set when it starts. Without it, the
+viewer asks for a login, as on a site without `whoami`.
+
+## Formatting
+
+The code is formatted automatically, with lines of up to 120 characters:
+
+- **Python:** [Ruff](https://docs.astral.sh/ruff/). It comes with `pip install -e ".[test,dev]"`.
+- **Viewer:** [Prettier](https://prettier.io), from the viewer's own dependencies.
+
+Format before you commit:
+
+```bash
+ruff format .                          # Python
+ruff check .                           # Python lint: possible bugs and unused code
+cd viewer && npm run format            # viewer
+```
+
+CI fails a pull request whose formatting differs. To check without changing files: `ruff format --check .` and
+`cd viewer && npm run format:check`. CI also runs `ruff check .`, which must report nothing.
 
 ## Before a pull request
 
-Run what the change could affect, and say in the pull request what you ran:
+Run the checks that your change could affect, and say in the pull request which ones you ran:
 
 ```bash
-python3 -m pytest tests                          # converter, format, command, site
-cd viewer && npm run typecheck && npm test       # TypeScript types and unit tests
-PLAYWRIGHT_BROWSERS_PATH=<cache> node e2e/smoke.mjs http://127.0.0.1:5173/ e2e/shots    # viewer changes: browser checks
-cd .. && .venv/bin/zensical build --strict       # documentation changes: fails on a broken link or anchor
+ruff format --check .                            # Python formatting
+ruff check .                                     # Python lint
+python3 -m pytest tests                          # converter, bundle format, command, site
+cd viewer
+npm run format:check                             # viewer formatting
+npm run typecheck && npm test                    # TypeScript types and unit tests
 ```
 
-The first two and the documentation build also run on every pull request (`.github/workflows/`). The browser checks
-need a development server and bundles in `data/`, so they are run by hand: look at the screenshots they write
-(`viewer/e2e/shots/`) before calling a viewer change done.
+**Viewer changes:** also run the browser checks. They need the development server (above) with bundles in `data/`,
+and a Chromium for Playwright (`npx playwright install chromium` once, or `PLAYWRIGHT_BROWSERS_PATH` pointing at an
+existing download):
 
-A change comes with its test: a converter or command change with a case in `tests/`, viewer logic with a `*.test.ts`
-beside it, something visible with a check in `e2e/smoke.mjs`. A bug fix starts with the test that fails without it.
+```bash
+cd viewer
+PLAYWRIGHT_BROWSERS_PATH=<cache> node e2e/smoke.mjs http://127.0.0.1:5173/ e2e/shots
+```
+
+Look at the screenshots in `viewer/e2e/shots/` before you call a viewer change done.
+
+**Documentation changes:** build the site in strict mode. It fails on a broken link or anchor. Zensical needs
+Python 3.11 or later:
+
+```bash
+python3 -m venv .venv && .venv/bin/pip install zensical==0.1.1
+.venv/bin/zensical build --strict    # writes site/, as CI does
+.venv/bin/zensical serve             # http://127.0.0.1:8000, rebuilds when docs/ changes
+```
+
+**What CI runs** (`.github/workflows/`): the Python formatting check, the lint check and the tests; the viewer's
+formatting check, type check and unit tests; and, when `docs/` or `zensical.toml` changes, the strict documentation
+build. The browser checks need a development server and bundles, so you run them by hand.
+
+**Tests:** a change comes with its test. A converter or command change gets a case in `tests/`. Viewer logic gets a
+`*.test.ts` file next to it. Something visible gets a check in the browser checks
+(`viewer/e2e/smoke.mjs` runs them; the checks are in `site.mjs` and `bundle.mjs` beside it). A bug fix starts with a test
+that fails without the fix.
+
+**Builds:** `python3 tools/build_zipapp.py` builds `dist/ember`, the command as one file, which users run.
+`cd viewer && npm run build` builds `viewer/dist`, the static page that the site serves.
 
 ## Style
 
-- **Commits:** one line, imperative, sentence case, no trailing period, saying what the change does for the reader
-  ("Let the browser check read bundle headers from servers without range requests"). A body only when the why is
-  not obvious from the subject.
-- **Code:** the smallest change that does the job, in the style of the file it is in. No detector-specific code in
-  the converter or the viewer: what to read, relate, cut and draw belongs in a profile.
-- **Comments and documentation** say what a thing is for and what it costs, not what the next line does.
-- **Documentation** lives in `docs/` (one page per subject, listed in `zensical.toml`); a new page needs its line
-  in the `nav` there. Write what was measured as measured, with the sample, and what was not checked as not
-  checked.
+- **Commits:** one line, in the imperative, in sentence case, with no full stop at the end. Say what the change does
+  for the reader, for example "Let the browser check read bundle headers from servers without range requests". Add
+  a body only when the reason is not clear from the subject.
+- **Code:** the smallest change that does the job, in the style of the file. The converter and the viewer have no
+  detector-specific code: what to read, relate, cut and draw belongs in a profile.
+- **Comments** say what a thing is for and what it costs, not what the next line does.
+- **Documentation** lives in `docs/`, one page per subject. A new page needs its line in the `nav` of
+  `zensical.toml`. Write in short, plain sentences. Give measured numbers with the sample they were measured on, and
+  say when something was not checked.
 
 ## The usual changes
 
-**Draw a table the file already has.** Add a `display` entry (and `relations` for its links) to the profile of its
-part of the detector in `evdtools/profiles/` ([docs/profiles.md](docs/profiles.md) lists every key;
-[docs/format.md](docs/format.md) every display hint). Entries that name a table the file lacks are dropped, so one
-profile serves files with and without it. Add a case to `tests/test_profile.py`.
+**Draw a table that the file already has.** Add a `display` entry to the profile for its part of the detector in
+`embertools/profiles/`, and `relations` for its links. [docs/profiles.md](docs/profiles.md) lists every key, and
+[docs/format.md](docs/format.md) every display hint. An entry that names a table missing from the file is dropped,
+so one profile serves files with and without the table. Add a case to `tests/test_profile.py`.
 
-**A table CMSSW does not write yet.** That is a change to the CMSSW package `DPGAnalysis/EventDisplayNanoAOD`, then
-a profile entry here ([docs/cmssw.md](docs/cmssw.md#adding-a-collection)).
+**Add a table that CMSSW does not write yet.** Change the CMSSW package `DPGAnalysis/EventDisplayNanoAOD`, then add a
+profile entry here ([docs/cmssw.md](docs/cmssw.md#adding-a-collection)).
 
-**Another kind of data** (a test stand, a test beam). Write a profile: start from `mct.json` or `testbeam.json`.
-Per-run tables (a channel map), event selection and run information are all profile keys.
+**Support another kind of data** (a test stand, a test beam). Write a profile. Start from `mct.json` or
+`testbeam.json`. Per-run tables (such as a channel map), event selection and run information are all profile keys.
 
-**A new way to draw** (a representation the viewer lacks). This is viewer code: `viewer/src/render/layers.ts`, a
-`repr` name in `viewer/src/io/bundle.ts`, its hints in `docs/format.md`. Unknown representations are skipped by
-older viewers, so a bundle stays readable.
+**Add a new way to draw** (a shape the viewer cannot draw yet). This is viewer code:
+a module in `viewer/src/render/layers/` added to `builders` in `layers/index.ts`, a `repr` name in `REPRS` in
+`viewer/src/io/format.ts`, and its hints in `docs/format.md`. Older
+viewers skip a `repr` they do not know, so a new bundle stays readable.
 
-**Truth.** evd's truth is CMSSW's truth graph and its associators, and nothing is matched here that CMSSW does not
-match ([docs/truth.md](docs/truth.md) has the rules). A kind of object gains truth when its associator exists in
-CMSSW and its `match` relation is added to the profile.
+**Truth.** Ember's truth is CMSSW's truth graph and its associators. Ember matches nothing that CMSSW does not match
+([docs/truth.md](docs/truth.md) has the rules). A kind of object gets truth when its associator exists in CMSSW and
+its `match` relation is added to the profile.
 
-## Reporting a problem
+## Report a problem
 
-[Open an issue](https://github.com/mmarriot/evd/issues) with what you ran, the `evd: ...` line or what the page
-showed, `evd --version`, and the release that wrote the file. Do not attach CMS data that is not public.
+[Open an issue](https://github.com/mmarriot/ember/issues). Give the command you ran, the `ember: ...` line or what the
+page showed, the output of `ember --version`, and the CMSSW release that wrote the file. Do not attach CMS data that is
+not public.

@@ -1,18 +1,27 @@
 import { describe, expect, it } from "vitest";
-import type { Bundle, EventData } from "../io/bundle";
+import type { Bundle } from "../io/bundle";
+import type { EventData } from "../io/format";
 // The store sets the page's theme as it loads: a stand-in page (the tests run without a DOM).
 Object.assign(globalThis, { document: { documentElement: { dataset: {} } } });
 const { bundle, eventIndex, loading, rawEvent, showEvent, stepEvent } = await import("./store");
 
 /** A bundle of n events whose reads finish when the test says so. */
 function fake(n: number) {
-  const reads: number[] = [], pending = new Map<number, (ev: EventData) => void>();
+  const reads: number[] = [],
+    pending = new Map<number, (ev: EventData) => void>();
   const b = {
-    header: { display: [], tables: {} }, events: Array.from({ length: n }, () => ({})),
-    event: (i: number) => { reads.push(i); return new Promise<EventData>((done) => pending.set(i, done)); },
+    header: { display: [], tables: {} },
+    events: Array.from({ length: n }, () => ({})),
+    event: (i: number) => {
+      reads.push(i);
+      return new Promise<EventData>((done) => pending.set(i, done));
+    },
     keep: () => {},
   } as unknown as Bundle;
-  const finish = async (i: number) => { pending.get(i)!({ id: [1, 1, i], tables: {}, relations: {} }); await new Promise((r) => setTimeout(r, 0)); };
+  const finish = async (i: number) => {
+    pending.get(i)!({ id: [1, 1, i], tables: {}, relations: {} });
+    await new Promise((r) => setTimeout(r, 0));
+  };
   return { b, reads, finish };
 }
 
@@ -24,7 +33,9 @@ describe("showEvent", () => {
     await finish(0);
     expect(eventIndex.value).toBe(0);
     reads.length = 0;
-    void stepEvent(1); void stepEvent(1); void stepEvent(1); // → three times while event 1 is read
+    void stepEvent(1);
+    void stepEvent(1);
+    void stepEvent(1); // → three times while event 1 is read
     expect(reads).toEqual([1]);
     expect(loading.value).toBe(true);
     await finish(1); // not shown: 3 was asked for meanwhile, and 2 is skipped
@@ -38,7 +49,8 @@ describe("showEvent", () => {
   });
 
   it("drops a read of a bundle no longer open", async () => {
-    const one = fake(5), two = fake(5);
+    const one = fake(5),
+      two = fake(5);
     bundle.value = one.b;
     void showEvent(2);
     bundle.value = two.b; // another data set opened while event 2 is read

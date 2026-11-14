@@ -1,17 +1,24 @@
 // What passes the cuts and filters. A layer gets one value per object (its cut column, or a placeholder) that the
 // shader and Layer.passes() compare with the cut's minimum, so filters and "only the selection's objects" ride on
 // the same comparison: a hidden object's value is below any minimum, a forced one above.
-import type { DisplayLayer, Table } from "../io/bundle";
+import type { DisplayLayer, Table } from "../io/format";
 import { toF32 } from "../render/colour";
 import { filterMask } from "./custom";
 
 export const HIDDEN = -3e38; // below any minimum: never shown
-const SHOWN = 3e38, NO_CUT = -1e30; // NO_CUT: the minimum of a layer with a filter but no cut
+const SHOWN = 3e38,
+  NO_CUT = -1e30; // NO_CUT: the minimum of a layer with a filter but no cut
 
 /** Per-object values to compare with cutMin: the cut column with filtered-out rows hidden, or (`only`) just those
  *  rows shown; undefined when nothing applies. Rows of the `focus` (the selected object and what it is related to)
  *  are not hidden by the filter, only by the cut: a filter chooses what to show, not what a selection may reach. */
-export function cutValues(d: DisplayLayer, t: Table, filter?: string, only?: Set<number>, focus?: Set<number>): Float32Array | undefined {
+export function cutValues(
+  d: DisplayLayer,
+  t: Table,
+  filter?: string,
+  only?: Set<number>,
+  focus?: Set<number>,
+): Float32Array | undefined {
   if (only) {
     const out = new Float32Array(t.n).fill(HIDDEN);
     for (const i of only) out[i] = SHOWN;
@@ -36,4 +43,4 @@ export function rescued(keep: Float32Array | null, focus?: Set<number>): string 
 
 /** The minimum an object's cut value must reach for the layer to show it. */
 export const cutMin = (d: DisplayLayer, values: Float32Array | undefined, cuts: Record<string, number>) =>
-  d.cut ? cuts[d.cut.group] ?? 0 : values ? NO_CUT : -Infinity;
+  d.cut ? (cuts[d.cut.group] ?? 0) : values ? NO_CUT : -Infinity;

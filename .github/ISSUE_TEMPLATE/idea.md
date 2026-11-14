@@ -1,6 +1,6 @@
 ---
 name: Idea
-about: Something evd should show or do
+about: Something Ember should show or do
 labels: enhancement
 ---
 

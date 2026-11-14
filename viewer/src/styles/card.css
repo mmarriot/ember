@@ -1,0 +1,494 @@
+/* The selection's card (Card.tsx): its header, its chain with the truth link of every step (Chain.tsx), the
+   truth card and lineage (TruthCard.tsx), the pair (PairBars.tsx), the levels in the view, the object looked at, its
+   associations and its columns (Properties.tsx). The card is the element with class `inspector`. */
+.inspector {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 384px;
+  max-height: calc(100% - 24px);
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  z-index: 2; /* above the labels on the view, under the top bar's menu */
+  animation: slide-in 0.3s ease-out;
+}
+@keyframes slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+}
+/* Without the slide-in for those who ask for less motion: after the rule above, so that it wins. */
+@media (prefers-reduced-motion: reduce) {
+  .inspector {
+    animation: none;
+  }
+}
+.inspector > header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 12px 12px 0;
+}
+.inspector .kind {
+  color: var(--muted);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.inspector h2 {
+  font-size: 18px;
+}
+.inspector h2 .describe {
+  font-weight: 500;
+  font-size: 0.8em;
+  color: var(--muted);
+}
+.inspector .kind.truth {
+  color: #d7a6ff;
+}
+[data-theme="light"] .inspector .kind.truth {
+  color: #7a3fb0;
+}
+.inspector .navbody {
+  padding: 0 12px 12px;
+}
+.inspector .backlink {
+  display: block;
+  font-size: 11px;
+  margin-bottom: 2px;
+  max-width: 290px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.inspector section {
+  border-top: 1px solid var(--line);
+  padding: 8px 0 6px;
+}
+.inspector section:empty {
+  display: none;
+}
+.inspector h4 {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin: 0 0 6px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+.lanes {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  text-transform: none;
+}
+.lanes .badge {
+  margin: 0;
+}
+.ladder ol {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 14px;
+  border-left: 2px solid var(--line-strong);
+}
+.ladder li.part {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  margin: 6px 0 2px;
+}
+.ladder li.part:first-child {
+  margin-top: 0;
+}
+.rung {
+  position: relative;
+  padding: 2px 0 3px;
+  font-size: 12px;
+}
+.rung::before {
+  content: "";
+  position: absolute;
+  left: -20px;
+  top: 8px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 2px solid var(--line-strong);
+}
+.rung.self::before {
+  background: var(--accent);
+  border-color: var(--accent);
+  left: -21px;
+  top: 7px;
+  width: 10px;
+  height: 10px;
+}
+.rung.shown::before {
+  border-color: var(--accent);
+}
+.rung.self {
+  background: var(--accent-soft);
+  margin: 2px -6px 2px -6px;
+  padding: 3px 6px;
+  border-radius: 6px;
+}
+.rung.self::before {
+  left: -15px;
+}
+.rhead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 6px;
+}
+.rkind {
+  font-weight: 600;
+}
+.rhead .count {
+  font-variant-numeric: tabular-nums;
+}
+.rhead .rtools {
+  margin-left: auto;
+  display: inline-flex;
+  gap: 6px;
+  align-items: baseline;
+}
+.rhead .chip,
+.rlink .chip,
+.rlist .chip {
+  margin: 0;
+}
+.rlink {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 5px;
+  padding-left: 2px;
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+.rlink .lk {
+  font-size: 10px;
+  padding: 0 5px;
+  border-radius: 3px;
+  border: 1px solid currentColor;
+  color: #d7a6ff;
+  white-space: nowrap;
+}
+.rlink.fact .lk,
+.rlink.derived .lk {
+  border-style: dashed;
+}
+.rlink.derived .lk {
+  opacity: 0.75;
+}
+.rlink.none .lk {
+  color: var(--muted);
+  border-style: dotted;
+}
+[data-theme="light"] .rlink .lk {
+  color: #7a3fb0;
+}
+[data-theme="light"] .rlink.none .lk {
+  color: var(--muted);
+}
+.rlink .partner {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+}
+.rlist {
+  margin: 3px 0 2px;
+  padding: 4px 6px;
+  background: var(--surface-2);
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.rlist > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  align-items: baseline;
+}
+.matchcard .truthcard,
+.matchcard .lineage {
+  margin-bottom: 0;
+}
+.meters {
+  margin: 4px 0 6px;
+}
+.meter {
+  display: grid;
+  grid-template-columns: 92px 1fr 40px;
+  align-items: center;
+  column-gap: 8px;
+  font-size: 12px;
+  margin: 3px 0;
+}
+.meter .mname {
+  font-weight: 600;
+}
+.meter b {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.meter .mbar {
+  position: relative;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+}
+.meter .mbar i {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  border-radius: 3px;
+  background: var(--accent);
+}
+.meter .mbar u {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  background: var(--text);
+  opacity: 0.7;
+}
+.meter .mnote {
+  grid-column: 1 / -1;
+  font-size: 11px;
+}
+.pairhead {
+  font-size: 12px;
+  margin: 6px 0 3px;
+}
+.pairbar {
+  display: flex;
+  height: 10px;
+  border-radius: 5px;
+  overflow: hidden;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+}
+.pairbar span {
+  min-width: 2px;
+}
+.pairlegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+  font-size: 11px;
+  margin: 3px 0 4px;
+  color: var(--muted);
+}
+.pairlegend b {
+  color: var(--text);
+  font-weight: 600;
+}
+.props .kv {
+  margin-top: 2px;
+}
+.meter .mbar i.q-clean {
+  background: var(--clean);
+}
+.meter .mbar i.q-impure {
+  background: var(--impure);
+}
+ul.matches {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+ul.matches li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 6px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.truthline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px;
+  margin: 0 0 6px;
+  font-size: 12px;
+}
+.pairline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin: 2px 0 6px;
+  font-size: 12px;
+}
+.pairlegend i {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 4px;
+}
+/* The focus's levels: pills from the largest objects down; the chosen one and the bottom one (always shown) are lit. */
+.level {
+  padding: 0 8px;
+  font-size: 11px;
+  border-radius: 10px;
+}
+.level.on,
+.level.on:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.level .count {
+  font-size: 11px;
+}
+.viewlevels .levelrow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px 4px;
+}
+.level:disabled {
+  cursor: default;
+}
+.level.on .count {
+  color: inherit;
+  opacity: 0.85;
+}
+.truthcard {
+  margin: 0 0 8px;
+}
+.truthcard .kv {
+  margin: 0 0 4px;
+}
+.lineage {
+  margin: 0 0 8px;
+}
+.lineage li.here > .chip {
+  outline: 1px dashed currentColor;
+}
+.lineage.crumb {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px 4px;
+  align-items: baseline;
+  font-size: 12px;
+  margin-top: 4px;
+}
+.lineage.crumb .chip,
+.lineage.crumb .badge {
+  margin: 0;
+}
+.lineage span.here > .chip {
+  outline: 1px dashed currentColor;
+}
+/* Inspector: a reco object's energy fractions, one bar in a neutral ramp. */
+.fractions {
+  margin: 6px 0 8px;
+}
+.fractions .fbar {
+  display: flex;
+  height: 10px;
+  border-radius: 3px;
+  overflow: hidden;
+  background: var(--surface-2);
+}
+.fractions .fbar span {
+  display: block;
+  height: 100%;
+}
+.fractions .flegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--muted);
+  align-items: center;
+}
+.fractions .flegend i {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  margin-right: 4px;
+}
+.associations summary {
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--muted);
+}
+.associations .related {
+  margin: 6px 0 8px;
+}
+details.allcolumns {
+  font-size: 12px;
+  margin-top: 6px;
+}
+details.allcolumns summary {
+  cursor: pointer;
+  color: var(--muted);
+}
+
+/* The object looked at from the card: a block on the card's bottom edge, with the way into its own card. */
+.inspector section.looking {
+  position: sticky;
+  bottom: 0;
+  border: none;
+  border-top: 2px solid var(--accent);
+  padding: 8px 12px 10px;
+  margin: 0;
+  background: var(--accent-soft);
+  box-shadow: 0 -6px 14px rgba(0, 0, 0, 0.25);
+  max-height: 55%;
+  overflow-y: auto;
+}
+.looking .lookhead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+.looking .open {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  border-radius: 10px;
+  padding: 1px 10px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.looking .kv {
+  margin-top: 4px;
+}
+button.lk {
+  cursor: pointer;
+  background: none;
+  font: inherit;
+  font-size: 10px;
+  line-height: 1.5;
+}
+button.lk:hover {
+  background: var(--surface-2);
+}
+.looking .lookhead > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  white-space: nowrap;
+}

@@ -1,27 +1,42 @@
 # Getting started
 
-From nothing to an event on screen, and to a link you can send. Three starting points, shortest first:
+This tutorial takes you from a CMSSW reconstruction job to an event in your browser, and to a link that you can send
+to a colleague. Follow the steps in order.
 
-1. [look at the shared samples](#1-look-at-the-shared-samples): nothing to run;
-2. [your own events from a new reconstruction job](#2-your-own-events-from-a-new-reconstruction-job): one more step
-   in your `cmsDriver.py` command, then one command;
-3. [a step3.root you already have](#3-a-step3root-you-already-have): one command.
+You will:
 
-Then [five things to try first](#4-five-things-to-try-first) in the viewer, [sharing a link](#5-share-a-link),
-[your files on the site](#6-your-files) and [keeping a file to yourself](#7-keep-it-to-yourself).
+1. get the `ember` command;
+2. make the event-display NanoAOD in your CMSSW job;
+3. turn it into a link with `ember`;
+4. open the event and look around;
+5. share the link;
+6. tidy up.
 
-> **The site's address is provisional.** This page writes `https://cms-evd.web.cern.ch` and
-> `/eos/project/c/cms-evd/` for the CMS site. It is not set up yet; the names may change when it is.
-> [What works today](#what-works-today) says what you can do before then.
+> **The site is not set up yet.** This page uses `https://cms-ember.web.cern.ch` and `/eos/project/c/cms-ember/` for the
+> CMS site. These addresses are provisional. Until the site exists, step 3 cannot publish: write a file instead, as
+> step 3 explains. See [Status](index.md#status).
 
-## Before you start
+**Only want to look?** Once the site is set up, you will not need to run anything. Open
+`https://cms-ember.web.cern.ch` (provisional) and sign on with your CERN account. The site opens its newest shared
+sample. Then go to [step 4](#step-4-look-at-the-event).
 
-- **To look:** a browser and a CERN account that is a member of CMS (the site is behind the CERN sign-on).
-- **For your own events:** a CMSSW area with the event-display NanoAOD (the `NANO:@EVD` flavour, Phase-2 full
-  simulation; see [CMSSW side](cmssw.md)), and the `evd` command.
+**Want to see the viewer right now?** You can do it on your own computer without CMSSW or the site. Follow
+[Look at a bundle without the site](how-to.md#look-at-a-bundle-without-the-site) and drop
+`golden/v6_1event.ember` from the repository on the page: it is one simulated event. Then go to
+[step 4](#step-4-look-at-the-event).
 
-> **Until the CMSSW pull requests are merged** (delete this box afterwards). `NANO:@EVD` is not in a release yet. In
-> a recent CMSSW_20_1_X integration build (`scram list -c CMSSW_20_1_X` lists them; they expire after a few weeks), once:
+## What you need
+
+- **A CERN account that is a member of CMS.** The site is behind the CERN single sign-on.
+- **A CMSSW area for Phase-2 full simulation that has the `NANO:@EVD` step.** See the box below.
+- **Python 3.9 or later with numpy and uproot.** `cmsenv` gives you all three.
+- **Off lxplus:** a Kerberos ticket and the XRootD tools, so that `ember` can write to EOS. Run
+  `kinit <your login>@CERN.CH`, and `cmsenv` (it puts `xrdcp` and `xrdfs` in your `PATH`).
+
+<!-- Delete this box once the CMSSW pull requests are merged. -->
+> **Until the CMSSW pull requests are merged.** No CMSSW release has `NANO:@EVD` yet.
+> Add it to a recent CMSSW_20_1_X integration build. `scram list -c CMSSW_20_1_X` lists the builds; they expire
+> after a few weeks. Do this once:
 >
 > ```bash
 > cmsrel CMSSW_20_1_X_<date> && cd CMSSW_20_1_X_<date>/src && cmsenv
@@ -29,43 +44,63 @@ Then [five things to try first](#4-five-things-to-try-first) in the viewer, [sha
 > scram b -j 8
 > ```
 >
-> Everything else on this page is the same.
+> The branch is not public yet, so `git cms-merge-topic` works only once it is pushed. The rest of this page is the
+> same either way.
 
-### The `evd` command
+## Step 1: Get the `ember` command
 
-`evd` is one file that runs in any CMSSW environment (it needs `python3` with numpy and uproot, which `cmsenv`
-provides) with nothing to install. Any of:
+`ember` is a single file. It runs in any CMSSW environment, with nothing to install. Choose one way to get it.
+
+**From a clone of the repository** (works anywhere):
 
 ```bash
-# on lxplus: the copy kept next to the site (provisional path)
-alias evd=/eos/project/c/cms-evd/bin/evd
-
-# anywhere: build the one file from a clone
-git clone https://github.com/mmarriot/evd.git
-python3 evd/tools/build_zipapp.py ~/bin/evd        # then ~/bin/evd, or put ~/bin in PATH
-
-# or install it with pip (outside CMSSW, or in a virtual environment)
-python3 -m pip install git+https://github.com/mmarriot/evd.git
+git clone https://github.com/mmarriot/ember.git
+python3 ember/tools/build_zipapp.py ~/bin/ember
 ```
 
-`evd --version` prints `evd 0.2.0`. Every command and option is in [The `evd` command](cli.md).
+This writes the file `~/bin/ember`. If `~/bin` is not in your `PATH`, call it as `~/bin/ember`, or add `~/bin` to your
+`PATH`.
 
-## 1. Look at the shared samples
+**On lxplus, once the site is set up:** use the copy kept next to the site (provisional path):
 
-Open the site, `https://cms-evd.web.cern.ch` (provisional). It opens the newest shared data set. The button at the
-left of the top bar names the data set that is open; click it to choose another:
+```bash
+alias ember=/eos/project/c/cms-ember/bin/ember
+```
 
-- the site's **shared groups**: a few events of each RelVal sample of recent releases, and test-stand data, kept
-  current by the site (see [Hosting](hosting.md));
-- **My files** and **Recent**, which are empty until you publish something or open someone's link.
+**With pip** (outside CMSSW, or in a Python virtual environment):
 
-Type in the panel to filter, ↑ ↓ and Enter to open, Esc to close. Go on to
-[five things to try first](#4-five-things-to-try-first).
+```bash
+python3 -m pip install git+https://github.com/mmarriot/ember.git
+```
 
-## 2. Your own events from a new reconstruction job
+**Check that it works:**
 
-Add the `NANO:@EVD` step, a NanoAOD event content and a NanoAOD data tier to the `cmsDriver.py` command you already
-use for step3:
+```
+$ ember --version
+ember 0.2.0
+```
+
+**If it fails:**
+
+- `command not found`: the command is not in your `PATH`. Give its full path, for example `~/bin/ember --version`.
+  After `pip install` outside a virtual environment, `ember` is usually in `~/.local/bin`.
+- `No module named 'numpy'` (or `'uproot'`): this Python lacks a package that Ember needs. Run `cmsenv` first.
+
+## Step 2: Make the event-display NanoAOD
+
+`ember` reads a special NanoAOD file, the *event-display NanoAOD*. Your reconstruction job writes it when you add one
+step. Normal analysis NanoAOD does not work: it has no hits.
+
+> **Do you already have a step3 file?** Then skip this step. In step 3, give `ember` your `step3.root`. `ember` then
+> makes the NanoAOD for you. This needs `cmsenv` in a release that has `NANO:@EVD`.
+
+Take the `cmsDriver.py` command that you already use for step3, and add three things:
+
+- `NANO:@EVD` at the end of the steps (`-s`);
+- `NANOAODSIM` at the end of `--eventcontent`;
+- `NANOAODSIM` at the end of `--datatier`.
+
+For example:
 
 ```bash
 cmsDriver.py step3 -s RAW2DIGI,RECO,RECOSIM,NANO:@EVD \
@@ -74,150 +109,129 @@ cmsDriver.py step3 -s RAW2DIGI,RECO,RECOSIM,NANO:@EVD \
     --filein file:step2.root --fileout file:step3.root -n -1 --nThreads 16
 ```
 
-Only `NANO:@EVD`, `NANOAODSIM` (twice) are new; keep your own conditions, geometry, era and everything else. The job
-writes `step3.root` as before and, beside it, `step3_inNANOAODSIM.root`: the same events as tables. The step runs
-nothing unless it is asked for, and on a 20-event ttbar job without pile-up it changed neither the job's wall time
-nor its memory measurably ([costs](cmssw.md#what-it-costs)).
+Keep your own conditions, geometry, era and other options.
 
-Then:
+**What you should see:** the job writes `step3.root` as before. Next to it, it writes `step3_inNANOAODSIM.root`. This
+is the event-display NanoAOD: the same events, as tables.
+
+The extra step costs little. On a job of 20 ttbar events without pile-up, it changed neither the job's run time nor
+its memory by a measurable amount ([costs](cmssw.md#what-it-costs)).
+
+**If it fails** with `Impossible to map EVD`: your CMSSW area does not have the `NANO:@EVD` step. Add it as
+[What you need](#what-you-need) explains.
+
+## Step 3: Turn the file into a link
+
+Run `ember` on the NanoAOD file:
 
 ```
-$ evd step3_inNANOAODSIM.root
+$ ember step3_inNANOAODSIM.root
 step3_inNANOAODSIM.root: NanoAOD from CMSSW_20_1_X_2026-11-12-2300, 20 events
   44 tables, 86 relations, 43 display layers
   10 events of 20 (--max-events 0 for all), 8 MB, 1 s
-published step3_inNANOAODSIM: kept until 2026-12-13 (evd list, evd rm step3_inNANOAODSIM)
+published step3_inNANOAODSIM: kept until 2026-12-13 (ember list, ember rm step3_inNANOAODSIM)
 
-https://cms-evd.web.cern.ch/#b=data/u/jsmith/step3_inNANOAODSIM.evdb
+https://cms-ember.web.cern.ch/#b=data/u/jsmith/step3_inNANOAODSIM.ember
 ```
 
-The last line is the link: open it, or send it. What happened: `evd` read the tables, wrote the first 10 events as a
-bundle (`.evdb`), copied it to your area of the site, `data/u/<your login>/`, and added it to your list there.
+**What happened:**
 
-Useful options (all of them: [cli.md](cli.md#evd-view)):
+1. `ember` read the tables in the file.
+2. It wrote the first 10 events as a bundle (a `.ember` file). Ask for more with `--max-events 50`, or for all with
+   `--max-events 0`.
+3. It copied the bundle to your user area on the site, `data/u/<your login>/`, and added it to your list there.
+4. It printed the link on the last line.
 
-| | |
-|---|---|
-| `--max-events 50`, `--max-events 0` | more events, or all of them (10 by default: a PU200 event is about 18 MB to download) |
-| `--events 3,7-9` | these event numbers only |
-| `--name ttbar_newtune --title "ttbar, new tune"` | the name in the link and the title in the viewer's list (default: the file's name) |
-| `-o mine.evdb` | write the bundle here and publish nothing ([keep it to yourself](#7-keep-it-to-yourself)) |
+The site keeps the bundle for 30 days.
 
-Off lxplus, where `/eos` is not mounted, `evd` copies through XRootD and needs a Kerberos ticket:
-`kinit <login>@CERN.CH`.
+**Starting from a step3 file instead?** Run `ember step3.root`. `ember` first runs a short CMSSW job that makes the
+NanoAOD. It prints the geometry, conditions and era it chose. With 8 threads this took about 20 s to start, then
+0.3 s per event without pile-up, or 1.6 s per event at 200 pile-up. `ember` runs the job with 4 threads unless you give
+`-j`. If `ember` cannot tell the geometry, see [Convert a step3 file](how-to.md#convert-a-step3-file-you-already-have).
 
-## 3. A step3.root you already have
-
-```bash
-cmsenv          # in a release that has NANO:@EVD
-evd step3.root
-```
-
-For a CMSSW reconstruction file `evd` first makes the NanoAOD itself, with `cmsDriver.py ... -s NANO:@EVD` in a
-temporary directory, then goes on as above. It says what it found:
-
-- the **geometry**, read from the file (the list of geometry files its job used, matched to the release's Run4
-  geometries);
-- the **conditions**: the file's global tag if it names exactly one, else the release's default for that geometry;
-- the **era**: the release's default for that geometry. A file does not record its era.
-
-When it cannot tell, or the file was made with something else than the defaults, say it:
-
-```bash
-evd step3.root --geometry D110 --era Phase2C17I13M9 --conditions auto:phase2_realistic_T33
-evd step3.root --nano evd_nano.root        # also keep the NanoAOD that was made
-```
-
-What the file must hold: the event content `FEVTDEBUGHLT`, which is what RelVal `GEN-SIM-RECO` files are written
-with, or `RECOSIM`. `AODSIM` and MiniAOD lack the hits and are not supported. The same thing by hand, if you want the NanoAOD as a file of its own:
-
-```bash
-cmsDriver.py evd -s NANO:@EVD --conditions auto:phase2_realistic_T35 --geometry ExtendedRun4D104 \
-    --era Phase2C22I13M9 --mc --eventcontent NANOAODSIM --datatier NANOAODSIM -n -1 --nThreads 8 \
-    --filein file:step3.root --fileout file:evd_nano.root
-evd evd_nano.root
-```
-
-This takes about 0.3 s per event without pile-up and 1.6 s per event at 200 pile-up (8 threads), plus about 20 s
-for the job to start.
-
-## 4. Five things to try first
-
-The viewer's own help is `?`; everything is described in [Viewer](viewer.md).
-
-1. **Move.** Drag to rotate, scroll to zoom, right-drag to pan. `1` `2` `3` `4` are the 3D, front, side and ρ–z
-   views. The **Look at** bar (or `D`) shows one part of the detector at a time: Physics, Tracker, Calo, HGCal,
-   Muons, or All. `Home` shows everything again.
-2. **Go through events.** `→` and `←`, or type an event number in the **Event…** box. `P` plays a tour of the event:
-   it is built up step by step, from the collision point outwards and from hits to physics objects, with a caption.
-3. **Click something.** A jet, a track, a cluster, a hit. Its card (right) shows what it is part of and what it is
-   made of, down to the hits. `↓` and `↑` draw one step of that chain at a time; click a name in the card to look at
-   that object; `Esc` goes back.
-4. **Ask the simulation.** `T` switches the colours from the reconstruction to the truth: every object in the colour
-   of the generator particle it comes from. With an object selected, `X` crosses to its truth match and back, and the
-   card says how good the match is (purity, completeness). What these mean: [Truth](truth.md).
-5. **Cut the clutter.** In the side panel, each kind of object has its cut as a chip ("pT ≥ 30 GeV"): click it for a
-   slider. **only** on a heading shows that kind alone. A click on a row's count lists its largest objects.
-
-## 5. Share a link
-
-The share button (top right) copies a link to what is on screen and shows what the link opens: the data set, the
-event, the part of the detector, the view, the selection and the colours. Anyone who can open the site sees the same.
-Cuts, ticked collections and the camera position are not part of a link.
-
-The address bar holds the same link at all times, so copying it works too. A link to one of your files works while
-the file is on the site ([30 days](#6-your-files) from when you last published it); after that the reader is told
-that the file is gone and whose it was.
-
-## 6. Your files
-
-In the viewer, **My files** in the data set chooser lists what you published, most recently published first, with
-the number of events and when each expires. The site knows who you are from the sign-on; where it does not, the chooser asks for
-your CERN login once and remembers it in that browser. Other people's files are not listed anywhere: they are
-reached by link, and a link you opened is then under **Recent**.
-
-From the shell:
+**While the site does not exist**, publishing fails with `the site directory ... does not exist`. Write the bundle to
+a file instead:
 
 ```
-$ evd list
+$ ember step3_inNANOAODSIM.root -o mine.ember
+...
+wrote mine.ember
+```
+
+Then open a viewer and drop `mine.ember` on the page ([Look at a bundle without the
+site](how-to.md#look-at-a-bundle-without-the-site)). Skip step 5: a local file has no link.
+
+**If it fails**, `ember` prints one line that starts with `ember:`. The most common ones:
+
+| message | what to do |
+| --- | --- |
+| `... has none of the tables that the profile cms draws (it has: Jet, Muon, ...)` | This is analysis NanoAOD. Make the event-display NanoAOD as in [step 2](#step-2-make-the-event-display-nanoaod). |
+| `the site directory ... does not exist` | The site is not set up, or not reachable from here. Use `-o FILE.ember`, as above. |
+| `cannot reach ...` or `cannot write ...: ... refused` | You have no valid Kerberos ticket. Run `kinit <your login>@CERN.CH`, then try again. |
+| `xrdfs not found ...` (or `xrdcp`) | You are not on lxplus, and the XRootD tools are not in your `PATH`. Run `cmsenv`, then try again. |
+| `'...' cannot be a login` | Your account name on this machine is not your CERN login. Add `--user <your CERN login>`. |
+
+Every message, and what to do about it, is in [The `ember` command](cli.md#messages-and-what-to-do).
+
+## Step 4: Look at the event
+
+Open the link in your browser, and sign on with your CERN account if asked. You see the first event of your bundle.
+
+Press `?` at any time for the viewer's own help. Now try these five things:
+
+1. **Move around.** Drag to rotate, scroll to zoom, and right-drag to pan. Press `1`, `2`, `3` or `4` for the 3D,
+   front, side and ρ–z views. Use the **Look at** bar at the top (or press `D`) to show one part of the detector:
+   Physics, Tracker, Calo, HGCal, Muons, or All. Press `Home` to see everything again.
+2. **Go through the events.** Press `→` and `←`. Or type an event number in the **Event…** box. Press `P` for a
+   tour: the viewer builds up the event step by step, from the collision point outwards and from hits to physics
+   objects, with a caption for each step.
+3. **Click an object**, for example a jet, a track, a cluster or a hit. Its card opens on the right. The card shows
+   what the object is part of, and what it is made of, down to the hits. Press `↓` and `↑` to draw one step of this
+   chain at a time. Click a name in the card to look at that object. Press `Esc` to go back.
+4. **Compare with the simulation.** Press `T` to colour everything by the simulated particle it comes from. Select an
+   object and press `X` to jump to its truth match, and `X` again to come back. The card says how good the match is,
+   as purity and completeness. [Truth](truth.md) explains these words.
+5. **Hide what you do not need.** In the side panel, each kind of object shows its cut, for example
+   "pT ≥ 30 GeV". Click the cut to change it with a slider. Click **only** on a heading to show that kind alone.
+   Click the count on a row to list its largest objects.
+
+All the controls are described in [Viewer](viewer.md).
+
+## Step 5: Share the link
+
+Click the share button at the top right. It copies a link to what is on your screen, and it lists what the link
+opens: the data set, the event, the part of the detector, the view, a kind of object shown alone, the selected
+object and the colours. Anyone who can open the site sees the same thing.
+
+The link does not keep your cuts, your ticked collections or the camera position.
+
+The address bar always holds the same link, so you can also copy it from there. A link to one of your bundles works
+for 30 days after you last published it. After that, the page tells the reader that the file is gone, and whose it
+was.
+
+## Step 6: Tidy up
+
+The viewer lists your bundles under **My files**: click the data set name at the left of the top bar. You can also
+list them from the shell:
+
+```
+$ ember list
 NAME                EVENTS  SIZE  EXPIRES     TITLE
 step3_inNANOAODSIM  10      8 MB  2026-12-13  step3_inNANOAODSIM · 10 events
-$ evd list -l          # with each link
-$ evd rm step3_inNANOAODSIM
+```
+
+Remove a bundle that you no longer need:
+
+```
+$ ember rm step3_inNANOAODSIM
 removed step3_inNANOAODSIM
 ```
 
-A bundle is kept **30 days** after it was last published. Publishing the same name again replaces it and starts the
-30 days again; the link stays the same. With nothing published, `evd list` says so. There is no quota per person yet: please remove what you no longer need.
+There is no size limit per person yet. Please remove what you no longer need.
 
-## 7. Keep it to yourself
+## What next
 
-Nothing has to go to the site:
-
-```bash
-evd step3_inNANOAODSIM.root -o mine.evdb     # or --no-publish: writes step3_inNANOAODSIM.evdb here
-```
-
-Then drop `mine.evdb` on the viewer's page (or **Open a local file…** in the chooser). The file is read where it is,
-by your browser, and is not uploaded; it has no link, and the share button says so. `evd inspect mine.evdb` and
-`evd validate mine.evdb` describe and check a bundle without a browser.
-
-## What works today
-
-| | state |
-|---|---|
-| `NANO:@EVD` in CMSSW | two branches for CMSSW_20_1_X, to become two pull requests (generic table producers; the flavour, `eventdisplay-nano`), not pushed or merged yet. The RelVal workflow added for it (`29634.214`) passes. Phase-2 full simulation only: Run 3, FastSim, premixed pile-up and data are untested |
-| `evd` on NanoAOD and on step3 files | works; geometry detection covers Run4 geometries described by XML files |
-| the CMS site, `/eos/project/c/cms-evd/bin/evd`, shared RelVal samples | not set up yet: addresses provisional. Until then `evd FILE.root -o FILE.evdb` and a viewer you can reach (a development server, see the repository's README) |
-| the viewer | checked in Chromium (the browser tests run there); other current browsers are expected to work and are not tested. A PU200 event is an 18 MB download |
-| who you are on the site (`whoami`) | untested on the real site; the typed login is the fallback |
-
-Numbers on this page were measured on ttbar events, geometry `ExtendedRun4D104`, with the integration build
-CMSSW_20_1_X_2026-11-12-2300:
-
-| per event | no pile-up | 200 pile-up |
-|---|---|---|
-| NanoAOD (`NANO:@EVD`) | 0.94 MB | 21.5 MB |
-| making it from a step3 file, 8 threads | 0.3 s | 1.6 s |
-| bundle (`.evdb`) | 0.85 MB | 18 MB |
-| `evd`: NanoAOD to bundle, 4 threads | 0.1 s | 1.2 s |
+- [How-to guides](how-to.md): convert a step3 file, choose events, name your bundle, keep a bundle to yourself.
+- [Questions and problems](faq.md): what new users run into.
+- [Viewer](viewer.md): every control, the side panel, colours and the selection's card.
+- [The `ember` command](cli.md): every option and message.

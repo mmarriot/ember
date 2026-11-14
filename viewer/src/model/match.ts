@@ -2,7 +2,7 @@
 // share of the reco object's hits or energy that came from the particle) and completeness (the share of the
 // particle's hits or energy that the object has), from an association's `match` hint. The associator's own score is
 // a ranking (0 best, squared for calorimeter objects), not a fraction, so it is shown next to these, never instead.
-import type { EventData, Fact, Header, Match } from "../io/bundle";
+import type { EventData, Fact, Header, Match } from "../io/format";
 import { evaluate } from "./custom";
 import { facts } from "./facts";
 import { type ColourBy, modeColouring, modeRoots, reachesRoot } from "./modes";
@@ -40,27 +40,41 @@ export interface Quality {
 
 /** The quality of entry `k` of reco -> truth relation `name` for its reco object `row`; undefined without a `match`. */
 export function quality(ev: EventData, header: Header, name: string, k: number, row: number): Quality | undefined {
-  const info = header.relations[name], rel = ev.relations[name], match = info?.match;
+  const info = header.relations[name],
+    rel = ev.relations[name],
+    match = info?.match;
   if (!match || !rel || !(match.shared ?? match.purity)) return undefined;
   const score = info.best?.order === "min" ? rel.weights[info.best.weight]?.[k] : undefined;
-  if (match.purity) { // the weight is the purity (e.g. a vertex's pT² share)
+  if (match.purity) {
+    // the weight is the purity (e.g. a vertex's pT² share)
     const purity = rel.weights[match.purity]?.[k];
     if (purity === undefined) return undefined;
     return { match, shared: purity, purity, score, clean: match.good !== undefined ? purity >= match.good : undefined };
   }
-  const shared = rel.weights[match.shared!]?.[k], own = ownAmount(ev, info.from, match)?.[row];
+  const shared = rel.weights[match.shared!]?.[k],
+    own = ownAmount(ev, info.from, match)?.[row];
   if (shared === undefined) return undefined;
   const purity = own && own > 0 ? Math.min(1, shared / own) : undefined;
-  return { match, shared, over: own, purity, score, clean: purity !== undefined && match.good !== undefined ? purity >= match.good : undefined };
+  return {
+    match,
+    shared,
+    over: own,
+    purity,
+    score,
+    clean: purity !== undefined && match.good !== undefined ? purity >= match.good : undefined,
+  };
 }
 
 /** Per object of the `from` table of reco -> truth relation `name`: the purity of its best match (NaN without one, or
  *  without a `match` hint). Once per event. */
 export function bestPurities(ev: EventData, header: Header, name: string): Float32Array | null {
-  const info = header.relations[name], rel = ev.relations[name];
+  const info = header.relations[name],
+    rel = ev.relations[name];
   if (!(info?.match?.shared ?? info?.match?.purity) || !rel) return null;
   return cached(ev, `purity|${name}`, () => {
-    const n = ev.tables[info.from]?.n ?? 0, { entry } = bestPartners(rel, info, true, n), out = new Float32Array(n).fill(NaN);
+    const n = ev.tables[info.from]?.n ?? 0,
+      { entry } = bestPartners(rel, info, true, n),
+      out = new Float32Array(n).fill(NaN);
     for (let i = 0; i < n; i++) if (entry[i] >= 0) out[i] = quality(ev, header, name, entry[i], i)?.purity ?? NaN;
     return out;
   });
@@ -68,9 +82,17 @@ export function bestPurities(ev: EventData, header: Header, name: string): Float
 
 /** The completeness of the match of truth row `particle` with reco object `row` of `table`: the share of the
  *  particle's hits or energy (where its truth -> reco association counts them) that the object has. */
-export function completeness(ev: EventData, header: Header, truth: string, particle: number, table: string, row: number): { value: number; match: Match } | undefined {
+export function completeness(
+  ev: EventData,
+  header: Header,
+  truth: string,
+  particle: number,
+  table: string,
+  row: number,
+): { value: number; match: Match } | undefined {
   for (const [name, info] of Object.entries(header.relations)) {
-    const rel = ev.relations[name], c = info.match?.completeness;
+    const rel = ev.relations[name],
+      c = info.match?.completeness;
     if (!c || !rel || info.from !== truth || info.to !== table || particle + 1 >= rel.offsets.length) continue;
     for (let k = rel.offsets[particle]; k < rel.offsets[particle + 1]; k++) {
       const w = rel.weights[c.weight]?.[k];
@@ -81,13 +103,14 @@ export function completeness(ev: EventData, header: Header, truth: string, parti
 }
 
 /** A purity or completeness as a percentage. */
-export const percent = (x: number | undefined) => (x === undefined || Number.isNaN(x) ? "–" : `${Math.round(100 * x)}%`);
+export const percent = (x: number | undefined) =>
+  x === undefined || Number.isNaN(x) ? "–" : `${Math.round(100 * x)}%`;
 
 // What the truth graph says about each kind of object (docs/truth.md "Where truth stops"), the same words everywhere:
 // the inspector's truth box, the colour key, the Truth tab's coverage list.
 
 /** A drawn table's truth, in this order: `match`, its own reco -> truth association with a `match` hint (to the truth
- *  particles or vertices); `fact`, hits with the simulated energy each particle left in them; `derived`, evd's
+ *  particles or vertices); `fact`, hits with the simulated energy each particle left in them; `derived`, Ember's
  *  stand-in (layer clusters by the simulated energy in their hits); `none`, its kind's `truthGap` (why, and the gap
  *  in docs/truth-graph.md); `container`, drawn in the colour of what contains it (a track's hits); else `none`. */
 export type TruthStatus =
@@ -98,12 +121,17 @@ export type TruthStatus =
   | { kind: "container"; relation: string };
 
 export const NO_EXPORT = "no truth association exported for this kind";
-const DERIVED = "no associator in CMSSW; evd shows the particle with the most simulated energy in its hits";
+const DERIVED = "no associator in CMSSW; Ember shows the particle with the most simulated energy in its hits";
 
 /** The truth status of `table` (undefined for truth layers and for a bundle without truth). `colouring`: the truth
  *  mode's (model/modes.ts), computed when not given. */
-export function truthStatus(header: Header, table: string, colouring?: Record<string, ColourBy>): TruthStatus | undefined {
-  const d = header.display.find((l) => l.table === table), truth = (t: string) => !!header.display.find((l) => l.table === t)?.truth;
+export function truthStatus(
+  header: Header,
+  table: string,
+  colouring?: Record<string, ColourBy>,
+): TruthStatus | undefined {
+  const d = header.display.find((l) => l.table === table),
+    truth = (t: string) => !!header.display.find((l) => l.table === t)?.truth;
   if (!d || d.truth) return undefined;
   const root = modeRoots(header).truth;
   if (!root) return undefined;
@@ -112,9 +140,11 @@ export function truthStatus(header: Header, table: string, colouring?: Record<st
   const fact = facts(header).find((f) => f.to === table);
   if (fact) return { kind: "fact", in: fact.in, ...(fact.unit ? { unit: fact.unit } : {}) };
   const c = (colouring ?? modeColouring(header, root, true))[table];
-  if (c && typeof c === "object" && "content" in c) return { kind: "derived", reason: d.truthGap?.reason ?? DERIVED, gap: d.truthGap?.gap };
+  if (c && typeof c === "object" && "content" in c)
+    return { kind: "derived", reason: d.truthGap?.reason ?? DERIVED, gap: d.truthGap?.gap };
   if (d.truthGap) return { kind: "none", reason: d.truthGap.reason, gap: d.truthGap.gap };
-  if (c && typeof c === "object" && "relation" in c && !header.relations[c.relation]?.association) return { kind: "container", relation: c.relation };
+  if (c && typeof c === "object" && "relation" in c && !header.relations[c.relation]?.association)
+    return { kind: "container", relation: c.relation };
   return { kind: "none", reason: NO_EXPORT };
 }
 
@@ -122,46 +152,68 @@ export function truthStatus(header: Header, table: string, colouring?: Record<st
  *  never opens a pair; its constituents may), and, given the reco mode's colouring (`reco`), not for a reco kind
  *  outside the candidates' chain (an ECAL cluster: the pair is the HGCal candidates'). Truth particles and bundles
  *  without truth keep their pair. */
-export function opensPair(header: Header, table: string, colouring?: Record<string, ColourBy>, reco?: Record<string, ColourBy>) {
+export function opensPair(
+  header: Header,
+  table: string,
+  colouring?: Record<string, ColourBy>,
+  reco?: Record<string, ColourBy>,
+) {
   const s = truthStatus(header, table, colouring);
   return !s || (s.kind !== "none" && (!reco || reachesRoot(header, reco, table)));
+}
+
+/** Truth -> hit relation `name` read from the hit side: per hit, its particles and their entries in the relation. Once
+ *  per event (one pass over the relation: about 10 ms for the 600k HGCal entries of a PU200 event). */
+function byHit(ev: EventData, name: string, nHits: number) {
+  return cached(ev, `byHit|${name}`, () => {
+    const rel = ev.relations[name],
+      offsets = new Uint32Array(nHits + 1);
+    for (let k = 0; k < rel.indices.length; k++) if (rel.indices[k] < nHits) offsets[rel.indices[k] + 1]++;
+    for (let h = 0; h < nHits; h++) offsets[h + 1] += offsets[h];
+    const fill = offsets.slice(0, nHits),
+      particle = new Int32Array(offsets[nHits]),
+      entry = new Uint32Array(offsets[nHits]);
+    for (let p = 0; p + 1 < rel.offsets.length; p++)
+      for (let k = rel.offsets[p]; k < rel.offsets[p + 1]; k++) {
+        const h = rel.indices[k];
+        if (h < nHits) {
+          particle[fill[h]] = p;
+          entry[fill[h]++] = k;
+        }
+      }
+    return { offsets, particle, entry };
+  });
 }
 
 /** What truth particles left in the given objects' hits, one group per detector (simulated energy is never summed
  *  across detectors: sampling and homogeneous calorimeters, photoelectrons in HF): per particle, the sum of the fact
  *  relations' weight over those hits, in hit layers for which `use` holds (e.g. drawn, so a hit is not counted twice
  *  through two hit tables). Largest first; groups without any energy are left out. */
-/** Truth -> hit relation `name` read from the hit side: per hit, its particles and their entries in the relation. Once
- *  per event (one pass over the relation: about 10 ms for the 600k HGCal entries of a PU200 event). */
-function byHit(ev: EventData, name: string, nHits: number) {
-  return cached(ev, `byHit|${name}`, () => {
-    const rel = ev.relations[name], offsets = new Uint32Array(nHits + 1);
-    for (let k = 0; k < rel.indices.length; k++) if (rel.indices[k] < nHits) offsets[rel.indices[k] + 1]++;
-    for (let h = 0; h < nHits; h++) offsets[h + 1] += offsets[h];
-    const fill = offsets.slice(0, nHits), particle = new Int32Array(offsets[nHits]), entry = new Uint32Array(offsets[nHits]);
-    for (let p = 0; p + 1 < rel.offsets.length; p++)
-      for (let k = rel.offsets[p]; k < rel.offsets[p + 1]; k++) {
-        const h = rel.indices[k];
-        if (h < nHits) { particle[fill[h]] = p; entry[fill[h]++] = k; }
-      }
-    return { offsets, particle, entry };
-  });
-}
-
 export function simEnergyByParticle(ev: EventData, header: Header, objects: Related, use: (table: string) => boolean) {
-  const groups = new Map<string, { in: string; unit?: Fact["unit"]; table: string; weight: string; total: number; sums: Map<number, number> }>();
+  const groups = new Map<
+    string,
+    { in: string; unit?: Fact["unit"]; table: string; weight: string; total: number; sums: Map<number, number> }
+  >();
   for (const f of facts(header)) {
-    const info = header.relations[f.name], rel = ev.relations[f.name], rows = objects.get(f.to), weight = info.best?.weight ?? info.weights[0];
+    const info = header.relations[f.name],
+      rel = ev.relations[f.name],
+      rows = objects.get(f.to),
+      weight = info.best?.weight ?? info.weights[0];
     const w = weight ? rel?.weights[weight] : undefined;
     if (!rel || !rows || !w || !use(f.to)) continue;
     const g = groups.get(f.in) ?? { in: f.in, unit: f.unit, table: f.from, weight, total: 0, sums: new Map() };
     // Through the hits: the relation read from the hit side, once per event, so a selection costs its own hits.
     const { offsets, particle, entry } = byHit(ev, f.name, ev.tables[f.to]?.n ?? 0);
     for (const h of rows)
-      for (let j = offsets[h]; j < offsets[h + 1]; j++) { const p = particle[j], e = w[entry[j]]; g.sums.set(p, (g.sums.get(p) ?? 0) + e); g.total += e; }
+      for (let j = offsets[h]; j < offsets[h + 1]; j++) {
+        const p = particle[j],
+          e = w[entry[j]];
+        g.sums.set(p, (g.sums.get(p) ?? 0) + e);
+        g.total += e;
+      }
     groups.set(f.in, g);
   }
-  return [...groups.values()].filter((g) => g.total > 0)
+  return [...groups.values()]
+    .filter((g) => g.total > 0)
     .map(({ sums, ...g }) => ({ ...g, particles: [...sums].sort((a, c) => c[1] - a[1]) }));
 }
-

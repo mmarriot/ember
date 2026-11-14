@@ -3,7 +3,7 @@
 // play, it skips ahead to the newest. Until switched off; starting the tour stops it, and the other way round.
 import { bundle, catalogue, following, openBundle, refreshCatalogue, showEvent, toast, touring } from "../model/store";
 import { stopTour } from "./tour";
-import { engine, replayEvent } from "./Viewport";
+import { engine, replayEvent } from "./scene";
 
 const POLL = 10_000; // ms between index checks while waiting for data
 const DWELL = 2_500; // ms an event stays after its replay

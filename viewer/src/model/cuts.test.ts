@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
-import type { DisplayLayer, Table } from "../io/bundle";
+import type { DisplayLayer, Table } from "../io/format";
 import { cutMin, cutValues, rescued } from "./cuts";
 import { filterMask } from "./custom";
 
 const t: Table = { n: 4, columns: { pt: Float32Array.from([0.5, 2, 3, 4]), pv: Float32Array.from([0, 0, 1, 1]) } };
 const d = { table: "Tracks", cut: { group: "pT", column: "pt" } } as DisplayLayer;
-const passing = (values: Float32Array | undefined, min: number) => [...values!].map((v, i) => (v >= min ? i : -1)).filter((i) => i >= 0);
+const passing = (values: Float32Array | undefined, min: number) =>
+  [...values!].map((v, i) => (v >= min ? i : -1)).filter((i) => i >= 0);
 
 describe("cutValues", () => {
   it("hides the rows a filter leaves out, and those below the cut", () => {

@@ -33,8 +33,10 @@ line-length = 120
 target-version = "py39"
 
 [tool.ruff.lint]
-# Ruff's default rule set, fixed by the pinned version in the dev extra. It covers pyflakes (F), likely bugs (B), import
-# order (I), modern syntax for the Python 3.9 floor (UP, which follows target-version) and simplifications (SIM).
+# Ruff's default rule set for the version pinned in the dev extra (0.17.5), which CI installs. It is broad: pyflakes
+# (F), likely bugs (B), modern syntax for the Python 3.9 floor (UP, which follows target-version), simplifications
+# (SIM), pylint (PL), Ruff's own (RUF), naive datetimes (DTZ), blind excepts (BLE) and more. Bumping the pin can
+# change the set: run `ruff check .` and fix or ignore what is new.
 
 [tool.ruff.lint.per-file-ignores]
 # It runs under whatever python3 is first on the path, so it checks the version itself, in syntax old ones can parse.

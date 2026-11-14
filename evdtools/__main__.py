@@ -62,7 +62,7 @@ def parser():
     p.add_argument("--no-publish", action="store_true", help="write <name>.evdb here and do not publish it")
     p.add_argument("--name", help="the bundle's name on the site (default: the first input's name)")
     p.add_argument("--title", help="its title in the viewer's list (default: its name)")
-    _convert_options(p, "cms", "10, or all of those given with --events; 0: all", cmsrun=True)
+    _convert_options(p, "cms", "10, or all of those given with --events; 0: all", reconstruction=True)
     _site_options(p)
     edm = p.add_argument_group(
         "for CMSSW reconstruction files (default: what the file records, and the release's defaults for its geometry)"
@@ -111,7 +111,7 @@ def parser():
     # Running the site (service/README.md)
     p = sub.add_parser("sync", help="site: convert new input files of the configured campaigns and update the index")
     p.add_argument("--config", required=True, help="JSON: campaigns (see evdtools/service.py)")
-    p.add_argument("--max-files", type=int, help="convert at most this many files in this run")
+    p.add_argument("--max-files", type=_number(1), help="convert at most this many files in this run")
     p.add_argument("--dry-run", action="store_true", help="only list what would be converted")
 
     p = sub.add_parser("publish", help="site: add a finished bundle to a campaign of the site's list")
@@ -129,9 +129,9 @@ def parser():
     p.add_argument("--site", help="site directory (gets data/<campaign>/part_NNNN.evdb and index.json)")
     p.add_argument("--campaign", default="live_demo")
     p.add_argument("--title", default="Simulated live data")
-    p.add_argument("--events", type=int, default=5, help="events per published file")
+    p.add_argument("--events", type=_number(1), default=5, help="events per published file")
     p.add_argument("--interval", type=float, default=60, help="seconds between files")
-    p.add_argument("--start", type=int, default=0, help="first event")
+    p.add_argument("--start", type=_number(0), default=0, help="first event")
 
     p = sub.add_parser("clean", help="site: remove the users' bundles that have expired (for cron)")
     _site_dir_option(p)
@@ -150,7 +150,8 @@ def _site_options(p):
     p.add_argument("--user", help="whose area on the site (default: $EVD_USER, else your login)")
 
 
-def _convert_options(p, profile, max_events=None, cmsrun=False):
+def _convert_options(p, profile, max_events=None, reconstruction=False):
+    """The conversion options; `reconstruction`: the command also takes CMSSW reconstruction files."""
     p.add_argument("--profile", default=profile, help=f"profile name or JSON path (default: {profile})")
     p.add_argument(
         "--max-events",
@@ -161,11 +162,11 @@ def _convert_options(p, profile, max_events=None, cmsrun=False):
     p.add_argument(
         "--events",
         type=_event_numbers,
-        help="only these event numbers, e.g. 416622,416630-416640 (the profile's selection still "
-        "applies; a reconstruction file is exported in full to find them)",
+        help="only these event numbers, e.g. 416622,416630-416640 (the profile's selection still applies"
+        + ("; a reconstruction file is exported in full to find them)" if reconstruction else ")"),
     )
     threads = "threads to read and compress with (default: up to 4)"
-    if cmsrun:
+    if reconstruction:
         threads += "; for a reconstruction file, also the threads of its cmsRun job (default: 4)"
     p.add_argument("-j", "--threads", type=_number(1), help=threads)
 

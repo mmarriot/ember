@@ -127,7 +127,8 @@ def written_by(f):
     """The CMSSW release that wrote an open NanoAOD (or EDM) file: that of the last process of its history, or None."""
     try:
         history = branch_bytes(f["MetaData/ProcessHistory"])
-    except Exception:  # noqa: BLE001 (no such tree, e.g. a NanoAOD-like file from elsewhere: the release is not recorded)
+    except Exception:  # noqa: BLE001
+        # No such tree (e.g. a NanoAOD-like file from elsewhere): the release is not recorded.
         return None
     releases = re.findall(rb"CMSSW_\d+_\d+_[\w-]+", history)
     return releases[-1].decode() if releases else None

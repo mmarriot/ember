@@ -210,7 +210,8 @@ def sync(config, max_files=None, dry_run=False, convert=None, export=None):
                 n = _convert_input(campaign, path, source, target, convert, export)
                 log(f"{key}: {n} events in {time.time() - started:.0f} s")
                 done += 1
-            except Exception as e:  # noqa: BLE001 (keep going with the other files; give up on this one after max_failures)
+            except Exception as e:  # noqa: BLE001
+                # Keep going with the other files; give up on this one after max_failures.
                 failures[key] = failures.get(key, 0) + 1
                 _write_json(failures_path, failures)
                 log(f"{key}: failed ({failures[key]}/{max_failures}): {e!r}")

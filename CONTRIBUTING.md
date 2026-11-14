@@ -123,7 +123,7 @@ that fails without the fix.
 **Draw a table that the file already has.** Add a `display` entry to the profile for its part of the detector in
 `embertools/profiles/`, and `relations` for its links. [docs/profiles.md](docs/profiles.md) lists every key, and
 [docs/format.md](docs/format.md) every display hint. An entry that names a table missing from the file is dropped,
-so one profile serves files with and without the table. Add a case to `tests/test_profile.py`.
+so one profile serves files with and without the table. Add a case to `tests/test_builtin_profiles.py`.
 
 **Add a table that CMSSW does not write yet.** Change the CMSSW package `DPGAnalysis/EventDisplayNanoAOD`, then add a
 profile entry here ([docs/cmssw.md](docs/cmssw.md#adding-a-collection)).

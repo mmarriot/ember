@@ -1,6 +1,7 @@
 """Profile resolution against a file's tables: display kinds, sources and stages, column checks, sameRows, derived
 columns, relation kinds beyond the plain ones, and the hints passed to the viewer."""
 import json
+import os
 
 import numpy as np
 import pytest
@@ -384,9 +385,11 @@ def test_calo_layers_in_cms():
     """cms includes calo.json: the barrel and forward calorimeter hits as towers in the Calo domain, one cut group
     per subdetector, HO and HF hidden, HF not drawn in the front view; HGCal truth -> hit relations are facts."""
     p = load_profile("cms")
-    hit = {**XYZE, **dict.fromkeys(("energy", "time", "halfWidth", "dEta", "dPhi", "thickness"), F4), "layer": np.dtype("i2")}
+    # the tower tables as the exporter writes them: an eta-phi extent and a depth, no half-width (that is HGCal's)
+    hit = {**XYZE, **dict.fromkeys(("energy", "time", "dEta", "dPhi", "thickness"), F4), "layer": np.dtype("i2")}
     conv = converter({t: hit for t in ("EcalHits", "HBHEHits", "HOHits", "HFHits")}, p)
     d = {x["table"]: x for x in conv.display}
+    assert all(x["size"] is None for x in d.values())
     assert {x["domain"] for x in d.values()} == {"Calo"} and all(x["cell"]["shape"] == "tower" for x in d.values())
     assert [t for t, x in d.items() if x["visible"]] == ["EcalHits", "HBHEHits"]
     assert len({x["cut"]["group"] for x in d.values()}) == 4 and "front" not in d["HFHits"]["views"]
@@ -479,14 +482,15 @@ def test_muon_layers_in_cms():
 
 
 def test_hgcal_profile_alone_keeps_its_bundles():
-    """hgcal.json (main's HGCal-only bundles) gained only truth hints: `fact` on its truth -> hit relations and the
-    layer clusters' derived truthGap. No domain, outline, view or new kind reaches an hgcal bundle."""
+    """hgcal.json (main's HGCal-only bundles) gained only truth hints (`fact` on its truth -> hit relations, the layer
+    clusters' derived truthGap, the candidates' truthGap for a release without their associator) and the candidates' own
+    tracksters of a stock release. No domain, outline or view reaches an hgcal bundle."""
     p = load_profile("hgcal")
-    assert not {"domains", "outlines", "field"} & set(p) and "domain" not in p["view"] and len(p["display"]) == 16
-    assert sorted(p["kinds"]) == ["candidate", "interpretation", "layerCluster", "linkedTrackster", "rechit", "track",
-                                  "trackster", "truthParticle", "truthVertex"]
+    assert not {"domains", "outlines", "field"} & set(p) and "domain" not in p["view"] and len(p["display"]) == 17
+    assert sorted(p["kinds"]) == ["candidate", "candidateTrackster", "interpretation", "layerCluster", "linkedTrackster",
+                                  "rechit", "track", "trackster", "truthParticle", "truthVertex"]
     assert {r["name"] for r in p["relations"] if "fact" in r} == {"truthHitsHGCal", "truthHitsSoAEE", "truthHitsSoAHSi", "truthHitsSoAHSci"}
-    assert [k for k, v in p["kinds"].items() if "truthGap" in v] == ["layerCluster"]
+    assert sorted(k for k, v in p["kinds"].items() if "truthGap" in v) == ["candidate", "layerCluster"]
     header = converter({"HGCalHits": {**XYZE, "energy": F4, "halfWidth": F4, "time": F4}}, p).header([], "t")
     assert not {"domains", "outlines"} & set(header) and [d["table"] for d in header["display"]] == ["HGCalHits"]
 
@@ -525,3 +529,57 @@ def test_tracker_profile_alone_and_tracker_only():
     assert [d["name"] for d in header["domains"]] == ["Tracker"] and header["field"]["bz"] == 3.8
     assert header["relations"]["trackVertex"]["inverseOf"] == "vertexTracks"
     assert header["view"]["start"] == "front" and {d["table"]: d["repr"] for d in header["display"]}["Tracks"] == "helix"
+
+
+STOCK = {t: {c: np.dtype(d) for c, d in cols.items()}  # the tables NANO:@EVD writes on an unmodified release
+         for t, cols in json.load(open(os.path.join(os.path.dirname(__file__), "stock_tables.json"))).items()}
+
+
+def test_cms_profile_reads_a_stock_release_export():
+    """The tables of a stock CMSSW release (CMSSW_20_1_X_2026-11-12-2300, tests/stock_tables.json) under the cms
+    profile: every table is drawn, feeds a relation or is left out on purpose; the CLUE3D tracksters and the candidates'
+    own tracksters (table ticlCandidate) are matched to truth, and the candidates take their position and their layer
+    clusters from their own trackster."""
+    conv = converter(STOCK, load_profile("cms"))
+    header = conv.header([], "t")
+    drawn, rels = {d["table"] for d in header["display"]}, header["relations"]
+    # written without a layer: only the muons' track information, which muon.json reads through a relation
+    assert set(conv.written()) - drawn == {"TrackMuonInfo"}
+    assert not [t for t in conv.written() if t.endswith(("ToTruth", "FromTruth", "vertices")) or t == "linkedTracksters"]
+    for reco, truth, table in (("clue3dTruth", "truthClue3d", "ticlTrackstersCLUE3DHigh"),
+                               ("ownTracksterTruth", "truthOwnTracksters", "ticlCandidate"),
+                               ("linksTruth", "truthLinked", "ticlTracksterLinks")):
+        assert (rels[reco]["from"], rels[reco]["to"]) == (table, "TruthParticles") == (rels[truth]["to"], rels[truth]["from"])
+        assert rels[reco]["match"]["shared"] == "sharedEnergy" and "completeness" in rels[truth]["match"]
+    # ticlCandidateToTruth is the candidates' tracksters' here, so it is not read as the candidates' own
+    assert not {"candidateTruth", "truthCandidates", "candidateTrackster", "candidateLCs"} & set(rels)
+    assert (rels["candidateOwnTrackster"]["to"], rels["candidateOwnLCs"]["to"]) == ("ticlCandidate", "HGCalLayerClusters")
+    assert rels["candidateLinkedTracksters"]["to"] == "ticlTracksterLinks"
+    kinds = {d["table"]: d for d in header["display"]}
+    assert "truthGap" in kinds["TICLCandidates"] and kinds["ticlCandidate"]["kind"] == "candidateTrackster"
+    assert "linkedTracksters" not in converter(STOCK, load_profile("tracker_only")).written()
+
+
+def test_a_relation_steps_aside_for_a_table():
+    """`unless`: a relation is not built when one of those tables is in the file (two exports that give one table name
+    to different associations)."""
+    tables = {"A": {"x": F4}, "B": {"x": F4}, "L": {"a": np.dtype("i4"), "b": np.dtype("i4")}}
+    rel = {"name": "ab", "kind": "links", "from": "A", "to": "B", "table": "L", "fromIndex": "L.a", "toIndex": "L.b",
+           "unless": ["C"]}
+    profile = {"name": "t", "relations": [rel], "display": []}
+    assert "ab" in converter(tables, profile).relations
+    assert "ab" not in converter({**tables, "C": {"x": F4}}, profile).relations
+
+
+def test_clue3d_tracksters_are_matched_to_truth():
+    """A stock release makes CLUE3D tracksters, not CLUEstering ones: both are matched to truth the same way, in both
+    directions."""
+    rels = {r["name"]: r for r in load_profile("hgcal")["relations"]}
+    for reco, truth, table in (("clusteringTruth", "truthClusterings", "ticlTrackstersCLUEstering"),
+                               ("clue3dTruth", "truthClue3d", "ticlTrackstersCLUE3DHigh")):
+        assert rels[reco]["from"] == rels[truth]["to"] == table and rels[reco]["to"] == rels[truth]["from"] == "TruthParticles"
+        assert rels[reco]["table"] == f"{table}ToTruth" and rels[truth]["table"] == f"{table}FromTruth"
+        assert rels[truth]["match"] == rels["truthClusterings"]["match"]
+        assert {**rels[reco]["match"], "over": None} == {**rels["clusteringTruth"]["match"], "over": None}
+    assert rels["clue3dTruth"]["match"]["over"] == ["raw_energy"]  # no SoA twin with a rawEnergy column
+    assert {"ticlTrackstersCLUE3DHighToTruth", "ticlTrackstersCLUE3DHighFromTruth"} <= set(load_profile("hgcal")["internal"])

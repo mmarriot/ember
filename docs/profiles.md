@@ -96,8 +96,10 @@ A list, applied in order (so a later derive can override an earlier estimate). E
 | `key` | `"fromKey"`, `"toKey"` columns: the `to` row with the same key (e.g. the same DetId in two hit tables); the first if several |
 | `compose` | `"via": [r1, r2]`: earlier relations chained; each row reaches the union of what its `r1` rows reach through `r2`. `from` and `to` are those of the chain |
 
-Optional: `"written": false` (the relation is built for derives and cuts but not written, e.g. jets -> the vertex
-whose position they gather), `"weights": ["T.col", ...]` (one per link, stored as f32), and the viewer hints `association`, `best`,
+Optional: `"unless": ["T", ...]` (the relation is not built when one of these tables is in the file: for two exports
+that give one table name to different associations, e.g. `ticlCandidateToTruth`, the candidates' own in a development
+export and their tracksters' in a stock release, which has the table `ticlCandidate`), `"written": false` (the relation
+is built for derives and cuts but not written, e.g. jets -> the vertex whose position they gather), `"weights": ["T.col", ...]` (one per link, stored as f32), and the viewer hints `association`, `best`,
 `fact` (a truth -> hit relation: simulated energy per particle and cell, e.g. `{"in": "ECAL"}`; `unit` names a coarser simulation unit than the hit, e.g. the CSC layer of a muon hit), `match` (how a reco <-> truth match is measured: [truth.md](truth.md#each-kinds-contract)) and `inverseOf`
 ([format.md](format.md#relations)), copied to the header. `"inverseOf": r` says that this relation points
 from a part back up to its container, the reverse of relation `r` (e.g. `trackVertex`, the inverse of `vertexTracks`):

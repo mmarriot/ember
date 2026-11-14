@@ -62,7 +62,7 @@ def parser():
     p.add_argument("--no-publish", action="store_true", help="write <name>.evdb here and do not publish it")
     p.add_argument("--name", help="the bundle's name on the site (default: the first input's name)")
     p.add_argument("--title", help="its title in the viewer's list (default: its name)")
-    _convert_options(p, "cms", "10, or all of those given with --events; 0: all")
+    _convert_options(p, "cms", "10, or all of those given with --events; 0: all", cmsrun=True)
     _site_options(p)
     edm = p.add_argument_group(
         "for CMSSW reconstruction files (default: what the file records, and the release's defaults for its geometry)"
@@ -150,7 +150,7 @@ def _site_options(p):
     p.add_argument("--user", help="whose area on the site (default: $EVD_USER, else your login)")
 
 
-def _convert_options(p, profile, max_events=None):
+def _convert_options(p, profile, max_events=None, cmsrun=False):
     p.add_argument("--profile", default=profile, help=f"profile name or JSON path (default: {profile})")
     p.add_argument(
         "--max-events",
@@ -164,7 +164,10 @@ def _convert_options(p, profile, max_events=None):
         help="only these event numbers, e.g. 416622,416630-416640 (the profile's selection still "
         "applies; a reconstruction file is exported in full to find them)",
     )
-    p.add_argument("-j", "--threads", type=_number(1), help="threads to read and compress with (default: up to 4)")
+    threads = "threads to read and compress with (default: up to 4)"
+    if cmsrun:
+        threads += "; for a reconstruction file, also the threads of its cmsRun job (default: 4)"
+    p.add_argument("-j", "--threads", type=_number(1), help=threads)
 
 
 def _number(least):

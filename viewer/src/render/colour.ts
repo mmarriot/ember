@@ -223,7 +223,7 @@ export function colours(
     return { rgb: out, legend: { kind: "category", text: "one colour per object" } };
   }
   // A kind's own colour (display hint `fixedColour`), also over "none", which bundles give as old viewers' fallback; the
-  // truth mode and a user's colour choice drop the hint (store.ts shownLayer, custom.ts withColour).
+  // truth mode and a user's colour choice drop the hint (store/colours.ts shownLayer, custom.ts withColour).
   if (d.fixedColour && (d.colourBy === undefined || d.colourBy === "none")) {
     const c = rgb(d.fixedColour);
     for (let i = 0; i < t.n; i++) set(i, c);

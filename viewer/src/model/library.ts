@@ -1,4 +1,4 @@
-// The data sets a person can open, beyond the site's shared list (index.json, store.ts `catalogue`): their own
+// The data sets a person can open, beyond the site's shared list (index.json, store/open.ts `catalogue`): their own
 // (data/u/<login>/index.json, written by `evd file.root`) and the ones they opened lately from links. Who they are
 // comes from the site (`whoami`, answered behind the single sign-on) or, failing that, from the login they type once.
 // Nothing here draws: the chooser (ui/Chooser.tsx) and the start panels (ui/Start.tsx) do.

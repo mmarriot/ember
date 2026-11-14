@@ -2,7 +2,7 @@
 // reconstruction root (candidates). Each table is coloured through the relation that leads towards the root, so a
 // colour chain such as hit -> layer cluster -> candidate is worked out from the bundle's relations, not named in the
 // profile. Used by the "pid" colour mode (everything takes its candidate's colour) and by the pair view
-// (model/pair.ts: which candidate and which truth particle each object belongs to); the signals are in store.ts.
+// (model/pair.ts: which candidate and which truth particle each object belongs to); the signals are in store/colours.ts.
 import type { DisplayLayer, Header, RelationInfo } from "../io/format";
 import { factIn } from "./facts";
 

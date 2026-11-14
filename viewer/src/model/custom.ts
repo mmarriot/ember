@@ -17,7 +17,7 @@ export const colourBy = signal<Record<string, string>>({}); // display layer key
 export const activePreset = signal(0); // index into the profile's presets
 /** pid: candidates by particle type, a selection as its truth <-> reco pair (bundles with candidates); layers: each
  *  layer coloured on its own (the others); truth: everything by the generator particle it comes from (docs/truth.md),
- *  reco objects only where they are a clean match. Set by the bundle and the Reco | Truth switch (store.ts
+ *  reco objects only where they are a clean match. Set by the bundle and the Reco | Truth switch (store/colours.ts
  *  activeMode). */
 export type ColourMode = "pid" | "layers" | "truth";
 let defaultFilters: Record<string, string> = {}; // from the display hints (`filter`) of the open bundle

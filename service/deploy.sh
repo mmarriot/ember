@@ -7,7 +7,10 @@
 # mounted).
 set -eo pipefail
 REPO=$(cd "$(dirname "$0")/.." && pwd)
-eval "$(cd "$REPO" && python3 -m embertools.site)"   # EMBER_SITE_DIR, EMBER_SITE_URL, EMBER_SERVICE_DIR as embertools sees them
+# EMBER_SITE_DIR, EMBER_SITE_URL, EMBER_SERVICE_DIR as embertools sees them. Assigned first, so that set -e stops the
+# deployment when python fails (e.g. an old EVD_* setting that is no longer read).
+SETTINGS=$(cd "$REPO" && python3 -m embertools.site)
+eval "$SETTINGS"
 SITE=${1:-$EMBER_SITE_DIR}
 SERVICE=${2:-$EMBER_SERVICE_DIR}
 BIN=${EMBER_BIN_DIR:-$(dirname "$SITE")/bin}
@@ -18,11 +21,14 @@ mkdir -p "$SITE/assets" "$SITE/data/u" "$SERVICE/code" "$SERVICE/logs" "$BIN"
 rsync -a "$REPO/viewer/dist/assets/" "$SITE/assets/"
 cp "$REPO/viewer/dist/index.html" "$SITE/index.html.tmp" && mv "$SITE/index.html.tmp" "$SITE/index.html"
 rsync -a --delete "$REPO/viewer/dist/assets/" "$SITE/assets/"  # then drop files of older builds
-rsync -a --delete --exclude __pycache__ "$REPO/embertools" "$REPO/service" "$SERVICE/code/"
-# The cron jobs work on the site this deployment was made for (service/env.sh reads this file).
+# The cron jobs work on the site this deployment was made for (service/env.sh reads this file). Written before the code,
+# so that a cron run that starts during the copy never finds new code with old settings.
 printf "export EMBER_SITE_DIR='%s'\nexport EMBER_SITE_URL='%s'\nexport EMBER_SERVICE_DIR='%s'\n" "$SITE" "$EMBER_SITE_URL" "$SERVICE" > "$SERVICE/code/site.env"
+rsync -a --delete --exclude __pycache__ "$REPO/embertools" "$REPO/service" "$SERVICE/code/"
 # The `ember` command as one file, replaced by a rename so that a running copy is never half-written.
 python3 "$REPO/tools/build_zipapp.py" "$BIN/ember.new" > /dev/null && mv "$BIN/ember.new" "$BIN/ember"
+# The command's name before the rename: people's aliases and scripts that call bin/evd get the new command.
+ln -sfn ember "$BIN/evd"
 # Run information from the run registry needs mysql-connector-python (pure Python): installed once next to the code.
 if [ ! -d "$SERVICE/code/pylib/mysql" ]; then
   python3 -m pip install -q --target "$SERVICE/code/pylib" mysql-connector-python || echo "warning: no mysql-connector-python; runs get no registry information"

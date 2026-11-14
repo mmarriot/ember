@@ -61,7 +61,7 @@ Ember is at version 0.2. It is in development and used by its authors. Two thing
 
 | word | meaning |
 | --- | --- |
-| `NANO:@EVD` | the CMSSW step that writes the event-display NanoAOD. In CMSSW terms it is a NanoAOD *flavour*, so some pages call it that. |
+| `NANO:@EVD` | the CMSSW step that writes the event-display NanoAOD (EVD: event display). In CMSSW terms it is a NanoAOD *flavour*, so some pages call it that. |
 | event-display NanoAOD | the NanoAOD file that the `NANO:@EVD` step writes. It holds the detector-level tables that Ember needs. Analysis NanoAOD and MiniAOD do not have them. |
 | step3 file | a CMSSW reconstruction output file (data tier `GEN-SIM-RECO`), with event content `FEVTDEBUGHLT` or `RECOSIM` |
 | table | one collection in a NanoAOD file, with one row per object, for example `Tracks` or `HGCalHits` |

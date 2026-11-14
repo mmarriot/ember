@@ -87,7 +87,9 @@ ember step3_inNANOAODSIM.root --name ttbar_newtune --title "ttbar, new tune"
 
 A name starts with a letter or a digit. It can then hold letters, digits, `.`, `_` and `-`.
 
-Publishing again under the same name replaces the bundle. The link stays the same, and the 30 days start again.
+Publishing again under the same name replaces the bundle. The link stays the same, and the 30 days start again. (A
+bundle published before the rename to Ember ends in `.evdb`. Publishing it again makes it `.ember` and prints a link
+that ends in `.ember`, but the old `.evdb` link still opens it.)
 
 ## Manage your published bundles
 

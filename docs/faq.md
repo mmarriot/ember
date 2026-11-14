@@ -64,7 +64,8 @@ file, `--events` makes the NanoAOD of the whole file first, to find the events.
 **The page says that the file is gone.**
 
 The site removes a bundle in a user area 30 days after it was last published. The owner can also remove it earlier.
-The page names the owner: ask them to run `ember` on the file again. The same name gives the same link.
+The page names the owner: ask them to run `ember` on the file again. The same name gives the same link (and an old
+link that ends in `.evdb` opens the new `.ember` file).
 
 **"My files" is empty, or asks for my login.**
 

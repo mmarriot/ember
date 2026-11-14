@@ -33,7 +33,8 @@ ember [view] FILE.root [FILE.root ...] [options]
    because making the NanoAOD of a step3 file takes minutes.
 2. It converts all the input files to one bundle.
 3. It copies the bundle to `data/u/<login>/<name>.ember` on the site, and adds it to your list there. A bundle of
-   that name is replaced, also one published as `<name>.evdb` before the project was called Ember.
+   that name is replaced, including one published as `<name>.evdb` before the project was called Ember (old links to the
+   `.evdb` file then open the new `.ember` one).
 4. It prints an empty line, then the link on the last line. So `ember FILE.root | tail -1` gives you just the link.
 
 Options can come before or after the files: `ember -o out.ember FILE.root` is the same as
@@ -136,7 +137,8 @@ ember clean [--days 30] [--dry-run] [--site DIR]                     remove user
 | `EMBER_DEBUG` | set to any value (even `0`) to print the Python traceback of a failure, instead of one line | not set |
 
 These were called `EVD_SITE_DIR`, `EVD_SITE_URL`, `EVD_USER`, `EVD_SERVICE_DIR` and `EVD_DEBUG` before the project was
-called Ember. The old names are no longer read.
+called Ember. The old names are no longer read: if one is set and its new name is not, `ember` stops and says which
+to rename, so that an old `EVD_USER` cannot publish to another area unnoticed.
 
 If your account name on this machine is not your CERN login, set `EMBER_USER` (or `--user`) to your CERN login. The
 viewer looks for your files under that login.

@@ -64,7 +64,7 @@ generator particles below the match, and the key says so.
 
 | colour level | groups owning HGCal hits | of them, resonances or heavy hadrons | reco matches above the level |
 |---|---|---|---|
-| highest ancestor that owns hits or is matched (Ember before) | 797 | 5 (K*⁰, B, …): colours given to resonances | 0 |
+| highest ancestor that owns hits or is matched (the previous rule) | 797 | 5 (K*⁰, B, …): colours given to resonances | 0 |
 | **StableDecayProducts** (bit 2, generator particle) | **579** | **0** | 12 of 617 |
 | ReconstructableFinalState (bit 10) | 503 | 0, but every π⁰ is one group | 8 of 617 |
 

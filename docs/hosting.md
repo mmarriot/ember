@@ -199,10 +199,12 @@ the new command at once. Bundles already published are not touched. A bundle say
 keep working with a new viewer.
 
 **A site set up before the project was called Ember** keeps working after a deployment. Its bundles end in `.evdb`:
-the viewer opens them, old links still work, `sync` does not convert their inputs again, and `clean` expires them.
-New bundles end in `.ember`. Three things are not carried over: the environment variables are now `EMBER_*` (set
-them in place of the `EVD_*` ones), the command is installed as `bin/ember` (remove the old `bin/evd`, or users of
-it keep an old copy), and the old `code/evdtools/` is left in place (remove it).
+the viewer opens them, old links still work (also once a bundle was published again as `.ember`), `sync` does not
+convert their inputs again, and `clean` expires them. New bundles end in `.ember`. Three things change: the
+environment variables are now `EMBER_*` (rename the `EVD_*` ones: the command and `deploy.sh` stop while an old one
+is set without its new name), the command is installed as `bin/ember` with `bin/evd` a link to it (so old aliases run
+the new command), and the old `code/evdtools/` is left in place (remove it). People who installed the command with
+pip should run `pip uninstall evdtools`, or the old `evd` stays on their `PATH`.
 
 ## Quota and retention
 

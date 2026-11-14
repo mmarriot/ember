@@ -26,12 +26,13 @@ What still reads the old names:
 
 - Bundles ending in `.evdb` are still bundles. The viewer opens them (links, the site's lists, local files), and the
   command reads them (`inspect`, `validate`, `publish`), lists them, removes them and expires them. Publishing a name
-  that exists as `.evdb` replaces it.
+  that exists as `.evdb` replaces it with `.ember`, and a link to the `.evdb` file then opens the `.ember` one.
 - The format is unchanged. Its magic bytes (`EVDB`) and the header's `schema` (`evd/1`) keep the old name.
 - The viewer keeps its browser-storage keys (`evd.theme`, `evd.recent`, ...), so your settings and Recent list stay.
 - The CMSSW side keeps its own names: `NANO:@EVD`, `DPGAnalysis/EventDisplayNanoAOD`.
 
-The old environment variables are not read any more: set the `EMBER_*` ones instead.
+The old environment variables are not read any more: set the `EMBER_*` ones instead. A command, or `deploy.sh`, stops
+with a message while an old one is set without its new name. `deploy.sh` links `bin/evd` to the new `bin/ember`.
 
 ### Added
 

@@ -192,7 +192,7 @@ in-time pile-up, and the loss came from the export's selection (gap 4). The rest
 about 250 CE-H silicon hits per event at E/σ ≈ 3, with no time), and, most likely, out-of-time pile-up (gap 5; about
 7k such hits per event at 200 pile-up, far above the noise).
 
-**Gap 4 is addressed in Ember's exporter** (branch `evd-export` of the CMSSW developments area).
+**Gap 4 is addressed in the exporter** (branch `evd-export` of the CMSSW developments area).
 `TruthGraphTableProducer` has `keepLevelMask`, set to CaloBoundary, so every particle that enters the calorimeter is
 exported with its hits, pile-up included. For ttbar at 200 pile-up:
 

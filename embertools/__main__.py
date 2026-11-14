@@ -16,7 +16,7 @@ import time
 
 import numpy as np
 
-from . import Problem, __version__
+from . import Problem, __version__, site
 from .bundle import Bundle, validate
 
 
@@ -27,6 +27,7 @@ def main(argv=None):
         argv.insert(0, "view")  # ember FILE.root ..., ember -o out.ember FILE.root
     args = top.parse_args(argv)
     try:
+        site.old_settings()
         return COMMANDS[args.command](args)
     except (Problem, ValueError, OSError) as e:
         # These messages are written to be read: a ValueError of the converter says what in the profile or the file

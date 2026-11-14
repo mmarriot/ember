@@ -104,6 +104,23 @@ def test_list_and_rm(setup, capsys):
     ]
 
 
+def test_a_setting_under_its_name_from_before_the_rename_stops_the_command(setup, monkeypatch, capsys):
+    monkeypatch.delenv("EMBER_USER")
+    monkeypatch.setenv("EVD_USER", "jsmi")
+    assert main(["ttbar.root", "--profile", "test.json"]) == 1
+    assert "EVD_USER: no longer read since evd was renamed Ember; set EMBER_USER instead" in capsys.readouterr().err
+    assert not os.listdir(setup / "site")  # nothing was published under the login instead
+    monkeypatch.setenv("EMBER_USER", "jsmi")  # with the new name set too, the old one is only left over
+    assert main(["ttbar.root", "--profile", "test.json"]) == 0
+
+
+def test_a_name_with_a_bundle_extension_is_refused(setup, capsys):
+    for name in ("x.ember", "x.evdb"):
+        assert main(["ttbar.root", "--profile", "test.json", "--name", name]) == 1
+        assert "give it without the extension" in capsys.readouterr().err
+    assert not os.listdir(setup / "site")
+
+
 def test_inputs_that_cannot_be_shown_are_explained(setup, capsys):
     (setup / "physics.json").write_text(
         json.dumps({"name": "physics", "display": [{"table": "Jet", "label": "Jets", "position": ["x"] * 3}]})

@@ -55,6 +55,22 @@ EXTENSIONS = (EXTENSION, ".evdb")
 PARTIAL = re.compile(r"\.(ember|evdb|json)\.tmp\w+$")  # a file being copied in (replacing() and _XRootD.put)
 
 
+# The settings read from the environment, by their names without the prefix. Before the project was renamed Ember they
+# were EVD_*; old_settings() stops a command that would silently ignore one.
+SETTINGS = ("SITE_DIR", "SITE_URL", "SERVICE_DIR", "USER", "DEBUG", "BIN_DIR", "CONFIG", "MAX_FILES", "KEEP_DAYS")
+
+
+def old_settings(environ=os.environ):
+    """A Problem if a setting is given only under its old name (e.g. EVD_USER without EMBER_USER), which is no longer
+    read: an old EVD_USER would otherwise publish to the area of the login instead, and EVD_SITE_DIR to another site."""
+    old = [f"EVD_{s}" for s in SETTINGS if f"EVD_{s}" in environ and f"EMBER_{s}" not in environ]
+    if old:
+        raise Problem(
+            f"{', '.join(old)}: no longer read since evd was renamed Ember; "
+            f"set {', '.join('EMBER_' + s[4:] for s in old)} instead"
+        )
+
+
 def site_dir(given=None):
     """The site's directory: `given`, else $EMBER_SITE_DIR, else the default."""
     return given or os.environ.get("EMBER_SITE_DIR") or DEFAULT_DIR
@@ -107,6 +123,8 @@ def check_name(name):
     '.', '_' and '-', starting with a letter or a digit, so that it cannot be a path."""
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", name):
         raise Problem(f"'{name}' cannot be a bundle name: use letters, digits, '.', '_' and '-' (see --name)")
+    if without_extension(name) != name:  # x.ember would be written as x.ember.ember, which `rm x.ember` cannot find
+        raise Problem(f"'{name}' cannot be a bundle name: give it without the extension (see --name)")
     return name
 
 
@@ -492,6 +510,10 @@ def clean(site, days=KEEP_DAYS, dry_run=False, log=print, now=None):
 
 
 if __name__ == "__main__":  # for the shell scripts in service/: eval "$(python3 -m embertools.site)"
+    try:
+        old_settings()
+    except Problem as e:
+        raise SystemExit(f"ember: {e}") from None
     print(
         f"export EMBER_SITE_DIR='{site_dir()}'\nexport EMBER_SITE_URL='{site_url()}'\nexport EMBER_SERVICE_DIR='{service_dir()}'"
     )

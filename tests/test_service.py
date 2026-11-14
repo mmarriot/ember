@@ -243,13 +243,13 @@ def test_an_input_removed_during_the_pass_is_skipped(tmp_path, monkeypatch):
 
 
 def test_publish_adds_a_titled_bundle_to_the_site(tmp_path):
-    from embertools.service import publish
+    from embertools.service import publish_to_campaign
 
     convert, _ = fake_convert({"x.root": 2})
     source = tmp_path / "ttbar.ember"
     convert(["x.root"], str(source), "hgcal", None, data_time=datetime.datetime(2026, 1, 1))
     site = str(tmp_path / "site")
-    publish(str(source), site, "simulation", "Simulation", name="ttbar", file_title="ttbar 14 TeV")
+    publish_to_campaign(str(source), site, "simulation", "Simulation", name="ttbar", file_title="ttbar 14 TeV")
     [entry] = json.loads(Path(site, "index.json").read_text())["bundles"]
     assert entry["file"] == "data/simulation/ttbar.ember" and entry["title"] == "ttbar 14 TeV · 2 events"
     assert entry["campaign_title"] == "Simulation"
@@ -398,7 +398,7 @@ def test_a_broken_file_in_a_campaign_does_not_stop_the_index(tmp_path):
 def test_campaign_bundles_named_evdb_from_before_the_rename_are_still_bundles(tmp_path):
     """Bundles converted before the project was called Ember end in .evdb: their inputs are not converted again, they
     are listed, a stale lock's partial .evdb files are removed, and a publish of the same name replaces them."""
-    from embertools.service import publish
+    from embertools.service import publish_to_campaign
 
     config = setup(tmp_path, ["NANO_1.root", "NANO_2.root"])
     convert, calls = fake_convert({"NANO_2.root": 4})
@@ -415,6 +415,6 @@ def test_campaign_bundles_named_evdb_from_before_the_rename_are_still_bundles(tm
     assert [b["file"] for b in index(config)] == ["data/mct/NANO_2.ember", "data/mct/NANO_1.evdb"]
     assert not (folder / "NANO_2.evdb.tmp7").exists()
 
-    publish(str(folder / "NANO_2.ember"), config["site"], "mct", "MCT", name="NANO_1")
+    publish_to_campaign(str(folder / "NANO_2.ember"), config["site"], "mct", "MCT", name="NANO_1")
     assert sorted(os.listdir(folder)) == ["NANO_1.ember", "NANO_2.ember", "campaign.json"]
     assert sorted(b["file"] for b in index(config)) == ["data/mct/NANO_1.ember", "data/mct/NANO_2.ember"]

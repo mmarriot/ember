@@ -255,7 +255,7 @@ def _view(args):
         if not publish:
             print(f"wrote {target}")
             return 0
-        entry, replaced = site.publish(target, site.site_dir(args.site), user, name, args.title)
+        entry, replaced = site.publish_to_user_area(target, site.site_dir(args.site), user, name, args.title)
 
     print(
         f"{'replaced' if replaced else 'published'} {name}: kept until {entry['expires'][:10]} "
@@ -405,9 +405,9 @@ def _sync(args):
 
 
 def _publish(args):
-    from .service import publish
+    from .service import publish_to_campaign
 
-    publish(args.bundle, site.site_dir(args.site), args.campaign, args.title, args.name, args.file_title)
+    publish_to_campaign(args.bundle, site.site_dir(args.site), args.campaign, args.title, args.name, args.file_title)
     return 0
 
 

@@ -347,7 +347,7 @@ def simulate(
     return written
 
 
-def publish(bundle, site, campaign, title, name=None, file_title=None):
+def publish_to_campaign(bundle, site, campaign, title, name=None, file_title=None):
     """Add a finished bundle (e.g. a simulated sample) to the site as data/<campaign>/<name>.ember, with an optional
     title of its own, and rewrite the index. The copy is renamed into place, so readers never see half a file. A
     bundle of that name with the older extension .evdb is replaced too: it is removed once the new one is there."""

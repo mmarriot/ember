@@ -376,7 +376,7 @@ def _entry(bundle, file, title, published, days):
     }
 
 
-def publish(bundle, site, user, name, title=None, days=KEEP_DAYS):
+def publish_to_user_area(bundle, site, user, name, title=None, days=KEEP_DAYS):
     """Put the bundle file `bundle` in the user's area as `name` and list it; a bundle of that name is replaced, and
     so is one of that name with the older extension .evdb. Returns (its index entry, whether it replaced one).
 

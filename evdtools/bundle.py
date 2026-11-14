@@ -89,7 +89,7 @@ class BundleWriter:
         releases the interpreter lock) and written in the order they were added; `pool` is that thread pool, or None.
         `compresslevel` 4: on a PU200 event half the time of 6 for 0.3% more bytes."""
         self._path, self._tmp, self._level, self._sort = path, f"{path}.tmp{os.getpid()}", compresslevel, sort
-        self._file = open(self._tmp, "wb")
+        self._file = open(self._tmp, "wb")  # noqa: SIM115 (closed by close() or _abandon())
         head = _json(header, 12)
         self._file.write(MAGIC + struct.pack("<II", VERSION, len(head)) + head)
         self._events, self._runs, self._run_info = [], [], {}
@@ -180,7 +180,7 @@ class Bundle:
 
     def __init__(self, path):
         """ValueError if the file is not a complete bundle."""
-        self._file = open(path, "rb")
+        self._file = open(path, "rb")  # noqa: SIM115 (kept open for random access to the records)
         try:
             magic, version, hlen = struct.unpack("<4sII", self._file.read(12))
             if magic != MAGIC or version != VERSION:

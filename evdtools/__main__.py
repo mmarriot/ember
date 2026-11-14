@@ -342,7 +342,7 @@ def run(args):
         from . import site
 
         user, missing = site.login(args.user), []
-        for name in (n[:-5] if n.endswith(".evdb") else n for n in args.names):
+        for name in (n.removesuffix(".evdb") for n in args.names):
             if site.remove(site.site_dir(args.site), user, name):
                 print(f"removed {name}")
             else:

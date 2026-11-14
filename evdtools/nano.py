@@ -81,7 +81,11 @@ def load_profile(name_or_path, _within=()):
     key = path or f"builtin:{name_or_path}"
     if key in _within:
         raise ValueError(f"profile {key} includes itself (through {' -> '.join(_within)})")
-    profile = json.loads(builtin.read_text() if path is None else open(path).read())
+    if path is None:
+        profile = json.loads(builtin.read_text())
+    else:
+        with open(path) as f:
+            profile = json.load(f)
     merged = {}
     for name in profile.pop("include", []):
         included = load_profile(name, (*_within, key))
@@ -219,8 +223,8 @@ def _gather(d, tables, relations, profile_relations):
         todo = (np.diff(offsets) > 0) & ~placed
         rows = np.asarray(rel["indices"])[offsets[:-1][todo]]
         target = tables[profile_relations[src["relation"]]["to"]][1]
-        for c in out:
-            out[c][todo] = target[src["columns"][c]][rows] if c in src["columns"] else 0
+        for c, values in out.items():
+            values[todo] = target[src["columns"][c]][rows] if c in src["columns"] else 0
         placed |= todo
     if d.get("missing"):
         out = {
@@ -770,7 +774,7 @@ def written_by(f):
     try:
         branch = f["MetaData/ProcessHistory"]
         history = b"".join(bytes(branch.basket(i).data) for i in range(branch.num_baskets))
-    except Exception:  # no such tree (a NanoAOD-like file from elsewhere): the release is simply not recorded
+    except Exception:  # noqa: BLE001 (no such tree, e.g. a NanoAOD-like file from elsewhere: the release is not recorded)
         return None
     releases = re.findall(rb"CMSSW_\d+_\d+_[\w-]+", history)
     return releases[-1].decode() if releases else None
@@ -780,7 +784,9 @@ def _run_tables(conv, f):
     """{run: per-run tables} of an open file (empty if the profile uses no per-run table)."""
     if not conv.run_scope or "Runs" not in f:
         return {}
-    arrays = f["Runs"].arrays([b for b in conv.branches("run") if b in f["Runs"].keys()], library="np")
+    runs = f["Runs"]
+    present = set(runs.keys())
+    arrays = runs.arrays([b for b in conv.branches("run") if b in present], library="np")
     return {int(arrays["run"][i]): conv.run_tables(arrays, i) for i in range(len(arrays["run"]))}
 
 

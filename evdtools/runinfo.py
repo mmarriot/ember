@@ -54,7 +54,7 @@ def from_registry(table, runs, connection=None, log=sys.stderr):
         cur.execute(f"SELECT * FROM `{database}`.`{name}` WHERE Run IN ({marks})", list(runs))
         rows = cur.fetchall()
         conn.close()
-    except Exception as e:  # no network, no access: the bundle is still useful without it
+    except Exception as e:  # noqa: BLE001 (no network, no access: the bundle is still useful without it)
         print(f"run info: could not read {table}: {e}", file=log)
         return {}
     return {int(r["Run"]): _clean({k: v for k, v in r.items() if k != "Run"}) for r in rows}

@@ -102,7 +102,7 @@ def _write(path, threads, events=7, **kw):
         for i in range(events):
             n = int(rng.integers(0, 2000))
             w.add((1, 1, events - i), {"Hits": (n, {"x": rng.random(n, np.float32), "flag": rng.random(n) > 0.5})}, {})
-    return open(path, "rb").read()
+    return path.read_bytes()
 
 
 def test_records_compressed_on_threads_are_written_in_the_order_added(tmp_path):
@@ -117,9 +117,8 @@ def test_records_compressed_on_threads_are_written_in_the_order_added(tmp_path):
 
 def test_a_record_that_cannot_be_written_leaves_no_file(tmp_path):
     path = tmp_path / "broken.evdb"
-    with pytest.raises(KeyError):
-        with BundleWriter(str(path), HEADER, threads=2) as w:
-            w.add((1, 1, 1), {"Hits": (1, {"x": np.ones(1, np.float32)})}, {})
-            w.add((1, 1, 2), {"Hits": (1, {"x": np.ones(1, np.complex64)})}, {})  # no such column type
-            w.add((1, 1, 3), {"Hits": (1, {"x": np.ones(1, np.float32)})}, {})
+    with pytest.raises(KeyError), BundleWriter(str(path), HEADER, threads=2) as w:
+        w.add((1, 1, 1), {"Hits": (1, {"x": np.ones(1, np.float32)})}, {})
+        w.add((1, 1, 2), {"Hits": (1, {"x": np.ones(1, np.complex64)})}, {})  # no such column type
+        w.add((1, 1, 3), {"Hits": (1, {"x": np.ones(1, np.float32)})}, {})
     assert not path.exists() and not list(tmp_path.glob("broken.evdb.tmp*"))

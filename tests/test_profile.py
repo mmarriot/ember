@@ -2,7 +2,7 @@
 columns, relation kinds beyond the plain ones, and the hints passed to the viewer."""
 
 import json
-import os
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -923,7 +923,7 @@ def test_tracker_profile_alone_and_tracker_only():
 
 STOCK = {
     t: {c: np.dtype(d) for c, d in cols.items()}  # the tables NANO:@EVD writes on an unmodified release
-    for t, cols in json.load(open(os.path.join(os.path.dirname(__file__), "stock_tables.json"))).items()
+    for t, cols in json.loads(Path(__file__).with_name("stock_tables.json").read_text()).items()
 }
 
 

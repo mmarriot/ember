@@ -5,6 +5,7 @@ import json
 import os
 import stat
 import time
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -30,7 +31,7 @@ def bundle(path, events=2, created="2026-11-09T00:00:00+00:00"):
 
 
 def index(root, user="alice"):
-    return json.load(open(os.path.join(root, "data", "u", user, "index.json")))
+    return json.loads(Path(root, "data", "u", user, "index.json").read_text())
 
 
 def seconds(iso):
@@ -90,7 +91,7 @@ def test_a_name_that_is_not_a_plain_file_name_is_refused(tmp_path, name):
 
 
 def test_something_that_is_not_a_complete_bundle_is_not_published(tmp_path):
-    (tmp_path / "half.evdb").write_bytes(open(bundle(tmp_path / "a.evdb"), "rb").read()[:-20])
+    (tmp_path / "half.evdb").write_bytes(Path(bundle(tmp_path / "a.evdb")).read_bytes()[:-20])
     with pytest.raises(ValueError):
         site.publish(str(tmp_path / "half.evdb"), str(tmp_path), "alice", "half")
     assert not os.path.exists(tmp_path / "data")
@@ -355,7 +356,9 @@ def test_an_area_swapped_for_a_link_while_clean_runs_does_not_redirect_it(tmp_pa
     hidden = root / "data" / "u" / "hidden"
     assert not (hidden / "zz_old.evdb").exists()  # her own expired bundle is removed
     # her index is rewritten in her real folder; what the swap made unreadable is left out of it (her loss only)
-    assert all(e["file"].startswith("data/u/mallory/") for e in json.load(open(hidden / "index.json"))["bundles"])
+    assert all(
+        e["file"].startswith("data/u/mallory/") for e in json.loads((hidden / "index.json").read_text())["bundles"]
+    )
 
 
 def test_files_written_to_the_site_are_readable_by_the_web_server(tmp_path):
@@ -388,11 +391,11 @@ def test_an_odd_file_in_one_area_does_not_stop_clean_or_list(tmp_path):
         age(os.path.join(root, "data", "u", user, "old.evdb"), 40)
     area = lambda user, f: os.path.join(root, "data", "u", user, f)
     open(area("alice", "empty.evdb"), "w").close()
-    open(area("alice", "short.evdb"), "wb").write(b"EVDB\x01")
+    Path(area("alice", "short.evdb")).write_bytes(b"EVDB\x01")
     header = {"schema": "evd/1", "profile": "cms", "tables": {}, "relations": {}, "display": []}  # no "source"
     with BundleWriter(area("alice", "nosource.evdb"), header) as out:
         out.add((1, 1, 1), {}, {})
-    open(area("bob", "index.json"), "w").write('{"bundles": ["x", {"file": 3}, {"file": "data/u/bob/old.evdb"}]}')
+    Path(area("bob", "index.json")).write_text('{"bundles": ["x", {"file": 3}, {"file": "data/u/bob/old.evdb"}]}')
     os.remove(area("carol", "index.json"))
     os.mkdir(area("carol", "index.json"))
     said = []
@@ -402,7 +405,7 @@ def test_an_odd_file_in_one_area_does_not_stop_clean_or_list(tmp_path):
     ]
     assert [e["file"] for e in index(root)["bundles"]] == ["data/u/alice/nosource.evdb"]  # the one complete bundle
     assert index(root, "bob")["bundles"] == [] and index(root, "zed")["bundles"] == []
-    open(area("bob", "index.json"), "w").write(
+    Path(area("bob", "index.json")).write_text(
         '{"bundles": ["x", {"file": 3}, {"title": "t"}, {"file": "data/u/bob/b.evdb"}]}'
     )
     assert site.listing(root, "bob") == [{"file": "data/u/bob/b.evdb"}]

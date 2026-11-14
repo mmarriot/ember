@@ -1,5 +1,7 @@
 """The evd command: view (convert, publish, link), list, rm, clean, the older commands, and the single-file build."""
 
+import gzip
+import io
 import json
 import os
 import subprocess
@@ -44,7 +46,7 @@ def test_a_file_alone_is_converted_published_and_its_link_printed_last(setup, ca
         len(Bundle(str(published))) == 10
         and Bundle(str(published)).header["source"]["converter"] == f"evdtools {__version__}"
     )
-    [entry] = json.load(open(published.parent / "index.json"))["bundles"]
+    [entry] = json.loads((published.parent / "index.json").read_text())["bundles"]
     assert entry["file"] == "data/u/alice/ttbar.evdb" and entry["title"] == "ttbar · 10 events"
     assert set(entry) == {"file", "title", "events", "size", "created", "published", "expires"}
     assert not list(setup.glob("*.evdb"))  # nothing left here
@@ -72,7 +74,7 @@ def test_view_takes_a_name_a_title_and_every_event(setup, capsys):
     assert "12 events, " in out and "of 12" not in out and "published run1" in out
     assert main(["ttbar.root", "--profile", "test.json", "--name", "run1", "--events", "0-10"]) == 0
     assert "replaced run1" in capsys.readouterr().out
-    [entry] = json.load(open(setup / "site" / "data" / "u" / "alice" / "index.json"))["bundles"]
+    [entry] = json.loads((setup / "site" / "data" / "u" / "alice" / "index.json").read_text())["bundles"]
     assert entry["title"] == "run1 · 11 events"  # every event asked for by number, not the first 10
 
 
@@ -97,7 +99,7 @@ def test_list_and_rm(setup, capsys):
     assert main(["rm", "a", "nope"]) == 1
     captured = capsys.readouterr()
     assert "removed a" in captured.out and "no bundle named nope" in captured.err
-    assert [e["file"] for e in json.load(open(setup / "site/data/u/alice/index.json"))["bundles"]] == [
+    assert [e["file"] for e in json.loads((setup / "site/data/u/alice/index.json").read_text())["bundles"]] == [
         "data/u/alice/bb.evdb"
     ]
 
@@ -168,7 +170,9 @@ def test_the_older_commands_still_work(setup, capsys):
     out = capsys.readouterr().out
     assert "ok" in out and "3 events, profile test, from ttbar.root, by evdtools" in out
     assert main(["publish", "convert.evdb", "--campaign", "simulation", "--title", "Simulation"]) == 0
-    assert json.load(open(setup / "site" / "index.json"))["bundles"][0]["file"] == "data/simulation/convert.evdb"
+    assert (
+        json.loads((setup / "site" / "index.json").read_text())["bundles"][0]["file"] == "data/simulation/convert.evdb"
+    )
 
 
 def test_clean_removes_what_expired(setup, capsys):
@@ -191,7 +195,9 @@ def test_evd_runs_as_one_file_with_its_profiles_inside(setup):
         sys.path.pop(0)
     evd = build(str(setup / "bin" / "evd"))
     assert os.access(evd, os.X_OK)
-    run = lambda *args: subprocess.run([sys.executable, evd, *args], capture_output=True, text=True, cwd=setup)
+    run = lambda *args: subprocess.run(
+        [sys.executable, evd, *args], capture_output=True, text=True, cwd=setup, check=False
+    )
     assert run("--version").stdout.strip() == f"evd {__version__}"
     done = run("ttbar.root", "--profile", "test.json")
     assert done.returncode == 0 and done.stdout.splitlines()[-1] == "https://evd.example/#b=data/u/alice/ttbar.evdb"
@@ -276,7 +282,6 @@ def test_options_for_reconstruction_files_are_said_to_be_ignored_for_nanoaod(set
 
 def test_threads_give_the_same_records_as_one_thread(setup):
     from evdtools.nano import convert
-    import gzip, io
 
     for threads in (1, 4):
         convert(["ttbar.root"], f"t{threads}.evdb", "test.json", log=io.StringIO(), threads=threads)

@@ -183,7 +183,10 @@ def sync(config, max_files=None, dry_run=False, convert=None, export=None):
         os.mkdir(lock)
     try:
         failures_path = os.path.join(state, "failures.json")
-        failures = json.load(open(failures_path)) if os.path.exists(failures_path) else {}
+        failures = {}
+        if os.path.exists(failures_path):
+            with open(failures_path) as f:
+                failures = json.load(f)
         if not dry_run:
             for c in config["campaigns"]:
                 _remember_title(site, c)
@@ -215,7 +218,7 @@ def sync(config, max_files=None, dry_run=False, convert=None, export=None):
                     )
                 log(f"{key}: {n} events in {time.time() - started:.0f} s")
                 done += 1
-            except Exception as e:  # keep going with the other files; give up on this one after max_failures
+            except Exception as e:  # noqa: BLE001 (keep going with the other files; give up on this one after max_failures)
                 failures[key] = failures.get(key, 0) + 1
                 _write_json(failures_path, failures)
                 log(f"{key}: failed ({failures[key]}/{max_failures}): {e!r}")

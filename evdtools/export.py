@@ -18,8 +18,6 @@ import subprocess
 import sys
 import tempfile
 
-import uproot
-
 from . import Problem
 
 STEP = "NANO:@EVD"
@@ -33,7 +31,7 @@ def describe(path):
 
     try:
         f = _open(path)
-    except Exception as e:  # uproot raises several kinds for a missing file, a non-ROOT file, no access
+    except Exception as e:  # noqa: BLE001 (uproot raises several kinds for a missing file, a non-ROOT file, no access)
         if not path.startswith("root://") and not os.path.exists(path):
             raise Problem(f"{path}: no such file") from None
         raise Problem(f"{path}: cannot be read as a ROOT file ({str(e).splitlines()[0][:200]})") from None
@@ -54,7 +52,7 @@ def _stored_settings(blobs):
     tags = [m.decode() for m in re.findall(rb"globaltag=\+Z\(([^\x00)]+)\x00\)", blobs)]
     xml = [
         tuple(part.rstrip(b"\x00").decode() for part in m.split(b"\x00,") if part.strip(b"\x00"))
-        for m in re.findall(rb"geomXMLFiles=\+z\(\{\x00?(.*?)\}\)", blobs, re.S)
+        for m in re.findall(rb"geomXMLFiles=\+z\(\{\x00?(.*?)\}\)", blobs, re.DOTALL)
     ]
     return list(dict.fromkeys(tags)), list(dict.fromkeys(xml))
 
@@ -68,7 +66,7 @@ def provenance(path):
         with _open(path) as f:
             branch = f["ParameterSets/IdToParameterSetsBlobs"]
             return _stored_settings(b"".join(bytes(branch.basket(i).data) for i in range(branch.num_baskets)))
-    except Exception:
+    except Exception:  # noqa: BLE001 (no such tree, or not readable: the settings are then asked for)
         return [], []
 
 
@@ -124,7 +122,7 @@ def settings(path, geometry=None, era=None, conditions=None, cmssw=None, log=sys
         return geometry_name(geometry), era, conditions
     tags, xml = provenance(path)
     result = subprocess.run(
-        [*prefix, "python3", "-c", _RUN4], input=json.dumps(xml), capture_output=True, text=True, env=env
+        [*prefix, "python3", "-c", _RUN4], input=json.dumps(xml), capture_output=True, text=True, env=env, check=False
     )
     run4 = json.loads(result.stdout) if result.returncode == 0 else {"known": {}, "matches": []}
     # why the release's geometries could not be read, for whichever message below needs them
@@ -218,7 +216,9 @@ def export(
     log_path = os.path.join(workdir, "cmsRun.log")
     with open(log_path, "w") as out:
         try:
-            result = subprocess.run([*prefix, *command], cwd=workdir, stdout=out, stderr=subprocess.STDOUT, env=env)
+            result = subprocess.run(
+                [*prefix, *command], cwd=workdir, stdout=out, stderr=subprocess.STDOUT, env=env, check=False
+            )
         except FileNotFoundError:
             raise Problem("cmsDriver.py not found: run cmsenv first") from None
     nano = os.path.join(workdir, OUTPUT)

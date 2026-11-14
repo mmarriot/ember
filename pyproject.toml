@@ -31,3 +31,11 @@ version = { attr = "evdtools.__version__" }
 [tool.ruff]
 line-length = 120
 target-version = "py39"
+
+[tool.ruff.lint]
+# Ruff's default rule set, fixed by the pinned version in the dev extra. It covers pyflakes (F), likely bugs (B), import
+# order (I), modern syntax for the Python 3.9 floor (UP, which follows target-version) and simplifications (SIM).
+
+[tool.ruff.lint.per-file-ignores]
+# It runs under whatever python3 is first on the path, so it checks the version itself, in syntax old ones can parse.
+"tools/build_zipapp.py" = ["UP031", "UP036"]

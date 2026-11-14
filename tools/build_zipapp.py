@@ -17,7 +17,7 @@ if sys.version_info < (3, 7):
         "build_zipapp.py needs Python 3.7 or later, and this python3 is %d.%d: run it after cmsenv or in an LCG "
         "view" % sys.version_info[:2]
     )
-import zipapp  # noqa: E402 (after the check: older versions lack what is used below)
+import zipapp  # after the check: older versions lack what is used below
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MAIN = "import sys\n\nfrom evdtools.__main__ import main\n\nsys.exit(main())\n"

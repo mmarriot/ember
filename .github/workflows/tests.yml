@@ -19,6 +19,7 @@ jobs:
           python-version: "3.11"
       - run: pip install ".[test,dev]"
       - run: ruff format --check .
+      - run: ruff check .
       - run: python3 -m pytest tests
   viewer:
     runs-on: ubuntu-latest

@@ -5,6 +5,7 @@ import io
 import json
 import os
 import subprocess
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -173,9 +174,9 @@ def driver(tmp_path, monkeypatch):
 def test_export_runs_cmsdriver_in_the_work_directory_and_returns_the_nanoaod(driver):
     log = io.StringIO()
     nano = export.export(["step3.root"], driver, 5, "D110", "E", "C", log=log)
-    assert nano == os.path.join(driver, "evd_nano.root") and open(nano).read() == "nano\n"
+    assert nano == os.path.join(driver, "evd_nano.root") and Path(nano).read_text() == "nano\n"
     assert "running cmsDriver.py evd -s NANO:@EVD" in log.getvalue()
-    assert "-n 5 --geometry ExtendedRun4D110 --era E --conditions C" in open(os.path.join(driver, "cmsRun.log")).read()
+    assert "-n 5 --geometry ExtendedRun4D110 --era E --conditions C" in Path(driver, "cmsRun.log").read_text()
 
 
 def test_export_needs_a_cmssw_environment(driver, monkeypatch):
@@ -208,5 +209,5 @@ def test_another_failure_keeps_the_job_output_where_it_survives(driver, monkeypa
     with pytest.raises(Problem) as e:
         export.export(["step3.root"], driver, 5, "D110", "E", "C", log=io.StringIO())
     kept = [f for f in os.listdir(tmp_path) if f.startswith("evd-cmsRun-")]
-    assert len(kept) == 1 and kept[0] in str(e.value) and "ProductNotFound" in open(tmp_path / kept[0]).read()
+    assert len(kept) == 1 and kept[0] in str(e.value) and "ProductNotFound" in (tmp_path / kept[0]).read_text()
     assert "exit code 8" in str(e.value) and "ProductNotFound" in str(e.value)

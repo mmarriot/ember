@@ -186,11 +186,11 @@ class _Mounted:
 class _XRootD:
     """The site on an EOS instance this machine does not mount, through xrdcp and xrdfs."""
 
-    MISSING = re.compile(rb"no such file|\[3011\]", re.I)
+    MISSING = re.compile(rb"no such file|\[3011\]", re.IGNORECASE)
     REFUSED = re.compile(
         r"auth failed|unable to authenticate|no protocols left to try|permission denied|"
         r"not authorized|\[3010\]",
-        re.I,
+        re.IGNORECASE,
     )
 
     def __init__(self, host, root):
@@ -198,7 +198,7 @@ class _XRootD:
 
     def _run(self, *command):
         try:
-            return subprocess.run(command, capture_output=True)
+            return subprocess.run(command, capture_output=True, check=False)
         except FileNotFoundError:
             raise Problem(
                 f"{command[0]} not found: the site is not mounted on this machine, and reaching it through "
@@ -425,7 +425,7 @@ def clean(site, days=KEEP_DAYS, dry_run=False, log=print, now=None):
         elif item.is_dir():
             try:
                 _clean_area(site, os.path.join(site, USERS, item.name), item.name, days, dry_run, log, now, removed)
-            except Exception as e:  # one odd area must not keep the others from being cleaned
+            except Exception as e:  # noqa: BLE001 (one odd area must not keep the others from being cleaned)
                 log(f"leaving {os.path.join(USERS, item.name)}: {type(e).__name__}: {e}")
     return removed
 

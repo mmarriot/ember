@@ -80,7 +80,7 @@ existing download):
 
 ```bash
 cd viewer
-PLAYWRIGHT_BROWSERS_PATH=<cache> node e2e/smoke.mjs http://127.0.0.1:5173/ e2e/shots
+PLAYWRIGHT_BROWSERS_PATH=<cache> npm run e2e -- http://127.0.0.1:5173/ e2e/shots
 ```
 
 Look at the screenshots in `viewer/e2e/shots/` before you call a viewer change done.

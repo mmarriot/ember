@@ -1,5 +1,6 @@
 # The checks that need nothing from CERN: the Python tests (converter, format, command, site: synthetic NanoAOD and
-# stand-ins for xrdcp and cmsDriver) and the viewer's type check and unit tests (they read golden/v6_1event.ember).
+# stand-ins for xrdcp and cmsDriver) and the viewer's type check, unit tests (they read golden/v6_1event.ember) and
+# build.
 # The browser checks (viewer/e2e/smoke.mjs) need a development server and bundles in data/, and are run by hand.
 name: Tests
 on:
@@ -12,15 +13,20 @@ permissions:
 jobs:
   python:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # The oldest Python that ember supports (lxplus and CMSSW have it), and a recent one.
+        python-version: ["3.9", "3.12"]
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
         with:
-          python-version: "3.11"
+          python-version: ${{ matrix.python-version }}
       - run: pip install ".[test,dev]"
       - run: ruff format --check .
       - run: ruff check .
       - run: python3 -m pytest tests
+      - run: bash -n service/*.sh # the deployment and cron scripts: syntax only, nothing runs them here
   viewer:
     runs-on: ubuntu-latest
     defaults:
@@ -37,3 +43,4 @@ jobs:
       - run: npm run format:check
       - run: npm run typecheck
       - run: npm test
+      - run: npm run build # what only bundling resolves, e.g. the decompression worker's URL

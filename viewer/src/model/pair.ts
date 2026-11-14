@@ -160,39 +160,27 @@ export function pairFor(
       tr = truthOf(t),
       inSet = members.get(t),
       out = new Uint8Array(n);
-    for (let i = 0; i < n; i++) {
-      const c = cand ? cand[i] : -1,
-        fromP = anyParticle && !!tr && has(tr[i]),
-        inC = !!inSet?.has(i);
+    /** The class of object i of `t`: `c`, the candidate it belongs to (-1: none); `fromP`, it comes from the pair's
+     *  particle; `inC`, it is in the pair's candidate. */
+    const classify = (i: number, c: number, fromP: boolean, inC: boolean): PairClass => {
       // Candidates: the pair's; split if they hold the particle's objects or are matched to it (a fragment).
-      out[i] =
-        t === reco
-          ? i === candidate
-            ? anyParticle
-              ? PAIR.matched
-              : PAIR.reco
-            : splitCands.has(i) || fromP
-              ? PAIR.split
-              : PAIR.other
-          : // Truth layers: only the pair's particle and the one the selection points at (its whole shower, hundreds of
-            // secondaries and their vertices, would bury the picture; the shower shows through its hits).
-            truthTables.has(t)
-            ? t === truth && (i === particle || i === raw)
-              ? PAIR.matched
-              : PAIR.other
-            : inC
-              ? !anyParticle
-                ? PAIR.reco
-                : fromP
-                  ? PAIR.matched
-                  : PAIR.contamination
-              : fromP
-                ? c >= 0
-                  ? PAIR.split
-                  : cand
-                    ? PAIR.missed
-                    : PAIR.other
-                : PAIR.other;
+      if (t === reco) {
+        if (i === candidate) return anyParticle ? PAIR.matched : PAIR.reco;
+        return splitCands.has(i) || fromP ? PAIR.split : PAIR.other;
+      }
+      // Truth layers: only the pair's particle and the one the selection points at (its whole shower, hundreds of
+      // secondaries and their vertices, would bury the picture; the shower shows through its hits).
+      if (truthTables.has(t)) return t === truth && (i === particle || i === raw) ? PAIR.matched : PAIR.other;
+      // In the candidate: from the particle, or contamination (without a particle, nothing is confirmed).
+      if (inC) return !anyParticle ? PAIR.reco : fromP ? PAIR.matched : PAIR.contamination;
+      // The particle's objects outside the candidate: in another candidate (split), or in none (missed) where the
+      // table can belong to candidates at all.
+      if (fromP) return c >= 0 ? PAIR.split : cand ? PAIR.missed : PAIR.other;
+      return PAIR.other;
+    };
+    for (let i = 0; i < n; i++) {
+      const c = cand ? cand[i] : -1;
+      out[i] = classify(i, c, anyParticle && !!tr && has(tr[i]), !!inSet?.has(i));
       if (out[i] === PAIR.split) splitCands.add(c);
     }
     classes.set(t, out);

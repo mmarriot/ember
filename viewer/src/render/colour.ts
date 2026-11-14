@@ -3,15 +3,7 @@
 // (one per trackster; its layer clusters share it). Identity colours (the colour modes) give the largest objects of
 // one table a colour each, and the objects linked to them the same colour. Computed once per event on the CPU, so
 // shaders and legend agree.
-import {
-  type Column,
-  type DisplayLayer,
-  type EventData,
-  type Header,
-  kindName,
-  type Table,
-  unitOf,
-} from "../io/format";
+import { type DisplayLayer, type EventData, type Header, kindName, type Table, toF32, unitOf } from "../io/format";
 import { bestPurities, percent } from "../model/match";
 import { bestPartners, contentPartners, identities } from "../model/relations";
 
@@ -121,13 +113,6 @@ function rampTable(stops: readonly string[]) {
   }
   return lut;
 }
-
-export const toF32 = (c: Column | undefined, n: number, fill = 0) =>
-  c instanceof Float32Array
-    ? c
-    : c
-      ? Float32Array.from(c as ArrayLike<number | bigint>, Number)
-      : new Float32Array(n).fill(fill);
 
 /** Colour scale over the bulk of the values (<= 50k samples): log10 from the 5th to the 99.5th percentile when
  *  (nearly) all values are positive, otherwise linear from the 1st to the 99th. */

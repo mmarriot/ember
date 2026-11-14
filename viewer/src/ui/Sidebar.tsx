@@ -10,13 +10,13 @@ import { activePreset } from "../model/custom";
 import { applyPreset } from "../model/presets";
 import type { DisplayLayer } from "../io/format";
 import { bundle, bundleName, DETECTOR, domain, openTab } from "../model/store";
-import { chooseDomain } from "./navigate";
+import { chooseDomain } from "../control/navigate";
 import { EventInfo } from "./EventInfo";
 import { ColourKey } from "./Key";
 import { Collections, tabOf } from "./Layers";
 import { treeRelations } from "./Tree";
 import { TruthTab } from "./TruthTab";
-import { stopTour } from "./tour";
+import { stopTour } from "../control/tour";
 import { Icon, Tabs } from "./widgets";
 
 /** Phones (narrow screens): the panel is a sheet under the view, folded to its tabs and the colour key's title until

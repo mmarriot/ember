@@ -79,7 +79,7 @@ export class Engine {
   } | null = null;
   /** The drawn layers' envelope (camera.ts envelopeOf), computed when the tour first needs it. */
   private envelope: Envelope | null = null;
-  /** Smallest radius (cm) framed around objects (profile view.minRadius, set by ui/scene.ts). */
+  /** Smallest radius (cm) framed around objects (profile view.minRadius, set by control/scene.ts). */
   minRadius = MIN_RADIUS;
   /** Pixels on the right of the view covered by a panel (the inspector): framing centres objects in the rest. */
   insetRight = 0;

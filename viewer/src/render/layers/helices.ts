@@ -2,9 +2,8 @@
 // per path and the vertex shader puts each point of a line strip on it; picking and framing use a coarser polyline
 // computed on the CPU, per path, when first needed.
 import * as THREE from "three";
-import type { Table } from "../../io/format";
+import { type Table, toF32 } from "../../io/format";
 import { HIDDEN } from "../../model/cuts";
-import { toF32 } from "../colour";
 import { endsOrCylinder, isToCylinder } from "../geometry";
 import { helixPaths, type Paths, polylines } from "../helix";
 import {

@@ -21,8 +21,8 @@ import {
   selection,
   shared,
 } from "../model/store";
-import { ranked } from "./navigate";
-import { engine } from "./scene";
+import { ranked } from "../control/navigate";
+import { engine } from "../control/scene";
 
 /** The object under the pointer in the side panel's object rows. */
 export const rowHover = signal<Ref | null>(null);

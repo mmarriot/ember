@@ -18,11 +18,11 @@ import {
   touring,
 } from "../model/store";
 import { Chooser } from "./Chooser";
-import { toggleLive } from "./live";
+import { toggleLive } from "../control/live";
 import { Menu } from "./Menu";
-import { chooseDomain, showWhole } from "./navigate";
+import { chooseDomain, showWhole } from "../control/navigate";
 import { share } from "./Share";
-import { stopTour, toggleTour } from "./tour";
+import { stopTour, toggleTour } from "../control/tour";
 import { Views } from "./Viewport";
 import { Icon } from "./widgets";
 

@@ -17,7 +17,7 @@ import {
   visible,
 } from "../model/store";
 import { rowHover } from "./Labels";
-import { jump } from "./navigate";
+import { jump } from "../control/navigate";
 
 /** A layer's rows that pass its cut and filter (model/objects.ts). */
 export function passing(d: DisplayLayer) {

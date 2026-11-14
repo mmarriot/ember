@@ -1,15 +1,15 @@
 import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { blobSource, HttpError, type Source } from "../io/bundle";
-import { type Listed, recent } from "./library";
+import { blobSource, HttpError, type Source } from "../../io/bundle";
+import { type Listed, recent } from "../library";
 // The store sets the page's theme as it loads: a stand-in page (the tests run without a DOM).
 Object.assign(globalThis, { document: { documentElement: { dataset: {} } } });
 const { bundle, bundleName, catalogue, keepShown, openBundle, opened, openFailure, opening, toasts } = await import(
-  "./store"
+  "."
 );
 
 const golden = async () =>
-  blobSource(new Blob([readFileSync(new URL("../../../golden/v6_1event.ember", import.meta.url))]));
+  blobSource(new Blob([readFileSync(new URL("../../../../golden/v6_1event.ember", import.meta.url))]));
 const gone = (name: string) => async () => {
   throw new HttpError(name, 404);
 };
@@ -73,7 +73,7 @@ describe("openBundle", () => {
   });
 
   describe("a link to an .evdb bundle published again since the rename, as .ember", () => {
-    const bytes = readFileSync(new URL("../../../golden/v6_1event.ember", import.meta.url));
+    const bytes = readFileSync(new URL("../../../../golden/v6_1event.ember", import.meta.url));
     /** A site with these files, as fetch sees it: a whole file for any request (status 200), else 404. */
     const site = (files: string[]) => {
       const asked: string[] = [];
@@ -231,7 +231,7 @@ describe("openBundle", () => {
     });
     try {
       await openBundle("https://elsewhere.example/data/u/alice/x.ember", golden);
-      const { filters } = await import("./custom");
+      const { filters } = await import("../custom");
       filters.value = { ...filters.value, Anything: "0" };
       const settings = () => [...saved.keys()].filter((k) => k.startsWith("evd.custom."));
       expect(settings()).toEqual([]);

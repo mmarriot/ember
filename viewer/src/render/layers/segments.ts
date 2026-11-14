@@ -2,8 +2,7 @@
 // straight, MET, a lepton's direction). Thin lines are WebGL lines, one pixel wide; wider ones and arrows are quads
 // whose width the vertex shader keeps constant on screen.
 import * as THREE from "three";
-import type { DisplayLayer, Table } from "../../io/format";
-import { toF32 } from "../colour";
+import { type DisplayLayer, type Table, toF32 } from "../../io/format";
 import { isToCylinder, perRow } from "../geometry";
 import { REPLAY_OFF } from "../replay";
 import {

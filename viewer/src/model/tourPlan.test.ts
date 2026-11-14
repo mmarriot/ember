@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { DisplayLayer } from "../io/format";
 import all from "./fixtures/all_header.json";
 import cms from "./fixtures/cms_header.json";
-import { stepLayers, TOUR_STEPS, tourPlan } from "./tour";
+import { stepLayers, TOUR_STEPS, tourPlan } from "./tourPlan";
 
 const display = (h: unknown) => (h as { display: DisplayLayer[] }).display;
 const titles = (h: unknown) => tourPlan(display(h)).map((s) => s.step.title);

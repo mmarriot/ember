@@ -58,7 +58,7 @@ const state = () => ({
   focus: name(focus.value),
   back: focusHistory.value.map(name),
 });
-/** As ui/navigate.ts jump: a list row, N, a linked object clicked in the view. */
+/** As control/navigate.ts jump: a list row, N, a linked object clicked in the view. */
 const jump = (ref: Ref) => {
   focusOn(ref);
   selection.value = { ...ref };

@@ -295,6 +295,15 @@ export interface EventData {
   relations: Record<string, Relation>;
 }
 
+/** A column as 32-bit floats, as the shaders and the cuts take it: the column itself if it already is, else a copy; a
+ *  missing column is `n` times `fill`. */
+export const toF32 = (c: Column | undefined, n: number, fill = 0) =>
+  c instanceof Float32Array
+    ? c
+    : c
+      ? Float32Array.from(c as ArrayLike<number | bigint>, Number)
+      : new Float32Array(n).fill(fill);
+
 /** The unit in a column's documentation, written as "[GeV]". */
 export const unitOf = (doc = "") => doc.match(/\[([^\]]+)\]/)?.[1] ?? "";
 /** Short name of a layer's kind of object: its group for a layer with a kind ("Tracksters"), else its label. */

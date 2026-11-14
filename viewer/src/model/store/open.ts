@@ -66,7 +66,7 @@ export const opening = signal<string | null>(null);
 export const openFailure = signal<Failure | null>(null);
 /** Start-up is over: the lists were read and the first data set, if any, was asked for (set by ui/App.tsx). */
 export const started = signal(false);
-/** Live mode (ui/live.ts): new data sets are opened as they appear. */
+/** Live mode (control/live.ts): new data sets are opened as they appear. */
 export const following = signal(false);
 
 /** Re-read index.json, bypassing caches (it changes as new data arrive). Only well-formed entries are kept

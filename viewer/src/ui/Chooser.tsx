@@ -34,7 +34,7 @@ import {
   openLocal,
   refreshCatalogue,
 } from "../model/store";
-import { stopLive } from "./live";
+import { stopLive } from "../control/live";
 import { Icon, usePressOutside } from "./widgets";
 
 /** Open or closed; the start panels open it too (ui/Start.tsx). */

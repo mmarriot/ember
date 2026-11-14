@@ -49,10 +49,10 @@ import { Card } from "./Card";
 import { menuOpen } from "./Menu";
 import { Sidebar } from "./Sidebar";
 import { DropHint, Start } from "./Start";
-import { back, chooseDomain, cross, nextDomain, nextObject, showWhole } from "./navigate";
-import { stopLive } from "./live";
-import { stopTour, toggleTour } from "./tour";
-import { engine, replayEvent } from "./scene";
+import { back, chooseDomain, cross, nextDomain, nextObject, showWhole } from "../control/navigate";
+import { stopLive } from "../control/live";
+import { stopTour, toggleTour } from "../control/tour";
+import { engine, replayEvent } from "../control/scene";
 import { Viewport } from "./Viewport";
 import { Toasts } from "./widgets";
 

@@ -7,14 +7,14 @@
 // `shaderLayer` builds the per-object attributes these shaders read. Showers (ellipsoids.ts) are the exception: a
 // few thousand objects at most, updated on the CPU.
 import * as THREE from "three";
-import type { DisplayLayer, Table, ViewName } from "../../io/format";
-import { toF32, type Pal } from "../colour";
+import { type DisplayLayer, type Table, toF32, type ViewName } from "../../io/format";
+import type { Pal } from "../colour";
 import type { Field } from "../helix";
 import { HIDDEN } from "../../model/cuts";
 import { REPLAY_OFF } from "../replay";
 
 /** A drawn layer, as the engine sees it: its three.js object, where its objects are (for picking and framing), and
- *  the setters ui/scene.ts calls when the cut, the colours, the selection, the view or the replay clock change. */
+ *  the setters control/scene.ts calls when the cut, the colours, the selection, the view or the replay clock change. */
 export interface Layer {
   readonly key: string;
   readonly table: string;

@@ -1198,16 +1198,6 @@ summary {
 .feedback.bad {
   color: var(--error);
 }
-.path {
-  margin-top: 6px;
-  font:
-    11px ui-monospace,
-    SFMono-Regular,
-    Menlo,
-    monospace;
-  color: var(--muted);
-  overflow-wrap: anywhere;
-}
 
 /* viewport overlays */
 .viewport {
@@ -1808,18 +1798,6 @@ ul.coverage li.none {
 .key .chip {
   margin: 1px 0;
 }
-.how {
-  font-size: 11px;
-  color: var(--muted);
-  margin-top: 6px;
-}
-.how summary {
-  cursor: pointer;
-}
-.how ul {
-  margin: 4px 0 0;
-  padding-left: 16px;
-}
 .pairline {
   display: flex;
   flex-wrap: wrap;
@@ -2131,9 +2109,6 @@ ul.coverage li.none {
 }
 .rung.self::before {
   left: -15px;
-}
-.rung.empty .rkind {
-  color: var(--muted);
 }
 .rhead {
   display: flex;

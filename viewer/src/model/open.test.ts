@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { blobSource, HttpError, type Source } from "../io/bundle";
 import { type Listed, recent } from "./library";
 // The store sets the page's theme as it loads: a stand-in page (the tests run without a DOM).
@@ -70,6 +70,45 @@ describe("openBundle", () => {
     expect(opened.value).toMatchObject({ file: "data/u/alice/old.evdb", title: "Published before the rename" });
     await openBundle("data/sim/golden.evdb", golden);
     expect(opened.value).toMatchObject({ file: "data/sim/golden.evdb", title: "golden", local: false });
+  });
+
+  describe("a link to an .evdb bundle published again since the rename, as .ember", () => {
+    const bytes = readFileSync(new URL("../../../golden/v6_1event.ember", import.meta.url));
+    /** A site with these files, as fetch sees it: a whole file for any request (status 200), else 404. */
+    const site = (files: string[]) => {
+      const asked: string[] = [];
+      Object.assign(globalThis, {
+        fetch: async (url: string) => {
+          asked.push(url);
+          return files.includes(url) ? new Response(bytes, { status: 200 }) : new Response(null, { status: 404 });
+        },
+      });
+      return asked;
+    };
+    afterEach(() => {
+      delete (globalThis as { fetch?: unknown }).fetch;
+    });
+
+    it("opens the .ember file of the same name, after one failed request", async () => {
+      const asked = site(["data/u/alice/old.ember"]);
+      expect(await openBundle("data/u/alice/old.evdb", undefined, 0, false, indexes())).toBe(true);
+      expect(asked).toEqual(["data/u/alice/old.evdb", "data/u/alice/old.ember"]);
+      expect(bundleName.value).toBe("data/u/alice/old.ember");
+      expect(openFailure.value).toBeNull();
+    });
+
+    it("says the file the link names is gone when neither is there", async () => {
+      site([]);
+      expect(await openBundle("data/u/alice/old.evdb")).toBe(false);
+      expect(openFailure.value).toMatchObject({ kind: "gone", name: "data/u/alice/old.evdb" });
+    });
+
+    it("asks only once for an .ember link, and never for an address on another site", async () => {
+      const asked = site([]);
+      await openBundle("data/u/alice/new.ember");
+      await openBundle("https://elsewhere.example/x.evdb");
+      expect(asked).toEqual(["data/u/alice/new.ember", "https://elsewhere.example/x.evdb"]);
+    });
   });
 
   it("lists a data set from a link under the recent ones, and a local file as one that cannot be reopened", async () => {

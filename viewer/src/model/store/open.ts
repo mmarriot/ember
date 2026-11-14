@@ -2,7 +2,7 @@
 // failed, and the actions that set data.ts's signals (openBundle, showEvent). Opens and event reads may overlap; the
 // last one asked for always wins.
 import { batch, computed, signal } from "@preact/signals";
-import { around, blobSource, Bundle, httpSource, type Source } from "../../io/bundle";
+import { around, blobSource, Bundle, HttpError, httpSource, type Source } from "../../io/bundle";
 import { type DisplayLayer, REPRS } from "../../io/format";
 import { loadCustom } from "../custom";
 import { startDomain } from "../domains";
@@ -91,12 +91,12 @@ let opens = 0;
 
 /** Open a bundle and show its event `start` (a shared link's event: only that one is read, not event 0 first).
  *  `local`: a file from this computer (read through `open`), which the address bar and the recent list cannot open
- *  again. `name`, when not local, is a file of this site or an address elsewhere (library.ts locate); anything else is
- *  refused. Opens may overlap (a slow link and a choice made meanwhile, Live, two quick picks): the last one asked for
+ *  again. `asked`, when not local, is a file of this site or an address elsewhere (library.ts locate); anything else
+ *  is refused. An old link to a site file `x.evdb` that is gone opens `x.ember`, its name since the rename. Opens may overlap (a slow link and a choice made meanwhile, Live, two quick picks): the last one asked for
  *  wins, whatever order they finish in, and one that was overtaken changes nothing and says nothing. Returns whether
  *  this open is the one on screen with its event read (then a link's view and selection can be applied). */
 export async function openBundle(
-  name: string,
+  asked: string,
   open?: () => Promise<Source>,
   start = 0,
   local = false,
@@ -104,12 +104,23 @@ export async function openBundle(
 ): Promise<boolean> {
   const id = ++opens,
     overtaken = () => id !== opens;
-  const place = local ? null : locate(name),
+  const place = local ? null : locate(asked),
     external = place?.kind === "external";
-  opening.value = name;
+  let name = asked; // the file opened: `asked`, or its .ember successor (below)
+  opening.value = asked;
   try {
-    if (place?.kind === "bad") throw new NameError(name);
-    const source = await (open ?? (() => httpSource(place?.kind === "external" ? place.url : name)))();
+    if (place?.kind === "bad") throw new NameError(asked);
+    let source: Source;
+    try {
+      source = await (open ?? (() => httpSource(external ? place.url : asked)))();
+    } catch (e) {
+      // A bundle published before the rename to Ember (x.evdb) and published again since is x.ember, and the old file
+      // is gone: an old link to it opens the new one. One more request, made only when the first found nothing.
+      const successor = asked.replace(/\.evdb$/, ".ember");
+      if (open || place?.kind !== "site" || successor === asked || !isMissing(e)) throw e;
+      source = await httpSource(successor);
+      name = successor;
+    }
     if (overtaken()) return false;
     const b = await Bundle.open(source);
     if (overtaken()) return false;
@@ -146,8 +157,8 @@ export async function openBundle(
     return !overtaken() && shownOf.peek() === b;
   } catch (e) {
     if (overtaken()) return false;
-    const failure = describeFailure(name, e, local);
-    if (failure.kind === "gone") forgetRecent(name);
+    const failure = describeFailure(asked, e, local);
+    if (failure.kind === "gone") forgetRecent(asked);
     // With a data set on screen it stays, and a message says why the other did not open; with nothing to show (a link
     // followed to a file that is gone), the page says so in full.
     if (bundle.peek()) toast(`${failure.title}: ${failure.text}`, "error");
@@ -157,6 +168,9 @@ export async function openBundle(
     if (!overtaken()) opening.value = null;
   }
 }
+
+/** The server has no such file (what library.ts describeFailure calls "gone"). */
+const isMissing = (e: unknown) => e instanceof HttpError && (e.status === 404 || e.status === 410);
 
 /** Leave out the layers this viewer cannot draw, so the rest of the bundle still shows: a representation it does not
  *  know (a newer bundle; a console warning), or position columns the table lacks (they would be drawn at the origin;

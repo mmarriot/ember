@@ -24,7 +24,7 @@ import {
   truthName,
   truthStatuses,
 } from "../model/store";
-import { passing } from "./Layers";
+import { passing } from "./ObjectRows";
 import { ObjChip } from "./chips";
 import { Info } from "./Info";
 import { jump } from "./navigate";

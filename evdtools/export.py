@@ -108,7 +108,10 @@ def _environment(cmssw):
                 "in a release that has the event-display NanoAOD (NANO:@EVD) first"
             )
         return [], None
-    setup = f'source /cvmfs/cms.cern.ch/cmsset_default.sh && cd {shlex.quote(cmssw)} && eval $(scram runtime -sh) && cd "$OLDPWD" && exec "$@"'
+    setup = (
+        f"source /cvmfs/cms.cern.ch/cmsset_default.sh && cd {shlex.quote(cmssw)} && eval $(scram runtime -sh)"
+        ' && cd "$OLDPWD" && exec "$@"'
+    )
     keep = {k: os.environ[k] for k in ("HOME", "USER", "KRB5CCNAME", "X509_USER_PROXY", "TMPDIR") if k in os.environ}
     return ["bash", "-c", setup, "evd"], {**keep, "PATH": "/usr/bin:/bin"}
 
@@ -124,21 +127,19 @@ def settings(path, geometry=None, era=None, conditions=None, cmssw=None, log=sys
         [*prefix, "python3", "-c", _RUN4], input=json.dumps(xml), capture_output=True, text=True, env=env, check=False
     )
     run4 = json.loads(result.stdout) if result.returncode == 0 else {"known": {}, "matches": []}
-    # why the release's geometries could not be read, for whichever message below needs them
-    why = (
-        f"\n(this release's Run4 geometries could not be read:\n{result.stderr.strip()[-500:]})"
-        if result.returncode
-        else ""
-    )
+    # Why the release's geometries could not be read, for whichever message below needs it.
+    why = ""
+    if result.returncode:
+        why = f"\n(this release's Run4 geometries could not be read:\n{result.stderr.strip()[-500:]})"
+
     if geometry is None:
         if len(run4["matches"]) != 1:
-            found = (
-                f"it matches {' and '.join(run4['matches'])}"
-                if run4["matches"]
-                else "none of this release's Run4 geometries lists its geometry files"
-                if xml
-                else "the file does not record its geometry files"
-            )
+            if run4["matches"]:
+                found = f"it matches {' and '.join(run4['matches'])}"
+            elif xml:
+                found = "none of this release's Run4 geometries lists its geometry files"
+            else:
+                found = "the file does not record its geometry files"
             raise Problem(
                 f"{path}: cannot tell which geometry it was made with ({found}); give --geometry, "
                 "e.g. --geometry D110" + why
@@ -172,7 +173,10 @@ def settings(path, geometry=None, era=None, conditions=None, cmssw=None, log=sys
 def cmsdriver(inputs, events, geometry, era, conditions, threads=4, output=OUTPUT):
     """The cmsDriver.py command line that writes the event-display NanoAOD of the first `events` events (None:
     all) of the EDM files `inputs` to `output`, in the directory it runs in."""
-    source = lambda p: p if re.match(r"\w+:", p) else f"file:{os.path.abspath(p)}"
+
+    def source(path):  # a URL or file:... as it is, a local path as file:<absolute path>
+        return path if re.match(r"\w+:", path) else f"file:{os.path.abspath(path)}"
+
     return [
         "cmsDriver.py",
         "evd",

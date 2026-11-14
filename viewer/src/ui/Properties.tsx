@@ -1,4 +1,4 @@
-// An object's columns in the selection's card (Navigator.tsx): its main ones, then all of them folded, and for a reco
+// An object's columns in the selection's card (Card.tsx): its main ones, then all of them folded, and for a reco
 // object with energy fractions (e.g. a jet) those as one bar.
 import { type Table, unitOf } from "../io/format";
 import { colourBy, customColumns, customDoc } from "../model/custom";

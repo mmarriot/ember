@@ -5,7 +5,7 @@ import "./styles/topbar.css";
 import "./styles/start.css";
 import "./styles/sidebar.css";
 import "./styles/viewport.css";
-import "./styles/inspector.css";
+import "./styles/card.css";
 import "./styles/dialogs.css";
 import "./styles/narrow.css";
 import { App } from "./ui/App";

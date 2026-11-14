@@ -64,7 +64,7 @@ const CLASSES = [
 /** The Truth tab's scorecard: for each reco kind the CMSSW associator matches, how many of the objects that pass their
  *  cuts and filters are a clean match, an impure one, or unmatched (model/chain.ts matchTally). A count unfolds to its
  *  objects, largest first: the event's fakes and merges, one click away. */
-export function Scorecard() {
+function Scorecard() {
   const b = bundle.value,
     ev = event.value,
     statuses = truthStatuses.value;
@@ -153,7 +153,7 @@ export function Scorecard() {
 
 /** The Truth tab's first section: what the truth graph says about each kind drawn from this bundle (docs/truth.md
  *  "Where truth stops"), in the words of the inspector and the colour key. */
-export function Coverage() {
+function Coverage() {
   const b = bundle.value,
     statuses = truthStatuses.value;
   if (!b || !modes.value.roots.truth) return null;

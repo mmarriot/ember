@@ -381,7 +381,7 @@ colour throughout.
 
 ## The selection's card
 
-The card is the same for every kind of object (`viewer/src/ui/Navigator.tsx`). It shows names, bars and numbers.
+The card is the same for every kind of object (`viewer/src/ui/Card.tsx`). It shows names, bars and numbers.
 More is behind small buttons:
 
 - the table's description is behind the **i** next to its title;

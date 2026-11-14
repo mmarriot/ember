@@ -94,10 +94,11 @@ describe("a name from a link or an index", () => {
       kind: "external",
       url: "https://elsewhere.example/a/x.evdb?sig=1",
     });
+    // This site, spelt in full.
     expect(locate("https://evd.example/site/data/u/alice/x.evdb", base)).toEqual({
       kind: "site",
       file: "data/u/alice/x.evdb",
-    }); // this site, spelt in full
+    });
     expect(locate("https://evd.example/other/x.evdb", base).kind).toBe("external");
     expect(locate("https://evd.example/site/data/x.evdb?x=1", base).kind).toBe("external");
     for (const bad of [

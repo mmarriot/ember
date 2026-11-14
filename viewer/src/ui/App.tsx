@@ -7,7 +7,7 @@
 // `.peek()` where they must not depend on a signal, and assign `.value` to change it, which updates every reader.
 import { effect, signal } from "@preact/signals";
 import { useEffect } from "preact/hooks";
-import type { ViewName } from "../render/engine";
+import type { ViewName } from "../io/format";
 import { startDomain } from "../model/domains";
 import { loadIdentity, loadRecent, mine, pruneRecent, refreshMine } from "../model/library";
 import {
@@ -45,7 +45,7 @@ import { chooserOpen } from "./Chooser";
 import { Header } from "./Header";
 import { HelpDialog } from "./Help";
 import { Popover, popover } from "./Info";
-import { Navigator } from "./Navigator";
+import { Card } from "./Card";
 import { menuOpen } from "./Menu";
 import { Sidebar } from "./Sidebar";
 import { DropHint, Start } from "./Start";
@@ -80,7 +80,7 @@ export function App() {
       <main>
         <Viewport />
         <Start />
-        <Navigator />
+        <Card />
       </main>
       {dialog.value === "help" && <HelpDialog />}
       <Popover />

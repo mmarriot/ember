@@ -27,7 +27,7 @@ import {
   unlook,
   view,
 } from "../model/store";
-import type { ViewName } from "../render/engine";
+import type { ViewName } from "../io/format";
 import { Labels } from "./Labels";
 import { jump } from "./navigate";
 import { engine, startScene } from "./scene";

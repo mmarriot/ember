@@ -14,7 +14,7 @@ import { HIDDEN } from "../../model/cuts";
 import { REPLAY_OFF } from "../replay";
 
 /** A drawn layer, as the engine sees it: its three.js object, where its objects are (for picking and framing), and
- *  the setters the viewport calls when the cut, the colours, the selection, the view or the replay clock change. */
+ *  the setters ui/scene.ts calls when the cut, the colours, the selection, the view or the replay clock change. */
 export interface Layer {
   readonly key: string;
   readonly table: string;

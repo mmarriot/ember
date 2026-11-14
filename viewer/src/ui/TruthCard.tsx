@@ -1,4 +1,4 @@
-// The truth in the selection's card (Navigator.tsx; docs/truth.md), the same for every kind of object:
+// The truth in the selection's card (Card.tsx; docs/truth.md), the same for every kind of object:
 // - for a reco object, its truth card: what the kind reconstructs, the associator's best match, and how good that
 //   match is in linear numbers (purity, completeness) next to the associator's own score, with the generator particle
 //   it belongs to;

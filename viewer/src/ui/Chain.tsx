@@ -1,4 +1,4 @@
-// A reco object's chain in its card (Navigator.tsx): what it is part of, itself, and what it is made of (model/chain.ts),
+// A reco object's chain in its card (Card.tsx): what it is part of, itself, and what it is made of (model/chain.ts),
 // each step with what the truth has for it as a tag (match, fact, derived, no truth). A step names its objects when
 // they are few, and counts them otherwise (a click lists them). "show" draws a step in the view (↓ ↑ step through
 // them), and a step in another part of the detector has a link that looks there.

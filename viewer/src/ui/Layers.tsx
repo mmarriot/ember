@@ -29,7 +29,7 @@ import {
 } from "../model/store";
 import { CutChip } from "./Cuts";
 import { popover, togglePopover } from "./Info";
-import { keyed, Options, Scale } from "./LayerOptions";
+import { explainedByKey, Options, Scale } from "./LayerOptions";
 import { Headline, ObjectRows } from "./ObjectRows";
 
 /** The tab a layer is listed in: its `domain`, or "Objects" for bundles made before layers had one. */
@@ -316,7 +316,7 @@ function LayerRow({
       ) : (
         on &&
         legend &&
-        !keyed(d) && (
+        !explainedByKey(d) && (
           <div class="legend">
             <Scale d={d} legend={legend} />
           </div>

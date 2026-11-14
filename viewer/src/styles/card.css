@@ -1,6 +1,6 @@
-/* The selection's card (Navigator.tsx): its header, its chain with the truth link of every step (Chain.tsx), the
+/* The selection's card (Card.tsx): its header, its chain with the truth link of every step (Chain.tsx), the
    truth card and lineage (TruthCard.tsx), the pair (PairBars.tsx), the levels in the view, the object looked at, its
-   associations and its columns (Columns.tsx). */
+   associations and its columns (Properties.tsx). The card is the element with class `inspector`. */
 .inspector {
   position: absolute;
   top: 12px;

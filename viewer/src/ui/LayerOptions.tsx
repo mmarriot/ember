@@ -9,7 +9,7 @@ import { Icon } from "./widgets";
 
 /** Whether the colour key at the bottom of the panel explains the layer's colours (particle type, generator
  *  particle, or the pair view), so its own legend would only repeat it. */
-export function keyed(d: DisplayLayer) {
+export function explainedByKey(d: DisplayLayer) {
   const mode = activeMode.value;
   if (mode === "layers" || d.context || colourBy.value[layerKey(d)]) return false;
   if (pairView.value?.classes.has(d.table)) return true;

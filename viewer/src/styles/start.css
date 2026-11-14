@@ -12,8 +12,9 @@
 }
 .app.nodata .eventnav,
 .app.nodata .topbar > .views {
+  /* nothing to step through or turn: inert, disabled (Header.tsx, Viewport.tsx) */
   opacity: 0.4;
-} /* nothing to step through or turn: inert, disabled (Header.tsx, Viewport.tsx) */
+}
 .app.nodata .topbar > .views button {
   cursor: default;
 }
@@ -27,8 +28,9 @@
   background: var(--bg);
 }
 .startpanel > * {
+  /* centred, and scrollable from its top when the view is short */
   margin: auto;
-} /* centred, and scrollable from its top when the view is short */
+}
 .startpanel.quiet {
   color: var(--muted);
 }

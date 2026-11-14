@@ -3,16 +3,21 @@
 
 [project]
 site_name = "evd"
-site_description = "Web event display for CMS: NanoAOD tables converted to self-describing bundles and drawn in the browser"
+site_description = "Web event display for CMS: events written by CMSSW as NanoAOD tables, turned into a link by one command and drawn in the browser"
 site_url = "https://mmarriot.github.io/evd/"
 # A new page in docs/ needs its line here, or the site has no way to it.
 nav = [
   { "Home" = "index.md" },
-  { "Bundle format" = "format.md" },
-  { "Profiles" = "profiles.md" },
+  { "Getting started" = "getting-started.md" },
+  { "The evd command" = "cli.md" },
+  { "CMSSW side" = "cmssw.md" },
   { "Viewer" = "viewer.md" },
   { "Truth" = "truth.md" },
   { "Truth graph" = "truth-graph.md" },
+  { "Profiles" = "profiles.md" },
+  { "Bundle format" = "format.md" },
+  { "Hosting" = "hosting.md" },
+  { "Questions and problems" = "faq.md" },
 ]
 
 # Setting this table replaces Zensical's default extensions (smartsymbols, magiclink, ...), so the pages render as on

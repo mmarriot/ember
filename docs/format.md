@@ -23,7 +23,8 @@ Run-level description, the same for every event.
 
 ```json
 { "schema": "evd/1",
-  "source": {"files": ["evd_nano_v6.root"], "converter": "evdtools 0.1", "created": "2026-11-09T14:00:00+00:00"},
+  "source": {"files": ["evd_nano.root"], "converter": "evdtools 0.2.0", "cmssw": "CMSSW_20_1_0",
+             "created": "2026-11-13T14:00:00+00:00"},
   "profile": "hgcal",
   "tables": { "TICLSoATracksters": { "doc": "TICL tracksters (SoA)",
                                      "columns": { "rawEnergy": {"type": "f32", "doc": "[GeV]"} } },
@@ -36,7 +37,7 @@ Run-level description, the same for every event.
 | key | meaning |
 |---|---|
 | `schema` | `evd/<major>` |
-| `source` | input `files`, `converter` and `created`; optional `data_time`: when the input data were produced (sorts site listings) |
+| `source` | input `files`, `converter` (`evdtools <version>`, the converter that wrote the bundle) and `created`; optional `cmssw`: the release of the last process that wrote the input (from the file's process history; absent when the input does not record one); optional `data_time`: when the input data were produced (sorts site listings). `evd inspect` and the viewer's data set details show them |
 | `profile` | name of the profile that made the bundle; the viewer keeps a user's custom columns per profile |
 | `tables` | `{name: {"doc", "columns": {name: {"type", "doc"}}}}`. Column types: `f32 f64 i8 u8 i16 u16 i32 u32 i64 u64`; booleans are `u8`. `"scope": "run"`: a per-run table (e.g. a channel table), stored once per run in a run record; readers add it to every event of that run |
 | `relations` | `{name: {"from", "to", "weights": [names]}}` plus optional hints, see [Relations](#relations) |

@@ -1,4 +1,4 @@
-/* Things that open over the page: the help dialog (App.tsx), the passing messages, and the descriptions behind an
+/* Things that open over the page: the help dialog (Help.tsx), the passing messages, and the descriptions behind an
    "i" (Info.tsx). */
 .backdrop {
   position: fixed;

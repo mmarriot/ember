@@ -7,8 +7,8 @@ file explains how to set up, which checks to run before a pull request, and how 
 
 You need:
 
-- **Python 3.9 or later** with numpy and uproot. The tests also need scipy and awkward. A CMSSW environment has all
-  of them.
+- **Python 3.9 or later** with numpy and uproot. The tests also need scipy and awkward, and the `mct` and `testbeam`
+  profiles need scipy (`pip install ".[scipy]"`). A CMSSW environment has all of them.
 - **Node 18 or later**, for the viewer.
 
 ```bash
@@ -67,6 +67,7 @@ Run the checks that your change could affect, and say in the pull request which 
 
 ```bash
 ruff format --check .                            # Python formatting
+ruff check .                                     # Python lint
 python3 -m pytest tests                          # converter, bundle format, command, site
 cd viewer
 npm run format:check                             # viewer formatting
@@ -93,9 +94,9 @@ python3 -m venv .venv && .venv/bin/pip install zensical==0.1.1
 .venv/bin/zensical serve             # http://127.0.0.1:8000, rebuilds when docs/ changes
 ```
 
-**What CI runs** (`.github/workflows/`): the Python formatting check, the lint check and the tests; the viewer's formatting check,
-type check and unit tests; and, when `docs/` or `zensical.toml` changes, the strict documentation build. The browser
-checks need a development server and bundles, so you run them by hand.
+**What CI runs** (`.github/workflows/`): the Python formatting check, the lint check and the tests; the viewer's
+formatting check, type check and unit tests; and, when `docs/` or `zensical.toml` changes, the strict documentation
+build. The browser checks need a development server and bundles, so you run them by hand.
 
 **Tests:** a change comes with its test. A converter or command change gets a case in `tests/`. Viewer logic gets a
 `*.test.ts` file next to it. Something visible gets a check in the browser checks

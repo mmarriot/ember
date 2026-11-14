@@ -6,7 +6,8 @@ site_name = "evd"
 site_description = "A web event display for CMS: one command turns a CMSSW output file into a link, and the browser draws the event"
 site_url = "https://mmarriot.github.io/evd/"
 # A new page in docs/ needs its line here, or the site has no way to it. The menu is ordered by what a reader needs:
-# the tutorial, then recipes, then reference, then the background on truth, then the site's operators.
+# the tutorial, then recipes and common questions, then reference, then the background on truth, then the site's
+# operators.
 nav = [
   { "Home" = "index.md" },
   { "Getting started" = "getting-started.md" },

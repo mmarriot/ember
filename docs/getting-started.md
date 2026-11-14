@@ -20,15 +20,21 @@ You will:
 `https://cms-evd.web.cern.ch` (provisional) and sign on with your CERN account. The site opens its newest shared
 sample. Then go to [step 4](#step-4-look-at-the-event).
 
+**Want to see the viewer right now?** You can do it on your own computer without CMSSW or the site. Follow
+[Look at a bundle without the site](how-to.md#look-at-a-bundle-without-the-site) and drop
+`golden/v6_1event.evdb` from the repository on the page: it is one simulated event. Then go to
+[step 4](#step-4-look-at-the-event).
+
 ## What you need
 
 - **A CERN account that is a member of CMS.** The site is behind the CERN single sign-on.
 - **A CMSSW area for Phase-2 full simulation that has the `NANO:@EVD` step.** See the box below.
-- **Python 3 with numpy and uproot.** `cmsenv` gives you both.
+- **Python 3.9 or later with numpy and uproot.** `cmsenv` gives you all three.
 - **Off lxplus:** a Kerberos ticket and the XRootD tools, so that `evd` can write to EOS. Run
   `kinit <your login>@CERN.CH`, and `cmsenv` (it puts `xrdcp` and `xrdfs` in your `PATH`).
 
-> **Until the CMSSW pull requests are merged** (delete this box afterwards). No CMSSW release has `NANO:@EVD` yet.
+<!-- Delete this box once the CMSSW pull requests are merged. -->
+> **Until the CMSSW pull requests are merged.** No CMSSW release has `NANO:@EVD` yet.
 > Add it to a recent CMSSW_20_1_X integration build. `scram list -c CMSSW_20_1_X` lists the builds; they expire
 > after a few weeks. Do this once:
 >

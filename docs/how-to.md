@@ -72,7 +72,8 @@ such events is about 180 MB.
 | `--max-events 0` | all events |
 | `--events 3,7-9` | only these event numbers (the `event` of each event, not its position in the file) |
 
-With `--events`, every event you ask for is converted. For a step3 file, `--events` makes the NanoAOD of the whole
+With `--events`, every event you ask for is converted, not only the first 10 (the profile's event selection still
+applies). For a step3 file, `--events` makes the NanoAOD of the whole
 file first, to find them.
 
 ## Give your bundle a name and a title

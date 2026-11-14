@@ -13,18 +13,18 @@ const names = (rows: [string, string][]) => rows.map(([k]) => k);
 describe("what is known about the data set open", () => {
   it("says who published a person's file and when it expires, and when it was published only if the index says", () => {
     const o = {
-      file: "data/u/alice/x.evdb",
+      file: "data/u/alice/x.ember",
       title: "X",
       local: false,
       external: false,
       entry: {
-        file: "data/u/alice/x.evdb",
+        file: "data/u/alice/x.ember",
         title: "X",
         created: "2026-11-01T10:00:00Z",
         expires: "2026-12-03T12:00:00Z",
       },
     };
-    const b = bundle({ created: "2026-11-01T10:00:00Z", converter: "evdtools 0.3.0", cmssw: "CMSSW_20_1_0_pre6" });
+    const b = bundle({ created: "2026-11-01T10:00:00Z", converter: "embertools 0.3.0", cmssw: "CMSSW_20_1_0_pre6" });
     expect(summary(o, b, NOW)).toBe("50 events · published by alice · expires in 20 days");
     expect(names(provenance(o, b, NOW))).toEqual([
       "Events",
@@ -45,18 +45,18 @@ describe("what is known about the data set open", () => {
 
   it("leaves out what a bundle or an index does not say, and says nothing of a publisher for other files", () => {
     const b = bundle({});
-    expect(names(provenance({ file: "data/sim/x.evdb", title: "X", local: false, external: false }, b, NOW))).toEqual([
+    expect(names(provenance({ file: "data/sim/x.ember", title: "X", local: false, external: false }, b, NOW))).toEqual([
       "Events",
       "Profile",
       "From",
       "File",
     ]);
-    const local = { file: "data/u/alice/x.evdb", title: "x.evdb", local: true, external: false };
+    const local = { file: "data/u/alice/x.ember", title: "x.ember", local: true, external: false };
     expect(summary(local, b, NOW)).toBe("50 events · a local file");
-    expect(Object.fromEntries(provenance(local, b, NOW)).File).toBe("data/u/alice/x.evdb (on this computer)");
+    expect(Object.fromEntries(provenance(local, b, NOW)).File).toBe("data/u/alice/x.ember (on this computer)");
     expect(names(provenance(local, b, NOW))).not.toContain("Published by"); // whatever its name looks like
     const external = {
-      file: "https://elsewhere.example/data/u/alice/x.evdb",
+      file: "https://elsewhere.example/data/u/alice/x.ember",
       title: "x · elsewhere.example",
       local: false,
       external: true,

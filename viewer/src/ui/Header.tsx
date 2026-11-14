@@ -48,7 +48,7 @@ export function Header() {
     >
       <div class="brand">
         <img src={logo} alt="" width={22} height={22} />
-        Event display
+        Ember
       </div>
       <Chooser />
       <nav class="eventnav" aria-label="Event navigation" inert={!b}>

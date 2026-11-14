@@ -35,7 +35,7 @@ export function modeRoots(header: Header): { truth?: string; reco?: string } {
  *  `truthRoot` (the root is the truth particles; docs/truth.md "Constituents"): a reco table takes a truth colour only
  *  across its own association, or from the container it is part of (a track's hits), never from its parts or through
  *  them (a jet from its particles' tracks, a muon from its inner track): that would show a part's match, or a vote
- *  through hits, as the object's own. The vote by content (simulated energy in its hits) is evd's stand-in for a
+ *  through hits, as the object's own. The vote by content (simulated energy in its hits) is Ember's stand-in for a
  *  missing associator, kept only for a kind that opts in (`truthGap.derived`, HGCal layer clusters) or in a bundle
  *  made before `truthGap` and `fact` existed. A kind
  *  with a `truthGap` and no association of its own takes no truth colour, not even its container's. */

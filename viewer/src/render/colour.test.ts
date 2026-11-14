@@ -148,7 +148,7 @@ describe("identity colouring", () => {
     expect([0, 1, 2].map((i) => hex(c.rgb, i))).toEqual(
       [pal.identity[1], pal.identity[0], pal.identity[1]].map((x) => x.toLowerCase()),
     );
-    expect(c.legend.kind === "category" && c.legend.text).toContain("derived in evd");
+    expect(c.legend.kind === "category" && c.legend.text).toContain("derived in Ember");
   });
 });
 

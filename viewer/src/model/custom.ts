@@ -101,7 +101,7 @@ export function loadCustom(profile: string, defaults: Record<string, string>, re
     preset: number;
   }> = {};
   try {
-    saved = JSON.parse(localStorage.getItem(`evd.custom.${profile}`) ?? "{}");
+    saved = JSON.parse(localStorage.getItem(`evd.custom.${profile}`) ?? "{}"); // old prefix kept: see model/library.ts
   } catch {
     /* defaults */
   }

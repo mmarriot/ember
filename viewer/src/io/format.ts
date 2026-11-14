@@ -22,7 +22,7 @@ export type Column = InstanceType<(typeof COLUMN_TYPES)[TypeCode]>;
 export interface Header {
   schema: string;
   /** Where the bundle comes from: its input files, when and with what it was converted (`converter`, e.g.
-   *  "evdtools 0.3.0"; `cmssw`, the release that wrote the input, when the converter knows it). */
+   *  "embertools 0.3.0"; `cmssw`, the release that wrote the input, when the converter knows it). */
   source: { files: string[]; created?: string; converter?: string; cmssw?: string; data_time?: string };
   profile: string;
   /** `scope: "run"`: written once per run (see RunEntry) and added to every event of that run. */
@@ -168,7 +168,7 @@ export interface DisplayLayer {
   particle?: { flags: string; bit: number; first?: string };
   /** A reco kind the truth graph says nothing about (docs/truth.md): why (`reason`, for the UI) and the number of the
    *  gap in docs/truth-graph.md. Ignored once the kind has its own reco -> truth relation with a `match` hint.
-   *  `derived: "content"`: evd's stand-in may colour it by the particle with the most simulated energy in its parts
+   *  `derived: "content"`: Ember's stand-in may colour it by the particle with the most simulated energy in its parts
    *  (only HGCal layer clusters). */
   truthGap?: { reason: string; gap?: number; derived?: "content" };
   /** Draw only the objects related to the current selection (none without one), until the user chooses all. */

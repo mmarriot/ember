@@ -48,7 +48,7 @@ const CHAIN_HELP = (
         <b>fact</b>: from the simulation, the particles that left the energy in these hits.
       </li>
       <li>
-        <b>derived</b>: worked out in evd, where CMSSW has no associator yet.
+        <b>derived</b>: worked out in Ember, where CMSSW has no associator yet.
       </li>
       <li>
         <b>no truth</b>: CMSSW has no truth for this kind of object yet.
@@ -141,7 +141,7 @@ function RungRow({ rung, role }: { rung: Rung; role: "above" | "self" | "below" 
               {g.held && (
                 <span
                   class="muted"
-                  title={`No relation names it as containing this object: it holds ${g.held[0]} of this object's ${g.held[1]} parts (worked out in evd)`}
+                  title={`No relation names it as containing this object: it holds ${g.held[0]} of this object's ${g.held[1]} parts (worked out in Ember)`}
                 >
                   ≈ {g.held[0]} of {g.held[1]} parts
                 </span>
@@ -308,7 +308,7 @@ function LinkLine({
         {link.unranked && (
           <p>
             This object's kind has no truth of its own, so no particle is ranked through its hits: that would be a match
-            built in evd. Select a hit for its particles.
+            built in Ember. Select a hit for its particles.
           </p>
         )}
         {!link.unranked && !shown.length && (
@@ -348,7 +348,7 @@ function LinkLine({
       <div class="rlink derived">
         <Tag word="derived">
           <p>
-            Worked out in evd, not a CMSSW match: {link.reason}
+            Worked out in Ember, not a CMSSW match: {link.reason}
             {GAP(link.gap)}.
           </p>
           {link.unranked && (
@@ -384,7 +384,7 @@ function LinkLine({
             CMSSW has no truth for this kind of object yet: {link.reason}
             {GAP(link.gap)}.
           </p>
-          <p>evd builds no match of its own. The steps it is made of speak for themselves.</p>
+          <p>Ember builds no match of its own. The steps it is made of speak for themselves.</p>
         </Tag>
         {label}
       </div>

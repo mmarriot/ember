@@ -26,7 +26,7 @@ const sheetOpen = signal(false);
 // The panel's width: the CSS variable --sidebar on the root, remembered in this browser (when storage is available: not
 // always, e.g. in a private window). Read once, as the page loads.
 const DEFAULT_WIDTH = 340,
-  KEY = "evd.sidebar";
+  KEY = "evd.sidebar"; // the "evd." prefix is kept so that saved widths survive the rename (see model/library.ts)
 function setWidth(px: number) {
   const w = Math.round(Math.min(560, Math.max(260, px)));
   document.documentElement.style.setProperty("--sidebar", `${w}px`);

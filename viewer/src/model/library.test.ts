@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { FormatError, HttpError, NetworkError } from "../io/bundle";
 import {
   agoText,
+  BUNDLE_EXTENSIONS,
   cleanList,
   cleanLogin,
   describeFailure,
@@ -64,68 +65,77 @@ beforeEach(() => {
 
 describe("a name from a link or an index", () => {
   it("is a file of this site only as a plain relative path", () => {
-    for (const ok of ["ttbar.evdb", "data/sim/ttbar_0PU.evdb", "data/u/alice/my file (2).evdb", "index.json"])
+    for (const ok of ["ttbar.ember", "data/sim/ttbar_0PU.ember", "data/u/alice/my file (2).ember", "index.json"])
       expect(siteFile(ok)).toBe(ok);
     for (const bad of [
       "",
-      "/data/x.evdb",
-      "//elsewhere.example/x.evdb",
-      "data//x.evdb",
-      "data/./x.evdb",
-      "data/u/../x.evdb",
+      "/data/x.ember",
+      "//elsewhere.example/x.ember",
+      "data//x.ember",
+      "data/./x.ember",
+      "data/u/../x.ember",
       "..",
-      "data\\x.evdb",
-      "data/u/alice/..\\tester\\x.evdb",
-      "data/x.evdb?x=1",
-      "data/x.evdb#top",
-      "data/%2e%2e/x.evdb",
-      "https://elsewhere.example/x.evdb",
+      "data\\x.ember",
+      "data/u/alice/..\\tester\\x.ember",
+      "data/x.ember?x=1",
+      "data/x.ember#top",
+      "data/%2e%2e/x.ember",
+      "https://elsewhere.example/x.ember",
       "javascript:alert(1)",
       "data:text/plain,x",
-      "data/x\n.evdb",
+      "data/x\n.ember",
     ])
       expect(siteFile(bad)).toBeNull();
   });
 
   it("leads to this site, to an address elsewhere, or nowhere", () => {
-    const base = "https://evd.example/site/index.html";
-    expect(locate("data/u/alice/x.evdb", base)).toEqual({ kind: "site", file: "data/u/alice/x.evdb" });
-    expect(locate("https://elsewhere.example/a/x.evdb?sig=1", base)).toEqual({
+    const base = "https://ember.example/site/index.html";
+    expect(locate("data/u/alice/x.ember", base)).toEqual({ kind: "site", file: "data/u/alice/x.ember" });
+    expect(locate("https://elsewhere.example/a/x.ember?sig=1", base)).toEqual({
       kind: "external",
-      url: "https://elsewhere.example/a/x.evdb?sig=1",
+      url: "https://elsewhere.example/a/x.ember?sig=1",
     });
-    expect(locate("https://evd.example/site/data/u/alice/x.evdb", base)).toEqual({
+    expect(locate("https://ember.example/site/data/u/alice/x.ember", base)).toEqual({
       kind: "site",
-      file: "data/u/alice/x.evdb",
+      file: "data/u/alice/x.ember",
     }); // this site, spelt in full
-    expect(locate("https://evd.example/other/x.evdb", base).kind).toBe("external");
-    expect(locate("https://evd.example/site/data/x.evdb?x=1", base).kind).toBe("external");
+    expect(locate("https://ember.example/other/x.ember", base).kind).toBe("external");
+    expect(locate("https://ember.example/site/data/x.ember?x=1", base).kind).toBe("external");
     for (const bad of [
-      "data/u/../x.evdb",
+      "data/u/../x.ember",
       "/etc/passwd",
-      "//elsewhere.example/x.evdb",
-      "ftp://elsewhere.example/x.evdb",
+      "//elsewhere.example/x.ember",
+      "ftp://elsewhere.example/x.ember",
       "javascript:alert(1)",
-      "https://user:pw@elsewhere.example/x.evdb",
+      "https://user:pw@elsewhere.example/x.ember",
       "https://",
-      "data\\x.evdb",
+      "data\\x.ember",
     ])
       expect(locate(bad, base)).toEqual({ kind: "bad" });
   });
 
   it("is titled by its file, and by where it is when that is not this site's shared list", () => {
-    expect(titleOf("https://elsewhere.example/a/x.evdb?sig=1")).toBe("x · elsewhere.example");
+    expect(titleOf("https://elsewhere.example/a/x.ember?sig=1")).toBe("x · elsewhere.example");
   });
 });
 
 describe("whose files", () => {
   it("names the owner of a file in a person's area, and of nothing else", () => {
-    expect(ownerOf("data/u/alice/ttbar.evdb")).toBe("alice");
-    expect(ownerOf("data/simulation/ttbar.evdb")).toBeNull();
-    expect(ownerOf("data/u/alice/deeper/x.evdb")).toBeNull();
+    expect(ownerOf("data/u/alice/ttbar.ember")).toBe("alice");
+    expect(ownerOf("data/simulation/ttbar.ember")).toBeNull();
+    expect(ownerOf("data/u/alice/deeper/x.ember")).toBeNull();
     expect(userIndex("alice")).toBe("data/u/alice/index.json");
+    expect(titleOf("data/u/alice/ttbar_pu200.ember")).toBe("ttbar_pu200 · alice");
+    expect(titleOf("data/simulation/ttbar.ember")).toBe("ttbar");
+  });
+
+  it("takes files named .evdb, from before the project was called Ember, as bundles too", () => {
+    expect(BUNDLE_EXTENSIONS).toEqual([".ember", ".evdb"]); // what the file chooser offers
+    expect(ownerOf("data/u/alice/ttbar.evdb")).toBe("alice");
     expect(titleOf("data/u/alice/ttbar_pu200.evdb")).toBe("ttbar_pu200 · alice");
-    expect(titleOf("data/simulation/ttbar.evdb")).toBe("ttbar");
+    expect(titleOf("https://elsewhere.example/a/x.evdb?sig=1")).toBe("x · elsewhere.example");
+    expect(titleOf("data/simulation/ttbar.root")).toBe("ttbar.root"); // only a bundle's extension is dropped
+    expect(locate("data/u/alice/old.evdb")).toEqual({ kind: "site", file: "data/u/alice/old.evdb" });
   });
 
   it("tidies a typed login and refuses what cannot be one", () => {
@@ -184,8 +194,8 @@ describe("my files", () => {
   const index = {
     updated: at(0),
     bundles: [
-      { file: "data/u/bob/old.evdb", title: "Old", events: 5, created: at(-20), expires: at(10) },
-      { file: "data/u/bob/new.evdb", title: "New", events: 10, created: at(-1), expires: at(29) },
+      { file: "data/u/bob/old.ember", title: "Old", events: 5, created: at(-20), expires: at(10) },
+      { file: "data/u/bob/new.ember", title: "New", events: 10, created: at(-1), expires: at(29) },
       { title: "no file" },
     ],
   };
@@ -200,13 +210,18 @@ describe("my files", () => {
   it("orders by when a file was published, where the index says, not by when it was converted", async () => {
     const republished = {
       bundles: [
-        { file: "data/u/bob/a.evdb", title: "Converted last, published first", created: at(-1), published: at(-9) },
-        { file: "data/u/bob/b.evdb", title: "Converted long ago, published today", created: at(-40), published: at(0) },
-        { file: "data/u/bob/c.evdb", title: "No publication time", created: at(-3) },
+        { file: "data/u/bob/a.ember", title: "Converted last, published first", created: at(-1), published: at(-9) },
+        {
+          file: "data/u/bob/b.ember",
+          title: "Converted long ago, published today",
+          created: at(-40),
+          published: at(0),
+        },
+        { file: "data/u/bob/c.ember", title: "No publication time", created: at(-3) },
       ],
     };
     expect(
-      (await readIndex("bob", server({ "data/u/bob/index.json": republished })))!.map((x) => x.file.slice(-6, -5)),
+      (await readIndex("bob", server({ "data/u/bob/index.json": republished })))!.map((x) => x.file.slice(-7, -6)),
     ).toEqual(["b", "c", "a"]);
   });
 
@@ -223,12 +238,12 @@ describe("my files", () => {
 
   it("keeps the well-formed entries of the site's own list, whoever's area they are in", () => {
     const list = cleanList([
-      { file: "data/sim/a.evdb", title: "A", events: "12", campaign: 3 },
-      { file: "https://elsewhere.example/b.evdb", title: "B" },
-      { file: "c.evdb" },
+      { file: "data/sim/a.ember", title: "A", events: "12", campaign: 3 },
+      { file: "https://elsewhere.example/b.ember", title: "B" },
+      { file: "c.ember" },
       5,
     ])!;
-    expect(list).toEqual([{ file: "data/sim/a.evdb", title: "A" }]);
+    expect(list).toEqual([{ file: "data/sim/a.ember", title: "A" }]);
     expect(cleanList({ not: "a list" })).toBeNull();
   });
 
@@ -242,28 +257,28 @@ describe("my files", () => {
   it("keeps only the person's own, well-formed entries of an index", async () => {
     const odd = {
       bundles: [
-        { file: "data/u/bob/ok.evdb", title: "Fine", events: null, created: at(-1) },
-        { file: "data/u/alice/theirs.evdb", title: "Someone else's" },
-        { file: "https://elsewhere.example/x.evdb", title: "Elsewhere" },
-        { file: "data/u/bob/../../index.evdb", title: "Climbing" },
-        { file: "data/u/bob/n.evdb", title: 7 },
+        { file: "data/u/bob/ok.ember", title: "Fine", events: null, created: at(-1) },
+        { file: "data/u/alice/theirs.ember", title: "Someone else's" },
+        { file: "https://elsewhere.example/x.ember", title: "Elsewhere" },
+        { file: "data/u/bob/../../index.ember", title: "Climbing" },
+        { file: "data/u/bob/n.ember", title: 7 },
         null,
         "text",
       ],
     };
     const list = (await readIndex("bob", server({ "data/u/bob/index.json": odd })))!;
-    expect(list.map((x) => x.file)).toEqual(["data/u/bob/ok.evdb"]);
+    expect(list.map((x) => x.file)).toEqual(["data/u/bob/ok.ember"]);
     expect(list[0].events).toBeUndefined();
   });
 
   // Review, finding 2: whose file a name says it is.
   it("names no owner for a name that is not exactly a file in a person's area", () => {
     for (const name of [
-      "data/u/alice/..\\tester\\cosmics.evdb",
-      "data/u/../x.evdb",
-      "data/u/Alice/x.evdb",
-      "data/u/alice/x.evdb?x=1",
-      "https://elsewhere.example/data/u/alice/x.evdb",
+      "data/u/alice/..\\tester\\cosmics.ember",
+      "data/u/../x.ember",
+      "data/u/Alice/x.ember",
+      "data/u/alice/x.ember?x=1",
+      "https://elsewhere.example/data/u/alice/x.ember",
     ])
       expect(ownerOf(name)).toBeNull();
   });
@@ -284,27 +299,27 @@ describe("my files", () => {
 describe("recent data sets", () => {
   it("puts the last one opened first, once, and keeps the newest twelve", () => {
     const storage = memory();
-    for (let i = 0; i < 14; i++) noteRecent({ file: `data/u/alice/${i}.evdb`, title: `Set ${i}` }, NOW, storage);
-    noteRecent({ file: "data/u/alice/5.evdb", title: "Set 5" }, NOW, storage);
+    for (let i = 0; i < 14; i++) noteRecent({ file: `data/u/alice/${i}.ember`, title: `Set ${i}` }, NOW, storage);
+    noteRecent({ file: "data/u/alice/5.ember", title: "Set 5" }, NOW, storage);
     expect(recent.value.length).toBe(12);
     expect(recent.value.slice(0, 2).map((r) => r.title)).toEqual(["Set 5", "Set 13"]);
     expect(recent.value.filter((r) => r.title === "Set 5").length).toBe(1);
     recent.value = [];
     loadRecent(storage); // as the next visit finds them
-    expect(recent.value[0]).toEqual({ file: "data/u/alice/5.evdb", title: "Set 5", time: NOW.toISOString() });
-    forgetRecent("data/u/alice/5.evdb", storage);
+    expect(recent.value[0]).toEqual({ file: "data/u/alice/5.ember", title: "Set 5", time: NOW.toISOString() });
+    forgetRecent("data/u/alice/5.ember", storage);
     expect(JSON.parse(storage.data["evd.recent"]).some((r: { title: string }) => r.title === "Set 5")).toBe(false);
   });
 
   it("remembers only files of this site and local files", () => {
     const storage = memory();
-    for (const file of ["https://elsewhere.example/x.evdb", "data/u/alice/x.evdb?x=1", "data/u/../x.evdb"])
+    for (const file of ["https://elsewhere.example/x.ember", "data/u/alice/x.ember?x=1", "data/u/../x.ember"])
       noteRecent({ file, title: "x" }, NOW, storage);
     expect(recent.value).toEqual([]);
     const stored = [
-      { file: "https://elsewhere.example/x.evdb", title: "Elsewhere", time: at(0) },
-      { file: "data/u/alice/x.evdb", title: "Alice's", time: at(0) },
-      { file: "any name?.evdb", title: "Dropped", time: at(0), local: true },
+      { file: "https://elsewhere.example/x.ember", title: "Elsewhere", time: at(0) },
+      { file: "data/u/alice/x.ember", title: "Alice's", time: at(0) },
+      { file: "any name?.ember", title: "Dropped", time: at(0), local: true },
     ];
     loadRecent(memory({ "evd.recent": JSON.stringify(stored) })); // as an older version, or someone else, may have stored
     expect(recent.value.map((r) => r.title)).toEqual(["Alice's", "Dropped"]);
@@ -312,19 +327,19 @@ describe("recent data sets", () => {
 
   it("adds to what another tab stored since this one read it, and forgets from it", () => {
     const storage = memory();
-    noteRecent({ file: "data/u/alice/here.evdb", title: "Opened here" }, NOW, storage);
+    noteRecent({ file: "data/u/alice/here.ember", title: "Opened here" }, NOW, storage);
     const other = [
-      { file: "data/u/carol/there.evdb", title: "Opened in another tab", time: at(0) },
+      { file: "data/u/carol/there.ember", title: "Opened in another tab", time: at(0) },
       ...JSON.parse(storage.data["evd.recent"]),
     ];
     storage.data["evd.recent"] = JSON.stringify(other); // the other tab's write; this tab's signal has not seen it
-    noteRecent({ file: "data/u/dave/third.evdb", title: "Third" }, NOW, storage);
+    noteRecent({ file: "data/u/dave/third.ember", title: "Third" }, NOW, storage);
     expect(recent.value.map((r) => r.title)).toEqual(["Third", "Opened in another tab", "Opened here"]);
     storage.data["evd.recent"] = JSON.stringify([
-      { file: "data/u/erin/e.evdb", title: "Erin's", time: at(0) },
+      { file: "data/u/erin/e.ember", title: "Erin's", time: at(0) },
       ...JSON.parse(storage.data["evd.recent"]),
     ]);
-    forgetRecent("data/u/alice/here.evdb", storage);
+    forgetRecent("data/u/alice/here.ember", storage);
     expect(JSON.parse(storage.data["evd.recent"]).map((r: { title: string }) => r.title)).toEqual([
       "Erin's",
       "Third",
@@ -347,16 +362,16 @@ describe("recent data sets", () => {
 
   it("shows only the data sets no other list has: mine and the shared ones have their place", () => {
     const storage = memory();
-    noteRecent({ file: "ttbar.evdb", title: "ttbar" }, NOW, storage); // a link to a shared one, opened before the lists were read
-    noteRecent({ file: "data/u/alice/x.evdb", title: "Alice's" }, NOW, storage);
-    noteRecent({ file: "local.evdb", title: "local.evdb", local: true }, NOW, storage);
-    expect(recentShown(recent.value, ["ttbar.evdb", "local.evdb"]).map((r) => r.title)).toEqual([
-      "local.evdb",
+    noteRecent({ file: "ttbar.ember", title: "ttbar" }, NOW, storage); // a link to a shared one, opened before the lists were read
+    noteRecent({ file: "data/u/alice/x.ember", title: "Alice's" }, NOW, storage);
+    noteRecent({ file: "local.ember", title: "local.ember", local: true }, NOW, storage);
+    expect(recentShown(recent.value, ["ttbar.ember", "local.ember"]).map((r) => r.title)).toEqual([
+      "local.ember",
       "Alice's",
     ]);
-    pruneRecent(["ttbar.evdb"], storage);
+    pruneRecent(["ttbar.ember"], storage);
     expect(JSON.parse(storage.data["evd.recent"]).map((r: { title: string }) => r.title)).toEqual([
-      "local.evdb",
+      "local.ember",
       "Alice's",
     ]);
   });
@@ -384,7 +399,7 @@ describe("times in words", () => {
 });
 
 describe("the filter", () => {
-  const entry: Listed = { file: "data/testbeam/run_112054.evdb", title: "Test beam 2025 · e- 150 GeV" };
+  const entry: Listed = { file: "data/testbeam/run_112054.ember", title: "Test beam 2025 · e- 150 GeV" };
   it("wants every word, in the title or the file name, whatever the case", () => {
     expect(matches("beam 150", entry)).toBe(true);
     expect(matches("TEST 112054", entry)).toBe(true);
@@ -394,34 +409,34 @@ describe("the filter", () => {
 
 describe("a data set that did not open", () => {
   it("is gone when the site has no such file, with its publisher to ask where it was one's own", () => {
-    const f = describeFailure("data/u/alice/ttbar.evdb", new HttpError("data/u/alice/ttbar.evdb", 404));
+    const f = describeFailure("data/u/alice/ttbar.ember", new HttpError("data/u/alice/ttbar.ember", 404));
     expect([f.kind, f.title]).toEqual(["gone", "This data set is no longer here"]);
     expect(f.text).toMatch(/published by alice.*Ask alice/);
-    expect(describeFailure("data/sim/x.evdb", new HttpError("data/sim/x.evdb", 404)).text).toMatch(
-      /no x\.evdb on this site/,
+    expect(describeFailure("data/sim/x.ember", new HttpError("data/sim/x.ember", 404)).text).toMatch(
+      /no x\.ember on this site/,
     );
   });
 
   it("tells a refusal, a silent site and a file that is not a bundle apart, by the kind of error and not its words", () => {
-    expect(describeFailure("x.evdb", new HttpError("x.evdb", 403)).kind).toBe("denied");
-    expect(describeFailure("x.evdb", new HttpError("x.evdb", 500)).kind).toBe("error");
-    expect(describeFailure("x.evdb", new NetworkError("x.evdb", new TypeError("Failed to fetch"))).kind).toBe(
+    expect(describeFailure("x.ember", new HttpError("x.ember", 403)).kind).toBe("denied");
+    expect(describeFailure("x.ember", new HttpError("x.ember", 500)).kind).toBe("error");
+    expect(describeFailure("x.ember", new NetworkError("x.ember", new TypeError("Failed to fetch"))).kind).toBe(
       "offline",
     );
-    expect(describeFailure("x.evdb", new FormatError("anything")).kind).toBe("unreadable");
-    expect(describeFailure("x.evdb", new TypeError("Cannot read properties of undefined")).kind).toBe("error"); // a bug is not "the site did not answer"
-    expect(describeFailure("x.evdb", new Error("the JSON said Unexpected things")).kind).toBe("error");
-    expect(describeFailure("x.evdb", "odd").detail).toBe("odd");
+    expect(describeFailure("x.ember", new FormatError("anything")).kind).toBe("unreadable");
+    expect(describeFailure("x.ember", new TypeError("Cannot read properties of undefined")).kind).toBe("error"); // a bug is not "the site did not answer"
+    expect(describeFailure("x.ember", new Error("the JSON said Unexpected things")).kind).toBe("error");
+    expect(describeFailure("x.ember", "odd").detail).toBe("odd");
   });
 
   it("does not name a publisher, or anything else, from the look of a name that is not a site file", () => {
-    const f = describeFailure("data/u/alice/..\\tester\\x.evdb", new NameError("data/u/alice/..\\tester\\x.evdb"));
+    const f = describeFailure("data/u/alice/..\\tester\\x.ember", new NameError("data/u/alice/..\\tester\\x.ember"));
     expect([f.kind, f.title]).toEqual(["badname", "This link does not name a data set"]);
     expect(f.text).not.toMatch(/alice|tester/);
   });
 
   it("speaks of the address, not of this site, for a data set kept elsewhere", () => {
-    const url = "https://elsewhere.example/data/u/alice/x.evdb";
+    const url = "https://elsewhere.example/data/u/alice/x.ember";
     const gone = describeFailure(url, new HttpError(url, 404)),
       silent = describeFailure(url, new NetworkError(url, new TypeError("Failed to fetch")));
     expect([gone.external, gone.title]).toEqual([true, "There is no such file at that address"]);
@@ -431,9 +446,9 @@ describe("a data set that did not open", () => {
   });
 
   it("says of a local file what to do with the file, and offers nothing to fetch", () => {
-    const f = describeFailure("notes.evdb", new FormatError("not an evd/1 bundle"), true);
+    const f = describeFailure("notes.ember", new FormatError("not an Ember bundle of format version 1"), true);
     expect([f.kind, f.local, f.external]).toEqual(["unreadable", true, false]);
-    expect(f.text).toBe("notes.evdb is not an .evdb bundle, or it is incomplete: convert it again.");
-    expect(describeFailure("data/u/alice/x.evdb", new Error("disk"), true).text).not.toMatch(/alice.*publish/);
+    expect(f.text).toBe("notes.ember is not an Ember bundle, or it is incomplete: convert it again.");
+    expect(describeFailure("data/u/alice/x.ember", new Error("disk"), true).text).not.toMatch(/alice.*publish/);
   });
 });

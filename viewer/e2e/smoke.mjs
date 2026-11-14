@@ -1,5 +1,5 @@
 // Browser checks of the viewer: headless Chromium with software WebGL, against a development server (whose builds
-// expose the engine to the checks as window.evdEngine).
+// expose the engine to the checks as window.emberEngine).
 //
 //   node e2e/smoke.mjs <dev server URL> <screenshot dir> [--site] [--deep <bundle>] [bundle ...]
 //
@@ -49,7 +49,7 @@ if (siteOnly || !names.length) {
   log(`site: ${result} (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
 }
 for (const file of files) {
-  const tag = file.replace(/\.evdb$/, ""),
+  const tag = file.replace(/\.(ember|evdb)$/, ""),
     t0 = Date.now(),
     state = { page: null };
   let timer;

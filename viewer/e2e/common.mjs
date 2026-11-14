@@ -16,7 +16,7 @@ export const log = (text) => console.log(`[${new Date().toISOString().slice(11, 
  *  `whoami`, a person without files (no index), a link to a file that is gone. */
 export const expected404 = (m, base) =>
   /status of 404/.test(m.text()) &&
-  /\/whoami$|\/index\.json$|\/gone\.evdb$/.test(new URL(m.location().url || base).pathname);
+  /\/whoami$|\/index\.json$|\/gone\.ember$/.test(new URL(m.location().url || base).pathname);
 
 /** Wait until a bundle is open and the event asked for was read: the top bar names an event as soon as the bundle's
  *  header is in, while the event itself (35 MB at PU200) is still on its way, which the progress bar shows. */

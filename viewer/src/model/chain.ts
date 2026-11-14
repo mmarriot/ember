@@ -2,7 +2,7 @@
 // for every kind (drawn by ui/Chain.tsx):
 // - a reco object: what it is part of (above), itself, what it is made of (below, top first) and what else is built
 //   only from its parts (beside: a secondary vertex whose tracks are all in the jet); each step with its link to the
-//   truth, in the words of docs/truth.md: matched by CMSSW, a simulation fact, derived in evd, or no truth for the kind;
+//   truth, in the words of docs/truth.md: matched by CMSSW, a simulation fact, derived in Ember, or no truth for the kind;
 // - a truth object: per reco kind with an association, what was reconstructed from it (and where nothing was).
 // Nothing here is a new truth statement: the links are the associations, facts and stand-ins the bundle already has,
 // counted per step. A kind that gains an associator in CMSSW gets a relation with a `match` hint in its profile, and
@@ -19,7 +19,7 @@ import { bestPartners, contentPartners, levelsOf, type Ref, type Related } from 
  *    `purity`: the purity of the match, for a step of one object;
  *  - `fact`: the simulated energy left in the hits in detector `in`, `total` in all; `particles`: [truth row, share
  *    0..1], largest first;
- *  - `derived`: evd's stand-in (the particle with the most simulated energy in an object's hits), for a kind without
+ *  - `derived`: Ember's stand-in (the particle with the most simulated energy in an object's hits), for a kind without
  *    an associator (`reason`, and the gap's number in docs/truth-graph.md);
  *  - `none`: no truth for the kind, and why;
  *  - `container`: drawn in the colour of what contains it.
@@ -83,7 +83,7 @@ const stageOf = (header: Header, table: string) =>
 const sorted = (rows: Iterable<number>) => [...rows].sort((a, b) => a - b);
 
 /** The ladder of reco object `sel`. `parts`: its relatedParts; `statuses`: each table's truth status (model/match.ts);
- *  `truth`: the truth particles' table, for evd's stand-in (layer clusters). */
+ *  `truth`: the truth particles' table, for Ember's stand-in (layer clusters). */
 export function recoLadder(
   ev: EventData,
   header: Header,
@@ -146,7 +146,7 @@ export function recoLadder(
 /** Later steps of the selection's reconstruction that no relation names as containing it (a trackster's linked
  *  trackster, interpretation and candidate): for each such table, the object holding the most of the selection's parts
  *  (contentPartners), if it holds at least half of them (counted: "3 of its 4 layer clusters"); latest step first, the
- *  collections of one kind in one step. Worked out in evd, and marked as such (`held`). */
+ *  collections of one kind in one step. Worked out in Ember, and marked as such (`held`). */
 function voted(
   ev: EventData,
   header: Header,
@@ -195,7 +195,7 @@ function voted(
 }
 
 /** The truth links of the objects in `groups` (one kind): matches counted per truth table, facts per detector (never
- *  summed across detectors), evd's stand-in, or why there is none. `rank`: whether the particles behind a fact or a
+ *  summed across detectors), Ember's stand-in, or why there is none. `rank`: whether the particles behind a fact or a
  *  stand-in of several objects may be listed (see Link `unranked`); without it they are not worked out at all. */
 function linksOf(
   ev: EventData,

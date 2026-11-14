@@ -179,7 +179,7 @@ export function Coverage() {
             `simulated energy per particle in each hit${s.in ? ` (${s.in})` : ""}${s.unit ? `, recorded per ${typeof s.unit === "string" ? s.unit : Object.values(s.unit.names).join(", ")}` : ""}`,
           ]
         : s.kind === "derived"
-          ? ["derived in evd", `${s.reason}${gap(s.gap)}`]
+          ? ["derived in Ember", `${s.reason}${gap(s.gap)}`]
           : s.kind === "container"
             ? ["with what contains it", "no truth of its own: drawn in the colour of the object it belongs to"]
             : ["no truth for this kind", `${s.reason}${gap(s.gap)}`];
@@ -196,7 +196,7 @@ export function Coverage() {
         </summary>
         <p class="hint">
           What the truth graph says about each kind: matched by CMSSW's associator, a simulation fact, or derived in
-          evd. Where it has no answer, evd builds none.
+          Ember. Where it has no answer, Ember builds none.
         </p>
         <ul class="coverage">
           {rows.map(([kind, s]) => {

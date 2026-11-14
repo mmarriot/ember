@@ -31,7 +31,7 @@ beforeEach(() => {
 
 describe("openBundle", () => {
   it("says in full why a data set did not open when there is nothing else to show", async () => {
-    await openBundle("data/u/alice/x.evdb", gone("data/u/alice/x.evdb"));
+    await openBundle("data/u/alice/x.ember", gone("data/u/alice/x.ember"));
     expect(bundle.value).toBeNull();
     expect(openFailure.value?.kind).toBe("gone");
     expect(opening.value).toBeNull();
@@ -39,66 +39,76 @@ describe("openBundle", () => {
   });
 
   it("keeps the data set on screen when another does not open, with a message", async () => {
-    await openBundle("data/sim/golden.evdb", golden);
+    await openBundle("data/sim/golden.ember", golden);
     const shown = bundle.value;
-    await openBundle("data/u/alice/x.evdb", gone("data/u/alice/x.evdb"));
+    await openBundle("data/u/alice/x.ember", gone("data/u/alice/x.ember"));
     expect(bundle.value).toBe(shown);
-    expect(bundleName.value).toBe("data/sim/golden.evdb");
+    expect(bundleName.value).toBe("data/sim/golden.ember");
     expect(openFailure.value).toBeNull();
     expect(toasts.value.at(-1)).toMatchObject({ kind: "error", text: expect.stringContaining("no longer here") });
   });
 
   it("clears the reason once a data set opens", async () => {
-    await openBundle("x.evdb", gone("x.evdb"));
-    await openBundle("data/sim/golden.evdb", golden);
+    await openBundle("x.ember", gone("x.ember"));
+    await openBundle("data/sim/golden.ember", golden);
     expect(openFailure.value).toBeNull();
     expect(bundle.value?.events).toHaveLength(1);
   });
 
   it("names a data set from its file until a list has it, then by its title there", async () => {
-    await openBundle("data/sim/golden.evdb", golden);
-    expect(opened.value).toMatchObject({ file: "data/sim/golden.evdb", title: "golden", local: false });
-    catalogue.value = { bundles: [{ file: "data/sim/golden.evdb", title: "One TICL event", events: 1 }] };
+    await openBundle("data/sim/golden.ember", golden);
+    expect(opened.value).toMatchObject({ file: "data/sim/golden.ember", title: "golden", local: false });
+    catalogue.value = { bundles: [{ file: "data/sim/golden.ember", title: "One TICL event", events: 1 }] };
     expect(opened.value).toMatchObject({ title: "One TICL event", entry: { events: 1 } });
   });
 
+  it("opens a link to a bundle named .evdb, from before the project was called Ember, like any other", async () => {
+    const theirs = { file: "data/u/alice/old.evdb", title: "Published before the rename" };
+    await openBundle("data/u/alice/old.evdb", golden, 0, false, indexes({ alice: [theirs] }));
+    await settle();
+    expect(bundle.value?.events).toHaveLength(1);
+    expect(opened.value).toMatchObject({ file: "data/u/alice/old.evdb", title: "Published before the rename" });
+    await openBundle("data/sim/golden.evdb", golden);
+    expect(opened.value).toMatchObject({ file: "data/sim/golden.evdb", title: "golden", local: false });
+  });
+
   it("lists a data set from a link under the recent ones, and a local file as one that cannot be reopened", async () => {
-    await openBundle("data/u/alice/golden.evdb", golden, 0, false, indexes());
+    await openBundle("data/u/alice/golden.ember", golden, 0, false, indexes());
     await settle();
     expect(recent.value.map((r) => [r.file, r.title, !!r.local])).toEqual([
-      ["data/u/alice/golden.evdb", "golden · alice", false],
+      ["data/u/alice/golden.ember", "golden · alice", false],
     ]);
-    await openBundle("mine.evdb", golden, 0, true);
+    await openBundle("mine.ember", golden, 0, true);
     await settle();
-    expect(opened.value).toMatchObject({ file: "mine.evdb", title: "mine.evdb", local: true });
-    expect(recent.value[0]).toMatchObject({ file: "mine.evdb", local: true });
+    expect(opened.value).toMatchObject({ file: "mine.ember", title: "mine.ember", local: true });
+    expect(recent.value[0]).toMatchObject({ file: "mine.ember", local: true });
   });
 
   it("names a link's data set from its owner's index, where its expiry is", async () => {
-    const theirs = { file: "data/u/alice/golden.evdb", title: "For the meeting", expires: "2026-12-01T00:00:00Z" };
-    await openBundle("data/u/alice/golden.evdb", golden, 0, false, indexes({ alice: [theirs] }));
+    const theirs = { file: "data/u/alice/golden.ember", title: "For the meeting", expires: "2026-12-01T00:00:00Z" };
+    await openBundle("data/u/alice/golden.ember", golden, 0, false, indexes({ alice: [theirs] }));
     await settle();
     expect(opened.value).toMatchObject({ title: "For the meeting", entry: theirs });
-    expect(recent.value[0]).toMatchObject({ file: "data/u/alice/golden.evdb", title: "For the meeting" });
+    expect(recent.value[0]).toMatchObject({ file: "data/u/alice/golden.ember", title: "For the meeting" });
   });
 
   it("drops what an owner's index says once another data set was asked for", async () => {
     let answer!: () => void;
     const late = (owner: string) =>
       new Promise<Listed[]>((done) => {
-        answer = () => done([{ file: `data/u/${owner}/golden.evdb`, title: "Arrived too late" }]);
+        answer = () => done([{ file: `data/u/${owner}/golden.ember`, title: "Arrived too late" }]);
       });
-    await openBundle("data/u/alice/golden.evdb", golden, 0, false, late);
-    await openBundle("data/sim/golden.evdb", golden, 0, false, indexes());
+    await openBundle("data/u/alice/golden.ember", golden, 0, false, late);
+    await openBundle("data/sim/golden.ember", golden, 0, false, indexes());
     answer();
     await settle();
-    expect(opened.value).toMatchObject({ file: "data/sim/golden.evdb", title: "golden" });
+    expect(opened.value).toMatchObject({ file: "data/sim/golden.ember", title: "golden" });
     expect(recent.value.some((r) => r.title === "Arrived too late")).toBe(false);
   });
 
   it("does not list under the recent ones what the site's list has", async () => {
-    catalogue.value = { bundles: [{ file: "data/sim/golden.evdb", title: "One TICL event" }] };
-    await openBundle("data/sim/golden.evdb", golden);
+    catalogue.value = { bundles: [{ file: "data/sim/golden.ember", title: "One TICL event" }] };
+    await openBundle("data/sim/golden.ember", golden);
     await settle();
     expect(recent.value).toEqual([]);
   });
@@ -110,45 +120,45 @@ describe("openBundle", () => {
       new Promise<Source>((done) => {
         arrive = async () => done(await golden());
       });
-    const first = openBundle("data/sim/first.evdb", slow, 0);
-    const second = await openBundle("data/sim/second.evdb", golden);
+    const first = openBundle("data/sim/first.ember", slow, 0);
+    const second = await openBundle("data/sim/second.ember", golden);
     await arrive();
     const late = await first;
-    expect(bundleName.value).toBe("data/sim/second.evdb");
-    expect(opened.value?.file).toBe("data/sim/second.evdb");
+    expect(bundleName.value).toBe("data/sim/second.ember");
+    expect(opened.value?.file).toBe("data/sim/second.ember");
     expect(opening.value).toBeNull();
     expect([second, late]).toEqual([true, false]); // what App.tsx goes by to apply a link's event and view
   });
 
   it("keeps the data set on screen when it is chosen again while a slower one opens", async () => {
-    await openBundle("data/sim/first.evdb", golden);
+    await openBundle("data/sim/first.ember", golden);
     let arrive!: () => Promise<void>;
     const slow = openBundle(
-      "data/sim/second.evdb",
+      "data/sim/second.ember",
       () =>
         new Promise<Source>((done) => {
           arrive = async () => done(await golden());
         }),
     );
-    expect(opening.value).toBe("data/sim/second.evdb");
-    keepShown(); // the chooser, picking first.evdb again
+    expect(opening.value).toBe("data/sim/second.ember");
+    keepShown(); // the chooser, picking first.ember again
     expect(opening.value).toBeNull();
     await arrive();
     expect(await slow).toBe(false);
-    expect(bundleName.value).toBe("data/sim/first.evdb");
+    expect(bundleName.value).toBe("data/sim/first.ember");
   });
 
   it("says nothing about an open that failed after another was asked for, and keeps that one's Opening…", async () => {
     let fail!: () => void, arrive!: () => Promise<void>;
     const first = openBundle(
-      "data/sim/first.evdb",
+      "data/sim/first.ember",
       () =>
         new Promise<Source>((_, reject) => {
-          fail = () => reject(new HttpError("data/sim/first.evdb", 404));
+          fail = () => reject(new HttpError("data/sim/first.ember", 404));
         }),
     );
     const second = openBundle(
-      "data/sim/second.evdb",
+      "data/sim/second.ember",
       () =>
         new Promise<Source>((done) => {
           arrive = async () => done(await golden());
@@ -156,7 +166,7 @@ describe("openBundle", () => {
     );
     fail();
     expect(await first).toBe(false);
-    expect(opening.value).toBe("data/sim/second.evdb");
+    expect(opening.value).toBe("data/sim/second.ember");
     expect(openFailure.value).toBeNull();
     expect(toasts.value).toEqual([]);
     await arrive();
@@ -166,7 +176,7 @@ describe("openBundle", () => {
 
   // Review, finding 2: the name in a link is not trusted.
   it("opens an address on another site as external: no publisher, not remembered", async () => {
-    await openBundle("https://elsewhere.example/data/u/alice/x.evdb", golden);
+    await openBundle("https://elsewhere.example/data/u/alice/x.ember", golden);
     await settle();
     expect(opened.value).toMatchObject({ external: true, local: false, entry: undefined });
     expect(recent.value).toEqual([]);
@@ -181,12 +191,12 @@ describe("openBundle", () => {
       },
     });
     try {
-      await openBundle("https://elsewhere.example/data/u/alice/x.evdb", golden);
+      await openBundle("https://elsewhere.example/data/u/alice/x.ember", golden);
       const { filters } = await import("./custom");
       filters.value = { ...filters.value, Anything: "0" };
       const settings = () => [...saved.keys()].filter((k) => k.startsWith("evd.custom."));
       expect(settings()).toEqual([]);
-      await openBundle("data/sim/mine.evdb", golden);
+      await openBundle("data/sim/mine.ember", golden);
       filters.value = { ...filters.value, Anything: "0" };
       expect(settings()).toEqual([`evd.custom.${bundle.value!.header.profile}`]);
     } finally {
@@ -196,11 +206,11 @@ describe("openBundle", () => {
 
   it("refuses a name that is neither a file of this site nor an address", async () => {
     for (const name of [
-      "data/u/alice/..\\tester\\x.evdb",
-      "data/u/../x.evdb",
-      "data/sim/x.evdb?x=1",
-      "/etc/x.evdb",
-      "//elsewhere.example/x.evdb",
+      "data/u/alice/..\\tester\\x.ember",
+      "data/u/../x.ember",
+      "data/sim/x.ember?x=1",
+      "/etc/x.ember",
+      "//elsewhere.example/x.ember",
       "javascript:alert(1)",
     ]) {
       expect(await openBundle(name, golden)).toBe(false);
@@ -211,7 +221,7 @@ describe("openBundle", () => {
 
   // Review, finding 3: a local file that is not a bundle.
   it("says of a local file that is not a bundle that it must be converted again, with nothing to fetch", async () => {
-    await openBundle("notes.evdb", async () => blobSource(new Blob(["these are not the bytes of a bundle"])), 0, true);
+    await openBundle("notes.ember", async () => blobSource(new Blob(["these are not the bytes of a bundle"])), 0, true);
     expect(openFailure.value).toMatchObject({ kind: "unreadable", local: true });
     expect(openFailure.value!.text).toMatch(/convert it again/);
     expect(openFailure.value!.text).not.toMatch(/upload/);

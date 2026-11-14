@@ -53,7 +53,7 @@ function Welcome() {
       <div class="card">
         <h1>
           <img src={logo} alt="" width={36} height={36} />
-          Event display
+          Ember
         </h1>
         <p>
           CMS events in the browser: hits, clusters, tracks and physics objects, layer by layer, with what the
@@ -74,7 +74,8 @@ function Welcome() {
             of this site and prints a link to it: <Command text={PUBLISH_COMMAND} />
           </li>
           <li>
-            <b>Open a local file.</b> Drop a <code>.evdb</code> file anywhere on this page, or{" "}
+            <b>Open a local file.</b> Drop a <code>.ember</code> file (or an older <code>.evdb</code>) anywhere on this
+            page, or{" "}
             <button class="link" onClick={pickLocalFile}>
               choose one
             </button>
@@ -141,7 +142,7 @@ function Failed() {
 export const DropHint = () => (
   <div class="drophint" aria-hidden="true">
     <div>
-      Drop the <code>.evdb</code> file to open it<small>It is read from your computer and not uploaded</small>
+      Drop the <code>.ember</code> file to open it<small>It is read from your computer and not uploaded</small>
     </div>
   </div>
 );

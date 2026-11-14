@@ -1,11 +1,12 @@
 // The data set chooser of the top bar: a button naming the data set open, and a panel with what it is, a filter and
-// the lists to choose from: my files (published with `evd file.root`), the ones opened lately from links, and the
+// the lists to choose from: my files (published with `ember file.root`), the ones opened lately from links, and the
 // site's shared ones by group. The filter keeps the focus; ↑ ↓ move along the rows, Enter opens, Esc closes.
 import { signal } from "@preact/signals";
 import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import { provenance, summary } from "../model/about";
 import {
   agoText,
+  BUNDLE_EXTENSIONS,
   DOCS_URL,
   expiryText,
   forgetLogin,
@@ -41,7 +42,7 @@ export const chooserOpen = signal(false);
 
 /** Ask for a file of this computer and open it (the chooser's "Open a local file…" and the start panel's). */
 export function pickLocalFile() {
-  const input = Object.assign(document.createElement("input"), { type: "file", accept: ".evdb" });
+  const input = Object.assign(document.createElement("input"), { type: "file", accept: BUNDLE_EXTENSIONS.join(",") });
   input.onchange = () => {
     const file = input.files?.[0];
     if (!file) return;

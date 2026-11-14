@@ -90,7 +90,7 @@ async function startTour() {
   touring.value = true;
   solo.value = null; // the tour builds the whole event up, not one kind
   view.value = "3d";
-  const pace = import.meta.env.DEV ? Number((window as { evdTourPace?: number }).evdTourPace ?? 1) : 1; // e2e tests: slower
+  const pace = import.meta.env.DEV ? Number((window as { emberTourPace?: number }).emberTourPace ?? 1) : 1; // e2e tests: slower
   const opened = bundle.value; // another bundle opened (the data set list, a dropped file) stops the tour
   const wait = (ms: number) =>
     new Promise<boolean>((done) =>
@@ -127,7 +127,7 @@ async function startTour() {
     const here = steps
       .map(({ step, layers }) => ({ step, layers: layers.filter(showsAny) }))
       .filter((s) => s.layers.length);
-    if (import.meta.env.DEV) Object.assign(window, { evdTourPlan: here.map((s) => s.step.title) }); // for the e2e tests
+    if (import.meta.env.DEV) Object.assign(window, { emberTourPlan: here.map((s) => s.step.title) }); // for the e2e tests
     let shown = new Set<string>();
     for (const { step, layers: now } of here) {
       const stays = (d: DisplayLayer) =>

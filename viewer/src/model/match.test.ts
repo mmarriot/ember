@@ -142,7 +142,7 @@ const kinds = {
 } as unknown as Header;
 
 describe("truth status", () => {
-  it("says for each kind whether CMSSW matches it, the simulation gives facts, evd derives it, or truth stops", () => {
+  it("says for each kind whether CMSSW matches it, the simulation gives facts, Ember derives it, or truth stops", () => {
     const kind = (t: string) => truthStatus(kinds, t)?.kind;
     expect(truthStatus(kinds, "Track")).toMatchObject({ kind: "match", relation: "trackTruth" });
     expect(truthStatus(kinds, "Vtx")).toMatchObject({ kind: "match", relation: "vtxTruth" }); // to the truth vertices

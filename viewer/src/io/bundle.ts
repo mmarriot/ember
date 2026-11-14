@@ -1,4 +1,4 @@
-// The reader of .evdb bundles (docs/format.md; the types are in format.ts). Opening a bundle reads its header and
+// The reader of .ember bundles (docs/format.md; the types are in format.ts). Opening a bundle reads its header and
 // index; then each event is one ranged read of its record, decompressed off the main thread. Columns are typed-array
 // views on the decompressed record: no parsing and no copies.
 import {
@@ -139,9 +139,11 @@ export class Bundle {
 
   static async open(source: Source): Promise<Bundle> {
     try {
+      // "EVDB" is the magic of format version 1, from when the project was called evd. Every bundle written so far
+      // has it, so it stays (docs/format.md).
       const head = new DataView(await source.read(0, 12));
       if (text(head.buffer.slice(0, 4)) !== "EVDB" || head.getUint32(4, true) !== 1)
-        throw new FormatError("not an evd/1 bundle");
+        throw new FormatError("not an Ember bundle of format version 1");
       const header: Header = JSON.parse(text(await source.read(12, head.getUint32(8, true))));
       const trailer = new DataView(await source.read(source.size - 16, 16));
       if (text(trailer.buffer.slice(12, 16)) !== "EVDB") throw new FormatError("bundle has no trailer (incomplete?)");
@@ -153,7 +155,7 @@ export class Bundle {
       // A file too short for its header or trailer (RangeError from the DataView), or whose header or index is not
       // JSON (SyntaxError): not a bundle either. What the source itself reports (HTTP, network) is passed on.
       if (e instanceof RangeError || e instanceof SyntaxError)
-        throw new FormatError(`not a complete evd/1 bundle (${e.message})`);
+        throw new FormatError(`not a complete Ember bundle (${e.message})`);
       throw e;
     }
   }

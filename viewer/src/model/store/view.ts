@@ -105,7 +105,8 @@ export function toast(text: string, kind: "info" | "error" = "info") {
   setTimeout(() => (toasts.value = toasts.value.filter((t) => t.id !== id)), kind === "error" ? 8000 : 2500);
 }
 
-// The colour theme: dark unless the user picked light before (remembered in this browser when storage is available).
+// The colour theme: dark unless the user picked light before (remembered in this browser when storage is available,
+// under a key that keeps its "evd." prefix: see model/library.ts).
 const savedTheme = (() => {
   try {
     return localStorage.getItem("evd.theme");

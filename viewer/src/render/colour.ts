@@ -330,7 +330,7 @@ export function colours(
       d.colourBy.content,
       gated,
       weight
-        ? `colour of the ${name} with the most ${weight} in its ${of}${derived ? " if at least half (derived in evd)" : ""}`
+        ? `colour of the ${name} with the most ${weight} in its ${of}${derived ? " if at least half (derived in Ember)" : ""}`
         : `colour of the ${name} holding most of its ${of}`,
     );
   }

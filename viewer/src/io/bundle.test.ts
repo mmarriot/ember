@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { related } from "../model/relations";
 import { around, blobSource, Bundle, httpSource, type Source } from "./bundle";
 
-// One TICL v6 GPU event, made by: evdtools from-nano ... --max-events 1 -o golden/v6_1event.ember
+// One TICL v6 GPU event, made by: ember convert ... --max-events 1 -o golden/v6_1event.ember
 const golden = () =>
   Bundle.open(blobSource(new Blob([readFileSync(new URL("../../../golden/v6_1event.ember", import.meta.url))])));
 
@@ -57,7 +57,7 @@ describe("httpSource", () => {
         });
       return new Response(file, { status: 200 });
     });
-    const src = await httpSource("x.evdb");
+    const src = await httpSource("x.ember");
     expect([...new Uint8Array(await src.read(10, 3))]).toEqual([10, 11, 12]);
     expect([...new Uint8Array(await src.read(90, 2))]).toEqual([90, 91]);
     expect(calls).toBe(2); // the whole file was fetched once and reused
@@ -74,11 +74,11 @@ describe("httpSource", () => {
         headers: { "Content-Range": `bytes ${a}-${b}/100`, ETag: '"5f-abc"' },
       });
     });
-    const src = await httpSource("data/x.evdb");
+    const src = await httpSource("data/x.ember");
     await src.read(10, 3);
-    expect(asked[0][0]).toBe("data/x.evdb");
+    expect(asked[0][0]).toBe("data/x.ember");
     expect(asked[0][1].cache).toBe("no-store");
-    expect(asked[1][0]).toBe(`data/x.evdb?v=${encodeURIComponent('"5f-abc"')}`);
+    expect(asked[1][0]).toBe(`data/x.ember?v=${encodeURIComponent('"5f-abc"')}`);
     expect(asked[1][1].cache).toBeUndefined(); // this version's ranges may come from the cache
     vi.unstubAllGlobals();
   });
@@ -92,7 +92,7 @@ describe("httpSource", () => {
         headers: { "Content-Range": `bytes ${a}-${b}/100`, ETag: etag },
       });
     });
-    const src = await httpSource("x.evdb");
+    const src = await httpSource("x.ember");
     await src.read(0, 4);
     etag = '"v2"'; // converted again under the same name
     await expect(src.read(4, 4)).rejects.toThrow(/changed on the server/);

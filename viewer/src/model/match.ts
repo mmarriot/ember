@@ -110,7 +110,7 @@ export const percent = (x: number | undefined) =>
 // the inspector's truth box, the colour key, the Truth tab's coverage list.
 
 /** A drawn table's truth, in this order: `match`, its own reco -> truth association with a `match` hint (to the truth
- *  particles or vertices); `fact`, hits with the simulated energy each particle left in them; `derived`, evd's
+ *  particles or vertices); `fact`, hits with the simulated energy each particle left in them; `derived`, Ember's
  *  stand-in (layer clusters by the simulated energy in their hits); `none`, its kind's `truthGap` (why, and the gap
  *  in docs/truth-graph.md); `container`, drawn in the colour of what contains it (a track's hits); else `none`. */
 export type TruthStatus =
@@ -121,7 +121,7 @@ export type TruthStatus =
   | { kind: "container"; relation: string };
 
 export const NO_EXPORT = "no truth association exported for this kind";
-const DERIVED = "no associator in CMSSW; evd shows the particle with the most simulated energy in its hits";
+const DERIVED = "no associator in CMSSW; Ember shows the particle with the most simulated energy in its hits";
 
 /** The truth status of `table` (undefined for truth layers and for a bundle without truth). `colouring`: the truth
  *  mode's (model/modes.ts), computed when not given. */

@@ -1,22 +1,27 @@
 // The data sets a person can open, beyond the site's shared list (index.json, store/open.ts `catalogue`): their own
-// (data/u/<login>/index.json, written by `evd file.root`) and the ones they opened lately from links. Who they are
+// (data/u/<login>/index.json, written by `ember file.root`) and the ones they opened lately from links. Who they are
 // comes from the site (`whoami`, answered behind the single sign-on) or, failing that, from the login they type once.
 // Nothing here draws: the chooser (ui/Chooser.tsx) and the start panels (ui/Start.tsx) do.
 import { signal } from "@preact/signals";
 import { FormatError, HttpError, NetworkError } from "../io/bundle";
 
 /** The documentation site: every "how do I get data in" link points here. */
-export const DOCS_URL = "https://mmarriot.github.io/evd/";
+export const DOCS_URL = "https://mmarriot.github.io/ember/";
 /** The one command that converts a file, publishes it in the user's area and prints its link. */
-export const PUBLISH_COMMAND = "evd file.root";
+export const PUBLISH_COMMAND = "ember file.root";
+/** The extensions of bundle files: .ember, and .evdb, which bundles had before the project was called Ember. The file
+ *  chooser offers both, and a data set's title is its file name without either. */
+export const BUNDLE_EXTENSIONS = [".ember", ".evdb"];
 /** Asked relative to the page: {"login": "..."} for the signed-in person. */
 export const WHOAMI_URL = "whoami";
+// The browser-storage keys (these two, and evd.theme, evd.sidebar and evd.custom.* elsewhere) keep the "evd." prefix
+// from before the project was called Ember: new names would reset everyone's saved settings and Recent list.
 const LOGIN_KEY = "evd.login",
   RECENT_KEY = "evd.recent";
 const RECENT_MAX = 12;
 const WHOAMI_WAIT = 4000; // ms: a site whose whoami hangs is a site without one
 
-/** One entry of an index.json: the site's (written by `evdtools sync`; hand-written ones need only file and title) or
+/** One entry of an index.json: the site's (written by `ember sync`; hand-written ones need only file and title) or
  *  a person's (ISO times: `published`, when it was put on the site; `created`, when it was converted; `expires`).
  *  `file` is relative to the site's root. */
 export interface Listed {
@@ -94,7 +99,7 @@ export function cleanLogin(text: string): string | null {
 // is plainly one: a relative path of ordinary segments. Anything the browser would resolve elsewhere than it reads
 // ("..", a backslash, which browsers take for "/", an encoded dot, a leading "/", a scheme) or that names the same
 // file twice ("?x=1", "#") is not.
-/** The name, if it is a path of this site as the viewer writes them ("data/u/alice/x.evdb"); else null. */
+/** The name, if it is a path of this site as the viewer writes them ("data/u/alice/x.ember"); else null. */
 export function siteFile(name: string): string | null {
   if (!name || /[\\?#%\u0000-\u001f\u007f]/.test(name) || /^[a-z][a-z0-9+.-]*:/i.test(name)) return null;
   return name.split("/").every((part) => part && part !== "." && part !== "..") ? name : null;
@@ -130,7 +135,7 @@ export class NameError extends Error {
   }
 }
 
-/** The login whose area a file is in ("data/u/alice/x.evdb" -> "alice"); null for a shared data set, and for any
+/** The login whose area a file is in ("data/u/alice/x.ember" -> "alice"); null for a shared data set, and for any
  *  name that is not exactly a file in a person's area (so nothing is said to be "published by" a name's look). */
 export function ownerOf(file: string): string | null {
   const owner = siteFile(file)?.match(/^data\/u\/([^/]+)\/[^/]+$/)?.[1];
@@ -146,7 +151,7 @@ export function titleOf(file: string): string {
         .split("/")
         .filter(Boolean)
         .pop()
-        ?.replace(/\.evdb$/, "") ?? file,
+        ?.replace(/\.(ember|evdb)$/, "") ?? file, // BUNDLE_EXTENSIONS
     owner = ownerOf(file);
   const host = /^https?:\/\//i.test(file) ? file.split("/")[2] : null;
   return owner ? `${stem} · ${owner}` : host ? `${stem} · ${host}` : stem;
@@ -358,7 +363,7 @@ export function describeFailure(name: string, error: unknown, local = false): Fa
       ? say(
           "unreadable",
           "This file is not a data set",
-          `${name} is not an .evdb bundle, or it is incomplete: convert it again.`,
+          `${name} is not an Ember bundle, or it is incomplete: convert it again.`,
         )
       : say(
           "error",

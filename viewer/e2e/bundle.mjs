@@ -47,8 +47,8 @@ export async function checkBundle(run, file, tag, state) {
   await open(`b=${file}&e=1`);
   await checkStart(page, h, fail, tag);
   const [drawn, objects] = await page.evaluate(() => [
-    window.evdEngine.layers.length,
-    window.evdEngine.layers.reduce((s, l) => s + l.x.length, 0),
+    window.emberEngine.layers.length,
+    window.emberEngine.layers.reduce((s, l) => s + l.x.length, 0),
   ]);
   const rows = await page.$$eval(".layer:not(.off) label", (r) =>
     r.map((x) => x.innerText.replace(/\s+/g, " ").trim()),
@@ -248,7 +248,7 @@ async function checkStart(page, h, fail, tag) {
   if (!start || names.length < 2 || !names.includes(start)) return;
   const shared = new Set(h.domains.filter((d) => d.shared).map((d) => d.name));
   const url = decodeURIComponent(new URL(page.url()).hash.match(/[#&]d=([^&]+)/)?.[1] ?? "");
-  const tables = await page.evaluate(() => window.evdEngine.layers.map((l) => l.table));
+  const tables = await page.evaluate(() => window.emberEngine.layers.map((l) => l.table));
   const other = tables.filter((t) =>
     h.display.some((d) => d.table === t && d.domain && d.domain !== start && !shared.has(d.domain)),
   );
@@ -281,7 +281,7 @@ async function checkStart(page, h, fail, tag) {
 /** Helix layers drawn: their paths end at finite points and have a picking polyline. */
 async function checkHelices(page, fail, tag) {
   const helices = await page.evaluate(() =>
-    window.evdEngine.layers
+    window.emberEngine.layers
       .filter((l) => l.path)
       .map((l) => ({
         label: l.label,
@@ -304,7 +304,7 @@ async function checkDomains(page, h, fail, shot, tag) {
   const names = (h.domains ?? []).map((d) => d.name);
   if (names.length < 2) return;
   const shared = new Set(h.domains.filter((d) => d.shared).map((d) => d.name));
-  const tables = () => page.evaluate(() => window.evdEngine.layers.map((l) => l.table));
+  const tables = () => page.evaluate(() => window.emberEngine.layers.map((l) => l.table));
   const before = await chooseDomain(page, "All").then(tables);
   for (const name of names) {
     await chooseDomain(page, name);
@@ -430,13 +430,13 @@ async function checkFocusFilters(page, h, fail, tag) {
         if (from < 0) continue;
         store.selection.value = { table: r.from, row: from };
         await frames();
-        const layer = window.evdEngine.layers.find((l) => l.table === d.table);
+        const layer = window.emberEngine.layers.find((l) => l.table === d.table);
         const lines = store.levels
           .peek()
           .filter((l) => l.layers.every((x) => x.repr === "helix" || x.repr === "segments"));
         const undrawn = lines
           .flatMap((l) => l.layers)
-          .filter((x) => !window.evdEngine.layers.some((l) => l.table === x.table))
+          .filter((x) => !window.emberEngine.layers.some((l) => l.table === x.table))
           .map((x) => x.table);
         out.push({ sel: `${r.from}:${from}`, table: d.table, row, drawn: !!layer?.passes(row), undrawn });
         store.selection.value = null;
@@ -462,7 +462,7 @@ async function checkFocusFilters(page, h, fail, tag) {
 async function checkLevels(page, h, target, fail, shot, tag) {
   const drawn = () =>
     page.evaluate(() =>
-      window.evdEngine.layers
+      window.emberEngine.layers
         .map((l) => l.table)
         .sort()
         .join(),
@@ -470,7 +470,7 @@ async function checkLevels(page, h, target, fail, shot, tag) {
   const style = () =>
     page.evaluate((t) => {
       // shower layers: surface style and transparency of the focus's layer
-      const m = window.evdEngine.layers.find((l) => l.table === t)?.object.children?.[0]?.material;
+      const m = window.emberEngine.layers.find((l) => l.table === t)?.object.children?.[0]?.material;
       return m?.uniforms?.uStyle ? `${m.uniforms.uStyle.value}/${m.transparent}` : "";
     }, target.table);
   const style0 = await style();
@@ -502,7 +502,7 @@ async function checkLevels(page, h, target, fail, shot, tag) {
   if (!(await page.locator(".pairline").count()) || !(await particle.count())) return;
   const looks = () =>
     page.evaluate(() =>
-      window.evdEngine.layers
+      window.emberEngine.layers
         .map((l) => {
           const m = l.object.children?.[0]?.material;
           return `${l.table}${m?.uniforms?.uStyle ? `/${m.uniforms.uStyle.value}/${m.transparent}` : ""}`;
@@ -597,7 +597,7 @@ async function checkCross(page, h, fail, tag) {
 async function checkOnly(page, h, fail, shot, tag) {
   const tables = () =>
     page.evaluate(() =>
-      window.evdEngine.layers
+      window.emberEngine.layers
         .map((l) => l.table)
         .sort()
         .join(),
@@ -716,9 +716,9 @@ async function deepChecks(page, h, fail, shot) {
   await page.keyboard.press("Escape"); // the replay and tour start from the whole event
   await checkReplay(page, h, fail);
 
-  // The tour builds the event up step by step (ui/tour.ts: its captions in the order of the plan, window.evdTourPlan),
+  // The tour builds the event up step by step (ui/tour.ts: its captions in the order of the plan, window.emberTourPlan),
   // or for a bundle without the kinds the steps name, replays it and selects its main showers; any key stops it.
-  const cam = () => page.evaluate(() => window.evdEngine.cam3d.position.toArray().map(Math.round).join());
+  const cam = () => page.evaluate(() => window.emberEngine.cam3d.position.toArray().map(Math.round).join());
   const c0 = await cam();
   await page.evaluate(() => {
     window.tourCaptions = [];
@@ -742,7 +742,7 @@ async function deepChecks(page, h, fail, shot) {
     ));
   const c1 = await cam();
   await shot("8_tour");
-  const [shown, plan] = await page.evaluate(() => [window.tourCaptions, window.evdTourPlan ?? []]);
+  const [shown, plan] = await page.evaluate(() => [window.tourCaptions, window.emberTourPlan ?? []]);
   await page.keyboard.press("Escape");
   log(
     `  tour: camera ${c0} -> ${c1}; steps shown: ${shown.join(" | ") || "-"}; plan: ${plan.join(" | ") || "- (replay and showers)"}`,
@@ -767,18 +767,18 @@ async function checkReplay(page, h, fail) {
     const root = document.querySelector(".viewport");
     window.captionObserver = new MutationObserver(() => {
       const t = document.querySelector(".caption b")?.textContent,
-        e = window.evdEngine;
+        e = window.emberEngine;
       if (t && !t.startsWith("t =") && window.captions.at(-1)?.[0] !== t)
         window.captions.push([t, e.replayClock ? (performance.now() - e.replayClock.t0) / 1000 : 0]);
     });
     window.captionObserver.observe(root, { subtree: true, childList: true, characterData: true });
   });
   await page.keyboard.press("r");
-  if (!(await page.evaluate(() => window.evdEngine.replaying))) fail("R did not start a replay");
+  if (!(await page.evaluate(() => window.emberEngine.replaying))) fail("R did not start a replay");
   // Each hit layer arrives in the physics phase (its first 3 s, render/replay.ts TRAVEL) in any colour mode, not with
   // the clusters: half of its hits are shown by then. A layer has instances only for the rows the filter can show.
   const hitsAt = await page.evaluate(() =>
-    window.evdEngine.layers
+    window.emberEngine.layers
       .filter((l) => l.key.endsWith(":cells") && !l.context && l.object.geometry.getAttribute("iT").array.length)
       .map((l) => {
         const t = [...l.object.geometry.getAttribute("iT").array].sort((a, b) => a - b);
@@ -795,9 +795,9 @@ async function checkReplay(page, h, fail) {
   const building = await page.evaluate(
     (grown) =>
       grown.map(([key, parts]) => {
-        const layers = window.evdEngine.layers,
+        const layers = window.emberEngine.layers,
           g = layers.find((l) => l.key === key)?.object.geometry,
-          growth = window.evdPlan?.growth;
+          growth = window.emberPlan?.growth;
         const appear = g?.getAttribute("iT").array ?? [],
           ends = g?.getAttribute("iL").array ?? [];
         const lit = layers.find((l) => l.table === parts)?.object.geometry.getAttribute("iL").array ?? [];
@@ -819,7 +819,7 @@ async function checkReplay(page, h, fail) {
     grown,
   );
   await page
-    .waitForFunction(() => !window.evdEngine.replaying, null, { timeout: 60000 })
+    .waitForFunction(() => !window.emberEngine.replaying, null, { timeout: 60000 })
     .catch(() => fail("the replay did not end"));
   const shown = await page.evaluate(() => {
     window.captionObserver.disconnect();
@@ -828,7 +828,7 @@ async function checkReplay(page, h, fail) {
   // The plan's captions, every 10 ms of the replay clock: what a frame at that time shows. A frame slower than a short
   // step (the fit) skips it on screen; the plan still has it, and what was shown must follow the plan's order.
   const captions = await page.evaluate(() => {
-    const p = window.evdPlan,
+    const p = window.emberPlan,
       out = [];
     for (let s = 0; p && s < p.seconds; s += 0.01) {
       const t = p.caption(s)?.title;

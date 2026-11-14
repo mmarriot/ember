@@ -4,7 +4,7 @@
 //   it belongs to;
 // - for a truth particle (and for a reco object's match), its lineage: where it sits in the truth graph, from the
 //   collision down to its daughters, with the levels it belongs to and the reco objects matched to it.
-// Every line says where it comes from: the simulation (a fact), the CMSSW associator (a match, never "is"), or evd.
+// Every line says where it comes from: the simulation (a fact), the CMSSW associator (a match, never "is"), or Ember.
 import type { Header } from "../io/format";
 import { completeness, percent, quality, TARGETS } from "../model/match";
 import { bestPartners, identities } from "../model/relations";
@@ -247,7 +247,7 @@ function Constituent({ table, row, truth }: { table: string; row: number; truth:
             <Info title={`Its ${one(info.to)}'s match`}>
               <p>
                 This is the associator's answer for that {one(info.to)}, not for this {one(table)}: CMSSW has no match
-                for the {one(table)} itself, and evd builds none from its parts.
+                for the {one(table)} itself, and Ember builds none from its parts.
               </p>
             </Info>
           </p>

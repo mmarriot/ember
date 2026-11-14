@@ -5,7 +5,8 @@
 //
 // It brings its own people and files: two people (tester, who is signed in, and alice) and their files are answers
 // given to the page's requests for whoami and data/u/..., so it runs against any development server. Their bundles
-// are the site's smallest one under other names.
+// are the site's smallest one under other names. Some of the names end in .evdb, as bundles did before the project
+// was called Ember: those still list, open from a link and open when dropped.
 import { eventRead, expected404, header, log } from "./common.mjs";
 
 /** Check the site around the bundles (see above). `run`: what every check needs (smoke.mjs). */
@@ -23,7 +24,7 @@ export async function checkSite(run) {
       updated: days(0),
       bundles: [
         {
-          file: "data/u/tester/reco_test.evdb",
+          file: "data/u/tester/reco_test.ember",
           title: "My rereco test",
           events: 12,
           created: days(-1),
@@ -82,10 +83,10 @@ export async function checkSite(run) {
       },
     );
     await page.route(
-      (url) => /\/data\/u\/[^/]+\/[^/]+\.evdb$/.test(url.pathname),
+      (url) => /\/data\/u\/[^/]+\/[^/]+\.(ember|evdb)$/.test(url.pathname),
       (r) => {
         const url = new URL(r.request().url());
-        return url.pathname.endsWith("/gone.evdb")
+        return url.pathname.endsWith("/gone.ember")
           ? r.fulfill({ status: 404, body: "" })
           : r.continue({ url: `${base}${small.file}${url.search}` });
       },
@@ -184,7 +185,7 @@ export async function checkSite(run) {
     await shown(page);
     if (await page.$(".chooserpanel")) fail("the chooser stays open after a data set is chosen");
     if ((await label(page)) !== "My rereco test") fail(`after choosing my file the button says "${await label(page)}"`);
-    if (!page.url().includes("b=data/u/tester/reco_test.evdb"))
+    if (!page.url().includes("b=data/u/tester/reco_test.ember"))
       fail(`the address does not name my file readably: ${page.url()}`);
     // Tab walks the panel's controls; once the focus is out of it, it closes (it would stay open over the view).
     await page.click(".dataset");
@@ -310,14 +311,14 @@ export async function checkSite(run) {
     const page = await visit("", { who: "", shared: [], theme, width });
     await page.waitForSelector(".startpanel .card", { timeout: 30000 });
     const text = await page.textContent(".startpanel");
-    for (const part of ["evd file.root", ".evdb", "link", "Documentation"])
+    for (const part of ["ember file.root", ".ember", "link", "Documentation"])
       if (!text.includes(part)) fail(`the start panel does not mention "${part}"`);
     if (await page.isVisible(".sidebar")) fail("the empty side panel shows next to the start panel");
-    if ((await page.title()) !== "Event display") fail(`with nothing open the page is titled "${await page.title()}"`);
+    if ((await page.title()) !== "Ember") fail(`with nothing open the page is titled "${await page.title()}"`);
     if (!(await page.getAttribute(".startpanel a", "href"))?.startsWith("http"))
       fail("the start panel's documentation link goes nowhere");
     await page.click(".command .link");
-    if ((await page.evaluate(() => navigator.clipboard.readText()).catch(() => null)) !== "evd file.root")
+    if ((await page.evaluate(() => navigator.clipboard.readText()).catch(() => null)) !== "ember file.root")
       fail("the start panel's command is not copied");
     await shot(page, `start_${theme}_${width}`);
     await page.context().close();
@@ -329,10 +330,10 @@ export async function checkSite(run) {
     ["dark", 1440],
     ["light", 900],
   ]) {
-    const page = await visit("#b=data/u/alice/gone.evdb&e=3", { theme, width });
+    const page = await visit("#b=data/u/alice/gone.ember&e=3", { theme, width });
     await page.waitForSelector(".startpanel [role=alert]", { timeout: 30000 });
     const text = await page.textContent(".startpanel");
-    for (const part of ["no longer here", "published by alice", "evd file.root", "HTTP 404"])
+    for (const part of ["no longer here", "published by alice", "ember file.root", "HTTP 404"])
       if (!text.includes(part)) fail(`a link to a file that is gone does not say "${part}": ${text}`);
     if (await page.$(".toast.error")) fail("a file that is gone is also reported as a passing message");
     await shot(page, `gone_${theme}_${width}`);
@@ -342,7 +343,7 @@ export async function checkSite(run) {
     await page.keyboard.press("Enter");
     await shown(page);
     if (await page.$(".startpanel")) fail("the panel about the missing file stays after another data set opened");
-    if (await page.evaluate(() => (localStorage.getItem("evd.recent") ?? "").includes("gone.evdb")))
+    if (await page.evaluate(() => (localStorage.getItem("evd.recent") ?? "").includes("gone.ember")))
       fail("a file that is gone is kept under Recent");
     await page.context().close();
   }
@@ -407,10 +408,10 @@ export async function checkSite(run) {
   // refused, and says nothing about a publisher; an address on another site opens marked as such: no publisher, not
   // under Recent, and a share pop-up that says who it opens for.
   for (const name of [
-    "data/u/alice/..%5Ctester%5Creco_test.evdb",
-    "data/u/../x.evdb",
+    "data/u/alice/..%5Ctester%5Creco_test.ember",
+    "data/u/../x.ember",
     `${small.file}%3Fx=1`,
-    "%2Fetc%2Fx.evdb",
+    "%2Fetc%2Fx.ember",
   ]) {
     const requests = [],
       page = await visit(`#b=${name}&e=0`, { setup: (p) => p.on("request", (r) => requests.push(r.url())) });
@@ -421,14 +422,14 @@ export async function checkSite(run) {
       /published by|alice|tester/.test(text.replace(decodeURIComponent(name), ""))
     )
       fail(`the name ${name} in a link is reported as: ${text}`);
-    if (requests.some((u) => /\.evdb/.test(u)))
-      fail(`the name ${name} in a link was fetched: ${requests.filter((u) => /\.evdb/.test(u)).join(", ")}`);
+    if (requests.some((u) => /\.(ember|evdb)/.test(u)))
+      fail(`the name ${name} in a link was fetched: ${requests.filter((u) => /\.(ember|evdb)/.test(u)).join(", ")}`);
     if (await page.evaluate(() => localStorage.getItem("evd.recent")))
       fail(`the name ${name} in a link was remembered under Recent`);
     await page.context().close();
   }
   {
-    const elsewhere = "http://elsewhere.example/data/u/alice/shown_to_all.evdb";
+    const elsewhere = "http://elsewhere.example/data/u/alice/shown_to_all.ember";
     const page = await visit(`#b=${elsewhere}&e=1`, {
       setup: (p) =>
         p.route(
@@ -480,16 +481,16 @@ export async function checkSite(run) {
     const people = {
       tester: {
         bundles: [
-          { file: "http://elsewhere.example/first.evdb", title: "An address, not a file of mine", created: days(0) },
+          { file: "http://elsewhere.example/first.ember", title: "An address, not a file of mine", created: days(0) },
           {
-            file: "data/u/tester/reco_test.evdb",
+            file: "data/u/tester/reco_test.ember",
             title: "My rereco test",
             events: null,
             created: days(-1),
             expires: 7,
           },
           { file: "data/u/alice/for_the_meeting.evdb", title: "Someone else's file in my list" },
-          { file: "data/u/tester/../../index.evdb", title: "Climbing out" },
+          { file: "data/u/tester/../../index.ember", title: "Climbing out" },
           { title: "No file" },
           null,
         ],
@@ -512,7 +513,7 @@ export async function checkSite(run) {
   {
     const page = await visit(`#b=${small.file}&e=0`, {
       who: "",
-      people: { tester: { bundles: [{ file: "data/u/tester/x.evdb", title: "X", events: null }] } },
+      people: { tester: { bundles: [{ file: "data/u/tester/x.ember", title: "X", events: null }] } },
     });
     await shown(page);
     await page.evaluate(() => localStorage.setItem("evd.login", "tester"));
@@ -583,9 +584,11 @@ export async function checkSite(run) {
     const bytes = Buffer.from(await (await fetch(`${base}${small.file}`)).arrayBuffer());
     await page.click(".dataset");
     const [picker] = await Promise.all([page.waitForEvent("filechooser"), page.click(".chooserpanel footer button")]);
-    await picker.setFiles({ name: "from_my_disk.evdb", mimeType: "application/octet-stream", buffer: bytes });
+    const accept = await picker.element().getAttribute("accept");
+    if (accept !== ".ember,.evdb") fail(`the file chooser offers "${accept}", not .ember and .evdb files`);
+    await picker.setFiles({ name: "from_my_disk.ember", mimeType: "application/octet-stream", buffer: bytes });
     await page
-      .waitForFunction(() => document.querySelector(".dataset .name")?.textContent === "from_my_disk.evdb", null, {
+      .waitForFunction(() => document.querySelector(".dataset .name")?.textContent === "from_my_disk.ember", null, {
         timeout: 30000,
       })
       .catch(() => fail("a local file does not open from the chooser"));
@@ -594,13 +597,13 @@ export async function checkSite(run) {
     if (page.url().includes("b=")) fail(`a local file is in the address, which cannot open it: ${page.url()}`);
     await page.click(".share");
     const text = await page.textContent(".popover");
-    if (!/A local file has no link/i.test(text) || !text.includes("evd file.root"))
+    if (!/A local file has no link/i.test(text) || !text.includes("ember file.root"))
       fail(`sharing a local file says: ${text}`);
     await shot(page, "local");
     await page.keyboard.press("Escape");
     await page.click(".dataset");
     const row = await page.$eval(".dataset-row.off", (r) => r.textContent).catch(() => "");
-    if (!/from_my_disk\.evdb.*drop it/.test(row)) fail(`a local file under Recent reads "${row}"`);
+    if (!/from_my_disk\.ember.*drop it/.test(row)) fail(`a local file under Recent reads "${row}"`);
     // Filtered down to rows that cannot be opened, none is under the keys, and Enter does nothing.
     await page.fill(".chooserpanel .filter", "from_my_disk");
     if (await page.$(".dataset-row.active"))
@@ -618,7 +621,7 @@ export async function checkSite(run) {
     await page.waitForSelector(".startpanel .card", { timeout: 30000 });
     await page.evaluate(() => {
       const data = new DataTransfer();
-      data.items.add(new File(["these are my notes, not a bundle"], "notes.evdb"));
+      data.items.add(new File(["these are my notes, not a bundle"], "notes.ember"));
       window.dispatchEvent(new DragEvent("drop", { dataTransfer: data, bubbles: true, cancelable: true }));
     });
     await page
@@ -630,7 +633,7 @@ export async function checkSite(run) {
       fail(`a local file that is not a bundle is reported as: ${text}`);
     if (buttons.some((b) => /again|Reload/i.test(b)) || !buttons.includes("Choose another file"))
       fail(`a local file that did not open offers: ${buttons.join(" | ")}`);
-    if (requests.some((u) => u.includes("notes.evdb"))) fail("a local file's name was fetched from the site");
+    if (requests.some((u) => u.includes("notes.ember"))) fail("a local file's name was fetched from the site");
     await shot(page, "local_failed");
     await page.context().close();
   }

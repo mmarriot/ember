@@ -132,7 +132,7 @@ export function HelpDialog() {
         [
           [],
           "drop it on the page, or Open a local file… in the chooser",
-          "Open a local .evdb file: it stays on your computer",
+          "Open a local .ember (or older .evdb) file: it stays on your computer",
         ],
         [[], "the share button", "Copy a link to this view"],
       ],
@@ -147,7 +147,7 @@ export function HelpDialog() {
     ],
   ];
   return (
-    <Modal title="How to use the event display">
+    <Modal title="How to use Ember">
       {groups.map(([name, rows]) => (
         <>
           <h3>{name}</h3>
@@ -191,10 +191,10 @@ export function HelpDialog() {
         generator particle and its best candidate, every hit coloured shared, contamination, split off or missed, with
         the particle's completeness and the candidate's purity as bars in its card. Each step of the card's chain says
         what the truth graph has for it: match (the CMSSW associator's, with its purity), fact (simulated energy per
-        particle in its hits), derived (worked out in evd) or no truth for that kind yet. A dot on an object's name says
-        what the associator found for it: green for a clean match, half amber for an impure one, hollow for none. The
-        Truth tab counts, for each matched kind, the clean, impure and unmatched objects of the event. Truth is drawn
-        dashed. ⋯ on a row colours it by any column, or by the colour of a related object, instead. With something
+        particle in its hits), derived (worked out in Ember) or no truth for that kind yet. A dot on an object's name
+        says what the associator found for it: green for a clean match, half amber for an impure one, hollow for none.
+        The Truth tab counts, for each matched kind, the clean, impure and unmatched objects of the event. Truth is
+        drawn dashed. ⋯ on a row colours it by any column, or by the colour of a related object, instead. With something
         selected, everything unrelated fades.
       </p>
       <h3>Expressions</h3>

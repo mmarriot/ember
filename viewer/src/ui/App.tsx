@@ -59,7 +59,7 @@ import { Toasts } from "./widgets";
 const VIEW_KEYS: Record<string, ViewName> = { "1": "3d", "2": "front", "3": "side", "4": "rz" };
 const ALL = "All"; // the address's name for everything (domain null), in a bundle that opens on a domain
 const POLL = 30_000; // ms between checks of the site's lists of data sets: two small requests each time
-const NAME = "Event display";
+const NAME = "Ember";
 
 /** A file is being dragged over the page. */
 const dropping = signal(false);
@@ -189,7 +189,7 @@ function writeAddress() {
 
     // A local file has no address: a link to it would open nothing, not even for me after a reload.
     if (opened.value?.local) history.replaceState(null, "", location.pathname + location.search);
-    // "/" and ":" may stand as they are in a fragment: the link reads b=data/u/alice/x.evdb, not b=data%2Fu%2F…
+    // "/" and ":" may stand as they are in a fragment: the link reads b=data/u/alice/x.ember, not b=data%2Fu%2F…
     else if (bundleName.value) history.replaceState(null, "", `#${p}`.replace(/%2F/g, "/").replace(/%3A/g, ":"));
   });
 }

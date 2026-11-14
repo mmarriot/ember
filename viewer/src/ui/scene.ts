@@ -105,7 +105,7 @@ export function replayEvent(): Plan | null {
   // The parts drawn whole only for the replay shrink away at its end, rather than vanishing when the layers are rebuilt.
   for (const e of entries) if (replayOnly(e.d, e.key, highlight.peek())) e.layer.setRetire(plan.linkEnd);
   engine.replay(plan.seconds);
-  if (import.meta.env.DEV) Object.assign(window, { evdPlan: plan }); // for the e2e tests
+  if (import.meta.env.DEV) Object.assign(window, { emberPlan: plan }); // for the e2e tests
   return plan;
 }
 
@@ -125,7 +125,7 @@ export function growTables(tables: Set<string>, seconds: number) {
  *  effects. */
 export function startScene(canvas: HTMLCanvasElement): () => void {
   const eng = (engine = new Engine(canvas));
-  if (import.meta.env.DEV) Object.assign(window, { evdEngine: eng }); // for the e2e tests
+  if (import.meta.env.DEV) Object.assign(window, { emberEngine: eng }); // for the e2e tests
   eng.onReplayTick = (t) => {
     // the caption changes text at most once per frame
     const c = t === null ? null : (plan?.caption(t) ?? null),

@@ -303,7 +303,7 @@ def _list(args):
     widths = [max(len(r[k]) for r in [heading, *rows]) for k in range(4)]  # the title, last, is not padded
     for row in [heading, *rows]:
         print("  ".join([*(cell.ljust(w) for cell, w in zip(row, widths)), row[4]]).rstrip())
-        if args.links and row[0] != "NAME":
+        if args.links and row is not heading:
             print(f"    {site.link(url, user, row[0])}")
     return 0
 

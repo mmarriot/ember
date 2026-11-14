@@ -289,3 +289,10 @@ def test_threads_give_the_same_records_as_one_thread(setup):
     raw = lambda b, e: (b._file.seek(e["offset"]), gzip.decompress(b._file.read(e["length"])))[1]
     assert len(one) == len(four) == 12 and [e["event"] for e in one.events] == [e["event"] for e in four.events]
     assert all(raw(one, a) == raw(four, b) for a, b in zip(one.events, four.events))
+
+
+def test_list_gives_the_link_of_a_bundle_named_like_a_column_heading(setup, capsys):
+    main(["ttbar.root", "--profile", "test.json", "--name", "NAME"])
+    capsys.readouterr()
+    assert main(["list", "-l"]) == 0
+    assert capsys.readouterr().out.splitlines()[2].strip() == "https://evd.example/#b=data/u/alice/NAME.evdb"

@@ -14,6 +14,7 @@ dynamic = ["version"]
 scipy = ["scipy"]                      # the neighbourDistance derive (cell sizes from the hits' spacing)
 runinfo = ["mysql-connector-python"]   # run information from the run registry
 test = ["pytest", "awkward", "scipy"]
+dev = ["ruff==0.17.5"]                  # formatting and lint: ruff format, ruff check
 
 [project.scripts]
 evd = "evdtools.__main__:main"
@@ -26,3 +27,7 @@ evdtools = ["profiles/*.json"]
 
 [tool.setuptools.dynamic]
 version = { attr = "evdtools.__version__" }
+
+[tool.ruff]
+line-length = 120
+target-version = "py39"

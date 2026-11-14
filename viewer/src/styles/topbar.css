@@ -306,7 +306,7 @@
   color: var(--error);
   margin: 6px 0 0;
 }
-/* The share pop-up (Header.tsx): the link, whether it was copied, and what it opens. */
+/* The share pop-up (Share.tsx): the link, whether it was copied, and what it opens. */
 .sharepop input {
   width: 100%;
   font:

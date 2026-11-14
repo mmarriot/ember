@@ -181,20 +181,26 @@ export class Bundle {
 
   private async read(i: number): Promise<EventData> {
     const entry = this.events[i];
+    if (!entry) throw new RangeError(`no event ${i} (the bundle has ${this.events.length})`);
     const [ev, perRun] = await Promise.all([this.record(entry), this.run(entry.run)]);
     ev.tables = { ...perRun, ...ev.tables };
+    checkEvent(ev, this.header);
     return ev;
   }
 
   private run(run: number): Promise<Record<string, Table>> {
     const entry = this.runs.find((r) => r.run === run);
     if (entry?.offset === undefined || entry.length === undefined) return Promise.resolve({});
-    if (!this.runTables.has(run))
-      this.runTables.set(
-        run,
-        this.record({ offset: entry.offset, length: entry.length }).then((r) => r.tables),
-      );
-    return this.runTables.get(run)!;
+    let tables = this.runTables.get(run);
+    if (!tables) {
+      // As in event(): a read that fails is forgotten, so the run's next event tries again.
+      const read = (tables = this.record({ offset: entry.offset, length: entry.length }).then((r) => r.tables));
+      this.runTables.set(run, read);
+      read.catch(() => {
+        if (this.runTables.get(run) === read) this.runTables.delete(run);
+      });
+    }
+    return tables;
   }
 
   /** What is known about a run (type, setup, beam, ...), or {}. */
@@ -232,7 +238,7 @@ interface RecordMeta {
  *  column becomes a typed-array view on `buf` of the type its header entry names. */
 function parseRecord(buf: ArrayBuffer, header: Header): EventData {
   const dv = new DataView(buf);
-  if (text(buf.slice(0, 4)) !== "EVD1") throw new Error("bad event record");
+  if (text(buf.slice(0, 4)) !== "EVD1") throw new FormatError("bad event record");
   const hlen = dv.getUint32(4, true);
   const meta: RecordMeta = JSON.parse(text(buf.slice(8, 8 + hlen)));
   const base = 8 + hlen;
@@ -256,4 +262,32 @@ function parseRecord(buf: ArrayBuffer, header: Header): EventData {
     };
   }
   return { id: meta.event, tables, relations };
+}
+
+/** Check an event (with its run's tables added) against what the reader's users take for granted, as `ember validate`
+ *  does (embertools/bundle.py validate): every column has its table's row count, and every relation's offsets and
+ *  indices stay inside its tables. A bundle is a file from anyone; without this, an offset of 4e9 would make the first
+ *  loop over the relation run for minutes, and an index past the end would select rows that do not exist. One pass
+ *  over the arrays, which inflate has just written. */
+function checkEvent(ev: EventData, header: Header) {
+  const bad = (what: string) => {
+    throw new FormatError(`not a complete Ember bundle (event ${ev.id.join(":")}: ${what})`);
+  };
+  for (const [name, t] of Object.entries(ev.tables))
+    for (const [c, a] of Object.entries(t.columns))
+      if (a.length !== t.n) bad(`${name}.${c} has ${a.length} rows, not ${t.n}`);
+  for (const [name, r] of Object.entries(ev.relations)) {
+    const info = header.relations[name];
+    if (!info) bad(`relation ${name} is not in the header`);
+    const nFrom = ev.tables[info.from]?.n ?? 0,
+      nTo = ev.tables[info.to]?.n ?? 0,
+      { offsets, indices } = r;
+    if (offsets.length !== nFrom + 1 || offsets[0] !== 0 || offsets[nFrom] !== indices.length)
+      bad(`relation ${name} has bad offsets`);
+    for (let i = 0; i < nFrom; i++) if (offsets[i] > offsets[i + 1]) bad(`relation ${name} has bad offsets`);
+    for (let k = 0; k < indices.length; k++) if (indices[k] >= nTo) bad(`relation ${name} points past ${info.to}`);
+    for (const [w, a] of Object.entries(r.weights))
+      if (a.length !== indices.length)
+        bad(`relation ${name} weight ${w} has ${a.length} entries, not ${indices.length}`);
+  }
 }

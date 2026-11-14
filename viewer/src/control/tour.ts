@@ -212,6 +212,7 @@ async function startTour() {
     if (!(await fly(undefined, 2600, -0.6))) return; // pull out wide, ready for the next event
     if (steps.length) visible.value = {}; // the next event starts empty: nothing built that its first step hides
     await showEvent(eventIndex.value + 1);
+    if (bundle.peek() !== opened) return stopTour(); // another data set opened while the event was read
   }
 }
 

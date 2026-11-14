@@ -3,7 +3,7 @@
 // last one asked for always wins.
 import { batch, computed, signal } from "@preact/signals";
 import { around, blobSource, Bundle, HttpError, httpSource, type Source } from "../../io/bundle";
-import { type DisplayLayer, REPRS } from "../../io/format";
+import { type DisplayLayer, type EventData, REPRS } from "../../io/format";
 import { loadCustom } from "../custom";
 import { startDomain } from "../domains";
 import {
@@ -24,7 +24,7 @@ import { colourChoice } from "./colours";
 import { bundle, bundleName, eventIndex, loadMs, loading, rawEvent, shownOf } from "./data";
 import { layerKey } from "./names";
 import { selection } from "./selection";
-import { cutGroups, cuts, domain, hover, openTab, solo, tabOfDomain, toast, view, visible } from "./view";
+import { cutGroups, cuts, domain, hover, openTab, showAll, solo, tabOfDomain, toast, view, visible } from "./view";
 
 export type { Listed };
 
@@ -125,36 +125,44 @@ export async function openBundle(
     const b = await Bundle.open(source);
     if (overtaken()) return false;
     dropUndrawable(b);
+    // The first event is read before anything changes: until it is in, the data set on screen stays whole (its
+    // event, selection and address), and one whose first event cannot be read fails to open, as a whole.
+    const n = b.events.length,
+      at = n && Number.isInteger(start) ? ((start % n) + n) % n : 0,
+      t0 = performance.now(),
+      ev = n ? await b.event(at) : null;
+    if (overtaken()) return false;
 
+    // One change for whoever watches (the scene, the address, the panels): the bundle, its name, how it was opened,
+    // its own starting state (the domain it opens on and that domain's view, the user's saved choices for its
+    // profile, the default ticks and cuts) and its first event. Nothing ever sees the new bundle with the previous
+    // one's event, selection or settings.
     batch(() => {
-      // One change for whoever watches: the bundle, its name and how it was opened change together, so the address
-      // is never written for the new name with the previous one's kind (local, external).
       bundle.value = b;
       solo.value = null;
       colourChoice.value = "reco";
       bundleName.value = name;
       openedAs.value = { local, external };
       openFailure.value = null;
+      const first = startDomain(b.header);
+      view.value = b.header.domains?.find((d) => d.name === first)?.view ?? b.header.view?.start ?? "3d";
+      loadCustom(
+        b.header.profile,
+        Object.fromEntries(b.header.display.filter((d) => d.filter).map((d) => [d.table, d.filter!])),
+        !external,
+      );
+      visible.value = Object.fromEntries(b.header.display.map((d) => [layerKey(d), d.visible]));
+      showAll.value = {};
+      domain.value = first;
+      if (first) openTab.value = { name: tabOfDomain(b.header, first) };
+      cuts.value = Object.fromEntries([...cutGroups.value].map(([g, info]) => [g, info.default]));
+      if (ev) putEvent(b, at, ev, performance.now() - t0);
+      else rawEvent.value = null;
     });
+    wanted = at;
+    if (ev) readAhead(b, at, at);
     void describeOpened(id, name, local, external, index);
-
-    // The bundle's own starting state: the domain it opens on (e.g. the physics objects) and that domain's view, the
-    // user's saved choices for its profile, the default ticks and cuts.
-    const first = startDomain(b.header);
-    view.value = b.header.domains?.find((d) => d.name === first)?.view ?? b.header.view?.start ?? "3d";
-    loadCustom(
-      b.header.profile,
-      Object.fromEntries(b.header.display.filter((d) => d.filter).map((d) => [d.table, d.filter!])),
-      !external,
-    );
-    visible.value = Object.fromEntries(b.header.display.map((d) => [layerKey(d), d.visible]));
-    domain.value = first;
-    if (first) openTab.value = { name: tabOfDomain(b.header, first) };
-    cuts.value = Object.fromEntries([...cutGroups.value].map(([g, info]) => [g, info.default]));
-
-    opening.value = null; // from here on the event's own progress bar shows
-    await showEvent(start);
-    return !overtaken() && shownOf.peek() === b;
+    return true;
   } catch (e) {
     if (overtaken()) return false;
     const failure = describeFailure(asked, e, local);
@@ -226,6 +234,24 @@ let reading: Bundle | null = null;
  *  event. */
 export const stepEvent = (d: number) => showEvent(wanted + d);
 
+/** Put event `index` of `b`, just read in `ms`, on screen. The caller batches it with whatever else changes. */
+function putEvent(b: Bundle, index: number, ev: EventData, ms: number) {
+  selection.value = null;
+  hover.value = null;
+  eventIndex.value = index;
+  rawEvent.value = ev;
+  shownOf.value = b;
+  loadMs.value = ms;
+}
+
+/** Keep the events around `index` read, and read the next one in the direction of travel (from `from`) ahead
+ *  (io/bundle.ts around). */
+function readAhead(b: Bundle, index: number, from: number) {
+  const { keep, next } = around(index, from, b.events.length);
+  b.keep(keep);
+  if (next !== null) b.event(next).catch(() => {}); // a failed read ahead is tried again when that event is shown
+}
+
 /** Show event `i` (wrapping around), then read the next one in the direction of travel ahead (io/bundle.ts around).
  *  One event is read at a time: if others are asked for meanwhile, the read goes on to the last one asked for,
  *  skipping those in between (holding → at PU200 never has more than one 35 MB read in flight). */
@@ -248,15 +274,8 @@ export async function showEvent(i: number) {
         continue;
       }
       const from = shownOf.peek() === b ? eventIndex.peek() : index;
-      selection.value = null;
-      hover.value = null;
-      eventIndex.value = index;
-      rawEvent.value = ev;
-      shownOf.value = b;
-      loadMs.value = performance.now() - t0;
-      const { keep, next } = around(index, from, n);
-      b.keep(keep);
-      if (next !== null) b.event(next).catch(() => {}); // a failed read ahead is tried again when that event is shown
+      batch(() => putEvent(b, index, ev, performance.now() - t0));
+      readAhead(b, index, from);
       return;
     }
   } catch (e) {

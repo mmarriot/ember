@@ -27,8 +27,8 @@ import { Views } from "./Viewport";
 import { Icon } from "./widgets";
 
 export function Header() {
-  // The event named is the one shown (store/data.ts shownEntry): a data set just opened says "Opening…" until its event
-  // is read, not the name of the event its index pointed at in the data set before.
+  // The event named is the one shown (store/data.ts shownEntry). While another data set opens, the one on screen stays
+  // whole, its event included, until the new one's first event is read (store/open.ts openBundle).
   const b = bundle.value,
     e = shownEntry.value;
   const goToEvent = (value: string) => {

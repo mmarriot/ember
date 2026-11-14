@@ -14,12 +14,10 @@ export const bundleName = signal("");
 export const eventIndex = signal(0);
 /** The event shown, as read from the file. */
 export const rawEvent = signal<EventData | null>(null);
-/** The bundle the event shown belongs to: for a moment after another bundle opens, still the previous one. Written
- *  by showEvent with the event. */
+/** The bundle the event shown belongs to, written with the event (open.ts putEvent). openBundle writes the bundle and
+ *  its first event at once, so the two differ only when a bundle has no event. */
 export const shownOf = signal<Bundle | null>(null);
-/** The index entry (run, event, ...) of the event shown, once it belongs to the open bundle. Until a newly opened
- *  bundle's first event is read, `eventIndex` still names the previous bundle's event (or 0, while a link's event 30
- *  is on its way): an event that is neither the one on screen nor the one coming. */
+/** The index entry (run, event, ...) of the event shown, if it belongs to the open bundle. */
 export const shownEntry = computed(() =>
   bundle.value && shownOf.value === bundle.value ? bundle.value.events[eventIndex.value] : undefined,
 );

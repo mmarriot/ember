@@ -247,6 +247,7 @@ function listenForDrops() {
     const file = e.dataTransfer?.files[0];
     if (file) {
       stopLive();
+      stopTour();
       void openLocal(file);
     }
   };

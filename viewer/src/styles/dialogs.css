@@ -1,0 +1,134 @@
+/* Things that open over the page: the help dialog (App.tsx), the passing messages, and the descriptions behind an
+   "i" (Info.tsx). */
+.backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(31, 35, 40, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
+.modal {
+  width: min(640px, calc(100vw - 32px));
+  max-height: calc(100vh - 64px);
+  overflow-y: auto;
+  background: var(--surface);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+}
+.modal > header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.modal h2 {
+  font-size: 15px;
+}
+.modal-body {
+  padding: 12px 16px 16px;
+}
+.modal-body h3 {
+  margin-top: 14px;
+}
+.modal-body h3:first-child {
+  margin-top: 0;
+}
+/* Help: a key column, then what it does (and the mouse or button that does it too). */
+table.kv.keys {
+  table-layout: fixed;
+}
+table.kv.keys td:first-child {
+  width: 88px;
+  white-space: nowrap;
+}
+table.kv.keys td:first-child kbd + kbd {
+  margin-left: 3px;
+}
+table.kv.keys td:nth-child(2) {
+  text-align: left;
+}
+.toasts {
+  position: fixed;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  z-index: 11;
+}
+.toast {
+  background: #24292f;
+  color: #fff;
+  padding: 8px 14px;
+  border-radius: 6px;
+  box-shadow: var(--shadow);
+  font-size: 12px;
+  max-width: 70vw;
+}
+.toast.error {
+  background: var(--error);
+}
+/* Descriptions on request (ui/Info.tsx): the "i", and the pop-up it opens. */
+.info {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  padding: 0;
+  margin: 0 0 0 4px;
+  border-radius: 50%;
+  font:
+    italic 600 10px/1 Georgia,
+    serif;
+  color: var(--muted);
+  border: 1px solid var(--line-strong);
+  background: none;
+  vertical-align: middle;
+  text-transform: none;
+}
+.info:hover {
+  color: var(--text);
+  border-color: var(--text);
+}
+.popover {
+  position: fixed;
+  left: 0;
+  top: 0;
+  visibility: hidden;
+  z-index: 9;
+  width: min(340px, calc(100vw - 16px));
+  max-height: 70vh;
+  overflow: auto;
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+.popover h4 {
+  margin: 0 0 6px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+.popover p {
+  margin: 0 0 8px;
+}
+.popover p:last-child {
+  margin-bottom: 0;
+}
+.popover ul {
+  margin: 0 0 8px;
+  padding-left: 16px;
+}
+.popover li {
+  margin: 2px 0;
+}

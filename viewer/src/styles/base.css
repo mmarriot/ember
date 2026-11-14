@@ -1,0 +1,425 @@
+/* What every part of the page shares: the colour tokens of the two themes, the page's elements, the layout grid,
+   the controls (buttons, links, fields, chips), tables of names and values, tags and badges, and the marks that say
+   what the associator found for an object. */
+
+/* Colour tokens: light by default, dark when the root has data-theme="dark" (model/store.ts sets it). */
+:root {
+  --bg: #ffffff;
+  --surface: #ffffff;
+  --surface-2: #f6f8fa;
+  --line: #d8dee4;
+  --line-strong: #c3ccd5;
+  --text: #1f2328;
+  --muted: #59636e;
+  --accent: #0969da;
+  --accent-soft: #ddf4ff;
+  --error: #cf222e;
+  --shadow: 0 1px 2px rgba(31, 35, 40, 0.06), 0 4px 16px rgba(31, 35, 40, 0.1);
+  --radius: 8px;
+  --topbar: 56px;
+  --sidebar: 340px;
+  font:
+    13px/1.45 system-ui,
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    sans-serif;
+  --overlay: rgba(255, 255, 255, 0.88);
+  color-scheme: light;
+}
+:root[data-theme="dark"] {
+  --bg: #0f1419;
+  --surface: #161b22;
+  --surface-2: #0d1117;
+  --line: #2d333b;
+  --line-strong: #444c56;
+  --text: #e6edf3;
+  --muted: #8d96a0;
+  --accent: #4493f8;
+  --accent-soft: #1b2b40;
+  --error: #f85149;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 6px 20px rgba(0, 0, 0, 0.45);
+  --overlay: rgba(15, 20, 25, 0.85);
+  color-scheme: dark;
+}
+
+/* What the associator says of an object (clean, impure or no match): a colour per class, for the dots, counts and
+   bars further down. Shape differs too, for those who cannot tell the colours apart. */
+:root {
+  --clean: #1a7f37;
+  --impure: #9a6700;
+  --nomatch: #6e7781;
+}
+[data-theme="dark"] {
+  --clean: #3fb950;
+  --impure: #d29922;
+  --nomatch: #8d96a0;
+}
+
+/* Page elements and text helpers. */
+* {
+  box-sizing: border-box;
+}
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  overflow: hidden;
+}
+h2,
+h3 {
+  margin: 0;
+}
+h3 {
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+kbd {
+  font:
+    11px ui-monospace,
+    monospace;
+  border: 1px solid var(--line-strong);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  padding: 0 4px;
+  background: var(--surface);
+}
+.hint {
+  color: var(--muted);
+  font-size: 12px;
+  margin: 4px 0 8px;
+  overflow-wrap: anywhere;
+}
+.muted {
+  color: var(--muted);
+}
+.count {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+}
+details {
+  margin-top: 8px;
+}
+summary {
+  cursor: pointer;
+  color: var(--accent);
+  font-size: 12px;
+}
+
+/* Layout: the top bar across, the side panel and the view under it (narrow.css changes it for small windows). */
+.app {
+  display: grid;
+  grid-template-columns: var(--sidebar) 1fr;
+  grid-template-rows: var(--topbar) 1fr;
+  height: 100vh;
+}
+.topbar {
+  grid-column: 1 / -1;
+}
+main {
+  position: relative;
+  min-width: 0;
+}
+
+/* Controls. */
+button,
+select,
+input {
+  font: inherit;
+  color: var(--text);
+}
+button {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 5px 10px;
+  cursor: pointer;
+}
+button:hover {
+  background: var(--surface-2);
+  border-color: var(--line-strong);
+}
+button:focus-visible,
+select:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+}
+.icon-button:hover {
+  background: var(--surface-2);
+  border-color: var(--line);
+}
+.link {
+  border: none;
+  background: none;
+  color: var(--accent);
+  padding: 0;
+  font-size: 12px;
+}
+.link:hover {
+  background: none;
+  text-decoration: underline;
+}
+select,
+input[type="number"],
+.jump {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 5px 8px;
+}
+.chip {
+  padding: 0 7px;
+  margin: 2px;
+  font-size: 11px;
+  border-radius: 10px;
+  font-variant-numeric: tabular-nums;
+}
+.icon-button.on {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.icon-button.small {
+  width: 22px;
+  height: 22px;
+  flex: none;
+}
+.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.primary:hover {
+  background: var(--accent);
+  filter: brightness(1.1);
+}
+.primary:disabled {
+  opacity: 0.45;
+  cursor: default;
+  filter: none;
+}
+code {
+  font:
+    11.5px ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+}
+a.link {
+  text-decoration: none;
+}
+a.link:hover {
+  text-decoration: underline;
+}
+.segmented {
+  flex: none;
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.segmented button {
+  border: none;
+  border-radius: 0;
+  border-right: 1px solid var(--line);
+  padding: 5px 12px;
+}
+.segmented button:last-child {
+  border-right: none;
+}
+.segmented button.on {
+  background: var(--accent);
+  color: #fff;
+}
+.actions {
+  flex: none;
+  display: flex;
+  gap: 2px;
+}
+.barlabel {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+/* Tags and badges: a collection's reconstruction path; truth (simulation, dashed) and reco (solid); a particle's
+   truth level. */
+.tag {
+  font-size: 10px;
+  color: var(--muted);
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  padding: 0 4px;
+  margin-left: 6px;
+}
+.badge.truth {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  padding: 0 5px;
+  margin: 0 6px 0 0;
+  border-radius: 3px;
+  border: 1px dashed currentColor;
+  color: #d7a6ff;
+}
+[data-theme="light"] .badge.truth {
+  color: #7a3fb0;
+}
+.badge.reco {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  padding: 0 5px;
+  margin: 0 6px 0 0;
+  border-radius: 3px;
+  border: 1px solid currentColor;
+  color: var(--muted);
+}
+.badge.level {
+  display: inline-block;
+  font-size: 10px;
+  padding: 0 4px;
+  margin-left: 4px;
+  border-radius: 3px;
+  border: 1px dashed var(--line-strong);
+  color: var(--muted);
+}
+
+/* Tables of names and values (class kv): the object card's columns, the Event tab, the data set's details. A stats
+   table shrinks its names with an ellipsis (full text on hover) and never wraps its numbers; a prov table keeps
+   its names short and lets its values (paths, file lists) wrap. */
+table.kv {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+table.kv td {
+  padding: 3px 4px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+table.kv tr:last-child td {
+  border-bottom: none;
+}
+table.kv td:first-child {
+  color: var(--muted);
+}
+table.kv td:nth-child(2) {
+  text-align: right;
+}
+table.kv td.unit {
+  color: var(--muted);
+  width: 1%;
+  white-space: nowrap;
+}
+table.kv.stats {
+  table-layout: auto;
+}
+table.kv.stats td:first-child {
+  max-width: 0;
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+table.kv.stats td:nth-child(2) {
+  white-space: nowrap;
+  padding-left: 12px;
+}
+table.kv.mono td:first-child {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+}
+table.kv.prov td:first-child {
+  width: 1%;
+  white-space: nowrap;
+  padding-right: 12px;
+}
+
+/* The associator's answer for an object: a dot before its name, and the colour of a count. The chip that names the
+   object looked at from the card is filled. */
+.qdot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 4px;
+  vertical-align: baseline;
+}
+.qdot.q-clean,
+.chip.q-clean::before {
+  background: var(--clean);
+}
+.qdot.q-impure,
+.chip.q-impure::before {
+  background: linear-gradient(90deg, var(--impure) 50%, transparent 50%);
+  box-shadow: inset 0 0 0 1.5px var(--impure);
+}
+.qdot.q-unmatched,
+.chip.q-unmatched::before {
+  background: none;
+  box-shadow: inset 0 0 0 1.5px var(--nomatch);
+}
+.chip.q-clean::before,
+.chip.q-impure::before,
+.chip.q-unmatched::before {
+  content: "";
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  margin-right: 4px;
+}
+.chip.q-clean {
+  border-color: var(--clean);
+}
+.chip.q-impure {
+  border-color: var(--impure);
+}
+.chip.q-unmatched {
+  border-style: dashed;
+}
+.q {
+  white-space: nowrap;
+}
+.q.q-clean {
+  color: var(--clean);
+}
+.q.q-impure {
+  color: var(--impure);
+}
+.q.q-unmatched {
+  color: var(--nomatch);
+}
+.ok {
+  color: var(--clean);
+}
+.chip.viewing {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.chip.viewing::before {
+  box-shadow: inset 0 0 0 1.5px #fff;
+}

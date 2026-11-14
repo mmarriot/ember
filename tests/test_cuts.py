@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 from nanoaod import chunk, converter
 
-from embertools.nano import parse_events
+from embertools.nano import chosen_events, parse_events
 from embertools.relations import cut_relation
 
 F4, I4 = np.dtype("f4"), np.dtype("i4")
@@ -149,7 +149,10 @@ def test_unsigned_index_column_of_a_cut_table_is_rejected():
 
 
 def test_event_lists():
-    assert parse_events("5, 7-9,12") == {5, 7, 8, 9, 12}
+    events = parse_events("5, 7-9,12")
+    assert events == [(5, 5), (7, 9), (12, 12)]
+    assert list(np.flatnonzero(chosen_events(np.arange(14), events))) == [5, 7, 8, 9, 12]
+    assert parse_events("1-1000000000") == [(1, 1000000000)]  # kept as a range, not a billion numbers
 
 
 def test_reached_by_any_of_several_relations():

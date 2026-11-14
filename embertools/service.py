@@ -28,14 +28,16 @@ import glob
 import json
 import os
 import re
+import secrets
 import shutil
+import socket
 import tempfile
 import time
 
 from .bundle import Bundle, summary
 from .site import EXTENSION, EXTENSIONS, USERS, replacing, service_dir, site_dir
 
-LOCK_STALE = 3 * 3600  # s: a lock older than this was left by a run that died
+LOCK_STALE = 3 * 3600  # s: a lock untouched for this long was left by a pass that died (see _take_lock)
 
 
 def now():
@@ -78,9 +80,27 @@ def _stem(campaign, path):
     Events_1.root per run directory)."""
     if campaign.get("stem") != "wildcards":
         return os.path.splitext(os.path.basename(path))[0]
-    pattern = "".join("([^/]*)" if part == "*" else re.escape(part) for part in re.split(r"(\*)", campaign["inputs"]))
-    parts = re.fullmatch(pattern, path).groups()
+    parts = re.fullmatch(_wildcards(campaign["inputs"]), path).groups()
     return "_".join(parts[k] for k in campaign["stem_parts"]) if "stem_parts" in campaign else "_".join(parts)
+
+
+def _wildcards(pattern):
+    """The glob `pattern` as a regular expression with one group per wildcard (*, ? or [...]), as glob matches them:
+    none of them matches a "/"."""
+    out = []
+    for part in re.split(r"(\*|\?|\[!?\]?[^\]]*\])", pattern):
+        if part == "*":
+            out.append("([^/]*)")
+        elif part == "?":
+            out.append("([^/])")
+        elif part.startswith("[") and len(part) > 2:
+            body = part[1:-1]
+            negated = body.startswith("!")
+            body = body[1:] if negated else body
+            out.append(f"([{'^/' if negated else ''}{body.replace(chr(92), chr(92) * 2)}])")
+        else:
+            out.append(re.escape(part))
+    return "".join(out)
 
 
 def pending(campaign, site, settle, failures, max_failures):
@@ -96,12 +116,21 @@ def pending(campaign, site, settle, failures, max_failures):
             any(os.path.exists(os.path.join(site, "data", campaign["name"], stem + e)) for e in EXTENSIONS)
             or target in targets
             or failures.get(key, 0) >= max_failures
-            or time.time() - os.path.getmtime(path) < settle
+            or time.time() - _mtime(path) < settle
         ):
             continue
         targets.add(target)
         out.append((path, target, key))
     return out
+
+
+def _mtime(path):
+    """When `path` was last modified; for a file removed since the glob found it, now (it waits, and is gone next
+    time)."""
+    try:
+        return os.path.getmtime(path)
+    except FileNotFoundError:
+        return time.time()
 
 
 def _remember_title(site, campaign, file_titles=None):
@@ -181,7 +210,8 @@ def sync(config, max_files=None, dry_run=False, convert=None, export=None):
     os.makedirs(state, exist_ok=True)
     os.makedirs(site, exist_ok=True)
     lock = os.path.join(state, "lock")
-    if not _take_lock(lock, site):
+    token = _take_lock(lock, site)
+    if token is None:
         log("another sync is running; nothing to do")
         return 0
 
@@ -208,6 +238,7 @@ def sync(config, max_files=None, dry_run=False, convert=None, export=None):
             os.makedirs(os.path.dirname(target), exist_ok=True)
             source = campaign["xrootd"] + path if campaign.get("xrootd") else path
             started = time.time()
+            os.utime(lock)  # still alive: the lock's age is the time since the last input started
             try:
                 n = _convert_input(campaign, path, source, target, convert, export)
                 log(f"{key}: {n} events in {time.time() - started:.0f} s")
@@ -222,39 +253,62 @@ def sync(config, max_files=None, dry_run=False, convert=None, export=None):
             log("index updated")
         return done
     finally:
-        shutil.rmtree(lock, ignore_errors=True)
+        _release_lock(lock, token)
 
 
 def _take_lock(lock, site):
-    """Take the lock of the sync passes, a directory (os.mkdir is atomic: only one pass creates it). False if another
-    pass holds it. A lock older than LOCK_STALE was left by a pass that died: it is taken over, and the partial
-    bundles that pass left are removed."""
+    """Take the lock of the sync passes, a directory: os.mkdir is atomic, so only one pass creates it. Returns the
+    token written in it, or None if another pass holds it. The holder touches the lock before each input, so a lock
+    untouched for LOCK_STALE was left by a pass that died. It is taken over by a rename, which only one of several
+    passes can win, and the partial bundles that pass left (as old as the lock) are removed."""
+    token = f"{socket.gethostname()}.{os.getpid()}.{secrets.token_hex(4)}"
     try:
         os.mkdir(lock)
-        return True
     except FileExistsError:
-        if time.time() - os.path.getmtime(lock) < LOCK_STALE:
-            return False
-    log("removing a stale lock, and partial bundles of the run that left it")
+        try:
+            if time.time() - os.path.getmtime(lock) < LOCK_STALE:
+                return None
+            os.rename(lock, f"{lock}.stale.{token}")
+        except FileNotFoundError:  # another pass took it over first
+            return None
+        log("took over a stale lock; removing the partial bundles of the pass that left it")
+        shutil.rmtree(f"{lock}.stale.{token}", ignore_errors=True)
+        for extension in EXTENSIONS:
+            for tmp in glob.glob(os.path.join(site, "data", "*", f"*{extension}.tmp*")):
+                if time.time() - os.path.getmtime(tmp) >= LOCK_STALE:
+                    os.remove(tmp)
+        try:
+            os.mkdir(lock)
+        except FileExistsError:  # a new pass started meanwhile
+            return None
+    with open(os.path.join(lock, "owner"), "w") as f:
+        f.write(token)
+    return token
+
+
+def _release_lock(lock, token):
+    """Remove the lock if it is still this pass's (a pass that ran too long may have lost it to another)."""
+    try:
+        with open(os.path.join(lock, "owner")) as f:
+            if f.read() != token:
+                return
+    except OSError:
+        return
     shutil.rmtree(lock, ignore_errors=True)
-    for extension in EXTENSIONS:
-        for tmp in glob.glob(os.path.join(site, "data", "*", f"*{extension}.tmp*")):
-            os.remove(tmp)
-    os.mkdir(lock)
-    return True
 
 
 def _convert_input(campaign, path, source, target, convert, export):
     """Convert the input `path` of a campaign (read from `source`) to the bundle `target`; returns the number of
     events. A reconstruction file is first exported to NanoAOD, in a temporary folder."""
+    limit = campaign.get("max_events") or None  # as on the command line, 0 means all
     with tempfile.TemporaryDirectory(prefix="ember-export-") as work:
         if campaign.get("export"):
-            source = export([source], work, campaign.get("max_events"), log=_Log(), **campaign["export"])
+            source = export([source], work, limit, log=_Log(), **campaign["export"])
         return convert(
             [source],
             target,
             campaign["profile"],
-            campaign.get("max_events"),
+            limit,
             data_time=datetime.datetime.fromtimestamp(os.path.getmtime(path), datetime.timezone.utc),
             **({"run_info": campaign["runInfo"]} if campaign.get("runInfo") else {}),
         )

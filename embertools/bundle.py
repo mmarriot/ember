@@ -14,6 +14,7 @@ import gzip
 import json
 import os
 import struct
+import zlib
 from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
@@ -64,6 +65,7 @@ class BundleWriter:
         self._file.write(MAGIC + struct.pack("<II", VERSION, len(head)) + head)
         self._events, self._runs, self._run_info = [], [], {}
         self._threads, self.pool = threads, ThreadPoolExecutor(threads) if threads > 1 else None
+        self._types = {t: {c: m["type"] for c, m in info["columns"].items()} for t, info in header["tables"].items()}
         self._queue = collections.deque()  # (index entry, compressed record or its future), oldest first
 
     def add(self, event_id, tables, relations):
@@ -121,6 +123,12 @@ class BundleWriter:
         """Compress a record and append it to the file. Its index entry `entry` gets where the record is and the rows
         of each table. With threads, at most `threads` records wait (compressed or being compressed) before the
         oldest is written, which bounds the memory they hold."""
+        for t, (_, columns) in tables.items():
+            for c, a in columns.items():
+                # A reader views the bytes as the header's type: other bytes would read back as other numbers.
+                declared = self._types.get(t, {}).get(c)
+                if declared and type_code(a.dtype) != declared:
+                    raise ValueError(f"{t}.{c} is {type_code(a.dtype)}, but the header says {declared}")
         entry.update(offset=0, length=0, counts={t: int(n) for t, (n, _) in tables.items()})
         if self.pool is None:
             return self._store(entry, _pack(self._level, record_id, tables, relations))
@@ -281,12 +289,22 @@ def summary(path):
 
 def validate(path):
     """Check the structure of every record of the bundle at `path` (row counts, relation offsets and indices, weight
-    lengths, a record for the per-run tables of each run); returns the problems found, in words."""
+    lengths, a record for the per-run tables of each run); returns the problems found, in words. A record that cannot
+    be read (damaged, or naming a table the header lacks) is one problem, and the others are still checked."""
     bundle, problems = Bundle(path), []
     rels = bundle.header["relations"]
+
+    def read(what, get):
+        try:
+            return get()
+        except (OSError, EOFError, zlib.error, ValueError, KeyError, struct.error) as e:
+            problems.append(f"{what}: cannot be read ({type(e).__name__}: {e})")
+            return None
+
     per_run = [t for t, m in bundle.header["tables"].items() if m.get("scope") == "run"]
     for entry in bundle.runs:
-        for t, (n, cols) in bundle.run(entry["run"]).items():
+        tables = read(f"run {entry['run']}", lambda entry=entry: bundle.run(entry["run"])) or {}
+        for t, (n, cols) in tables.items():
             problems += [
                 f"run {entry['run']}: {t}.{c} has {len(a)} rows, expected {n}" for c, a in cols.items() if len(a) != n
             ]
@@ -295,10 +313,15 @@ def validate(path):
         problems += [f"run {r}: no record of the per-run tables {', '.join(per_run)}" for r in sorted(missing)]
 
     for i in range(len(bundle)):
-        ev = bundle.event(i)
+        ev = read(f"event {i}", lambda i=i: bundle.event(i))
+        if ev is None:
+            continue
         for t, (n, cols) in ev["tables"].items():
             problems += [f"event {i}: {t}.{c} has {len(a)} rows, expected {n}" for c, a in cols.items() if len(a) != n]
         for r, rel in ev["relations"].items():
+            if r not in rels:
+                problems.append(f"event {i}: relation {r} is not in the header")
+                continue
             n_from = ev["tables"].get(rels[r]["from"], (0, {}))[0]
             n_to = ev["tables"].get(rels[r]["to"], (0, {}))[0]
             off, idx = rel["offsets"], rel["indices"]

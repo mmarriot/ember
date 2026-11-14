@@ -2,12 +2,14 @@
 columns, relation kinds beyond the plain ones, and the hints passed to the viewer."""
 
 import json
+import re
 from pathlib import Path
 
 import numpy as np
 import pytest
 from nanoaod import chunk, converter
 
+from embertools import Problem
 from embertools.derive import gather
 from embertools.profile import load_profile
 from embertools.relations import compose_relations
@@ -1003,3 +1005,20 @@ def test_clue3d_tracksters_are_matched_to_truth():
     assert {"ticlTrackstersCLUE3DHighToTruth", "ticlTrackstersCLUE3DHighFromTruth"} <= set(
         load_profile("hgcal")["internal"]
     )
+
+
+@pytest.mark.parametrize(
+    ("profile", "message"),
+    [
+        ({"relations": [{"name": "r", "from": "A", "to": "B"}]}, "relations[0] (r) has no 'kind'"),
+        ({"relations": [{"name": "r", "kind": "compose"}]}, "relations[0] (r) has no 'via'"),
+        ({"display": [{"table": "A", "label": "A"}]}, "display[0] has no 'position'"),
+        ({"cuts": {"Hit": ["e", ">", 0]}}, "cuts of Hit must be a list of conditions"),
+        ({"derive": {"table": "A"}}, "derive must be a list"),
+    ],
+)
+def test_a_profile_of_the_wrong_shape_says_what_is_missing_where(tmp_path, profile, message):
+    path = tmp_path / "p.json"
+    path.write_text(json.dumps(profile))
+    with pytest.raises(Problem, match=re.escape(message)):
+        load_profile(str(path))

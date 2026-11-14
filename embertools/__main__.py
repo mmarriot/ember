@@ -14,10 +14,7 @@ import sys
 import tempfile
 import time
 
-import numpy as np
-
 from . import Problem, __version__, site
-from .bundle import Bundle, validate
 
 
 def main(argv=None):
@@ -35,6 +32,12 @@ def main(argv=None):
         if os.environ.get("EMBER_DEBUG"):
             raise
         print(f"ember: {e}", file=sys.stderr)
+        return 1
+    except ModuleNotFoundError as e:
+        # numpy and uproot are imported by the commands that need them: `ember list` and `ember rm` run without them.
+        if os.environ.get("EMBER_DEBUG") or e.name not in ("numpy", "uproot", "scipy", "awkward"):
+            raise
+        print(f"ember: this command needs the Python package {e.name}: run cmsenv first", file=sys.stderr)
         return 1
     except KeyboardInterrupt:
         return 130
@@ -195,7 +198,7 @@ def _event_numbers(text):
 
 def _view(args):
     """Convert the inputs to one bundle and, unless told otherwise, publish it and print its link."""
-    from . import export, site
+    from . import export
     from .nano import convert, parse_events
 
     publish = not (args.output or args.no_publish)
@@ -226,7 +229,8 @@ def _view(args):
         )
         inputs = args.inputs
         if kind == "edm":
-            inputs = [_make_nanoaod(args, work, limit, total)]
+            # Events asked for by number may be anywhere in the file: the NanoAOD is made of all of it.
+            inputs = [_make_nanoaod(args, work, None if args.events else limit, total)]
 
         file = f"{name}{site.EXTENSION}"
         target = args.output or (os.path.join(work, file) if publish else file)
@@ -288,8 +292,6 @@ def _make_nanoaod(args, work, limit, total):
 
 def _list(args):
     """Print a table of the user's bundles, most recently published first."""
-    from . import site
-
     user, url = site.login(args.user), site.site_url(args.url)
     entries = site.listing(site.site_dir(args.site), user)
     if not entries:
@@ -316,8 +318,6 @@ def _list(args):
 
 def _rm(args):
     """Remove the named bundles of the user; a Problem naming those the user does not have."""
-    from . import site
-
     user, missing = site.login(args.user), []
     for name in map(site.without_extension, args.names):
         if site.remove(site.site_dir(args.site), user, name):
@@ -356,6 +356,8 @@ def _convert(args):
 
 def _inspect(args):
     """Print what a bundle holds: its source, layers, relations, record sizes, runs and first events."""
+    from .bundle import Bundle
+
     b = Bundle(args.bundle)
     h = b.header
     source = h["source"]
@@ -368,7 +370,7 @@ def _inspect(args):
     relations = [f"{name} ({r['from']} -> {r['to']})" for name, r in h["relations"].items()]
     print(f"  relations: {', '.join(relations)}")
     sizes = [e["length"] for e in b.events]
-    print(f"  record size: mean {np.mean(sizes) / 1024:.0f} KB, max {max(sizes) / 1024:.0f} KB (gzip)")
+    print(f"  record size: mean {sum(sizes) / len(sizes) / 1024:.0f} KB, max {max(sizes) / 1024:.0f} KB (gzip)")
     for r in b.runs:
         if r.get("info"):
             print(f"  run {r['run']}: " + ", ".join(f"{k} {v}" for k, v in r["info"].items()))
@@ -379,6 +381,8 @@ def _inspect(args):
 
 
 def _validate(args):
+    from .bundle import validate
+
     problems = validate(args.bundle)
     print("\n".join(problems) if problems else "ok")
     return 1 if problems else 0
@@ -402,28 +406,25 @@ def _sync(args):
 
 def _publish(args):
     from .service import publish
-    from .site import site_dir
 
-    publish(args.bundle, site_dir(args.site), args.campaign, args.title, args.name, args.file_title)
+    publish(args.bundle, site.site_dir(args.site), args.campaign, args.title, args.name, args.file_title)
     return 0
 
 
 def _simulate(args):
     from .service import simulate
-    from .site import site_dir
 
-    simulate(args.source, site_dir(args.site), args.campaign, args.title, args.events, args.interval, args.start)
+    simulate(args.source, site.site_dir(args.site), args.campaign, args.title, args.events, args.interval, args.start)
     return 0
 
 
 def _clean(args):
     from .service import log
-    from .site import KEEP_DAYS, clean, site_dir
 
-    site = site_dir(args.site)
-    if not os.path.isdir(site):
-        raise Problem(f"the site directory {site} is not mounted here: clean runs where the site is a directory")
-    removed = clean(site, args.days or KEEP_DAYS, args.dry_run, log)
+    folder = site.site_dir(args.site)
+    if not os.path.isdir(folder):
+        raise Problem(f"the site directory {folder} is not mounted here: clean runs where the site is a directory")
+    removed = site.clean(folder, args.days or site.KEEP_DAYS, args.dry_run, log)
     log(f"{len(removed)} file(s) {'would be ' if args.dry_run else ''}removed")
     return 0
 

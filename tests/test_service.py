@@ -149,14 +149,97 @@ def test_simulated_parts_carry_the_per_run_tables_and_run_info_of_their_runs(tmp
     assert all(validate(b._file.name) == [] for b in parts)
 
 
-def test_taking_over_a_stale_lock_removes_partial_bundles(tmp_path):
+def test_taking_over_a_stale_lock_removes_the_partial_bundles_it_left(tmp_path):
     config = setup(tmp_path, ["NANO_1.root"])
-    partial = os.path.join(config["site"], "data", "mct", "NANO_1.ember.tmp999")
-    os.makedirs(os.path.dirname(partial))
-    open(partial, "w").close()
+    folder = os.path.join(config["site"], "data", "mct")
+    os.makedirs(folder)
+    left, live = os.path.join(folder, "NANO_1.ember.tmp999"), os.path.join(folder, "NANO_9.ember.tmp998")
+    open(left, "w").close()
+    open(live, "w").close()
+    old = time.time() - 4 * 3600
+    os.utime(left, (old, old))
     stale_lock(config)
     assert sync(config, convert=fake_convert({})[0]) == 1
-    assert not os.path.exists(partial)
+    assert not os.path.exists(left)
+    assert os.path.exists(live)  # written lately: by a pass that may still be running
+
+
+def test_a_pass_touches_the_lock_and_leaves_one_it_lost_alone(tmp_path):
+    from embertools import service
+
+    config = setup(tmp_path, ["NANO_1.root"])
+    lock, seen = os.path.join(config["state"], "lock"), []
+
+    def convert(files, output, profile, max_events, data_time=None):
+        seen.append(time.time() - os.path.getmtime(lock))
+        # Another pass took the lock over meanwhile: its lock must survive this pass's end.
+        service._release_lock(lock, Path(lock, "owner").read_text())
+        os.mkdir(lock)
+        Path(lock, "owner").write_text("other")
+        return fake_convert({})[0](files, output, profile, max_events, data_time)
+
+    stale_lock(config)
+    assert sync(config, convert=convert) == 1
+    assert seen[0] < 60  # touched before the input, so it does not look stale during a long pass
+    assert Path(lock, "owner").read_text() == "other"
+
+
+def test_a_lock_taken_over_by_another_pass_first_is_not_taken_twice(tmp_path, monkeypatch):
+    from embertools import service
+
+    config = setup(tmp_path, ["NANO_1.root"])
+    stale_lock(config)
+    lock = os.path.join(config["state"], "lock")
+    rename = os.rename
+
+    def lose_the_race(src, dst):  # the other pass renames the stale lock away just before this one
+        rename(src, dst + ".other")
+        rename(dst + ".other", dst)
+        raise FileNotFoundError(src)
+
+    monkeypatch.setattr(service.os, "rename", lose_the_race)
+    assert service._take_lock(lock, config["site"]) is None
+
+
+def test_wildcards_name_bundles_with_question_marks_and_classes(tmp_path):
+    config = setup(tmp_path, [])
+    for run in ("run1", "run2", "runx"):
+        (tmp_path / "eos" / run).mkdir()
+        (tmp_path / "eos" / run / "Events_1.root").write_bytes(b"")
+        old = time.time() - 3600
+        os.utime(tmp_path / "eos" / run / "Events_1.root", (old, old))
+    config["campaigns"][0].update(inputs=str(tmp_path / "eos" / "run[0-9]" / "Events_?.root"), stem="wildcards")
+    assert sync(config, convert=fake_convert({})[0]) == 2
+    assert sorted(os.listdir(os.path.join(config["site"], "data", "mct"))) == [
+        "1_1.ember",
+        "2_1.ember",
+        "campaign.json",
+    ]
+
+
+def test_max_events_0_converts_all_events_as_on_the_command_line(tmp_path):
+    config = setup(tmp_path, ["NANO_1.root"])
+    config["campaigns"][0]["max_events"] = 0
+    asked = []
+
+    def convert(files, output, profile, max_events, data_time=None):
+        asked.append(max_events)
+        return fake_convert({})[0](files, output, profile, max_events, data_time)
+
+    sync(config, convert=convert)
+    assert asked == [None]
+
+
+def test_an_input_removed_during_the_pass_is_skipped(tmp_path, monkeypatch):
+    from embertools import service
+
+    config = setup(tmp_path, ["NANO_1.root", "NANO_2.root"])
+    gone = str(tmp_path / "eos" / "NANO_1.root")
+    getmtime = os.path.getmtime
+    monkeypatch.setattr(service.os.path, "getmtime", lambda p: getmtime(p) if p != gone else getmtime("/nonexistent"))
+    assert [p for p, *_ in service.pending(config["campaigns"][0], config["site"], 600, {}, 3)] == [
+        str(tmp_path / "eos" / "NANO_2.root")
+    ]
 
 
 def test_publish_adds_a_titled_bundle_to_the_site(tmp_path):
@@ -323,6 +406,8 @@ def test_campaign_bundles_named_evdb_from_before_the_rename_are_still_bundles(tm
     folder.mkdir(parents=True)
     convert(["NANO_1.root"], str(folder / "NANO_1.evdb"), "mct", None, data_time=datetime.datetime(2026, 1, 1))
     (folder / "NANO_2.evdb.tmp7").write_bytes(b"")
+    old = time.time() - 4 * 3600
+    os.utime(folder / "NANO_2.evdb.tmp7", (old, old))  # left by the pass that died
     stale_lock(config)
     calls.clear()
 

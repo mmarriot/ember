@@ -36,6 +36,9 @@ def from_json(path, runs):
     if isinstance(data, dict):
         by_run = {int(k): v for k, v in data.items()}
     else:
+        unnamed = [k for k, r in enumerate(data) if r.get("Run", r.get("run")) is None]
+        if unnamed:
+            raise ValueError(f"{path}: entry {unnamed[0]} has no Run")
         by_run = {
             int(r.get("Run", r.get("run"))): {k: v for k, v in r.items() if k not in ("Run", "run")} for r in data
         }

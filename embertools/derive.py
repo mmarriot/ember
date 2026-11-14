@@ -113,7 +113,7 @@ def gather(d, tables, relations, profile_relations):
         placed |= todo
     if d.get("missing"):
         out = {
-            c: np.where(np.isnan(cols[c]), v, cols[c]).astype(np.float32) if c in cols else v for c, v in out.items()
+            c: np.where(np.isnan(cols[c]), v, cols[c]).astype(cols[c].dtype) if c in cols else v for c, v in out.items()
         }
     cols.update(out)
 

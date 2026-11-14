@@ -385,11 +385,14 @@ def publish(bundle, site, user, name, title=None, days=KEEP_DAYS):
     list, until that name is published again or the next `ember clean`, which lists the files present. The bundle
     itself is there, and its link works."""
     file, *older = _files(user, name)
-    entry = _entry(bundle, file, title or name, time.time(), days)
+    entry = _entry(bundle, file, title or name, time.time(), days)  # a ValueError before anything is copied
     files = store(site)
     before = _listing(files, user)
     others = [e for e in before if e["file"] not in (file, *older)]
     files.put(bundle, file)
+    # Dated again once the copy is done, as `ember clean` dates the file (its mtime): clean then has nothing to correct.
+    published = time.time()
+    entry.update(published=_iso(published), expires=_iso(published + days * DAY))
     removed = [files.remove(f) for f in older]  # each one, whatever the index says (it may have missed one)
     _write_index(files, user, [entry, *others])
     return entry, len(others) < len(before) or any(removed)

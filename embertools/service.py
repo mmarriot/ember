@@ -1,6 +1,7 @@
 """Keep an event-display site in sync with campaigns of NanoAOD files (run from cron, e.g. every 15 minutes).
 
-Each input file becomes one bundle, <site>/data/<campaign>/<file stem>.evdb, written once and skipped afterwards;
+Each input file becomes one bundle, <site>/data/<campaign>/<file stem>.ember, written once and skipped afterwards
+(a <file stem>.evdb, written before the project was called Ember, counts as written);
 then <site>/index.json is rebuilt from the bundles present, newest data first. Safe to repeat and to overlap: bundles
 and the index are replaced by atomic renames, and a lock directory keeps two runs from converting the same file.
 Inputs still being written (modified in the last `settle` seconds) wait for the next run; a file that fails
@@ -20,6 +21,7 @@ Config (JSON; service/campaigns.example.json shows every key):
   optional "era", "conditions", "threads").
 """
 
+import contextlib
 import copy
 import datetime
 import glob
@@ -31,7 +33,7 @@ import tempfile
 import time
 
 from .bundle import Bundle, summary
-from .site import USERS, replacing, service_dir, site_dir
+from .site import EXTENSION, EXTENSIONS, USERS, replacing, service_dir, site_dir
 
 LOCK_STALE = 3 * 3600  # s: a lock older than this was left by a run that died
 
@@ -88,10 +90,10 @@ def pending(campaign, site, settle, failures, max_failures):
     out, targets = [], set()
     for path in sorted(glob.glob(campaign["inputs"]), key=_natural):
         stem = _stem(campaign, path)
-        target = os.path.join(site, "data", campaign["name"], f"{stem}.evdb")
+        target = os.path.join(site, "data", campaign["name"], f"{stem}{EXTENSION}")
         key = f"{campaign['name']}/{stem}"
         if (
-            os.path.exists(target)
+            any(os.path.exists(os.path.join(site, "data", campaign["name"], stem + e)) for e in EXTENSIONS)
             or target in targets
             or failures.get(key, 0) >= max_failures
             or time.time() - os.path.getmtime(path) < settle
@@ -137,7 +139,7 @@ def build_index(site):
         except (OSError, ValueError, KeyError, TypeError, AttributeError) as e:
             log(f"skipping unreadable {path}: {e!r}")
     bundles = []
-    for path in campaign_files("*.evdb"):
+    for path in [p for e in EXTENSIONS for p in campaign_files(f"*{e}")]:
         campaign, stem = os.path.basename(os.path.dirname(path)), os.path.splitext(os.path.basename(path))[0]
         try:
             header, events = summary(path)
@@ -234,8 +236,9 @@ def _take_lock(lock, site):
             return False
     log("removing a stale lock, and partial bundles of the run that left it")
     shutil.rmtree(lock, ignore_errors=True)
-    for tmp in glob.glob(os.path.join(site, "data", "*", "*.evdb.tmp*")):
-        os.remove(tmp)
+    for extension in EXTENSIONS:
+        for tmp in glob.glob(os.path.join(site, "data", "*", f"*{extension}.tmp*")):
+            os.remove(tmp)
     os.mkdir(lock)
     return True
 
@@ -260,7 +263,7 @@ def simulate(
     source, site, campaign="live_demo", title="Simulated live data", events=5, interval=60.0, start=0, sleep=time.sleep
 ):
     """Stand-in for new data arriving: every `interval` seconds, publish the next `events` events of the bundle
-    `source` as a new file data/<campaign>/part_NNNN.evdb (as sync would), then rewrite the index. Returns the number
+    `source` as a new file data/<campaign>/part_NNNN.ember (as sync would), then rewrite the index. Returns the number
     of files written. Records (events, and the per-run tables of their runs) are copied as they are, so the viewer
     cannot tell them from converted data."""
     from .bundle import BundleWriter
@@ -270,7 +273,7 @@ def simulate(
     _remember_title(site, {"name": campaign, "title": title})
     written = 0
     for first in range(start, len(src), events):
-        part = os.path.join(folder, f"part_{first // events + 1:04d}.evdb")
+        part = os.path.join(folder, f"part_{first // events + 1:04d}{EXTENSION}")
         header = copy.deepcopy(src.header)
         header["source"].update(data_time=now(), created=now())
         with BundleWriter(part, header) as out:
@@ -290,14 +293,18 @@ def simulate(
 
 
 def publish(bundle, site, campaign, title, name=None, file_title=None):
-    """Add a finished bundle (e.g. a simulated sample) to the site as data/<campaign>/<name>.evdb, with an optional
-    title of its own, and rewrite the index. The copy is renamed into place, so readers never see half a file."""
+    """Add a finished bundle (e.g. a simulated sample) to the site as data/<campaign>/<name>.ember, with an optional
+    title of its own, and rewrite the index. The copy is renamed into place, so readers never see half a file. A
+    bundle of that name with the older extension .evdb is replaced too: it is removed once the new one is there."""
     summary(bundle)  # refuse anything that is not a complete bundle
     stem = name or os.path.splitext(os.path.basename(bundle))[0]
     _remember_title(site, {"name": campaign, "title": title}, {stem: file_title} if file_title else None)
-    target = os.path.join(site, "data", campaign, f"{stem}.evdb")
+    target, *older = (os.path.join(site, "data", campaign, stem + e) for e in EXTENSIONS)
     with replacing(target) as out, open(bundle, "rb") as f:
         shutil.copyfileobj(f, out)
+    for path in older:
+        with contextlib.suppress(FileNotFoundError):
+            os.remove(path)
     _write_json(os.path.join(site, "index.json"), build_index(site))
     log(f"published {os.path.relpath(target, site)}")
     return target

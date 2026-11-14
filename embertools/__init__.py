@@ -1,4 +1,4 @@
-"""embertools: make, check and publish .evdb event-display bundles (docs/format.md).
+"""embertools: make, check and publish .ember event-display bundles (docs/format.md).
 
     __main__.py    the `ember` command
     nano.py        NanoAOD files -> a bundle: convert()

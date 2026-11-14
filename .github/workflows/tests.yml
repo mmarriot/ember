@@ -1,5 +1,5 @@
 # The checks that need nothing from CERN: the Python tests (converter, format, command, site: synthetic NanoAOD and
-# stand-ins for xrdcp and cmsDriver) and the viewer's type check and unit tests (they read golden/v6_1event.evdb).
+# stand-ins for xrdcp and cmsDriver) and the viewer's type check and unit tests (they read golden/v6_1event.ember).
 # The browser checks (viewer/e2e/smoke.mjs) need a development server and bundles in data/, and are run by hand.
 name: Tests
 on:

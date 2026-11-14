@@ -67,7 +67,7 @@ def test_run_record_is_cut_and_round_trips(tmp_path):
     conv, runs = converter_and_runs()
     header = conv.header(["f.root"], "test")
     assert header["tables"]["Channel"]["scope"] == "run" and "scope" not in header["tables"]["Hit"]
-    path = tmp_path / "b.evdb"
+    path = tmp_path / "b.ember"
     with BundleWriter(str(path), header) as out:
         out.add_run(*conv.run_record(1, runs))
         out.add(*conv.event(chunk(conv, EVENT), 0, runs))
@@ -84,7 +84,7 @@ def test_run_info_is_stored_in_the_index(tmp_path):
     info = load(str(src), {1, 2})
     assert info == {1: {"Beam": "e-", "Energy": 150}}  # empty values dropped, whole floats as integers
     conv, _ = converter_and_runs()
-    path = tmp_path / "b.evdb"
+    path = tmp_path / "b.ember"
     with BundleWriter(str(path), conv.header(["f.root"], "test")) as out:
         out.add(*conv.event(chunk(conv, EVENT), 0, None))
         out.set_run_info(info)

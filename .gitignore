@@ -1,7 +1,9 @@
 node_modules/
 dist/
 __pycache__/
+*.ember.tmp*
 *.evdb.tmp*
+data/*.ember
 data/*.evdb
 viewer/e2e/shots/
 data/index.json

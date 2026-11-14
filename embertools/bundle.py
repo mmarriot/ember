@@ -1,4 +1,4 @@
-"""Write and read .evdb bundles; docs/format.md is the format.
+"""Write and read .ember bundles; docs/format.md is the format.
 
     "EVDB" | u32 version | u32 header length | header JSON     (padded so that the next byte is 8-aligned)
     record | record | ...                                      (each one gzip member: events and per-run records)

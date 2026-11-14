@@ -9,7 +9,7 @@ const { bundle, bundleName, catalogue, keepShown, openBundle, opened, openFailur
 );
 
 const golden = async () =>
-  blobSource(new Blob([readFileSync(new URL("../../../golden/v6_1event.evdb", import.meta.url))]));
+  blobSource(new Blob([readFileSync(new URL("../../../golden/v6_1event.ember", import.meta.url))]));
 const gone = (name: string) => async () => {
   throw new HttpError(name, 404);
 };

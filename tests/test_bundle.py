@@ -36,7 +36,7 @@ def event(seed):
 
 
 def test_round_trip(tmp_path):
-    path = str(tmp_path / "t.evdb")
+    path = str(tmp_path / "t.ember")
     with BundleWriter(path, HEADER) as w:
         for seed in (11, 12):
             w.add(*event(seed))
@@ -105,19 +105,19 @@ def _write(path, threads, events=7, **kw):
 
 
 def test_records_compressed_on_threads_are_written_in_the_order_added(tmp_path):
-    one = _write(tmp_path / "one.evdb", 1)
-    assert _write(tmp_path / "three.evdb", 3) == one and _write(tmp_path / "many.evdb", 16) == one
-    b = Bundle(str(tmp_path / "three.evdb"))
-    assert [e["event"] for e in b.events] == [7, 6, 5, 4, 3, 2, 1] and validate(str(tmp_path / "three.evdb")) == []
+    one = _write(tmp_path / "one.ember", 1)
+    assert _write(tmp_path / "three.ember", 3) == one and _write(tmp_path / "many.ember", 16) == one
+    b = Bundle(str(tmp_path / "three.ember"))
+    assert [e["event"] for e in b.events] == [7, 6, 5, 4, 3, 2, 1] and validate(str(tmp_path / "three.ember")) == []
     assert all(b.event(i)["event"] == [1, 1, 7 - i] for i in range(7))
-    _write(tmp_path / "sorted.evdb", 3, sort=True)
-    assert [e["event"] for e in Bundle(str(tmp_path / "sorted.evdb")).events] == list(range(1, 8))
+    _write(tmp_path / "sorted.ember", 3, sort=True)
+    assert [e["event"] for e in Bundle(str(tmp_path / "sorted.ember")).events] == list(range(1, 8))
 
 
 def test_a_record_that_cannot_be_written_leaves_no_file(tmp_path):
-    path = tmp_path / "broken.evdb"
+    path = tmp_path / "broken.ember"
     with pytest.raises(KeyError), BundleWriter(str(path), HEADER, threads=2) as w:
         w.add((1, 1, 1), {"Hits": (1, {"x": np.ones(1, np.float32)})}, {})
         w.add((1, 1, 2), {"Hits": (1, {"x": np.ones(1, np.complex64)})}, {})  # no such column type
         w.add((1, 1, 3), {"Hits": (1, {"x": np.ones(1, np.float32)})}, {})
-    assert not path.exists() and not list(tmp_path.glob("broken.evdb.tmp*"))
+    assert not path.exists() and not list(tmp_path.glob("broken.ember.tmp*"))

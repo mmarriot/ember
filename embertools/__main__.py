@@ -24,7 +24,7 @@ def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
     top, commands = parser()
     if argv and argv[0] not in commands | {"-h", "--help", "--version"}:
-        argv.insert(0, "view")  # ember FILE.root ..., ember -o out.evdb FILE.root
+        argv.insert(0, "view")  # ember FILE.root ..., ember -o out.ember FILE.root
     args = top.parse_args(argv)
     try:
         return COMMANDS[args.command](args)
@@ -58,8 +58,8 @@ def parser():
         "publish it to your area of the event-display site and print the link to share.",
     )
     p.add_argument("inputs", nargs="+", metavar="FILE.root")
-    p.add_argument("-o", "--output", metavar="FILE.evdb", help="write the bundle to this file and do not publish it")
-    p.add_argument("--no-publish", action="store_true", help="write <name>.evdb here and do not publish it")
+    p.add_argument("-o", "--output", metavar="FILE.ember", help="write the bundle to this file and do not publish it")
+    p.add_argument("--no-publish", action="store_true", help="write <name>.ember here and do not publish it")
     p.add_argument("--name", help="the bundle's name on the site (default: the first input's name)")
     p.add_argument("--title", help="its title in the viewer's list (default: its name)")
     _convert_options(p, "cms", "10, or all of those given with --events; 0: all", cmsrun=True)
@@ -126,7 +126,7 @@ def parser():
         "simulate", help="site: publish the events of a bundle a few at a time, as if data were arriving"
     )
     p.add_argument("source", help="bundle to take the events from")
-    p.add_argument("--site", help="site directory (gets data/<campaign>/part_NNNN.evdb and index.json)")
+    p.add_argument("--site", help="site directory (gets data/<campaign>/part_NNNN.ember and index.json)")
     p.add_argument("--campaign", default="live_demo")
     p.add_argument("--title", default="Simulated live data")
     p.add_argument("--events", type=int, default=5, help="events per published file")
@@ -226,7 +226,8 @@ def _view(args):
         if kind == "edm":
             inputs = [_make_nanoaod(args, work, limit, total)]
 
-        target = args.output or (os.path.join(work, f"{name}.evdb") if publish else f"{name}.evdb")
+        file = f"{name}{site.EXTENSION}"
+        target = args.output or (os.path.join(work, file) if publish else file)
         started = time.time()
         written = convert(
             inputs,
@@ -254,7 +255,7 @@ def _view(args):
         f"{'replaced' if replaced else 'published'} {name}: kept until {entry['expires'][:10]} "
         f"(ember list, ember rm {name})\n"
     )
-    print(site.link(site.site_url(args.url), user, name))
+    print(site.link(site.site_url(args.url), entry["file"]))
     return 0
 
 
@@ -294,7 +295,7 @@ def _list(args):
         return 0
     rows = [
         (
-            os.path.basename(e["file"])[:-5],
+            site.without_extension(os.path.basename(e["file"])),
             str(e.get("events", "")),
             _size(e.get("size") or 0),
             str(e.get("expires") or "")[:10],
@@ -304,10 +305,10 @@ def _list(args):
     ]
     heading = ("NAME", "EVENTS", "SIZE", "EXPIRES", "TITLE")
     widths = [max(len(r[k]) for r in [heading, *rows]) for k in range(4)]  # the title, last, is not padded
-    for row in [heading, *rows]:
+    for row, entry in [(heading, None), *zip(rows, entries)]:
         print("  ".join([*(cell.ljust(w) for cell, w in zip(row, widths)), row[4]]).rstrip())
-        if args.links and row is not heading:
-            print(f"    {site.link(url, user, row[0])}")
+        if args.links and entry:
+            print(f"    {site.link(url, entry['file'])}")
     return 0
 
 
@@ -316,7 +317,7 @@ def _rm(args):
     from . import site
 
     user, missing = site.login(args.user), []
-    for name in (n.removesuffix(".evdb") for n in args.names):
+    for name in map(site.without_extension, args.names):
         if site.remove(site.site_dir(args.site), user, name):
             print(f"removed {name}")
         else:

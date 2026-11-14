@@ -1,6 +1,7 @@
 """Where the event-display site is, and each user's area on it.
 
-    <site>/data/u/<login>/<name>.evdb   a user's bundles, written by `ember view`
+    <site>/data/u/<login>/<name>.ember  a user's bundles, written by `ember view` (or <name>.evdb, from before the
+                                        project was called Ember)
     <site>/data/u/<login>/index.json    that user's list, most recently published first:
                                         {"updated", "bundles": [{"file", "title", "events", "size", "created",
                                                                  "published", "expires"}]}
@@ -47,7 +48,11 @@ EOS = {
     "/eos/user/": "root://eosuser.cern.ch/",
     "/eos/cms/": "root://eoscms.cern.ch/",
 }
-PARTIAL = re.compile(r"\.(evdb|json)\.tmp\w+$")  # a file being copied in (replacing() and _XRootD.put)
+# Bundles are written as <name>.ember. Those written before the project was called Ember are <name>.evdb, and they are
+# still bundles: listed, removed, cleaned and replaced like the others.
+EXTENSION = ".ember"
+EXTENSIONS = (EXTENSION, ".evdb")
+PARTIAL = re.compile(r"\.(ember|evdb|json)\.tmp\w+$")  # a file being copied in (replacing() and _XRootD.put)
 
 
 def site_dir(given=None):
@@ -83,9 +88,18 @@ def login(given=None):
     return check_login(given or os.environ.get("EMBER_USER") or getpass.getuser())
 
 
-def link(url, user, name):
-    """The address that opens the user's bundle `name` in the viewer."""
-    return f"{url}/#b={USERS}/{user}/{name}.evdb"
+def link(url, file):
+    """The address that opens the bundle `file` (a path relative to the site, as an index entry has it) in the
+    viewer."""
+    return f"{url}/#b={file}"
+
+
+def without_extension(file):
+    """A bundle's file name without its extension (.ember, or the older .evdb); anything else as it is."""
+    for extension in EXTENSIONS:
+        if file.endswith(extension):
+            return file[: -len(extension)]
+    return file
 
 
 def check_name(name):
@@ -345,34 +359,43 @@ def _entry(bundle, file, title, published, days):
 
 
 def publish(bundle, site, user, name, title=None, days=KEEP_DAYS):
-    """Put the bundle file `bundle` in the user's area as `name` and list it; a bundle of that name is replaced.
-    Returns (its index entry, whether it replaced one).
+    """Put the bundle file `bundle` in the user's area as `name` and list it; a bundle of that name is replaced, and
+    so is one of that name with the older extension .evdb. Returns (its index entry, whether it replaced one).
 
     The index is read, changed and written back with no lock (there is none that works both on a mounted directory
     and through XRootD): two publishes of one user at the same moment can leave one of the two bundles out of the
     list, until that name is published again or the next `ember clean`, which lists the files present. The bundle
     itself is there, and its link works."""
-    file = f"{USERS}/{check_login(user)}/{check_name(name)}.evdb"
+    file, *older = _files(user, name)
     entry = _entry(bundle, file, title or name, time.time(), days)
     files = store(site)
     before = _listing(files, user)
-    others = [e for e in before if e["file"] != file]
+    others = [e for e in before if e["file"] not in (file, *older)]
     files.put(bundle, file)
+    removed = [files.remove(f) for f in older]  # each one, whatever the index says (it may have missed one)
     _write_index(files, user, [entry, *others])
-    return entry, len(others) < len(before)
+    return entry, len(others) < len(before) or any(removed)
 
 
 def remove(site, user, name):
-    """Remove a user's bundle and its index entry; False if the user has no bundle of that name."""
-    file = f"{USERS}/{check_login(user)}/{check_name(name)}.evdb"
+    """Remove a user's bundle and its index entry (with either extension); False if the user has no bundle of that
+    name."""
+    named = _files(user, name)
     files = store(site)
     files.check()
     entries = _listing(files, user)
-    others = [e for e in entries if e["file"] != file]
-    found = files.remove(file) or len(others) < len(entries)
+    others = [e for e in entries if e["file"] not in named]
+    removed = [files.remove(f) for f in named]  # each one, not only the first found
     if len(others) < len(entries):
         _write_index(files, user, others)
-    return found
+    return any(removed) or len(others) < len(entries)
+
+
+def _files(user, name):
+    """The paths, relative to the site, that a user's bundle `name` can have: first the one a publish writes, then
+    the older ones (one per extension in EXTENSIONS). A Problem if the login or the name is not a plain name."""
+    user, name = check_login(user), check_name(name)
+    return [f"{USERS}/{user}/{name}{extension}" for extension in EXTENSIONS]
 
 
 def _clean_area(site, area, user, days, dry_run, log, now, removed):
@@ -399,7 +422,7 @@ def _clean_area(site, area, user, days, dry_run, log, now, removed):
             if PARTIAL.search(item.name):
                 if now - info.st_mtime > DAY:
                     expired.append((item.name, DAY))
-            elif item.name.endswith(".evdb"):
+            elif item.name.endswith(EXTENSIONS):
                 file = os.path.relpath(path, site)
                 if now - info.st_mtime > days * DAY:
                     expired.append((item.name, days * DAY))
@@ -421,7 +444,7 @@ def _clean_area(site, area, user, days, dry_run, log, now, removed):
                 if not stat.S_ISREG(info.st_mode):
                     continue
                 if now - info.st_mtime <= keep:  # published anew: listed as it is now
-                    if name.endswith(".evdb"):
+                    if name.endswith(EXTENSIONS):
                         file = os.path.relpath(path, site)
                         with contextlib.suppress(OSError, ValueError):
                             entries[file] = _area_entry(path, file, listed, info.st_mtime, days)
@@ -440,7 +463,7 @@ def _clean_area(site, area, user, days, dry_run, log, now, removed):
 
 def _area_entry(path, file, listed, published, days):
     """The index entry of a bundle found in a user's folder, with the title it is listed with (or its name)."""
-    title = str(listed.get(file, {}).get("title") or os.path.basename(path)[:-5]).rsplit(" · ", 1)[0]
+    title = str(listed.get(file, {}).get("title") or without_extension(os.path.basename(path))).rsplit(" · ", 1)[0]
     return _entry(path, file, title, published, days)
 
 

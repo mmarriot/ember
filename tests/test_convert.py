@@ -51,28 +51,28 @@ def run(inputs, output, profile, **kw):
 
 def test_selection_and_per_run_tables(files):
     profile, with_runs, _, tmp = files
-    b, log = run([with_runs], tmp / "a.evdb", profile)
+    b, log = run([with_runs], tmp / "a.ember", profile)
     assert [e["event"] for e in b.events] == [0, 2, 3] and "scanned 4, selected 3" in log
     n, hits = b.event(0)["tables"]["Hit"]
     assert n == 2 and hits["e"].tolist() == [6, 2] and hits["cellSize"][0] == pytest.approx(0.5)
     assert hits["cellSize"][1] == pytest.approx(0.7)  # dense 2
     assert b.run(1)["Channel"][0] == 2 and b.header["tables"]["Channel"]["scope"] == "run"
-    b, _ = run([with_runs, with_runs], tmp / "b.evdb", profile, max_events=4)
+    b, _ = run([with_runs, with_runs], tmp / "b.ember", profile, max_events=4)
     assert [e["event"] for e in b.events] == [0, 2, 3, 0] and len(b.runs) == 1  # one run record
 
 
 def test_chosen_events_in_event_order(files):
     profile, with_runs, _, tmp = files
-    b, log = run([with_runs], tmp / "a.evdb", profile, events={3, 1, 0, 99})
+    b, log = run([with_runs], tmp / "a.ember", profile, events={3, 1, 0, 99})
     assert [e["event"] for e in b.events] == [0, 3]  # event 1 fails the selection
     assert "3 of the requested events" in log
 
 
 def test_per_run_tables_from_another_file(files):
     profile, with_runs, events_only, tmp = files
-    b, _ = run([events_only], tmp / "a.evdb", profile)
+    b, _ = run([events_only], tmp / "a.ember", profile)
     assert "cellSize" not in b.header["tables"]["Hit"]["columns"] and not b.runs  # nothing to look up
-    b, log = run([events_only], tmp / "b.evdb", profile, run_tables=with_runs)
+    b, log = run([events_only], tmp / "b.ember", profile, run_tables=with_runs)
     assert "per-run tables of run(s) [1] from with_runs.root" in log
     assert b.event(0)["tables"]["Hit"][1]["cellSize"][0] == pytest.approx(0.5) and b.run(1)["Channel"][0] == 2
 
@@ -83,8 +83,8 @@ def test_sorted_writes_events_in_event_order(tmp_path):
     profile = tmp_path / "test.json"
     profile.write_text(json.dumps(PROFILE))
     write_nano(str(tmp_path / "shuffled.root"), EVENTS, event_numbers=[7, 3, 9, 5])
-    b, _ = run([str(tmp_path / "shuffled.root")], tmp_path / "a.evdb", str(profile))
+    b, _ = run([str(tmp_path / "shuffled.root")], tmp_path / "a.ember", str(profile))
     assert [e["event"] for e in b.events] == [7, 9, 5]  # file order; event 3 (the second) fails the selection
-    b, _ = run([str(tmp_path / "shuffled.root")], tmp_path / "b.evdb", str(profile), sort=True)
+    b, _ = run([str(tmp_path / "shuffled.root")], tmp_path / "b.ember", str(profile), sort=True)
     assert [e["event"] for e in b.events] == [5, 7, 9]
     assert [int(b.event(i)["event"][2]) for i in range(len(b))] == [5, 7, 9]  # each index entry finds its own record

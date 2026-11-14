@@ -38,18 +38,18 @@ def setup(tmp_path, monkeypatch):
 def test_a_file_alone_is_converted_published_and_its_link_printed_last(setup, capsys):
     assert main(["ttbar.root", "--profile", "test.json"]) == 0
     out = capsys.readouterr().out
-    assert out.splitlines()[-1] == "https://ember.example/#b=data/u/alice/ttbar.evdb" and out.splitlines()[-2] == ""
+    assert out.splitlines()[-1] == "https://ember.example/#b=data/u/alice/ttbar.ember" and out.splitlines()[-2] == ""
     assert "ttbar.root: NanoAOD, 12 events" in out and "10 events of 12 (--max-events 0 for all)" in out
     assert "published ttbar: kept until" in out
-    published = setup / "site" / "data" / "u" / "alice" / "ttbar.evdb"
+    published = setup / "site" / "data" / "u" / "alice" / "ttbar.ember"
     assert (
         len(Bundle(str(published))) == 10
         and Bundle(str(published)).header["source"]["converter"] == f"embertools {__version__}"
     )
     [entry] = json.loads((published.parent / "index.json").read_text())["bundles"]
-    assert entry["file"] == "data/u/alice/ttbar.evdb" and entry["title"] == "ttbar · 10 events"
+    assert entry["file"] == "data/u/alice/ttbar.ember" and entry["title"] == "ttbar · 10 events"
     assert set(entry) == {"file", "title", "events", "size", "created", "published", "expires"}
-    assert not list(setup.glob("*.evdb"))  # nothing left here
+    assert not list(setup.glob("*.ember"))  # nothing left here
 
 
 def test_view_takes_a_name_a_title_and_every_event(setup, capsys):
@@ -79,11 +79,11 @@ def test_view_takes_a_name_a_title_and_every_event(setup, capsys):
 
 
 def test_output_or_no_publish_only_writes_the_bundle(setup, capsys):
-    assert main(["ttbar.root", "--profile", "test.json", "-o", "out/mine.evdb"]) == 1  # no such directory
-    assert main(["ttbar.root", "--profile", "test.json", "-o", "mine.evdb"]) == 0
+    assert main(["ttbar.root", "--profile", "test.json", "-o", "out/mine.ember"]) == 1  # no such directory
+    assert main(["ttbar.root", "--profile", "test.json", "-o", "mine.ember"]) == 0
     assert main(["ttbar.root", "--profile", "test.json", "--no-publish", "--name", "other"]) == 0
-    assert len(Bundle("mine.evdb")) == 10 and len(Bundle("other.evdb")) == 10 and not os.listdir(setup / "site")
-    assert capsys.readouterr().out.splitlines()[-1] == "wrote other.evdb"
+    assert len(Bundle("mine.ember")) == 10 and len(Bundle("other.ember")) == 10 and not os.listdir(setup / "site")
+    assert capsys.readouterr().out.splitlines()[-1] == "wrote other.ember"
 
 
 def test_list_and_rm(setup, capsys):
@@ -95,12 +95,12 @@ def test_list_and_rm(setup, capsys):
     lines = capsys.readouterr().out.splitlines()
     assert lines[0].split() == ["NAME", "EVENTS", "SIZE", "EXPIRES", "TITLE"]
     assert [line.split()[:2] for line in lines[1::2]] == [["bb", "2"], ["a", "10"]]  # newest first
-    assert lines[2].strip() == "https://ember.example/#b=data/u/alice/bb.evdb"
+    assert lines[2].strip() == "https://ember.example/#b=data/u/alice/bb.ember"
     assert main(["rm", "a", "nope"]) == 1
     captured = capsys.readouterr()
     assert "removed a" in captured.out and "no bundle named nope" in captured.err
     assert [e["file"] for e in json.loads((setup / "site/data/u/alice/index.json").read_text())["bundles"]] == [
-        "data/u/alice/bb.evdb"
+        "data/u/alice/bb.ember"
     ]
 
 
@@ -140,10 +140,10 @@ def test_a_reconstruction_file_is_exported_first(setup, capsys, monkeypatch):
     out = capsys.readouterr().out
     assert calls == [(["step3.root"], 4, "D110", None, None, {})]
     assert "step3.root: CMSSW reconstruction from CMSSW_20_1_0, 50 events" in out and "the first 4 with cmsRun" in out
-    assert "  geometry ExtendedRun4D110" in out and out.splitlines()[-1].endswith("#b=data/u/alice/step3.evdb")
+    assert "  geometry ExtendedRun4D110" in out and out.splitlines()[-1].endswith("#b=data/u/alice/step3.ember")
     assert os.path.exists("kept.root")
     assert main(["step3.root", "ttbar.root"]) == 1 and "mix" in capsys.readouterr().err
-    assert main(["convert", "step3.root", "-o", "x.evdb"]) == 1 and "ember view" in capsys.readouterr().err
+    assert main(["convert", "step3.root", "-o", "x.ember"]) == 1 and "ember view" in capsys.readouterr().err
 
 
 def test_the_older_commands_still_work(setup, capsys):
@@ -154,7 +154,7 @@ def test_the_older_commands_still_work(setup, capsys):
                     command,
                     "ttbar.root",
                     "-o",
-                    f"{command}.evdb",
+                    f"{command}.ember",
                     "--profile",
                     "test.json",
                     "--max-events",
@@ -165,19 +165,27 @@ def test_the_older_commands_still_work(setup, capsys):
             )
             == 0
         )
-        assert len(Bundle(f"{command}.evdb")) == 3
-    assert main(["validate", "convert.evdb"]) == 0 and main(["inspect", "convert.evdb"]) == 0
+        assert len(Bundle(f"{command}.ember")) == 3
+    assert main(["validate", "convert.ember"]) == 0 and main(["inspect", "convert.ember"]) == 0
     out = capsys.readouterr().out
     assert "ok" in out and "3 events, profile test, from ttbar.root, by embertools" in out
-    assert main(["publish", "convert.evdb", "--campaign", "simulation", "--title", "Simulation"]) == 0
+    assert main(["publish", "convert.ember", "--campaign", "simulation", "--title", "Simulation"]) == 0
     assert (
-        json.loads((setup / "site" / "index.json").read_text())["bundles"][0]["file"] == "data/simulation/convert.evdb"
+        json.loads((setup / "site" / "index.json").read_text())["bundles"][0]["file"] == "data/simulation/convert.ember"
     )
+
+
+def test_a_bundle_file_named_evdb_is_read_like_any_other(setup, capsys):
+    assert main(["convert", "ttbar.root", "-o", "old.evdb", "--profile", "test.json", "--max-events", "3"]) == 0
+    assert main(["validate", "old.evdb"]) == 0 and main(["inspect", "old.evdb"]) == 0
+    assert "old.evdb: 3 events" in capsys.readouterr().out
+    assert main(["publish", "old.evdb", "--campaign", "simulation", "--title", "Simulation"]) == 0
+    assert sorted(os.listdir(setup / "site" / "data" / "simulation")) == ["campaign.json", "old.ember"]
 
 
 def test_clean_removes_what_expired(setup, capsys):
     main(["ttbar.root", "--profile", "test.json"])
-    published = setup / "site" / "data" / "u" / "alice" / "ttbar.evdb"
+    published = setup / "site" / "data" / "u" / "alice" / "ttbar.ember"
     old = time.time() - 40 * 86400
     os.utime(published, (old, old))
     assert main(["clean", "--dry-run"]) == 0 and published.exists()
@@ -200,16 +208,16 @@ def test_ember_runs_as_one_file_with_its_profiles_inside(setup):
     )
     assert run("--version").stdout.strip() == f"ember {__version__}"
     done = run("ttbar.root", "--profile", "test.json")
-    assert done.returncode == 0 and done.stdout.splitlines()[-1] == "https://ember.example/#b=data/u/alice/ttbar.evdb"
+    assert done.returncode == 0 and done.stdout.splitlines()[-1] == "https://ember.example/#b=data/u/alice/ttbar.ember"
     failed = run("ttbar.root")  # the built-in cms profile is found in the file, and draws nothing of this input
     assert failed.returncode == 1 and "none of the tables that the profile cms draws" in failed.stderr
 
 
 # Review findings: each of these failed before its fix.
 def test_options_may_come_before_the_file(setup, capsys):
-    assert main(["-o", "out.evdb", "--profile", "test.json", "ttbar.root"]) == 0 and len(Bundle("out.evdb")) == 10
+    assert main(["-o", "out.ember", "--profile", "test.json", "ttbar.root"]) == 0 and len(Bundle("out.ember")) == 10
     assert main(["--max-events", "3", "--profile", "test.json", "--no-publish", "ttbar.root"]) == 0
-    assert len(Bundle("ttbar.evdb")) == 3
+    assert len(Bundle("ttbar.ember")) == 3
     for flag in ("-h", "--help", "--version"):
         with pytest.raises(SystemExit) as e:
             main([flag])
@@ -219,19 +227,19 @@ def test_options_may_come_before_the_file(setup, capsys):
 
 def test_a_hostile_user_option_is_refused_before_anything_is_written(setup, capsys):
     (setup / "site" / "data" / "simulation").mkdir(parents=True)
-    main(["convert", "ttbar.root", "-o", str(setup / "site/data/simulation/ttbar.evdb"), "--profile", "test.json"])
+    main(["convert", "ttbar.root", "-o", str(setup / "site/data/simulation/ttbar.ember"), "--profile", "test.json"])
     for user in ("../..", "../simulation", "a/b", "x y"):
         assert main(["ttbar.root", "--profile", "test.json", "--user", user]) == 1
         assert main(["rm", "--user", user, "ttbar"]) == 1
         assert main(["list", "--user", user]) == 1
     assert "login" in capsys.readouterr().err
-    assert (setup / "site/data/simulation/ttbar.evdb").exists() and os.listdir(setup / "site") == ["data"]
+    assert (setup / "site/data/simulation/ttbar.ember").exists() and os.listdir(setup / "site") == ["data"]
     assert os.listdir(setup / "site" / "data") == ["simulation"]
 
 
 def test_output_does_not_need_the_input_to_have_a_publishable_name(setup, capsys):
     os.rename("ttbar.root", "my file (v2).root")
-    assert main(["my file (v2).root", "--profile", "test.json", "-o", "out.evdb"]) == 0
+    assert main(["my file (v2).root", "--profile", "test.json", "-o", "out.ember"]) == 0
     assert main(["my file (v2).root", "--profile", "test.json"]) == 1 and "--name" in capsys.readouterr().err
 
 
@@ -269,12 +277,28 @@ def test_numbers_are_checked_when_the_command_line_is_read(setup, capsys):
 
 def test_rm_takes_the_name_with_or_without_its_suffix(setup, capsys):
     main(["ttbar.root", "--profile", "test.json"])
-    assert main(["rm", "ttbar.evdb"]) == 0 and "removed ttbar" in capsys.readouterr().out
+    assert main(["rm", "ttbar.ember"]) == 0 and "removed ttbar" in capsys.readouterr().out
+
+
+def test_list_and_rm_take_bundles_named_evdb_from_before_the_rename(setup, capsys):
+    area = setup / "site" / "data" / "u" / "alice"
+    main(["ttbar.root", "--profile", "test.json", "--name", "old", "--max-events", "2"])
+    os.rename(area / "old.ember", area / "old.evdb")
+    assert main(["clean"]) == 0  # lists the files present: old.evdb
+    main(["ttbar.root", "--profile", "test.json", "--name", "new"])
+    capsys.readouterr()
+    assert main(["list", "-l"]) == 0
+    lines = capsys.readouterr().out.splitlines()
+    assert [line.split()[:2] for line in lines[1::2]] == [["new", "10"], ["old", "2"]]
+    assert lines[4].strip() == "https://ember.example/#b=data/u/alice/old.evdb"
+    assert main(["rm", "old.evdb"]) == 0 and "removed old" in capsys.readouterr().out
+    assert sorted(os.listdir(area)) == ["index.json", "new.ember"]
 
 
 def test_options_for_reconstruction_files_are_said_to_be_ignored_for_nanoaod(setup, capsys):
     assert (
-        main(["ttbar.root", "--profile", "test.json", "--geometry", "D110", "--nano", "kept.root", "-o", "o.evdb"]) == 0
+        main(["ttbar.root", "--profile", "test.json", "--geometry", "D110", "--nano", "kept.root", "-o", "o.ember"])
+        == 0
     )
     err = capsys.readouterr().err
     assert "--geometry" in err and "--nano" in err and "ignored" in err and not os.path.exists("kept.root")
@@ -284,8 +308,8 @@ def test_threads_give_the_same_records_as_one_thread(setup):
     from embertools.nano import convert
 
     for threads in (1, 4):
-        convert(["ttbar.root"], f"t{threads}.evdb", "test.json", log=io.StringIO(), threads=threads)
-    one, four = Bundle("t1.evdb"), Bundle("t4.evdb")
+        convert(["ttbar.root"], f"t{threads}.ember", "test.json", log=io.StringIO(), threads=threads)
+    one, four = Bundle("t1.ember"), Bundle("t4.ember")
     raw = lambda b, e: (b._file.seek(e["offset"]), gzip.decompress(b._file.read(e["length"])))[1]
     assert len(one) == len(four) == 12 and [e["event"] for e in one.events] == [e["event"] for e in four.events]
     assert all(raw(one, a) == raw(four, b) for a, b in zip(one.events, four.events))
@@ -295,4 +319,4 @@ def test_list_gives_the_link_of_a_bundle_named_like_a_column_heading(setup, caps
     main(["ttbar.root", "--profile", "test.json", "--name", "NAME"])
     capsys.readouterr()
     assert main(["list", "-l"]) == 0
-    assert capsys.readouterr().out.splitlines()[2].strip() == "https://ember.example/#b=data/u/alice/NAME.evdb"
+    assert capsys.readouterr().out.splitlines()[2].strip() == "https://ember.example/#b=data/u/alice/NAME.ember"

@@ -82,7 +82,7 @@ def test_converts_new_files_once_and_lists_newest_first(tmp_path):
     assert sync(config, convert=convert) == 4
     assert all(c.startswith("root://host/") for c in calls)  # read through XRootD
     files = [b["file"] for b in index(config)]
-    assert files == ["data/mct/NANO_10.evdb", "data/mct/NANO_2.evdb", "data/mct/NANO_1.evdb"]  # NANO_3 is empty
+    assert files == ["data/mct/NANO_10.ember", "data/mct/NANO_2.ember", "data/mct/NANO_1.ember"]  # NANO_3 is empty
     assert index(config)[0]["title"] == "MCT · file 10 · 1 events"
     assert sync(config, convert=convert) == 0 and len(calls) == 4  # nothing converted twice
 
@@ -112,13 +112,13 @@ def test_simulate_publishes_parts_newest_first(tmp_path):
     from embertools.service import simulate
 
     convert, _ = fake_convert({"NANO_1.root": 7})
-    source = tmp_path / "source.evdb"
+    source = tmp_path / "source.ember"
     convert(["NANO_1.root"], str(source), "mct", None, data_time=datetime.datetime.now())
     naps = []
     assert simulate(str(source), str(tmp_path / "site"), events=3, interval=5, sleep=naps.append) == 3
     assert naps == [5, 5]  # no wait after the last part
     parts = json.loads((tmp_path / "site" / "index.json").read_text())["bundles"]
-    assert [b["events"] for b in parts] == [1, 3, 3] and parts[0]["file"] == "data/live_demo/part_0003.evdb"
+    assert [b["events"] for b in parts] == [1, 3, 3] and parts[0]["file"] == "data/live_demo/part_0003.ember"
 
 
 def test_simulated_parts_carry_the_per_run_tables_and_run_info_of_their_runs(tmp_path):
@@ -135,7 +135,7 @@ def test_simulated_parts_carry_the_per_run_tables_and_run_info_of_their_runs(tmp
         "display": [],
         "source": {"files": ["x.root"], "created": "2026-11-09T00:00:00+00:00", "data_time": "2026-11-09"},
     }
-    source = str(tmp_path / "source.evdb")
+    source = str(tmp_path / "source.ember")
     with BundleWriter(source, header) as out:
         for run in (1, 2):
             out.add_run((run, 0, 0), {"Channel": (2, {"e": np.full(2, run, np.float32)})}, {})
@@ -143,7 +143,7 @@ def test_simulated_parts_carry_the_per_run_tables_and_run_info_of_their_runs(tmp
             out.add((1 if i < 2 else 2, 1, i), {"Hit": (1, {"e": np.ones(1, np.float32)})}, {})
         out.set_run_info({1: {"Beam": "e-"}, 2: {"Beam": "pi+"}})
     simulate(source, str(tmp_path / "site"), events=3, sleep=lambda _: None)
-    parts = [Bundle(str(tmp_path / "site" / "data" / "live_demo" / f"part_000{k}.evdb")) for k in (1, 2)]
+    parts = [Bundle(str(tmp_path / "site" / "data" / "live_demo" / f"part_000{k}.ember")) for k in (1, 2)]
     assert [sorted(r["run"] for r in b.runs) for b in parts] == [[1, 2], [2]]
     assert parts[0].run(2)["Channel"][1]["e"][0] == 2 and parts[1].run_info(2) == {"Beam": "pi+"}
     assert all(validate(b._file.name) == [] for b in parts)
@@ -151,7 +151,7 @@ def test_simulated_parts_carry_the_per_run_tables_and_run_info_of_their_runs(tmp
 
 def test_taking_over_a_stale_lock_removes_partial_bundles(tmp_path):
     config = setup(tmp_path, ["NANO_1.root"])
-    partial = os.path.join(config["site"], "data", "mct", "NANO_1.evdb.tmp999")
+    partial = os.path.join(config["site"], "data", "mct", "NANO_1.ember.tmp999")
     os.makedirs(os.path.dirname(partial))
     open(partial, "w").close()
     stale_lock(config)
@@ -163,12 +163,12 @@ def test_publish_adds_a_titled_bundle_to_the_site(tmp_path):
     from embertools.service import publish
 
     convert, _ = fake_convert({"x.root": 2})
-    source = tmp_path / "ttbar.evdb"
+    source = tmp_path / "ttbar.ember"
     convert(["x.root"], str(source), "hgcal", None, data_time=datetime.datetime(2026, 1, 1))
     site = str(tmp_path / "site")
     publish(str(source), site, "simulation", "Simulation", name="ttbar", file_title="ttbar 14 TeV")
     [entry] = json.loads(Path(site, "index.json").read_text())["bundles"]
-    assert entry["file"] == "data/simulation/ttbar.evdb" and entry["title"] == "ttbar 14 TeV · 2 events"
+    assert entry["file"] == "data/simulation/ttbar.ember" and entry["title"] == "ttbar 14 TeV · 2 events"
     assert entry["campaign_title"] == "Simulation"
 
 
@@ -186,7 +186,7 @@ def test_the_site_and_the_state_default_to_the_configured_site(tmp_path, monkeyp
     monkeypatch.setenv("EMBER_SERVICE_DIR", str(tmp_path / "service"))
     del config["state"]
     assert sync(config, convert=fake_convert({})[0]) == 1
-    assert os.path.exists(tmp_path / "site" / "data" / "mct" / "NANO_1.evdb") and os.path.isdir(
+    assert os.path.exists(tmp_path / "site" / "data" / "mct" / "NANO_1.ember") and os.path.isdir(
         tmp_path / "service" / "state"
     )
 
@@ -199,8 +199,8 @@ def test_the_users_areas_are_not_a_campaign(tmp_path):
     sync(config, convert=convert)
     area = tmp_path / "site" / "data" / "u" / "alice"
     area.mkdir(parents=True)
-    convert(["mine.root"], str(area / "mine.evdb"), "cms", None, data_time=datetime.datetime(2026, 1, 1))
-    assert [b["file"] for b in build_index(config["site"])["bundles"]] == ["data/mct/NANO_1.evdb"]
+    convert(["mine.root"], str(area / "mine.ember"), "cms", None, data_time=datetime.datetime(2026, 1, 1))
+    assert [b["file"] for b in build_index(config["site"])["bundles"]] == ["data/mct/NANO_1.ember"]
     config["campaigns"][0]["name"] = "u"
     with pytest.raises(ValueError, match="cannot be named u"):
         sync(config, convert=convert)
@@ -258,8 +258,8 @@ def test_a_campaign_of_reconstruction_files_is_exported_then_converted_once_per_
     assert [os.path.basename(c) for c in converted] == ["aaa.root", "ddd.root"]  # the NanoAOD the export made
     listed = index(config)
     assert [b["file"] for b in listed] == [
-        "data/relval_20_1_0/ZMM_14_201X_noPU-v2.evdb",
-        "data/relval_20_1_0/TTbar_14TeV_PU_201X_PU-v1.evdb",
+        "data/relval_20_1_0/ZMM_14_201X_noPU-v2.ember",
+        "data/relval_20_1_0/TTbar_14TeV_PU_201X_PU-v1.ember",
     ]
     assert (
         listed[0]["campaign_title"] == "RelVal CMSSW_20_1_0"
@@ -292,10 +292,10 @@ def test_files_directly_in_the_users_folder_neither_show_in_the_site_index_nor_b
     sync(config, convert=convert)
     users = tmp_path / "site" / "data" / "u"
     users.mkdir()
-    convert(["leak.root"], str(users / "leak.evdb"), "cms", None, data_time=datetime.datetime(2026, 1, 1))
+    convert(["leak.root"], str(users / "leak.ember"), "cms", None, data_time=datetime.datetime(2026, 1, 1))
     (users / "campaign.json").write_text('{"title": "Users"}')
-    (users / "empty.evdb").write_bytes(b"")
-    assert [b["file"] for b in build_index(config["site"])["bundles"]] == ["data/mct/NANO_1.evdb"]
+    (users / "empty.ember").write_bytes(b"")
+    assert [b["file"] for b in build_index(config["site"])["bundles"]] == ["data/mct/NANO_1.ember"]
 
 
 def test_a_broken_file_in_a_campaign_does_not_stop_the_index(tmp_path):
@@ -305,8 +305,31 @@ def test_a_broken_file_in_a_campaign_does_not_stop_the_index(tmp_path):
     sync(config, convert=fake_convert({})[0])
     other = tmp_path / "site" / "data" / "other"
     other.mkdir()
-    (other / "empty.evdb").write_bytes(b"")
-    (other / "short.evdb").write_bytes(b"EVDB\x01")
+    (other / "empty.ember").write_bytes(b"")
+    (other / "short.ember").write_bytes(b"EVDB\x01")
     (other / "campaign.json").write_text("{not json")
-    assert [b["file"] for b in build_index(config["site"])["bundles"]] == ["data/mct/NANO_1.evdb"]
+    assert [b["file"] for b in build_index(config["site"])["bundles"]] == ["data/mct/NANO_1.ember"]
     assert sync(config, convert=fake_convert({})[0]) == 0  # and the pass still ends with an index
+
+
+def test_campaign_bundles_named_evdb_from_before_the_rename_are_still_bundles(tmp_path):
+    """Bundles converted before the project was called Ember end in .evdb: their inputs are not converted again, they
+    are listed, a stale lock's partial .evdb files are removed, and a publish of the same name replaces them."""
+    from embertools.service import publish
+
+    config = setup(tmp_path, ["NANO_1.root", "NANO_2.root"])
+    convert, calls = fake_convert({"NANO_2.root": 4})
+    folder = Path(config["site"], "data", "mct")
+    folder.mkdir(parents=True)
+    convert(["NANO_1.root"], str(folder / "NANO_1.evdb"), "mct", None, data_time=datetime.datetime(2026, 1, 1))
+    (folder / "NANO_2.evdb.tmp7").write_bytes(b"")
+    stale_lock(config)
+    calls.clear()
+
+    assert sync(config, convert=convert) == 1 and [os.path.basename(c) for c in calls] == ["NANO_2.root"]
+    assert [b["file"] for b in index(config)] == ["data/mct/NANO_2.ember", "data/mct/NANO_1.evdb"]
+    assert not (folder / "NANO_2.evdb.tmp7").exists()
+
+    publish(str(folder / "NANO_2.ember"), config["site"], "mct", "MCT", name="NANO_1")
+    assert sorted(os.listdir(folder)) == ["NANO_1.ember", "NANO_2.ember", "campaign.json"]
+    assert sorted(b["file"] for b in index(config)) == ["data/mct/NANO_1.ember", "data/mct/NANO_2.ember"]

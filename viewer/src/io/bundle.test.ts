@@ -3,9 +3,9 @@ import { describe, expect, it, vi } from "vitest";
 import { related } from "../model/relations";
 import { around, blobSource, Bundle, httpSource, type Source } from "./bundle";
 
-// One TICL v6 GPU event, made by: evdtools from-nano ... --max-events 1 -o golden/v6_1event.evdb
+// One TICL v6 GPU event, made by: evdtools from-nano ... --max-events 1 -o golden/v6_1event.ember
 const golden = () =>
-  Bundle.open(blobSource(new Blob([readFileSync(new URL("../../../golden/v6_1event.evdb", import.meta.url))])));
+  Bundle.open(blobSource(new Blob([readFileSync(new URL("../../../golden/v6_1event.ember", import.meta.url))])));
 
 describe("bundle", () => {
   it("reads header, index and an event with consistent tables", async () => {
@@ -103,7 +103,7 @@ describe("httpSource", () => {
 describe("event cache", () => {
   // The golden bundle, counting the reads of its one event record (header, index and trailer are read on open).
   const counted = async (failFirst = false) => {
-    const file = readFileSync(new URL("../../../golden/v6_1event.evdb", import.meta.url)),
+    const file = readFileSync(new URL("../../../golden/v6_1event.ember", import.meta.url)),
       src = blobSource(new Blob([file]));
     const counts = { events: 0 },
       b = await Bundle.open(src),

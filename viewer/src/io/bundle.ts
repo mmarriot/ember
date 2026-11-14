@@ -16,7 +16,7 @@ const TYPES = {
 export type TypeCode = keyof typeof TYPES;
 export type Column = InstanceType<(typeof TYPES)[TypeCode]>;
 
-/** How layers can be drawn (render/layers.ts `builders`); a bundle may name others, from a newer format. */
+/** How layers can be drawn (render/layers `builders`); a bundle may name others, from a newer format. */
 export const REPRS = ["cells", "markers", "ellipsoids", "segments", "helix", "cones", "polyline"] as const;
 /** A value per row from a column, scaled and clamped (cm per unit; `log`: cm per decade of 1 + |value|). */
 export interface Scaled {

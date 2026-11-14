@@ -1,6 +1,6 @@
 {
-  "site": "/eos/project/c/cms-evd/www",
-  "state": "/eos/project/c/cms-evd/service/state",
+  "site": "/eos/project/c/cms-ember/www",
+  "state": "/eos/project/c/cms-ember/service/state",
   "settle": 600,
   "max_failures": 3,
   "campaigns": [
@@ -23,7 +23,7 @@
       "max_events": 10,
       "stem": "wildcards",
       "stem_parts": [0, 1, 2],
-      "export": {"cmssw": "/eos/project/c/cms-evd/service/cmssw/CMSSW_20_1_0_pre6", "geometry": "D121"}
+      "export": {"cmssw": "/eos/project/c/cms-ember/service/cmssw/CMSSW_20_1_0_pre6", "geometry": "D121"}
     }
   ]
 }

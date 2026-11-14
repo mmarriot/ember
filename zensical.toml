@@ -2,9 +2,9 @@
 # .github/workflows/docs.yml. Preview locally with `zensical serve`.
 
 [project]
-site_name = "evd"
+site_name = "Ember"
 site_description = "A web event display for CMS: one command turns a CMSSW output file into a link, and the browser draws the event"
-site_url = "https://mmarriot.github.io/evd/"
+site_url = "https://mmarriot.github.io/ember/"
 # A new page in docs/ needs its line here, or the site has no way to it. The menu is ordered by what a reader needs:
 # the tutorial, then recipes, then reference, then the background on truth, then the site's operators.
 nav = [
@@ -13,7 +13,7 @@ nav = [
   { "How-to guides" = "how-to.md" },
   { "Questions and problems" = "faq.md" },
   { "Reference" = [
-    { "The evd command" = "cli.md" },
+    { "The ember command" = "cli.md" },
     { "Viewer" = "viewer.md" },
     { "CMSSW side" = "cmssw.md" },
     { "Profiles" = "profiles.md" },

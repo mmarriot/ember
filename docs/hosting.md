@@ -1,34 +1,34 @@
 # Hosting the site
 
-This page is for the people who set up and run an evd site. Users do not need it.
+This page is for the people who set up and run an Ember site. Users do not need it.
 
 The site is a **static website**: a folder of files, served over HTTPS behind the CERN single sign-on. There is no
-server process and no database. Commands write everything in it: each user's `evd FILE.root`, and two cron jobs.
+server process and no database. Commands write everything in it: each user's `ember FILE.root`, and two cron jobs.
 
 This page gives the overview, and what to ask CERN IT for. The operating details (configuration keys, what each pass
 does, how to redeploy) are in the repository's
-[`service/README.md`](https://github.com/mmarriot/evd/blob/main/service/README.md).
+[`service/README.md`](https://github.com/mmarriot/ember/blob/main/service/README.md).
 
-> **Not set up yet.** The CMS site does not exist. `/eos/project/c/cms-evd/` and `https://cms-evd.web.cern.ch` are
-> placeholders. They are set in one file (`evdtools/site.py`), and `EVD_SITE_DIR`, `EVD_SITE_URL` and
-> `EVD_SERVICE_DIR` override them. Everything marked **unverified** on this page comes from the documentation of the
+> **Not set up yet.** The CMS site does not exist. `/eos/project/c/cms-ember/` and `https://cms-ember.web.cern.ch` are
+> placeholders. They are set in one file (`embertools/site.py`), and `EMBER_SITE_DIR`, `EMBER_SITE_URL` and
+> `EMBER_SERVICE_DIR` override them. Everything marked **unverified** on this page comes from the documentation of the
 > CERN services, and has not been tried. The scripts themselves were run against a local folder and a test folder on
 > EOS.
 
 ## Layout
 
 ```
-/eos/project/c/cms-evd/
-├── www/                      the site (EVD_SITE_DIR), served as https://cms-evd.web.cern.ch (EVD_SITE_URL)
+/eos/project/c/cms-ember/
+├── www/                      the site (EMBER_SITE_DIR), served as https://cms-ember.web.cern.ch (EMBER_SITE_URL)
 │   ├── index.html, assets/   the viewer, built by service/deploy.sh
-│   ├── index.json            the shared data sets, rewritten by `evd sync` (newest data first)
+│   ├── index.json            the shared data sets, rewritten by `ember sync` (newest data first)
 │   ├── whoami                answers {"login": "..."} for the signed-in person (optional, see below)
 │   └── data/
-│       ├── <campaign>/       shared groups: bundles and campaign.json (titles), written by `evd sync` / `evd publish`
-│       └── u/<login>/        each user's bundles and index.json, written by that user's `evd`
-├── bin/evd                   the command as one file, for users (EVD_BIN_DIR)
-└── service/                  EVD_SERVICE_DIR
-    ├── code/                 what cron runs: evdtools/, service/, pylib/, site.env
+│       ├── <campaign>/       shared groups: bundles and campaign.json (titles), written by `ember sync` / `ember publish`
+│       └── u/<login>/        each user's bundles and index.json, written by that user's `ember`
+├── bin/ember                 the command as one file, for users (EMBER_BIN_DIR)
+└── service/                  EMBER_SERVICE_DIR
+    ├── code/                 what cron runs: embertools/, service/, pylib/, site.env
     ├── state/                lock/ while a sync runs, failures.json
     ├── logs/                 sync.log, clean.log
     └── cmssw/<release>/      CMSSW areas for the RelVal campaigns
@@ -41,7 +41,7 @@ A user's index has this form:
 ```
 
 - The bundles are listed most recently published first.
-- `file` is relative to the site, so a link is `<EVD_SITE_URL>/#b=<file>`.
+- `file` is relative to the site, so a link is `<EMBER_SITE_URL>/#b=<file>`.
 - `created` is when the bundle was converted, `published` when it was last put on the site, and `expires` is 30 days
   after `published`.
 
@@ -52,12 +52,12 @@ whoever has its link.
 
 A checklist for the request to CERN IT and CMS. All of it is **unverified** until it is done.
 
-1. **An EOS project space** (`/eos/project/c/cms-evd`), through the "Request project space on EOS/CERNBox" form
+1. **An EOS project space** (`/eos/project/c/cms-ember`), through the "Request project space on EOS/CERNBox" form
    ([CERNBox documentation](https://cernbox.docs.cern.ch/web/projects/requesting_for_project_space)). It comes with a
    `www` folder, and admin, writer and reader groups. For its size, see [Quota](#quota-and-retention).
 2. **A service account** to own the site, the cron jobs and the files they write, so that the site does not depend
    on one person's account.
-3. **A webEOS site** (`cms-evd`, or the name CMS prefers) that serves `www/`, created in the Web Services Portal
+3. **A webEOS site** (`cms-ember`, or the name CMS prefers) that serves `www/`, created in the Web Services Portal
    ([webEOS documentation](https://webeos.docs.cern.ch/create_site)). By default a site is owned by a primary
    account. A site owned by a service account needs a request to lift this.
 4. **Access for CMS members only.** Keep the site's *Guest access* off (the default: every visitor signs on), and
@@ -74,7 +74,7 @@ A checklist for the request to CERN IT and CMS. All of it is **unverified** unti
 
 ## Users' areas and their access
 
-The first time a user runs `evd FILE.root`, it creates `data/u/<login>/`. It writes the bundle and the index there,
+The first time a user runs `ember FILE.root`, it creates `data/u/<login>/`. It writes the bundle and the index there,
 either through the mounted file system (lxplus) or through XRootD with the user's Kerberos ticket.
 
 Set up these rights once on the site folder, with EOS ACLs:
@@ -84,15 +84,15 @@ Set up these rights once on the site folder, with EOS ACLs:
 - the service account that runs the cron jobs can write everywhere. It removes expired bundles and rewrites the
   lists.
 
-**These rights are the only thing that keeps one user from replacing or removing another user's bundles.** `evd`
+**These rights are the only thing that keeps one user from replacing or removing another user's bundles.** `ember`
 writes as whoever runs it, with their own EOS rights. The site has no server that could check anything. `--user` and
-`EVD_USER` name an area; they prove nothing.
+`EMBER_USER` name an area; they prove nothing.
 
-What `evd` does check:
+What `ember` does check:
 
 - a login and a bundle name are plain names, so that a path built from them stays inside `data/u/<login>/`. A login
   starts with a letter, followed by letters, digits, `-` and `_`, 2 to 32 characters in all, in lower case;
-- `evd clean` leaves alone anything in `data/u/` that is a link.
+- `ember clean` leaves alone anything in `data/u/` that is a link.
 
 **Unverified:** nobody has yet worked out or tried the ACL that gives exactly these rights on an EOS project space (a
 folder that only its creator can write in, under a parent where every CMS member can create one, with deletion by the
@@ -100,7 +100,7 @@ service account), because the site does not exist yet. Whether files that a user
 quota is also a question for EOS support.
 
 Before the site is announced, test with two ordinary accounts that neither can write, replace or remove anything in
-the other's folder: `evd --user <the other> FILE.root`, `evd rm --user <the other> NAME`, and plain `cp` and `rm` on
+the other's folder: `ember --user <the other> FILE.root`, `ember rm --user <the other> NAME`, and plain `cp` and `rm` on
 the mounted folder. Check also that the cron account can.
 
 ## Who is looking: `whoami`
@@ -136,7 +136,7 @@ RewriteRule ^whoami$ cgi-bin/whoami.py [L]
 ## The cron jobs
 
 There are two entries in the service account's acrontab.
-[`service/LXPLUS_SETUP.md`](https://github.com/mmarriot/evd/blob/main/service/LXPLUS_SETUP.md) sets them up step by
+[`service/LXPLUS_SETUP.md`](https://github.com/mmarriot/ember/blob/main/service/LXPLUS_SETUP.md) sets them up step by
 step, with dry runs first.
 
 ```
@@ -144,15 +144,15 @@ step, with dry runs first.
 20 4 * * *   lxplus.cern.ch <service>/code/service/run_clean.sh >> <service>/logs/clean.log 2>&1
 ```
 
-- **sync** (`evd sync`), every 15 minutes. For each campaign of `service/campaigns.json`, it converts the input files
+- **sync** (`ember sync`), every 15 minutes. For each campaign of `service/campaigns.json`, it converts the input files
   that have no bundle yet (one per pass by default). Then it rewrites `index.json`. A lock keeps two passes apart. A
   file that fails three times is left alone until you remove its entry from `state/failures.json`.
-- **clean** (`evd clean`), once a day. It removes:
+- **clean** (`ember clean`), once a day. It removes:
   - users' bundles published more than 30 days ago;
   - files that a publish left half-copied more than a day ago.
 
   Then it rewrites each user's index, to list exactly the bundles present. It touches nothing outside `data/u/`, and
-  nothing there that is a link. `evd clean --dry-run` lists what it would remove. `--days N` (1 or more) changes the
+  nothing there that is a link. `ember clean --dry-run` lists what it would remove. `--days N` (1 or more) changes the
   30 days.
 
 ### Shared samples: RelVal campaigns
@@ -167,7 +167,7 @@ area that the entry names. Then it converts the NanoAOD:
   "inputs": "/eos/cms/store/relval/CMSSW_20_1_0_pre6/RelVal*/GEN-SIM-RECO/*_D121_*/*/*.root",
   "xrootd": "root://eoscms.cern.ch/", "profile": "cms", "max_events": 10,
   "stem": "wildcards", "stem_parts": [0, 1, 2],
-  "export": {"cmssw": "/eos/project/c/cms-evd/service/cmssw/CMSSW_20_1_0_pre6", "geometry": "D121"} }
+  "export": {"cmssw": "/eos/project/c/cms-ember/service/cmssw/CMSSW_20_1_0_pre6", "geometry": "D121"} }
 ```
 
 This makes one bundle of 10 events per sample, under the heading "RelVal CMSSW_20_1_0_pre6" in the viewer's list.
@@ -184,25 +184,31 @@ job to start.
 From a clone, on a machine with node, python3 and the site's EOS space mounted, as the service account:
 
 ```bash
-service/deploy.sh          # or: EVD_SITE_DIR=... EVD_SITE_URL=... EVD_SERVICE_DIR=... service/deploy.sh
+service/deploy.sh          # or: EMBER_SITE_DIR=... EMBER_SITE_URL=... EMBER_SERVICE_DIR=... service/deploy.sh
 ```
 
 The script:
 
 1. builds the viewer and copies it to the site: new assets first, then `index.html`, then it removes the old assets.
    So a visitor never gets a page that points at missing files;
-2. copies `evdtools/` and `service/` to `code/`, and records the site in `code/site.env`;
-3. builds `evd` as one file, and puts it in `bin/`.
+2. copies `embertools/` and `service/` to `code/`, and records the site in `code/site.env`;
+3. builds `ember` as one file, and puts it in `bin/`.
 
-Deploying again is how you update the viewer, the converter and the command. Users with an alias to `bin/evd` get
+Deploying again is how you update the viewer, the converter and the command. Users with an alias to `bin/ember` get
 the new command at once. Bundles already published are not touched. A bundle says how it is drawn, so old bundles
 keep working with a new viewer.
 
+**A site set up before the project was called Ember** keeps working after a deployment. Its bundles end in `.evdb`:
+the viewer opens them, old links still work, `sync` does not convert their inputs again, and `clean` expires them.
+New bundles end in `.ember`. Three things are not carried over: the environment variables are now `EMBER_*` (set
+them in place of the `EVD_*` ones), the command is installed as `bin/ember` (remove the old `bin/evd`, or users of
+it keep an old copy), and the old `code/evdtools/` is left in place (remove it).
+
 ## Quota and retention
 
-- A bundle is about 0.85 MB per event without pile-up, and 18 MB per event at 200 pile-up. `evd` publishes 10 events
+- A bundle is about 0.85 MB per event without pile-up, and 18 MB per event at 200 pile-up. `ember` publishes 10 events
   by default, so a typical bundle at 200 pile-up is 180 MB. A hundred users who each keep five of those use 90 GB.
-- Bundles expire 30 days after they were last published. `evd clean --days N`, or `EVD_KEEP_DAYS` for the cron job,
+- Bundles expire 30 days after they were last published. `ember clean --days N`, or `EMBER_KEEP_DAYS` for the cron job,
   changes this.
 - **There is no quota per user**: one person can fill the space. If that happens, the folder sizes under `data/u/`
   show who.

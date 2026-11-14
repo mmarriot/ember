@@ -12,7 +12,7 @@ This page describes every part of the viewer. For a short first tour, see
 The button at the left of the top bar shows the name of the data set that is open. Click it to open the **data set
 chooser**. It has a filter and three kinds of list:
 
-- **My files**: the bundles you published with `evd FILE.root` ([The `evd` command](cli.md)). The newest come first.
+- **My files**: the bundles you published with `ember FILE.root` ([The `ember` command](cli.md)). The newest come first.
   Each shows its number of events and when it expires. This list is your user area on the site,
   `data/u/<login>/index.json`.
 - **Recent**: data sets you opened from someone's link, and local files by name. The list holds up to 12 and is
@@ -23,7 +23,8 @@ chooser**. It has a filter and three kinds of list:
 Other people's files are in no list. You reach them only through a link.
 
 In the chooser, type to filter. Use ↑ ↓ and Enter to open a data set, and Esc to close the chooser. **Open a local
-file…** at the bottom picks a `.evdb` file from your computer. Dropping a file on the page does the same.
+file…** at the bottom picks a `.ember` file (or a `.evdb` file, from before the project was called Ember) from your
+computer. Dropping a file on the page does the same.
 
 The chooser also describes the data set that is open, under **Details**: who published it, when it expires, which
 converter made it and, when the bundle records it, which CMSSW release wrote its input.
@@ -412,7 +413,7 @@ A step names its objects when there are three or fewer. Otherwise it counts them
 first. Every object is a button that moves the selection there.
 
 For some objects, no relation in the bundle says what contains them. For example, nothing says which linked
-trackster, interpretation and candidate contain a trackster. Then evd works it out: the card shows the object that
+trackster, interpretation and candidate contain a trackster. Then Ember works it out: the card shows the object that
 holds the most of the trackster's parts, if it holds at least half of them, and marks it "≈ holds 3 of its 4
 parts". An object that
 contains the selection is never listed among its parts.
@@ -427,7 +428,7 @@ tables**.
 |---|---|
 | match | For one object: the associator's best match and its purity (green from the kind's clean threshold, amber below), or "no match" (a fake, or an object that the associator does not consider, such as a candidate without calorimeter energy). For several objects: their counts, in the colours of their dots, for example "11 clean · 4 impure · 1 no match". |
 | fact | The particles that left the simulated energy in the step's hits, with their shares, one line per detector (never summed across detectors). "per CSC layer" where the simulation records a coarser unit than the hit. "no exported particle" where none left energy (noise, out-of-time pile-up, or a particle the export left out): the tag says so. |
-| derived | evd's stand-in (layer clusters): the particles with the most simulated energy in their hits |
+| derived | Ember's stand-in (layer clusters): the particles with the most simulated energy in their hits |
 | no truth | The tag alone. Behind it: why CMSSW has no truth for the kind, with the gap number of [Truth graph](truth-graph.md). A part with no truth of its own that goes with its container (the hits of a track) has no line. |
 
 Each line is the step's own statement. No match is built through the parts ([Truth](truth.md#constituents)):
@@ -507,7 +508,7 @@ The address keeps what a link needs:
 
 They are in the part after `#` (`#b=…&e=…`). A query (`?b=…&e=…`) is read too.
 
-- `b` is the bundle's path, relative to the site: `data/u/<login>/<name>.evdb` for a file in a user area.
+- `b` is the bundle's path, relative to the site: `data/u/<login>/<name>.ember` for a file in a user area.
 - `e` is the event's position in the file, counted from 0. The top bar counts from 1. It is not the event number:
   type the event number in the **Event…** box.
 

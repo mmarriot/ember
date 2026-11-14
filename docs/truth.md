@@ -1,4 +1,4 @@
-# Truth in evd: what a reco object is compared with, and how it is shown
+# Truth in Ember: what a reco object is compared with, and how it is shown
 
 This page gives the rules that every part of the display follows when it puts simulation truth next to the
 reconstruction. With these rules, HGCal, the tracker and every subdetector added later say the same thing in the
@@ -12,12 +12,12 @@ study.
 ## Principles
 
 1. **One source.** Truth is the CMSSW truth graph: particles and vertices with their level flags, the hit index
-   (simulated energy per particle and detector cell), and the branch associators. evd never uses CaloParticle,
+   (simulated energy per particle and detector cell), and the branch associators. Ember never uses CaloParticle,
    SimCluster, TrackingParticle, genParticles or GenJets.
 2. **Three kinds of statement, always labelled:**
    - *simulation*: a fact. For example, "this hit has 60% of its simulated energy from this particle";
    - *association*: the CMSSW associator's answer. It is called the "best match", with its score; never "is";
-   - *derived in evd*: a stand-in where CMSSW has no answer, for example the particle of a layer cluster.
+   - *derived in Ember*: a stand-in where CMSSW has no answer, for example the particle of a layer cluster.
 3. **Colour means one thing at a time.** The colour key's title says which: `Colour = candidate type (reco)`,
    `Colour = generator particle (truth)` or `Colour = truth ↔ reco pair`. Truth is drawn dashed, reco solid.
 4. **A reco object is never painted as truth.** It takes a particle's colour only when its match is clean: its
@@ -39,7 +39,7 @@ particles with pT > 1 GeV and |η| < 3):
 - 42% of neutral hadrons decay in flight.
 
 The particles that enter the calorimeter (truth level CaloBoundary) carry 99.8–100% of the calorimeter's simulated
-energy, but only 57–62% of the tracker hits. So evd uses two levels:
+energy, but only 57–62% of the tracker hits. So Ember uses two levels:
 
 - **The particle** colours and groups everything. It is the profile's `particle` level on the truth layer. In
   `hgcal` (and so in `cms`) it is truth::LevelFlag bit 2, StableDecayProducts: the **generator particle**, stable at
@@ -64,7 +64,7 @@ generator particles below the match, and the key says so.
 
 | colour level | groups owning HGCal hits | of them, resonances or heavy hadrons | reco matches above the level |
 |---|---|---|---|
-| highest ancestor that owns hits or is matched (evd before) | 797 | 5 (K*⁰, B, …): colours given to resonances | 0 |
+| highest ancestor that owns hits or is matched (Ember before) | 797 | 5 (K*⁰, B, …): colours given to resonances | 0 |
 | **StableDecayProducts** (bit 2, generator particle) | **579** | **0** | 12 of 617 |
 | ReconstructableFinalState (bit 10) | 503 | 0, but every π⁰ is one group | 8 of 617 |
 
@@ -83,7 +83,7 @@ For a reco object R and its matched truth branch B (a particle and everything be
 | **purity** | the share of R that comes from B | shared hits / track hits (nPixel + nOT, or nhits); equals 1 − score (for all but 1 of 7744 tracks at 200 pile-up) | shared energy / raw energy, both on the rechit scale (measured ≤ 1) |
 | **completeness** | the share of B that is in R | 1 − TruthToReco score = shared cells / all tracker cells of B's branch (its secondaries' cells included, so it dilutes) | TruthToReco `sharedFraction`: of B's energy in HGCal only |
 | **score** | the associator's ranking, 0 is best | linear (1 − purity) | squared and energy weighted: not 1 − purity |
-| **clean** | purity ≥ `good` | 0.75 (CMS tracking validation: MultiTrackValidator) | 0.5 (the dominant particle). Layer clusters, whose particle evd derives, use the same 0.5 of their simulated energy. |
+| **clean** | purity ≥ `good` | 0.75 (CMS tracking validation: MultiTrackValidator) | 0.5 (the dominant particle). Layer clusters, whose particle Ember derives, use the same 0.5 of their simulated energy. |
 
 These numbers appear in three places: the inspector's truth card (per object), the truth mode (the clean test decides
 the colour), and the pair view (the purity and completeness of the pair, from the hits).
@@ -120,7 +120,7 @@ truth card, the clean test in the truth mode, the units and the wording.
 | ECAL barrel, HCAL HB / HO, HF hits | — (simulation fact) | simulated energy per particle, ECAL / HCAL / HF (HF: photoelectrons) | — | — | — | fact |
 | muon hits (DT, CSC, RPC, GEM) | — (simulation fact), per unit that the simulation records: DT wire, CSC layer, RPC roll, GEM partition (`fact.unit`) | simulated energy loss per particle, muon system | — | — | — | fact; the hit's line names the unit ("per CSC layer"), and the fact tag says that every hit there shares these particles |
 | MTD hits | — (simulation fact) with sim time | — | — | — | — | none: not exported (only 60% of the MTD cells at 200 pile-up are under particles that entered the calorimeter; gap 19) |
-| HGCal layer clusters | caloBoundary | energy, HGCal | — | — | — | derived in evd (no associator: gap 1; `truthGap.derived`) |
+| HGCal layer clusters | caloBoundary | energy, HGCal | — | — | — | derived in Ember (no associator: gap 1; `truthGap.derived`) |
 | HF, HO PF clusters | caloBoundary | energy, HCAL | raw energy | 0.5 | — | none: no associator configured in CMSSW (gap 15) |
 | muon segments | particle crossing the chamber | hits, muon system | segment hits | 0.75 | of its hits in the chamber | none: no adapter or associator (gap 17) |
 | reco, standalone, global muons | muon with its own muon hits (no graph level yet) | hits per stub, tracker and muon | stub hits | 0.75 per stub | 0.5 per stub | none (gap 18); the inner track's own match, named as the track's |
@@ -135,10 +135,10 @@ The status words are the viewer's (`truthStatus`, below):
 
 - *match*: matched by CMSSW;
 - *fact*: a simulation fact;
-- *derived*: derived in evd;
+- *derived*: derived in Ember;
 - *none*: no truth for this kind, with the reason and gap number from the kind's `truthGap`.
 
-The thresholds follow each domain's reference validation, so evd agrees with DQM.
+The thresholds follow each domain's reference validation, so Ember agrees with DQM.
 
 ### Adding a kind
 
@@ -147,7 +147,7 @@ The thresholds follow each domain's reference validation, so evd agrees with DQM
    the other subdetectors' targets (conversions, interactions, decays in flight, bremsstrahlung), and check that the
    particle level reconciles them.
 2. Export its association from the truth graph: AdaptiveNominal reco → truth, and TruthToReco. If CMSSW has none, do
-   not substitute one (no ΔR, and no matching through hits in evd). Instead, list the gap in
+   not substitute one (no ΔR, and no matching through hits in Ember). Instead, list the gap in
    [Truth graph](truth-graph.md), and give the kind a `truthGap` (`reason`, `gap`) in its profile. The viewer then
    says so everywhere ([Where truth stops](#where-truth-stops)). When the associator arrives, add the relation with
    its `match` hint (step 3), and delete the `truthGap`.
@@ -187,7 +187,7 @@ Such a kind never opens the truth ↔ reco pair. Neither does a matched kind out
 belongs to HGCal, and an ECAL cluster's card gives its own purity and completeness.
 
 Simulated energy is never added across detectors. The pair counts only the candidates' detector. The inspector gives
-one list per detector, and only for kinds with a match or with evd's stand-in. For any other kind, a ranking of the
+one list per detector, and only for kinds with a match or with Ember's stand-in. For any other kind, a ranking of the
 particles in its hits would be a match through hits, so the facts stay on the hits.
 
 Bundles made before these hints still look as before: a truth association into a layer drawn as cells is read as a
@@ -201,7 +201,7 @@ answer for that track, not for this muon".
 
 This happens only where a made-of relation gives exactly one part. It does not happen through an association, a
 pointer back up, or a "closest track" link. The card never adds up over several parts: "80% of its tracks are from
-the b" would be a match built in evd. Instead, the card's chain counts each part's own match on the parts' step
+the b" would be a match built in Ember. Instead, the card's chain counts each part's own match on the parts' step
 ("9 of 9 matched"), and leaves the composite's step at "no truth".
 
 A constituent's match never gives the composite its colour. In the truth colours, an object takes a colour only
@@ -222,7 +222,7 @@ tracks show in their own particles' colours: each colour is that track's own sta
 - **Nested branches**: an ancestor shares at least as much as its descendants. Never sum over a particle and its
   descendants. The pair view counts each hit once.
 - **Units per detector**: simulated energy is what each detector's sensors recorded (HGCal and HCAL sampling, ECAL
-  crystals, HF photoelectrons). evd never adds it across detectors.
+  crystals, HF photoelectrons). Ember never adds it across detectors.
 - **Muon hit truth** is per unit that the simulation records (DT wire, CSC layer, RPC roll, GEM partition), not per
   strip. Two particles in one CSC layer both own each of its hits.
 - **Scope**: HGCal completeness counts HGCal only. A barrel particle's few MeV in HGCal are not an inefficiency. The

@@ -1,7 +1,7 @@
 # Converter and profiles
 
-`evd` turns NanoAOD files into a bundle ([Bundle format](format.md)). A **profile** tells it how. A profile is a JSON
-file in `evdtools/profiles/`, or any path given to `--profile`. It says:
+`ember` turns NanoAOD files into a bundle ([Bundle format](format.md)). A **profile** tells it how. A profile is a JSON
+file in `embertools/profiles/`, or any path given to `--profile`. It says:
 
 - which tables to keep;
 - how to relate, cut and select them;
@@ -11,16 +11,16 @@ The converter has no detector-specific code. Everything on this page is profile 
 
 ## Command line
 
-`evd FILE.root` converts CMS events with the `cms` profile, and publishes the bundle ([The `evd` command](cli.md)).
-`evd convert` is the converter alone, with every option, for any NanoAOD and any profile:
+`ember FILE.root` converts CMS events with the `cms` profile, and publishes the bundle ([The `ember` command](cli.md)).
+`ember convert` is the converter alone, with every option, for any NanoAOD and any profile:
 
 ```bash
-evd convert IN.root [IN2.root ...] -o OUT.evdb --profile hgcal [options]
-evd inspect OUT.evdb      # tables, relations, layers, record sizes, first events
-evd validate OUT.evdb     # structural checks of every record; exit code 1 if there are problems
+ember convert IN.root [IN2.root ...] -o OUT.ember --profile hgcal [options]
+ember inspect OUT.ember      # tables, relations, layers, record sizes, first events
+ember validate OUT.ember     # structural checks of every record; exit code 1 if there are problems
 ```
 
-From a clone, `python3 -m evdtools ...` is the same command. `from-nano` is the older name of `convert`.
+From a clone, `python3 -m embertools ...` is the same command. `from-nano` is the older name of `convert`.
 
 | option | meaning |
 |---|---|

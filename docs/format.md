@@ -1,7 +1,12 @@
-# evd bundle format, version 1
+# Ember bundle format, version 1
 
-This page describes what a `.evdb` bundle contains. It is the contract between the writer (`evdtools/bundle.py`) and
-the reader (`viewer/src/io/bundle.ts`, with the format's types in `viewer/src/io/format.ts`). How the converter fills a bundle from NanoAOD is in [Profiles](profiles.md).
+This page describes what a `.ember` bundle contains. It is the contract between the writer (`embertools/bundle.py`)
+and the reader (`viewer/src/io/bundle.ts`, with the format's types in `viewer/src/io/format.ts`). How the converter
+fills a bundle from NanoAOD is in [Profiles](profiles.md).
+
+Bundles written before the project was called Ember end in `.evdb`. The format is the same, and the `ember` command
+and the viewer read both. The magic bytes (`"EVDB"`, `"EVD1"`) and the header's `schema` (`evd/1`) keep the old name
+for historical reasons: they identify format version 1, and changing them would make every existing bundle unreadable.
 
 All integers are little-endian.
 
@@ -26,7 +31,7 @@ The header describes the whole file. It is the same for every event.
 
 ```json
 { "schema": "evd/1",
-  "source": {"files": ["evd_nano.root"], "converter": "evdtools 0.2.0", "cmssw": "CMSSW_20_1_0",
+  "source": {"files": ["ember_nano.root"], "converter": "embertools 0.2.0", "cmssw": "CMSSW_20_1_0",
              "created": "2026-11-13T14:00:00+00:00"},
   "profile": "hgcal",
   "tables": { "TICLSoATracksters": { "doc": "TICL tracksters (SoA)",
@@ -40,7 +45,7 @@ The header describes the whole file. It is the same for every event.
 | key | meaning |
 |---|---|
 | `schema` | `evd/<major>` |
-| `source` | the input `files`, the `converter` that wrote the bundle (`evdtools <version>`), and `created`. Optional: `cmssw`, the release of the last process that wrote the input (from the file's process history; absent when the input does not record one), and `data_time`, when the input data were produced (it sorts the site's lists). `evd inspect` and the viewer's data set details show them. |
+| `source` | the input `files`, the `converter` that wrote the bundle (`embertools <version>`), and `created`. Optional: `cmssw`, the release of the last process that wrote the input (from the file's process history; absent when the input does not record one), and `data_time`, when the input data were produced (it sorts the site's lists). `ember inspect` and the viewer's data set details show them. |
 | `profile` | the name of the profile that made the bundle. The viewer keeps a user's custom columns per profile. |
 | `tables` | `{name: {"doc", "columns": {name: {"type", "doc"}}}}`. Column types: `f32 f64 i8 u8 i16 u16 i32 u32 i64 u64`; booleans are `u8`. `"scope": "run"` marks a per-run table (for example a channel table): it is stored once per run, in a run record, and readers add it to every event of that run. |
 | `relations` | `{name: {"from", "to", "weights": [names]}}`, plus optional hints; see [Relations](#relations) |
@@ -128,7 +133,7 @@ console warning, and draws the others.
 | `context`, `dim` | `context`: a background layer (for example every readout channel). It is never framed or replayed. It is drawn thin and without depth, so it never hides the event. It is picked (over a smaller radius) only when nothing else is under the cursor. Any `repr`. `dim` (0..1) mixes its colours towards the background. |
 | `shape` | the `ellipsoids` surface, so that kinds of shower object look different: `solid` (default, translucent), `shell` (outline), `cage` (rings around the principal axes), `core` (compact, opaque) |
 | `truth` | simulation truth: labelled as such, with `segments` drawn dashed. The side panel's Tree tab becomes Truth. |
-| `truthGap` | a reco kind that the truth graph has no answer for: `{"reason", "gap", "derived"}`. `reason` is shown in the inspector, the truth colour key and the Truth tab's coverage list. `gap` is its number in [Truth graph](truth-graph.md). In the truth mode the layer is drawn neutral and faint (cones as outlines), and never takes a colour from its container or its parts. `"derived": "content"` is the one exception: evd's stand-in colour, by the particle with the most simulated energy in the object's parts (HGCal layer clusters). The hint is ignored once the table has its own reco → truth relation with a `match` hint ([Truth](truth.md#where-truth-stops)). |
+| `truthGap` | a reco kind that the truth graph has no answer for: `{"reason", "gap", "derived"}`. `reason` is shown in the inspector, the truth colour key and the Truth tab's coverage list. `gap` is its number in [Truth graph](truth-graph.md). In the truth mode the layer is drawn neutral and faint (cones as outlines), and never takes a colour from its container or its parts. `"derived": "content"` is the one exception: Ember's stand-in colour, by the particle with the most simulated energy in the object's parts (HGCal layer clusters). The hint is ignored once the table has its own reco → truth relation with a `match` hint ([Truth](truth.md#where-truth-stops)). |
 | `particle` | truth particles: `{"flags", "bit", "first"}`, the level that is "the particle" ([Truth](truth.md#two-levels-the-particle-and-each-kinds-target)): the rows with `bit` set in the integer column `flags` (truth::LevelFlag bit 2: generator-level stable). With `"colourBy": "identity"`, a particle takes the colour of its highest ancestor in the level. With `first` (for example `isSignal`), only rows where it is not zero take colours (the others, pile-up, are drawn small in their own grey). Rows in the level come before those above it, then they are ordered by size. The viewer's Truth colours need this hint. |
 | `onSelection` | draw only the objects related to the selection (none without a selection), until the user asks for all of them. Objects reached only from objects that a cut hides are not drawn (for example the hits of a vertex's tracks below the pT cut). The selected object itself is drawn whatever the cut. |
 | `describe` | `{"columns": [...], "names": {column: {value: name}}}`: how to name an object in lists (related objects, tree, inspector), for example `["pdgId", "energy"]` with PDG names |

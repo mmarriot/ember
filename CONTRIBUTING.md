@@ -1,4 +1,4 @@
-# Contributing to evd
+# Contributing to Ember
 
 Changes are welcome: a table that is not drawn yet, a profile for another kind of data, a fix, a clearer page. This
 file explains how to set up, which checks to run before a pull request, and how to make the usual changes.
@@ -12,9 +12,9 @@ You need:
 - **Node 18 or later**, for the viewer.
 
 ```bash
-git clone https://github.com/mmarriot/evd.git && cd evd
+git clone https://github.com/mmarriot/ember.git && cd ember
 
-# Python: the evd command, the tests and Ruff (best in a virtual environment)
+# Python: the `ember` command, the tests and Ruff (best in a virtual environment)
 python3 -m pip install -e ".[test,dev]"
 
 # Viewer: its dependencies, exactly as locked in package-lock.json
@@ -24,7 +24,7 @@ cd viewer && npm ci && cd ..
 git config blame.ignoreRevsFile .git-blame-ignore-revs
 ```
 
-Inside `cmsenv` you can skip the `pip install`: `python3 -m evdtools ...` runs the command straight from the clone.
+Inside `cmsenv` you can skip the `pip install`: `python3 -m embertools ...` runs the command straight from the clone.
 You then need Ruff from elsewhere to format the code (see [Formatting](#formatting)).
 
 ## See events while you work
@@ -35,12 +35,12 @@ The development server serves the viewer and the bundles in `data/`:
 cd viewer && npm run dev        # http://127.0.0.1:5173
 ```
 
-1. Put bundles in `data/`. `golden/v6_1event.evdb` is one event to start with. `evd FILE.root -o data/x.evdb` makes
+1. Put bundles in `data/`. `golden/v6_1event.ember` is one event to start with. `ember FILE.root -o data/x.ember` makes
    more.
-2. List them in `data/index.json`: `{"bundles": [{"file": "x.evdb", "title": "My bundle"}]}`.
-3. Open http://127.0.0.1:5173. Without bundles, you can still drop a `.evdb` file on the page.
+2. List them in `data/index.json`: `{"bundles": [{"file": "x.ember", "title": "My bundle"}]}`.
+3. Open http://127.0.0.1:5173. Without bundles, you can still drop a `.ember` file on the page.
 
-The server answers `whoami` (who is signed in) only when `EVD_WHOAMI=<login>` is set when it starts. Without it, the
+The server answers `whoami` (who is signed in) only when `EMBER_WHOAMI=<login>` is set when it starts. Without it, the
 viewer asks for a login, as on a site without `whoami`.
 
 ## Formatting
@@ -102,7 +102,7 @@ checks need a development server and bundles, so you run them by hand.
 (`viewer/e2e/smoke.mjs` runs them; the checks are in `site.mjs` and `bundle.mjs` beside it). A bug fix starts with a test
 that fails without the fix.
 
-**Builds:** `python3 tools/build_zipapp.py` builds `dist/evd`, the command as one file, which users run.
+**Builds:** `python3 tools/build_zipapp.py` builds `dist/ember`, the command as one file, which users run.
 `cd viewer && npm run build` builds `viewer/dist`, the static page that the site serves.
 
 ## Style
@@ -120,7 +120,7 @@ that fails without the fix.
 ## The usual changes
 
 **Draw a table that the file already has.** Add a `display` entry to the profile for its part of the detector in
-`evdtools/profiles/`, and `relations` for its links. [docs/profiles.md](docs/profiles.md) lists every key, and
+`embertools/profiles/`, and `relations` for its links. [docs/profiles.md](docs/profiles.md) lists every key, and
 [docs/format.md](docs/format.md) every display hint. An entry that names a table missing from the file is dropped,
 so one profile serves files with and without the table. Add a case to `tests/test_profile.py`.
 
@@ -135,12 +135,12 @@ a module in `viewer/src/render/layers/` added to `builders` in `layers/index.ts`
 `viewer/src/io/format.ts`, and its hints in `docs/format.md`. Older
 viewers skip a `repr` they do not know, so a new bundle stays readable.
 
-**Truth.** evd's truth is CMSSW's truth graph and its associators. evd matches nothing that CMSSW does not match
+**Truth.** Ember's truth is CMSSW's truth graph and its associators. Ember matches nothing that CMSSW does not match
 ([docs/truth.md](docs/truth.md) has the rules). A kind of object gets truth when its associator exists in CMSSW and
 its `match` relation is added to the profile.
 
 ## Report a problem
 
-[Open an issue](https://github.com/mmarriot/evd/issues). Give the command you ran, the `evd: ...` line or what the
-page showed, the output of `evd --version`, and the CMSSW release that wrote the file. Do not attach CMS data that is
+[Open an issue](https://github.com/mmarriot/ember/issues). Give the command you ran, the `ember: ...` line or what the
+page showed, the output of `ember --version`, and the CMSSW release that wrote the file. Do not attach CMS data that is
 not public.

@@ -5,19 +5,19 @@ to a colleague. Follow the steps in order.
 
 You will:
 
-1. get the `evd` command;
+1. get the `ember` command;
 2. make the event-display NanoAOD in your CMSSW job;
-3. turn it into a link with `evd`;
+3. turn it into a link with `ember`;
 4. open the event and look around;
 5. share the link;
 6. tidy up.
 
-> **The site is not set up yet.** This page uses `https://cms-evd.web.cern.ch` and `/eos/project/c/cms-evd/` for the
+> **The site is not set up yet.** This page uses `https://cms-ember.web.cern.ch` and `/eos/project/c/cms-ember/` for the
 > CMS site. These addresses are provisional. Until the site exists, step 3 cannot publish: write a file instead, as
 > step 3 explains. See [Status](index.md#status).
 
 **Only want to look?** Once the site is set up, you will not need to run anything. Open
-`https://cms-evd.web.cern.ch` (provisional) and sign on with your CERN account. The site opens its newest shared
+`https://cms-ember.web.cern.ch` (provisional) and sign on with your CERN account. The site opens its newest shared
 sample. Then go to [step 4](#step-4-look-at-the-event).
 
 ## What you need
@@ -25,7 +25,7 @@ sample. Then go to [step 4](#step-4-look-at-the-event).
 - **A CERN account that is a member of CMS.** The site is behind the CERN single sign-on.
 - **A CMSSW area for Phase-2 full simulation that has the `NANO:@EVD` step.** See the box below.
 - **Python 3 with numpy and uproot.** `cmsenv` gives you both.
-- **Off lxplus:** a Kerberos ticket and the XRootD tools, so that `evd` can write to EOS. Run
+- **Off lxplus:** a Kerberos ticket and the XRootD tools, so that `ember` can write to EOS. Run
   `kinit <your login>@CERN.CH`, and `cmsenv` (it puts `xrdcp` and `xrdfs` in your `PATH`).
 
 > **Until the CMSSW pull requests are merged** (delete this box afterwards). No CMSSW release has `NANO:@EVD` yet.
@@ -41,51 +41,51 @@ sample. Then go to [step 4](#step-4-look-at-the-event).
 > The branch is not public yet, so `git cms-merge-topic` works only once it is pushed. The rest of this page is the
 > same either way.
 
-## Step 1: Get the `evd` command
+## Step 1: Get the `ember` command
 
-`evd` is a single file. It runs in any CMSSW environment, with nothing to install. Choose one way to get it.
+`ember` is a single file. It runs in any CMSSW environment, with nothing to install. Choose one way to get it.
 
 **From a clone of the repository** (works anywhere):
 
 ```bash
-git clone https://github.com/mmarriot/evd.git
-python3 evd/tools/build_zipapp.py ~/bin/evd
+git clone https://github.com/mmarriot/ember.git
+python3 ember/tools/build_zipapp.py ~/bin/ember
 ```
 
-This writes the file `~/bin/evd`. If `~/bin` is not in your `PATH`, call it as `~/bin/evd`, or add `~/bin` to your
+This writes the file `~/bin/ember`. If `~/bin` is not in your `PATH`, call it as `~/bin/ember`, or add `~/bin` to your
 `PATH`.
 
 **On lxplus, once the site is set up:** use the copy kept next to the site (provisional path):
 
 ```bash
-alias evd=/eos/project/c/cms-evd/bin/evd
+alias ember=/eos/project/c/cms-ember/bin/ember
 ```
 
 **With pip** (outside CMSSW, or in a Python virtual environment):
 
 ```bash
-python3 -m pip install git+https://github.com/mmarriot/evd.git
+python3 -m pip install git+https://github.com/mmarriot/ember.git
 ```
 
 **Check that it works:**
 
 ```
-$ evd --version
-evd 0.2.0
+$ ember --version
+ember 0.2.0
 ```
 
 **If it fails:**
 
-- `command not found`: the command is not in your `PATH`. Give its full path, for example `~/bin/evd --version`.
-  After `pip install` outside a virtual environment, `evd` is usually in `~/.local/bin`.
-- `No module named 'numpy'` (or `'uproot'`): this Python lacks a package that evd needs. Run `cmsenv` first.
+- `command not found`: the command is not in your `PATH`. Give its full path, for example `~/bin/ember --version`.
+  After `pip install` outside a virtual environment, `ember` is usually in `~/.local/bin`.
+- `No module named 'numpy'` (or `'uproot'`): this Python lacks a package that Ember needs. Run `cmsenv` first.
 
 ## Step 2: Make the event-display NanoAOD
 
-evd reads a special NanoAOD file, the *event-display NanoAOD*. Your reconstruction job writes it when you add one
+`ember` reads a special NanoAOD file, the *event-display NanoAOD*. Your reconstruction job writes it when you add one
 step. Normal analysis NanoAOD does not work: it has no hits.
 
-> **Do you already have a step3 file?** Then skip this step. In step 3, give `evd` your `step3.root`. `evd` then
+> **Do you already have a step3 file?** Then skip this step. In step 3, give `ember` your `step3.root`. `ember` then
 > makes the NanoAOD for you. This needs `cmsenv` in a release that has `NANO:@EVD`.
 
 Take the `cmsDriver.py` command that you already use for step3, and add three things:
@@ -116,56 +116,56 @@ its memory by a measurable amount ([costs](cmssw.md#what-it-costs)).
 
 ## Step 3: Turn the file into a link
 
-Run `evd` on the NanoAOD file:
+Run `ember` on the NanoAOD file:
 
 ```
-$ evd step3_inNANOAODSIM.root
+$ ember step3_inNANOAODSIM.root
 step3_inNANOAODSIM.root: NanoAOD from CMSSW_20_1_X_2026-11-12-2300, 20 events
   44 tables, 86 relations, 43 display layers
   10 events of 20 (--max-events 0 for all), 8 MB, 1 s
-published step3_inNANOAODSIM: kept until 2026-12-13 (evd list, evd rm step3_inNANOAODSIM)
+published step3_inNANOAODSIM: kept until 2026-12-13 (ember list, ember rm step3_inNANOAODSIM)
 
-https://cms-evd.web.cern.ch/#b=data/u/jsmith/step3_inNANOAODSIM.evdb
+https://cms-ember.web.cern.ch/#b=data/u/jsmith/step3_inNANOAODSIM.ember
 ```
 
 **What happened:**
 
-1. `evd` read the tables in the file.
-2. It wrote the first 10 events as a bundle (a `.evdb` file). Ask for more with `--max-events 50`, or for all with
+1. `ember` read the tables in the file.
+2. It wrote the first 10 events as a bundle (a `.ember` file). Ask for more with `--max-events 50`, or for all with
    `--max-events 0`.
 3. It copied the bundle to your user area on the site, `data/u/<your login>/`, and added it to your list there.
 4. It printed the link on the last line.
 
 The site keeps the bundle for 30 days.
 
-**Starting from a step3 file instead?** Run `evd step3.root`. `evd` first runs a short CMSSW job that makes the
+**Starting from a step3 file instead?** Run `ember step3.root`. `ember` first runs a short CMSSW job that makes the
 NanoAOD. It prints the geometry, conditions and era it chose. With 8 threads this took about 20 s to start, then
-0.3 s per event without pile-up, or 1.6 s per event at 200 pile-up. `evd` runs the job with 4 threads unless you give
-`-j`. If `evd` cannot tell the geometry, see [Convert a step3 file](how-to.md#convert-a-step3-file-you-already-have).
+0.3 s per event without pile-up, or 1.6 s per event at 200 pile-up. `ember` runs the job with 4 threads unless you give
+`-j`. If `ember` cannot tell the geometry, see [Convert a step3 file](how-to.md#convert-a-step3-file-you-already-have).
 
 **While the site does not exist**, publishing fails with `the site directory ... does not exist`. Write the bundle to
 a file instead:
 
 ```
-$ evd step3_inNANOAODSIM.root -o mine.evdb
+$ ember step3_inNANOAODSIM.root -o mine.ember
 ...
-wrote mine.evdb
+wrote mine.ember
 ```
 
-Then open a viewer and drop `mine.evdb` on the page ([Look at a bundle without the
+Then open a viewer and drop `mine.ember` on the page ([Look at a bundle without the
 site](how-to.md#look-at-a-bundle-without-the-site)). Skip step 5: a local file has no link.
 
-**If it fails**, `evd` prints one line that starts with `evd:`. The most common ones:
+**If it fails**, `ember` prints one line that starts with `ember:`. The most common ones:
 
 | message | what to do |
 | --- | --- |
 | `... has none of the tables that the profile cms draws (it has: Jet, Muon, ...)` | This is analysis NanoAOD. Make the event-display NanoAOD as in [step 2](#step-2-make-the-event-display-nanoaod). |
-| `the site directory ... does not exist` | The site is not set up, or not reachable from here. Use `-o FILE.evdb`, as above. |
+| `the site directory ... does not exist` | The site is not set up, or not reachable from here. Use `-o FILE.ember`, as above. |
 | `cannot reach ...` or `cannot write ...: ... refused` | You have no valid Kerberos ticket. Run `kinit <your login>@CERN.CH`, then try again. |
 | `xrdfs not found ...` (or `xrdcp`) | You are not on lxplus, and the XRootD tools are not in your `PATH`. Run `cmsenv`, then try again. |
 | `'...' cannot be a login` | Your account name on this machine is not your CERN login. Add `--user <your CERN login>`. |
 
-Every message, and what to do about it, is in [The `evd` command](cli.md#messages-and-what-to-do).
+Every message, and what to do about it, is in [The `ember` command](cli.md#messages-and-what-to-do).
 
 ## Step 4: Look at the event
 
@@ -209,7 +209,7 @@ The viewer lists your bundles under **My files**: click the data set name at the
 list them from the shell:
 
 ```
-$ evd list
+$ ember list
 NAME                EVENTS  SIZE  EXPIRES     TITLE
 step3_inNANOAODSIM  10      8 MB  2026-12-13  step3_inNANOAODSIM · 10 events
 ```
@@ -217,7 +217,7 @@ step3_inNANOAODSIM  10      8 MB  2026-12-13  step3_inNANOAODSIM · 10 events
 Remove a bundle that you no longer need:
 
 ```
-$ evd rm step3_inNANOAODSIM
+$ ember rm step3_inNANOAODSIM
 removed step3_inNANOAODSIM
 ```
 
@@ -228,4 +228,4 @@ There is no size limit per person yet. Please remove what you no longer need.
 - [How-to guides](how-to.md): convert a step3 file, choose events, name your bundle, keep a bundle to yourself.
 - [Questions and problems](faq.md): what new users run into.
 - [Viewer](viewer.md): every control, the side panel, colours and the selection's card.
-- [The `evd` command](cli.md): every option and message.
+- [The `ember` command](cli.md): every option and message.

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "embertools"
-description = "Convert CMS NanoAOD event-display tables to .evdb bundles and publish them for the Ember web event display"
+description = "Convert CMS NanoAOD event-display tables to .ember bundles and publish them for the Ember web event display"
 readme = "README.md"
 requires-python = ">=3.9"
 dependencies = ["numpy", "uproot>=5"]

@@ -1,6 +1,6 @@
 # CMSSW side: the `NANO:@EVD` flavour
 
-evd reads NanoAOD. The CMSSW package `DPGAnalysis/EventDisplayNanoAOD` defines a NanoAOD *flavour*, `NANO:@EVD`. It
+Ember reads NanoAOD. The CMSSW package `DPGAnalysis/EventDisplayNanoAOD` defines a NanoAOD *flavour*, `NANO:@EVD`. It
 writes the reconstructed event as flat tables:
 
 - hits, with their geometry;
@@ -10,6 +10,9 @@ writes the reconstructed event as flat tables:
 
 Nothing in the package knows about the viewer. The output is plain NanoAOD, and you can read it with uproot or ROOT
 like any other NanoAOD file.
+
+The names on the CMSSW side are descriptive, not Ember's: `NANO:@EVD` is a generic *event-display* NanoAOD, and
+Ember is the tool that reads it. So the flavour, the package and its branches keep their names.
 
 > **Not merged yet.** The package is on two branches against CMSSW_20_1_X, which will become two pull requests:
 > `eventdisplay-nano-generic` (the generic table producers) and, on top of it, `eventdisplay-nano` (the other
@@ -33,11 +36,11 @@ The job writes the NanoAOD next to the reconstruction output, as `<fileout stem>
 or `RECOSIM` content:
 
 ```bash
-cmsDriver.py evd -s NANO:@EVD --conditions <as the file> --geometry <as the file> --era <as the file> --mc \
-    --eventcontent NANOAODSIM --datatier NANOAODSIM -n -1 --filein file:step3.root --fileout file:evd_nano.root
+cmsDriver.py ember -s NANO:@EVD --conditions <as the file> --geometry <as the file> --era <as the file> --mc \
+    --eventcontent NANOAODSIM --datatier NANOAODSIM -n -1 --filein file:step3.root --fileout file:ember_nano.root
 ```
 
-`evd step3.root` runs this for you ([The `evd` command](cli.md#evd-view)).
+`ember step3.root` runs this for you ([The `ember` command](cli.md#ember-view)).
 
 **Scope today:** Phase-2 full simulation, on `FEVTDEBUGHLT` and `RECOSIM` content. A `RECOSIM` file gave the same
 rows in all 97 tables as the `FEVTDEBUGHLT` file of the same 10 events. Run 3, FastSim, premixed pile-up and real
@@ -171,10 +174,10 @@ tracksters) on top.
    - `skipNonExistingSrc` for inputs that a file may not have.
 2. **Schedule it.** Add the module to the Task of its part of the detector in `eventDisplayNano_cff.py`. Module
    labels start with `evd` and end with `Table` (the output keeps `*Table*`).
-3. **Check it.** `test/validate_export.py evd_nano.root` runs the consistency checks: indices in range, finite
+3. **Check it.** `test/validate_export.py ember_nano.root` runs the consistency checks: indices in range, finite
    positions, link counts equal to the objects' counts. Add checks for the new table. The flavour's RelVal workflow,
    `runTheMatrix.py -w upgrade -l 29634.214` (`_EventDisplayNano`), must still pass.
-4. **Draw it.** Add a `display` entry, and relations for its links, to an evd profile ([Profiles](profiles.md)). A
+4. **Draw it.** Add a `display` entry, and relations for its links, to an Ember profile ([Profiles](profiles.md)). A
    table that no profile entry names is still converted, and listed in the viewer's Event tab.
 
 ## Not exported yet
@@ -182,7 +185,7 @@ tracksters) on top.
 - **Level-1 and HLT objects.**
 - **Reco ↔ truth associations that CMSSW does not have:** jets, electrons and photons, muons, taus, MET, PF
   candidates, HF and HO PF clusters, and layer clusters. [cms-sw/cmssw#52451](https://github.com/cms-sw/cmssw/pull/52451)
-  adds the last. evd does not put its own matching in their place. Each one appears when its associator exists
+  adds the last. Ember does not put its own matching in their place. Each one appears when its associator exists
   ([Truth graph](truth-graph.md#gap-table)).
 - **TICL candidate ↔ truth** on a stock release. CMSSW has no candidate associator. The association it writes under
   `ticlCandidateToTruth` is that of the candidates' own tracksters (table `ticlCandidate`). So the viewer shows the

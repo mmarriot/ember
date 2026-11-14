@@ -6,8 +6,7 @@ import json
 import pytest
 from nanoaod import write_nano
 
-from evdtools.__main__ import validate
-from evdtools.bundle import Bundle
+from evdtools.bundle import Bundle, validate
 from evdtools.nano import convert
 
 pytest.importorskip("awkward")  # writes the input files

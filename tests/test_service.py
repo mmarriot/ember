@@ -122,8 +122,7 @@ def test_simulate_publishes_parts_newest_first(tmp_path):
 
 
 def test_simulated_parts_carry_the_per_run_tables_and_run_info_of_their_runs(tmp_path):
-    from evdtools.__main__ import validate
-    from evdtools.bundle import Bundle
+    from evdtools.bundle import Bundle, validate
     from evdtools.service import simulate
 
     columns = {"e": {"type": "f32", "doc": ""}}

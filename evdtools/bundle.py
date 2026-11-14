@@ -239,3 +239,42 @@ class Bundle:
             for r, m in meta["relations"].items()
         }
         return {"event": meta["event"], "tables": tables, "relations": relations}
+
+
+def validate(path):
+    """Check the structure of every record of the bundle at `path` (row counts, relation offsets and indices, weight
+    lengths, a record for the per-run tables of each run); returns the problems found, in words."""
+    bundle, problems = Bundle(path), []
+    rels = bundle.header["relations"]
+    per_run = [t for t, m in bundle.header["tables"].items() if m.get("scope") == "run"]
+    for entry in bundle.runs:
+        for t, (n, cols) in bundle.run(entry["run"]).items():
+            problems += [
+                f"run {entry['run']}: {t}.{c} has {len(a)} rows, expected {n}" for c, a in cols.items() if len(a) != n
+            ]
+    if per_run:
+        missing = {e["run"] for e in bundle.events} - {r["run"] for r in bundle.runs}
+        problems += [f"run {r}: no record of the per-run tables {', '.join(per_run)}" for r in sorted(missing)]
+    for i in range(len(bundle)):
+        ev = bundle.event(i)
+        for t, (n, cols) in ev["tables"].items():
+            problems += [f"event {i}: {t}.{c} has {len(a)} rows, expected {n}" for c, a in cols.items() if len(a) != n]
+        for r, rel in ev["relations"].items():
+            n_from = ev["tables"].get(rels[r]["from"], (0, {}))[0]
+            n_to = ev["tables"].get(rels[r]["to"], (0, {}))[0]
+            off, idx = rel["offsets"], rel["indices"]
+            if (
+                len(off) != n_from + 1
+                or off[0] != 0
+                or off[-1] != len(idx)
+                or np.any(np.diff(off.astype(np.int64)) < 0)
+            ):
+                problems.append(f"event {i}: relation {r} has bad offsets")
+            if len(idx) and idx.max() >= n_to:
+                problems.append(f"event {i}: relation {r} points past {rels[r]['to']} ({n_to} rows)")
+            problems += [
+                f"event {i}: relation {r} weight {w} has {len(a)} entries, expected {len(idx)}"
+                for w, a in rel["weights"].items()
+                if len(a) != len(idx)
+            ]
+    return problems

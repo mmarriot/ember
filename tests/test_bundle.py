@@ -6,8 +6,7 @@ import struct
 import numpy as np
 import pytest
 
-from evdtools.__main__ import validate
-from evdtools.bundle import Bundle, BundleWriter, encode_record
+from evdtools.bundle import Bundle, BundleWriter, encode_record, validate
 from evdtools.relations import build_relation
 
 HEADER = {

@@ -66,7 +66,7 @@ Sources: CMSSW_20_1_0_pre5 with the truth-graph and exporter developments. CMSSW
    energy). The SoA ones are written only where SoA hit tables are written, which a stock release does not do
    ([CMSSW side](cmssw.md#soa-collections)).
 4. **The evd profile** `evdtools/profiles/hgcal.json:64-114` reads all of these as relations. `sameRows`
-   redirects the legacy CLUEstering relations to the SoA tracksters (`hgcal.json:12`, `evdtools/nano.py:313-329`).
+   redirects the legacy CLUEstering relations to the SoA tracksters (`hgcal.json:12`, `_resolve_relations` in `evdtools/converter.py`).
 
 ### Definitions the display inherits (shared energy, scores)
 
@@ -232,7 +232,7 @@ particles".
   (`FromTruth`).
 - **9, 11:** the associators and the data exist; only the export is missing.
 - **10:** `sameRows` drops the legacy table, and raises an error if SoA and legacy ever differ
-  (`evdtools/nano.py:241-249`). The truth for SoA tracksters is then lost unless the entry is removed. A direct SoA
+  (`_check_same_rows` in `evdtools/converter.py`). The truth for SoA tracksters is then lost unless the entry is removed. A direct SoA
   associator (`TruthAssociationTraits` on the SoA view) would remove this dependency.
 
 ### Covered only by legacy simulation objects today

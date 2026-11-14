@@ -59,8 +59,7 @@ cd viewer && npm run format            # viewer
 ```
 
 CI fails a pull request whose formatting differs. To check without changing files: `ruff format --check .` and
-`cd viewer && npm run format:check`. CI does not run `ruff check`. It may report warnings in code you did not touch;
-please do not add new ones in the files you change.
+`cd viewer && npm run format:check`. CI also runs `ruff check .`, which must report nothing.
 
 ## Before a pull request
 
@@ -94,7 +93,7 @@ python3 -m venv .venv && .venv/bin/pip install zensical==0.1.1
 .venv/bin/zensical serve             # http://127.0.0.1:8000, rebuilds when docs/ changes
 ```
 
-**What CI runs** (`.github/workflows/`): the Python formatting check and the tests; the viewer's formatting check,
+**What CI runs** (`.github/workflows/`): the Python formatting check, the lint check and the tests; the viewer's formatting check,
 type check and unit tests; and, when `docs/` or `zensical.toml` changes, the strict documentation build. The browser
 checks need a development server and bundles, so you run them by hand.
 

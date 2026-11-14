@@ -25,7 +25,7 @@ and a link to send.
 | page | what it is for |
 | --- | --- |
 | [Getting started](getting-started.md) | a tutorial: your first event on screen, step by step |
-| [How-to guides](how-to.md) | short recipes: convert a step3 file, choose events, keep a file private, manage your files |
+| [How-to guides](how-to.md) | short recipes: convert a step3 file, choose events, keep a bundle to yourself, manage your bundles |
 | [Questions and problems](faq.md) | what new users run into, and what to do |
 | [The `evd` command](cli.md) | reference: every command, option, environment variable, exit code and message |
 | [Viewer](viewer.md) | reference: data sets, controls, side panel, colours, the selection's card, the link |
@@ -52,7 +52,7 @@ evd is at version 0.2. It is in development and used by its authors. Two things 
 | part | state |
 | --- | --- |
 | `NANO:@EVD` in CMSSW | two branches for CMSSW_20_1_X: the generic table producers, and the step itself (`eventdisplay-nano`). They will become two pull requests. The RelVal workflow added for it (`29634.214`) passes. Tested on Phase-2 full simulation only. Run 3, FastSim, premixed pile-up and real data are not tested. |
-| `evd` on NanoAOD and on step3 files | works. It detects the geometry of Run4 geometries described by XML files. |
+| `evd` on NanoAOD and on step3 files | works. It can tell the geometry of a step3 file only for Run4 geometries that are described by XML files. |
 | the CMS site, `/eos/project/c/cms-evd/bin/evd`, the shared RelVal samples | not set up yet. Until then, write a file with `evd FILE.root -o FILE.evdb` and open it in a viewer you can reach ([How-to guides](how-to.md#look-at-a-bundle-without-the-site)). |
 | the viewer | tested in Chromium (the browser tests run there). Other current browsers should work, but are not tested. |
 | who you are on the site (`whoami`) | not tested on a real site. If it does not work, the viewer asks for your login instead. |
@@ -61,6 +61,7 @@ evd is at version 0.2. It is in development and used by its authors. Two things 
 
 | word | meaning |
 | --- | --- |
+| `NANO:@EVD` | the CMSSW step that writes the event-display NanoAOD. In CMSSW terms it is a NanoAOD *flavour*, so some pages call it that. |
 | event-display NanoAOD | the NanoAOD file that the `NANO:@EVD` step writes. It holds the detector-level tables that evd needs. Analysis NanoAOD and MiniAOD do not have them. |
 | step3 file | a CMSSW reconstruction output file (data tier `GEN-SIM-RECO`), with event content `FEVTDEBUGHLT` or `RECOSIM` |
 | table | one collection in a NanoAOD file, with one row per object, for example `Tracks` or `HGCalHits` |

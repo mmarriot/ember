@@ -17,9 +17,9 @@ evd --version                print the version: evd 0.2.0
 [Getting started](getting-started.md#step-1-get-the-evd-command) explains how to get `evd`. From a clone,
 `python3 -m evdtools ...` is the same command. Add `-h` after any command to list its options.
 
-> The site's address and folder (`https://cms-evd.web.cern.ch`, `/eos/project/c/cms-evd/www`) are provisional, because
-> the CMS site is not set up yet. `--site`, `--url` and the [environment variables](#environment-variables) point
-> `evd` at another site.
+> The site's address and directory (`https://cms-evd.web.cern.ch`, `/eos/project/c/cms-evd/www`) are provisional,
+> because the CMS site is not set up yet. `--site`, `--url` and the [environment variables](#environment-variables)
+> point `evd` at another site.
 
 ## `evd view`
 
@@ -55,8 +55,8 @@ You cannot mix the two kinds in one call.
 | `--profile PROFILE` | a built-in profile, or the path of a JSON file ([Profiles](profiles.md)). Default: `cms`. |
 | `--max-events N` | convert at most N events. Default: 10, or, with `--events`, all of the events asked for. `0` means all. |
 | `--events 3,7-9` | convert only these event numbers. The profile's event selection still applies. For a step3 file, `evd` makes the NanoAOD of the whole file to find them. |
-| `-j N`, `--threads` | the number of threads that read and compress. Default: up to 4, and never more than the process may use. |
-| `--site DIR`, `--url URL`, `--user LOGIN` | the site's folder, the site's address, and whose user area. Default: the [environment variables](#environment-variables), or else the CMS site and your login. A login starts with a letter, followed by letters, digits, `-` and `_`, 2 to 32 characters in all. `evd` makes it lower case. |
+| `-j N`, `--threads` | the number of threads that read and compress. Default: up to 4, and never more than the process may use. For a step3 file, also the number of threads of the cmsRun job (default: 4). |
+| `--site DIR`, `--url URL`, `--user LOGIN` | the site directory, the site's address, and whose user area. Default: the [environment variables](#environment-variables), or else the CMS site and your login. A login starts with a letter, followed by letters, digits, `-` and `_`, 2 to 32 characters in all. `evd` makes it lower case. |
 
 Options for CMSSW reconstruction files only:
 
@@ -116,17 +116,17 @@ evd clean [--days 30] [--dry-run] [--site DIR]                    remove users' 
 `evd clean`:
 
 - `--days` takes a whole number of 1 or more. Anything else is a usage error (exit code 2).
-- It runs only where the site is a mounted folder.
+- It runs only where the site is a mounted directory.
 - It leaves alone anything under `data/u/` that is a link.
 
 ## Environment variables
 
 | variable | meaning | default |
 |---|---|---|
-| `EVD_SITE_DIR` | the site's folder: a mounted path, an `/eos/...` path (reached through XRootD where it is not mounted), or a `root://host//path` URL | `/eos/project/c/cms-evd/www` (provisional) |
+| `EVD_SITE_DIR` | the site directory: a mounted path, an `/eos/...` path (reached through XRootD where it is not mounted), or a `root://host//path` URL | `/eos/project/c/cms-evd/www` (provisional) |
 | `EVD_SITE_URL` | the site's address; used only to print links | `https://cms-evd.web.cern.ch` (provisional) |
 | `EVD_USER` | whose user area you publish to | your login on this machine |
-| `EVD_SERVICE_DIR` | the site's service folder (where `sync` keeps its state) | `/eos/project/c/cms-evd/service` (provisional) |
+| `EVD_SERVICE_DIR` | the site's service directory (where `sync` keeps its state) | `/eos/project/c/cms-evd/service` (provisional) |
 | `EVD_DEBUG` | set to any value (even `0`) to print the Python traceback of a failure, instead of one line | not set |
 
 If your account name on this machine is not your CERN login, set `EVD_USER` (or `--user`) to your CERN login. The
@@ -146,7 +146,8 @@ out of another person's user area ([Hosting](hosting.md#users-areas-and-their-ac
 
 ## Messages, and what to do
 
-Each message below follows `evd: ` at the start of the line.
+Each message below follows `evd: ` at the start of the line, except the usage error of `evd clean --days`, which
+argparse prints as `evd clean: error: ...` (exit code 2).
 
 | message | what to do |
 |---|---|
@@ -186,8 +187,9 @@ Any other message is a bug. Run the command again with `EVD_DEBUG=1`, and report
 - **Publishing.** `evd` copies the bundle under a temporary name, then renames it. It does the same for your
   `index.json`. So a reader never sees half a file. Where the site is not mounted, each of these steps is one `xrdcp`
   or `xrdfs` call.
-- **A step3 file** adds one cmsRun job: about 20 s to start, then 0.3 s per event without pile-up, or 1.6 s per event
-  at 200 pile-up (8 threads). Most of this time is CMSSW's own truth association.
+- **A step3 file** adds one cmsRun job. With 8 threads (`-j 8`; the default is 4) it took about 20 s to start, then
+  0.3 s per event without pile-up, or 1.6 s per event at 200 pile-up. Most of this time is CMSSW's own truth
+  association.
 
 **Measured sizes and times**, per event, on ttbar events with geometry `ExtendedRun4D104` and the integration build
 CMSSW_20_1_X_2026-11-12-2300:

@@ -24,7 +24,7 @@ In a CMSSW area for Phase-2 full simulation that has the `NANO:@EVD` step:
 cmsDriver.py step3 ... -s RAW2DIGI,RECO,RECOSIM,NANO:@EVD \
     --eventcontent FEVTDEBUGHLT,NANOAODSIM --datatier GEN-SIM-RECO,NANOAODSIM
 
-# 2. Convert the NanoAOD, publish it to your area of the site, and print the link
+# 2. Convert the NanoAOD, publish it to your user area on the site, and print the link
 evd step3_inNANOAODSIM.root
 
 # 3. Open the link, or send it to someone

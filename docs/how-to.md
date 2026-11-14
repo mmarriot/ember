@@ -35,7 +35,7 @@ publishes as usual. It tells you which settings it used:
   geometry.
 - **era:** the release's default for that geometry. A file does not record its era.
 
-If `evd` cannot tell, or if the file was made with other settings than these defaults, give them yourself:
+If `evd` cannot tell, or if the file was made with settings other than these defaults, give them yourself:
 
 ```bash
 evd step3.root --geometry D110 --era Phase2C17I13M9 --conditions auto:phase2_realistic_T33
@@ -46,8 +46,8 @@ To also keep the NanoAOD that `evd` made, add `--nano evd_nano.root`.
 **Which files work:** files with event content `FEVTDEBUGHLT` (RelVal `GEN-SIM-RECO` files have it) or `RECOSIM`.
 `AODSIM` and MiniAOD do not have the hits, so they do not work.
 
-**How long it takes:** about 20 s for the job to start, then about 0.3 s per event without pile-up, or 1.6 s per
-event at 200 pile-up (8 threads).
+**How long it takes:** measured with 8 threads, about 20 s for the job to start, then about 0.3 s per event without
+pile-up, or 1.6 s per event at 200 pile-up. `evd` runs the job with 4 threads by default; `-j 8` gives it 8.
 
 **The same by hand.** If you want the NanoAOD as a file of its own, run the step yourself, then `evd` on its output:
 
@@ -132,14 +132,20 @@ evd validate mine.evdb     # checks the structure of every event
 
 Write the bundle to a file with `-o FILE.evdb`, as above. Then drop it on any page of the viewer.
 
-Until the CMS site exists, you need to run a viewer yourself. In a clone of the repository, with Node 18 or later:
+Until the CMS site exists, you need to run a viewer yourself. Do this on your own computer, where your browser is:
 
-```bash
-cd viewer && npm ci && npm run dev      # then open http://127.0.0.1:5173
-```
+1. Copy the bundle to your computer, for example
+   `scp <your login>@lxplus.cern.ch:path/to/mine.evdb .`
+2. In a clone of the repository, with Node 18 or later:
 
-[CONTRIBUTING](https://github.com/mmarriot/evd/blob/main/CONTRIBUTING.md) says how to list bundles on this
-development server.
+   ```bash
+   cd viewer && npm ci && npm run dev      # then open http://127.0.0.1:5173
+   ```
+
+3. Drop `mine.evdb` on the page.
+
+[CONTRIBUTING](https://github.com/mmarriot/evd/blob/main/CONTRIBUTING.md#see-events-while-you-work) says how to list
+bundles on this development server.
 
 ## Publish from outside lxplus
 

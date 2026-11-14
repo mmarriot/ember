@@ -152,8 +152,8 @@ the step.
 
 - From a reco object, `X` goes to the associator's best match. For a hit or a layer cluster, it goes to the particle
   that left the most simulated energy in it.
-- From a truth object, `X` goes to the reco object of the latest reconstruction step whose own best match it is. If
-  there is none, it goes to the reco object that holds most of it.
+- From a truth object, `X` goes to a reco object of the latest reconstruction step. It picks the object whose best
+  match is this truth object. If there is none, it picks the object that holds most of the truth object.
 
 ### Showing less
 
@@ -231,7 +231,7 @@ In each tab, the collections are grouped by kind of object.
 accent colour when the cut differs from the profile's. Click it to open a slider in a pop-up:
 
 - the slider has a log scale over the values of the group in the event shown. Its lowest position means no cut;
-- it applies to every layer of the group, also layers listed elsewhere, which it names;
+- it applies to every layer of the group, including layers listed elsewhere (the pop-up names them);
 - it is named after the cut's `label`, or else its column;
 - the pop-up opens beside the panel, so the counts of the rows it cuts stay in sight.
 
@@ -411,9 +411,10 @@ threshold gets no dot and no green, because nothing says how good its match is.
 A step names its objects when there are three or fewer. Otherwise it counts them and unfolds to a list, largest
 first. Every object is a button that moves the selection there.
 
-Sometimes no relation says what contains an object of a reconstruction step (for example a trackster's linked
-trackster, interpretation and candidate). Then the card shows the object that holds the most of its parts, if that
-object holds at least half of them. It marks this as worked out in evd: "≈ holds 3 of its 4 parts". An object that
+For some objects, no relation in the bundle says what contains them. For example, nothing says which linked
+trackster, interpretation and candidate contain a trackster. Then evd works it out: the card shows the object that
+holds the most of the trackster's parts, if it holds at least half of them, and marks it "≈ holds 3 of its 4
+parts". An object that
 contains the selection is never listed among its parts.
 
 Collections of another reconstruction path (for example a PF candidate's CHS jet) are steps under their own name.
@@ -443,7 +444,7 @@ Each line is the step's own statement. No match is built through the parts ([Tru
 When a kind gets an associator in CMSSW, it gets a `match` relation in the profile. Its steps then show the match,
 with no change to the viewer.
 
-**The levels in the view.** Sometimes the view is built around another object than the selection: the pair's
+**The levels in the view.** Sometimes the view is built around an object other than the selection: the pair's
 candidate for a hit or a truth particle, or the object in focus for one of its parts. Then a line under the chain
 lists that object's levels, with the one drawn lit. Click another one, or press `↓` `↑`, to draw it.
 

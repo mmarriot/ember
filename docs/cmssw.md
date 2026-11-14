@@ -13,8 +13,8 @@ like any other NanoAOD file.
 
 > **Not merged yet.** The package is on two branches against CMSSW_20_1_X, which will become two pull requests:
 > `eventdisplay-nano-generic` (the generic table producers) and, on top of it, `eventdisplay-nano` (the other
-> producers and the flavour). Neither branch is pushed yet. Until the package is in a release, add it to a CMSSW area
-> with `git cms-merge-topic mmarriot:eventdisplay-nano` and `scram b`
+> producers and the flavour). Neither branch is pushed yet. Until the package is in a release, add it to a CMSSW area,
+> once the branch is pushed, with `git cms-merge-topic mmarriot:eventdisplay-nano` and `scram b`
 > ([Getting started](getting-started.md#what-you-need)). This page describes the branch as measured on
 > CMSSW_20_1_X_2026-11-12-2300. The package's own `README.md` in CMSSW has the full lists of columns.
 
@@ -40,8 +40,8 @@ cmsDriver.py evd -s NANO:@EVD --conditions <as the file> --geometry <as the file
 `evd step3.root` runs this for you ([The `evd` command](cli.md#evd-view)).
 
 **Scope today:** Phase-2 full simulation, on `FEVTDEBUGHLT` and `RECOSIM` content. A `RECOSIM` file gave the same
-rows in all 97 tables as the `FEVTDEBUGHLT` file of the same 10 events. Run 3, FastSim, premixed pile-up, real data,
-and `AODSIM` or MiniAOD inputs have not been tested.
+rows in all 97 tables as the `FEVTDEBUGHLT` file of the same 10 events. Run 3, FastSim, premixed pile-up and real
+data have not been tested. `AODSIM` and MiniAOD inputs lack the hits, so they are not supported.
 
 **When an input is missing.** The flavour needs Phase-2 RECO-level content. It was tested in the reconstruction job,
 and on `FEVTDEBUGHLT` and `RECOSIM` files.
@@ -51,7 +51,7 @@ and on `FEVTDEBUGHLT` and `RECOSIM` files.
   table keeps its columns, with the rows of the collections that are there.
 - With truth (the `enableTruth` modifier of the Phase-2 eras), the input must hold the truth graph
   (`truthLogicalGraphProducer` and its hit index). Without it, CMSSW's associators stop the job.
-- A reference into another collection than the configured one is an error. An index is never written into the wrong
+- A reference into a collection other than the configured one is an error. An index is never written into the wrong
   table.
 
 ## What it writes

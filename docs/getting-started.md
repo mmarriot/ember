@@ -16,16 +16,17 @@ You will:
 > CMS site. These addresses are provisional. Until the site exists, step 3 cannot publish: write a file instead, as
 > step 3 explains. See [Status](index.md#status).
 
-**Only want to look?** You do not need to run anything. Open `https://cms-evd.web.cern.ch` (provisional) and sign
-on with your CERN account. The site opens its newest shared sample. Then go to
-[step 4](#step-4-look-at-the-event).
+**Only want to look?** Once the site is set up, you will not need to run anything. Open
+`https://cms-evd.web.cern.ch` (provisional) and sign on with your CERN account. The site opens its newest shared
+sample. Then go to [step 4](#step-4-look-at-the-event).
 
 ## What you need
 
 - **A CERN account that is a member of CMS.** The site is behind the CERN single sign-on.
 - **A CMSSW area for Phase-2 full simulation that has the `NANO:@EVD` step.** See the box below.
 - **Python 3 with numpy and uproot.** `cmsenv` gives you both.
-- **Off lxplus:** a Kerberos ticket, so that `evd` can write to EOS. Run `kinit <your login>@CERN.CH`.
+- **Off lxplus:** a Kerberos ticket and the XRootD tools, so that `evd` can write to EOS. Run
+  `kinit <your login>@CERN.CH`, and `cmsenv` (it puts `xrdcp` and `xrdfs` in your `PATH`).
 
 > **Until the CMSSW pull requests are merged** (delete this box afterwards). No CMSSW release has `NANO:@EVD` yet.
 > Add it to a recent CMSSW_20_1_X integration build. `scram list -c CMSSW_20_1_X` lists the builds; they expire
@@ -75,7 +76,8 @@ evd 0.2.0
 
 **If it fails:**
 
-- `command not found`: the file is not in your `PATH`. Give its full path, for example `~/bin/evd --version`.
+- `command not found`: the command is not in your `PATH`. Give its full path, for example `~/bin/evd --version`.
+  After `pip install` outside a virtual environment, `evd` is usually in `~/.local/bin`.
 - `No module named 'numpy'` (or `'uproot'`): this Python lacks a package that evd needs. Run `cmsenv` first.
 
 ## Step 2: Make the event-display NanoAOD
@@ -137,9 +139,9 @@ https://cms-evd.web.cern.ch/#b=data/u/jsmith/step3_inNANOAODSIM.evdb
 The site keeps the bundle for 30 days.
 
 **Starting from a step3 file instead?** Run `evd step3.root`. `evd` first runs a short CMSSW job that makes the
-NanoAOD. It prints the geometry, conditions and era it chose. This takes about 20 s to start, then 0.3 s per event
-without pile-up, or 1.6 s per event at 200 pile-up. If `evd` cannot tell the geometry, see
-[Convert a step3 file](how-to.md#convert-a-step3-file-you-already-have).
+NanoAOD. It prints the geometry, conditions and era it chose. With 8 threads this took about 20 s to start, then
+0.3 s per event without pile-up, or 1.6 s per event at 200 pile-up. `evd` runs the job with 4 threads unless you give
+`-j`. If `evd` cannot tell the geometry, see [Convert a step3 file](how-to.md#convert-a-step3-file-you-already-have).
 
 **While the site does not exist**, publishing fails with `the site directory ... does not exist`. Write the bundle to
 a file instead:
@@ -160,6 +162,7 @@ site](how-to.md#look-at-a-bundle-without-the-site)). Skip step 5: a local file h
 | `... has none of the tables that the profile cms draws (it has: Jet, Muon, ...)` | This is analysis NanoAOD. Make the event-display NanoAOD as in [step 2](#step-2-make-the-event-display-nanoaod). |
 | `the site directory ... does not exist` | The site is not set up, or not reachable from here. Use `-o FILE.evdb`, as above. |
 | `cannot reach ...` or `cannot write ...: ... refused` | You have no valid Kerberos ticket. Run `kinit <your login>@CERN.CH`, then try again. |
+| `xrdfs not found ...` (or `xrdcp`) | You are not on lxplus, and the XRootD tools are not in your `PATH`. Run `cmsenv`, then try again. |
 | `'...' cannot be a login` | Your account name on this machine is not your CERN login. Add `--user <your CERN login>`. |
 
 Every message, and what to do about it, is in [The `evd` command](cli.md#messages-and-what-to-do).
@@ -191,8 +194,8 @@ All the controls are described in [Viewer](viewer.md).
 ## Step 5: Share the link
 
 Click the share button at the top right. It copies a link to what is on your screen, and it lists what the link
-opens: the data set, the event, the part of the detector, the view, the selected object and the colours. Anyone who
-can open the site sees the same thing.
+opens: the data set, the event, the part of the detector, the view, a kind of object shown alone, the selected
+object and the colours. Anyone who can open the site sees the same thing.
 
 The link does not keep your cuts, your ticked collections or the camera position.
 
@@ -222,7 +225,7 @@ There is no size limit per person yet. Please remove what you no longer need.
 
 ## What next
 
-- [How-to guides](how-to.md): convert a step3 file, choose events, name your bundle, keep a file to yourself.
+- [How-to guides](how-to.md): convert a step3 file, choose events, name your bundle, keep a bundle to yourself.
 - [Questions and problems](faq.md): what new users run into.
 - [Viewer](viewer.md): every control, the side panel, colours and the selection's card.
 - [The `evd` command](cli.md): every option and message.

@@ -14,7 +14,7 @@ analysis NanoAOD do not hold the hits or the links between objects.
 **`evd` says that the release has no `NANO:@EVD`, or cmsDriver says "Impossible to map EVD".**
 
 Your release does not have the event-display NanoAOD yet. Until it is merged, add it to your CMSSW area with
-`git cms-merge-topic mmarriot:eventdisplay-nano && scram b`
+`git cms-merge-topic mmarriot:eventdisplay-nano && scram b`, once the branch is pushed
 ([What you need](getting-started.md#what-you-need)).
 
 **`evd: display EcalHits: no column halfWidth`** (or another table and column)
@@ -38,7 +38,7 @@ files.
 
 `evd` prints the end of the cmsRun log. The usual reasons are:
 
-- The file was made with another release than the one you are in. Use the same release.
+- The file was made with a release other than the one you are in. Use the same release.
 - The file was made with an era or process modifiers that differ from the release's defaults for its geometry. Give
   `--era`. `evd` cannot pass process modifiers yet: run the `cmsDriver.py` command
   [by hand](how-to.md#convert-a-step3-file-you-already-have) with `--procModifiers`.

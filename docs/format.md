@@ -277,7 +277,7 @@ the circle of `radius` in η-φ, at `length`. For example, `{"to": {"r": 129, "z
 the calorimeter. Each vertex of the cone is placed in the shader at start + L · dir(η + R cos t, φ + R sin t), so the
 base is the jet's η-φ area seen from its vertex. In the ρ-z view a cone becomes a wedge on the side of its end.
 
-When the cone is seen from another part of the detector than its own shared one (header `domains[i].shared`), or when
+When the cone is seen from a part of the detector other than its own shared one (header `domains[i].shared`), or when
 the viewer asks for outlines, only its outline is drawn:
 
 - in 3D: its base circle and its silhouette;

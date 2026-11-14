@@ -71,3 +71,33 @@ def test_relation_out_of_range_is_rejected():
     tables = {"A": (1, {"k": np.array([9])}), "B": (5, {})}
     with pytest.raises(ValueError):
         _relation({"name": "r", "kind": "index", "from": "A", "to": "B", "index": "A.k"}, tables)
+
+
+def _write(path, threads, events=7, **kw):
+    rng = np.random.default_rng(1)
+    with BundleWriter(str(path), HEADER, threads=threads, **kw) as w:
+        w.add_run((1, 0, 0), {"Hits": (2, {"x": np.ones(2, np.float32), "flag": np.zeros(2, bool)})}, {})
+        for i in range(events):
+            n = int(rng.integers(0, 2000))
+            w.add((1, 1, events - i), {"Hits": (n, {"x": rng.random(n, np.float32), "flag": rng.random(n) > 0.5})}, {})
+    return open(path, "rb").read()
+
+
+def test_records_compressed_on_threads_are_written_in_the_order_added(tmp_path):
+    one = _write(tmp_path / "one.evdb", 1)
+    assert _write(tmp_path / "three.evdb", 3) == one and _write(tmp_path / "many.evdb", 16) == one
+    b = Bundle(str(tmp_path / "three.evdb"))
+    assert [e["event"] for e in b.events] == [7, 6, 5, 4, 3, 2, 1] and validate(str(tmp_path / "three.evdb")) == []
+    assert all(b.event(i)["event"] == [1, 1, 7 - i] for i in range(7))
+    _write(tmp_path / "sorted.evdb", 3, sort=True)
+    assert [e["event"] for e in Bundle(str(tmp_path / "sorted.evdb")).events] == list(range(1, 8))
+
+
+def test_a_record_that_cannot_be_written_leaves_no_file(tmp_path):
+    path = tmp_path / "broken.evdb"
+    with pytest.raises(KeyError):
+        with BundleWriter(str(path), HEADER, threads=2) as w:
+            w.add((1, 1, 1), {"Hits": (1, {"x": np.ones(1, np.float32)})}, {})
+            w.add((1, 1, 2), {"Hits": (1, {"x": np.ones(1, np.complex64)})}, {})  # no such column type
+            w.add((1, 1, 3), {"Hits": (1, {"x": np.ones(1, np.float32)})}, {})
+    assert not path.exists() and not list(tmp_path.glob("broken.evdb.tmp*"))

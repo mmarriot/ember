@@ -5,6 +5,7 @@ import os
 import time
 
 import numpy as np
+import pytest
 
 from evdtools.bundle import BundleWriter
 from evdtools.service import sync
@@ -146,3 +147,100 @@ def test_wildcard_stems_name_bundles_after_the_matched_path_parts(tmp_path):
     campaign = {"inputs": str(tmp_path / "*" / "v3" / "Events_1.root"), "stem": "wildcards"}
     assert _stem(campaign, str(tmp_path / "117135" / "v3" / "Events_1.root")) == "117135"
     assert _stem({"inputs": campaign["inputs"]}, str(tmp_path / "117135" / "v3" / "Events_1.root")) == "Events_1"
+
+
+def test_the_site_and_the_state_default_to_the_configured_site(tmp_path, monkeypatch):
+    config = setup(tmp_path, ["NANO_1.root"])
+    monkeypatch.setenv("EVD_SITE_DIR", config.pop("site"))
+    monkeypatch.setenv("EVD_SERVICE_DIR", str(tmp_path / "service"))
+    del config["state"]
+    assert sync(config, convert=fake_convert({})[0]) == 1
+    assert os.path.exists(tmp_path / "site" / "data" / "mct" / "NANO_1.evdb") and os.path.isdir(tmp_path / "service" / "state")
+
+
+def test_the_users_areas_are_not_a_campaign(tmp_path):
+    from evdtools.service import build_index
+    config = setup(tmp_path, ["NANO_1.root"])
+    convert, _ = fake_convert({})
+    sync(config, convert=convert)
+    area = tmp_path / "site" / "data" / "u" / "alice"
+    area.mkdir(parents=True)
+    convert(["mine.root"], str(area / "mine.evdb"), "cms", None, data_time=datetime.datetime(2026, 1, 1))
+    assert [b["file"] for b in build_index(config["site"])["bundles"]] == ["data/mct/NANO_1.evdb"]
+    config["campaigns"][0]["name"] = "u"
+    with pytest.raises(ValueError, match="cannot be named u"):
+        sync(config, convert=convert)
+
+
+def relval(tmp_path, files):
+    """A campaign of reconstruction files laid out as RelVals are: <sample>/GEN-SIM-RECO/<conditions>/<block>/<file>."""
+    store = tmp_path / "relval"
+    for k, f in enumerate(files):
+        (store / f).parent.mkdir(parents=True, exist_ok=True)
+        (store / f).write_bytes(b"")
+        os.utime(store / f, (time.time() - 3600 + k,) * 2)
+    return {"site": str(tmp_path / "site"), "state": str(tmp_path / "state"),
+            "campaigns": [{"name": "relval_20_1_0", "title": "RelVal CMSSW_20_1_0", "profile": "cms", "max_events": 5,
+                           "inputs": str(store / "RelVal*" / "GEN-SIM-RECO" / "*_D110_*" / "*" / "*.root"),
+                           "stem": "wildcards", "stem_parts": [0, 1, 2],
+                           "export": {"cmssw": "/areas/CMSSW_20_1_0", "geometry": "D110"}}]}
+
+
+def test_a_campaign_of_reconstruction_files_is_exported_then_converted_once_per_sample(tmp_path):
+    config = relval(tmp_path, ["RelValTTbar_14TeV/GEN-SIM-RECO/PU_201X_D110_PU-v1/2580000/aaa.root",
+                               "RelValTTbar_14TeV/GEN-SIM-RECO/PU_201X_D110_PU-v1/2580000/bbb.root",
+                               "RelValTTbar_14TeV/GEN-SIM-RECO/PU_201X_D110_PU-v1/2580001/ccc.root",
+                               "RelValZMM_14/GEN-SIM-RECO/201X_D110_noPU-v2/2580000/ddd.root"])
+    exported = []
+
+    def export(inputs, work, events, log, **settings):
+        exported.append((os.path.basename(inputs[0]), events, settings))
+        print("running cmsDriver.py", file=log)
+        assert os.path.isdir(work)
+        return os.path.join(work, os.path.basename(inputs[0]))
+    convert, converted = fake_convert({})
+    assert sync(config, convert=convert, export=export) == 2
+    assert exported == [("aaa.root", 5, {"cmssw": "/areas/CMSSW_20_1_0", "geometry": "D110"}),
+                        ("ddd.root", 5, {"cmssw": "/areas/CMSSW_20_1_0", "geometry": "D110"})]
+    assert [os.path.basename(c) for c in converted] == ["aaa.root", "ddd.root"]  # the NanoAOD the export made
+    listed = index(config)
+    assert [b["file"] for b in listed] == ["data/relval_20_1_0/ZMM_14_201X_noPU-v2.evdb",
+                                           "data/relval_20_1_0/TTbar_14TeV_PU_201X_PU-v1.evdb"]
+    assert listed[0]["campaign_title"] == "RelVal CMSSW_20_1_0" and listed[0]["title"] == "RelVal CMSSW_20_1_0 · ZMM_14_201X_noPU-v2 · 1 events"
+    assert sync(config, convert=convert, export=export) == 0 and len(exported) == 2  # the other files of a sample: never
+
+
+def test_a_failed_export_counts_as_a_failure_of_the_file(tmp_path):
+    from evdtools import Problem
+    config = relval(tmp_path, ["RelValTTbar_14TeV/GEN-SIM-RECO/PU_201X_D110_PU-v1/2580000/aaa.root"])
+
+    def export(inputs, work, events, log, **settings):
+        raise Problem("the export job failed (exit code 1)")
+    assert sync(config, convert=fake_convert({})[0], export=export) == 0
+    assert json.load(open(os.path.join(config["state"], "failures.json"))) == {"relval_20_1_0/TTbar_14TeV_PU_201X_PU-v1": 1}
+
+
+def test_files_directly_in_the_users_folder_neither_show_in_the_site_index_nor_break_it(tmp_path):
+    from evdtools.service import build_index
+    config = setup(tmp_path, ["NANO_1.root"])
+    convert, _ = fake_convert({})
+    sync(config, convert=convert)
+    users = tmp_path / "site" / "data" / "u"
+    users.mkdir()
+    convert(["leak.root"], str(users / "leak.evdb"), "cms", None, data_time=datetime.datetime(2026, 1, 1))
+    (users / "campaign.json").write_text('{"title": "Users"}')
+    (users / "empty.evdb").write_bytes(b"")
+    assert [b["file"] for b in build_index(config["site"])["bundles"]] == ["data/mct/NANO_1.evdb"]
+
+
+def test_a_broken_file_in_a_campaign_does_not_stop_the_index(tmp_path):
+    from evdtools.service import build_index
+    config = setup(tmp_path, ["NANO_1.root"])
+    sync(config, convert=fake_convert({})[0])
+    other = tmp_path / "site" / "data" / "other"
+    other.mkdir()
+    (other / "empty.evdb").write_bytes(b"")
+    (other / "short.evdb").write_bytes(b"EVDB\x01")
+    (other / "campaign.json").write_text("{not json")
+    assert [b["file"] for b in build_index(config["site"])["bundles"]] == ["data/mct/NANO_1.evdb"]
+    assert sync(config, convert=fake_convert({})[0]) == 0  # and the pass still ends with an index

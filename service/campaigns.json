@@ -1,6 +1,4 @@
 {
-  "site": "/eos/user/m/mmarriot/evd",
-  "state": "/eos/user/m/mmarriot/evd-service/state",
   "settle": 600,
   "max_failures": 3,
   "campaigns": [

@@ -1,7 +1,7 @@
 """The Converter: a display profile resolved against the tables of one file, which turns events into bundle records.
 
-Resolving drops what the file cannot serve: entries for tables the file lacks are dropped, so that one profile serves
-legacy-only, SoA-only and mixed files. Tables of the Runs tree are per-run tables: read once per run, available to
+Resolving a profile drops its entries for tables the file lacks, so that one profile serves legacy-only, SoA-only and
+mixed files. Tables of the Runs tree are per-run tables: read once per run, available to
 lookups, and written once per run.
 
 Each event then goes through these steps (Converter.event):
@@ -51,7 +51,7 @@ class Converter:
 
     def __init__(self, tables, profile, run_tables=None):
         """`tables`: the per-event tables of the file, `run_tables` the per-run ones (Runs tree), as discover() gives
-        them. The metadata of derived and copied columns is added to these dictionaries."""
+        them (see nano.discover). The metadata of derived and copied columns is added to these dictionaries."""
 
         def wanted(table):
             return not any(fnmatch.fnmatch(table, p) for p in profile.get("exclude", []))

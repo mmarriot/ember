@@ -70,10 +70,11 @@ and lists the table's columns.
 1. reads the tables;
 2. derives new columns;
 3. builds the relations (all normalised to CSR);
-4. cuts rows;
-5. applies the event selection;
-6. cuts the relations (indices renumbered, links to removed rows dropped);
-7. drops the internal tables.
+4. gathers columns through the relations;
+5. cuts rows;
+6. applies the event selection;
+7. renumbers index columns and cuts the relations (links to removed rows dropped);
+8. drops the internal and per-run tables.
 
 If the selection depends only on plain stored columns, a first pass reads just those branches. Full events are then
 read only for the selected entries.

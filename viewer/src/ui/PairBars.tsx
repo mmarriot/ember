@@ -1,4 +1,4 @@
-// The truth <-> reco pair the view is coloured by, in the selection's card (Navigator.tsx; model/pair.ts).
+// The truth <-> reco pair the view is coloured by, in the selection's card (Card.tsx; model/pair.ts).
 import { percent } from "../model/match";
 import { PAIR } from "../model/pair";
 import { PALETTES } from "../render/colour";

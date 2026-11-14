@@ -22,7 +22,6 @@ import { outlineObject } from "./outlines";
 import { type Hit, pickAll } from "./picking";
 import { REPLAY_OFF } from "./replay";
 
-export type { Hit, ViewName };
 type Pose = [position: THREE.Vector3, target: THREE.Vector3, zoom: number];
 
 /** Default smallest radius (cm) framed around objects; profiles set their own (view.minRadius). */
@@ -80,7 +79,7 @@ export class Engine {
   } | null = null;
   /** The drawn layers' envelope (camera.ts envelopeOf), computed when the tour first needs it. */
   private envelope: Envelope | null = null;
-  /** Smallest radius (cm) framed around objects (profile view.minRadius, set by the viewport). */
+  /** Smallest radius (cm) framed around objects (profile view.minRadius, set by ui/scene.ts). */
   minRadius = MIN_RADIUS;
   /** Pixels on the right of the view covered by a panel (the inspector): framing centres objects in the rest. */
   insetRight = 0;
@@ -555,6 +554,7 @@ export class Engine {
     // two mirror angles, so the camera does not swing across.
     const base = !selection || Math.abs(ctr.z) < 100 ? 1.2 : ctr.z > 0 ? 0.55 : Math.PI - 0.55;
     const az = [base, -base].reduce((a, c) => (Math.abs(angle(c - s.az)) < Math.abs(angle(a - s.az)) ? c : a));
+    // Critically damped: about 99% of the way after 6.6 / omega seconds.
     s.goal = {
       az: s.az + angle(az - s.az),
       el: selection ? 0.3 : 0.38,
@@ -562,7 +562,7 @@ export class Engine {
       target: ctr,
       spinW: selection ? 0 : 1,
       omega: 6.6 / Math.max(0.4, ms / 1000),
-    }; // critically damped: ~99% of the way after 6.6 / omega seconds
+    };
   }
 
   /** One frame of the tour camera, `dt` seconds after the last: the springs move towards the goal, and the camera

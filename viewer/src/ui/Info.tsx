@@ -59,9 +59,10 @@ export function Popover() {
     el.style.top = `${p.beside ? Math.max(8, Math.min(p.at.top - 8, innerHeight - h - 8)) : below + h > innerHeight - 8 ? Math.max(8, p.at.top - h - 6) : below}px`;
     el.style.visibility = "visible";
     const outside = (e: Event) => !el.contains(e.target as Node) && !p.owner.contains(e.target as Node);
+    // Close on a press elsewhere, or when its owner scrolled away.
     const away = (e: Event) => {
       if (outside(e)) popover.value = null;
-    }; // a press elsewhere, or its owner scrolled away
+    };
     document.addEventListener("pointerdown", away);
     document.addEventListener("scroll", away, true);
     return () => {

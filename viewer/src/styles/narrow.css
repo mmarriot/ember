@@ -4,8 +4,9 @@
 /* A bar with the domain buttons too (.parts): tighter before it wraps. */
 @media (max-width: 1300px) {
   .topbar.parts .chooser {
+    /* no jump box, the logo alone */
     flex-basis: clamp(120px, calc(100vw - 960px), 340px);
-  } /* no jump box, the logo alone */
+  }
   .topbar.parts {
     gap: 8px;
     padding: 0 10px;
@@ -14,14 +15,16 @@
     padding: 5px 8px;
   }
   .topbar.parts .brand {
+    /* the logo only */
     font-size: 0;
-  } /* the logo only */
+  }
   .topbar.parts .jump {
     display: none;
   }
   .topbar.parts .eventnav {
+    /* the data set menu shrinks instead */
     flex: none;
-  } /* the data set menu shrinks instead */
+  }
   .topbar.parts .eventid {
     min-width: 120px;
   }
@@ -42,8 +45,9 @@
   /* the top bar wraps, so the chooser's button may be anywhere on it: its panel takes the top of the window */
   .chooser,
   .topbar.parts .chooser {
+    /* a bar that wraps: its own row's share */
     flex: 0 1 340px;
-  } /* a bar that wraps: its own row's share */
+  }
   .chooserpanel {
     position: fixed;
     left: 8px;
@@ -119,9 +123,11 @@
     display: none;
   }
   .topbar .barlabel {
+    /* keeps the bar to three rows */
     display: none;
-  } /* keeps the bar to three rows */
+  }
   .menupanel {
+    /* a sheet */
     position: fixed;
     left: 8px;
     right: 8px;
@@ -129,5 +135,5 @@
     bottom: 8px;
     grid-template-columns: 1fr;
     max-height: 75vh;
-  } /* a sheet */
+  }
 }

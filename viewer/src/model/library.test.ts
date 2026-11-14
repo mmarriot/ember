@@ -95,10 +95,11 @@ describe("a name from a link or an index", () => {
       kind: "external",
       url: "https://elsewhere.example/a/x.ember?sig=1",
     });
+    // This site, spelt in full.
     expect(locate("https://ember.example/site/data/u/alice/x.ember", base)).toEqual({
       kind: "site",
       file: "data/u/alice/x.ember",
-    }); // this site, spelt in full
+    });
     expect(locate("https://ember.example/other/x.ember", base).kind).toBe("external");
     expect(locate("https://ember.example/site/data/x.ember?x=1", base).kind).toBe("external");
     for (const bad of [

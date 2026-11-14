@@ -79,7 +79,8 @@ publish the file it was made from: `ember FILE.root`.
 
 **The link I sent opens the right event, but not my cuts.**
 
-A link keeps the data set, the event, the part of the detector, the view, the selection and the colours. It does not
+A link keeps the data set, the event, the part of the detector, the view, the selection, a kind of object shown alone
+and the colours. It does not
 keep the cuts, the ticked collections or the camera position.
 
 **An event at 200 pile-up takes a while to open.**

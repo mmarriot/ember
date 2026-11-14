@@ -1,11 +1,12 @@
-// The card of the selected object: the one place that says where it sits and what the truth says about it. It
-// carries names and numbers; what each thing is, and how it is counted, is behind an "i" or the tag itself (Info.tsx).
+// The card of the selected object (the `.inspector` panel in styles/card.css): the one place that says where it sits
+// and what the truth says about it. It carries names and numbers; what each thing is, and how it is counted, is behind
+// an "i" or the tag itself (Info.tsx).
 // From the top:
 // - its chain (Chain.tsx), or for a truth object its lineage and what was reconstructed from it (TruthSide, below);
 // - the levels drawn in the view, when they are not the chain's own steps (ViewLevels);
 // - the truth <-> reco pair the view is coloured by (PairBars.tsx);
 // - for a reco object, its truth match (TruthCard.tsx);
-// - every association it has, with the relation's weights (Associations), and its columns (Columns.tsx);
+// - every association it has, with the relation's weights (Associations), and its columns (Properties.tsx);
 // - at the bottom edge, the object looked at from the card, while there is one (Looking).
 //
 // Which object it describes comes from the store: `subject` is the card's object and `selection` the object the view
@@ -38,7 +39,7 @@ import {
 } from "../model/store";
 import { Chain } from "./Chain";
 import { chip } from "./chips";
-import { keyColumns, Properties, Rows } from "./Columns";
+import { keyColumns, Properties, Rows } from "./Properties";
 import { Info } from "./Info";
 import { back } from "./navigate";
 import { PairBars } from "./PairBars";
@@ -51,7 +52,7 @@ const name = (r: Ref) => {
   return `${kindOf(r.table)}${n ? ` · ${n}` : ` #${r.row}`}`;
 };
 
-export function Navigator() {
+export function Card() {
   const b = bundle.value,
     ev = event.value,
     sel = subject.value,

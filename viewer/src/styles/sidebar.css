@@ -769,8 +769,9 @@ table.outcome td:nth-child(3) {
   gap: 2px 12px;
 }
 .colourkey .key:not(.inline) li {
+  /* a class and its meaning flow as one line of text */
   display: block;
-} /* a class and its meaning flow as one line of text */
+}
 .colourkey .key:not(.inline) i {
   display: inline-block;
   margin-right: 6px;

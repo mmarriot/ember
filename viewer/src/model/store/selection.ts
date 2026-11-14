@@ -1,6 +1,6 @@
 // The selection, the focus and what they show.
 //
-// The selection is the object the card (ui/Navigator.tsx) describes. The focus is the object clicked from outside any
+// The selection is the object the card (ui/Card.tsx) describes. The focus is the object clicked from outside any
 // focus (e.g. a candidate). While a focus lasts, it is drawn with its smallest parts (e.g. hits) and, on request, one
 // level in between (see `levels`), and only its objects can be picked. Selecting one of them keeps the focus;
 // selecting anything else focuses on it (the old focus is kept for "back"); clearing the selection (a click on

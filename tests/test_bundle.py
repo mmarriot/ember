@@ -8,7 +8,7 @@ import pytest
 
 from evdtools.__main__ import validate
 from evdtools.bundle import Bundle, BundleWriter, encode_record
-from evdtools.nano import _relation
+from evdtools.relations import build_relation
 
 HEADER = {
     "schema": "evd/1",
@@ -84,7 +84,7 @@ def test_columns_are_8_byte_aligned():
 )
 def test_relation_normalisation(rel, cols, expected):
     tables = {"A": (3, cols["A"]), "B": (5, {}), "L": (3, cols["L"])}
-    out = _relation(dict(rel, name="r", **{"from": "A", "to": "B"}), tables)
+    out = build_relation(dict(rel, name="r", **{"from": "A", "to": "B"}), tables)
     np.testing.assert_array_equal(out["offsets"], expected[0])
     np.testing.assert_array_equal(out["indices"], expected[1])
 
@@ -92,7 +92,7 @@ def test_relation_normalisation(rel, cols, expected):
 def test_relation_out_of_range_is_rejected():
     tables = {"A": (1, {"k": np.array([9])}), "B": (5, {})}
     with pytest.raises(ValueError):
-        _relation({"name": "r", "kind": "index", "from": "A", "to": "B", "index": "A.k"}, tables)
+        build_relation({"name": "r", "kind": "index", "from": "A", "to": "B", "index": "A.k"}, tables)
 
 
 def _write(path, threads, events=7, **kw):

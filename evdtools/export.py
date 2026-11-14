@@ -27,10 +27,10 @@ OUTPUT = "evd_nano.root"
 def describe(path):
     """("nano" or "edm", number of events, the CMSSW release that wrote it or None) of a ROOT file; a Problem if it
     is neither kind."""
-    from .nano import _open, written_by
+    from .nano import open_file, written_by
 
     try:
-        f = _open(path)
+        f = open_file(path)
     except Exception as e:  # noqa: BLE001 (uproot raises several kinds for a missing file, a non-ROOT file, no access)
         if not path.startswith("root://") and not os.path.exists(path):
             raise Problem(f"{path}: no such file") from None
@@ -60,12 +60,11 @@ def _stored_settings(blobs):
 def provenance(path):
     """(global tags, lists of geometry XML files) an EDM file was made with (see _stored_settings); two empty
     lists if its parameter sets cannot be read."""
-    from .nano import _open
+    from .nano import branch_bytes, open_file
 
     try:
-        with _open(path) as f:
-            branch = f["ParameterSets/IdToParameterSetsBlobs"]
-            return _stored_settings(b"".join(bytes(branch.basket(i).data) for i in range(branch.num_baskets)))
+        with open_file(path) as f:
+            return _stored_settings(branch_bytes(f["ParameterSets/IdToParameterSetsBlobs"]))
     except Exception:  # noqa: BLE001 (no such tree, or not readable: the settings are then asked for)
         return [], []
 

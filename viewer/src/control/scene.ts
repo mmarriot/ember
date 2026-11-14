@@ -80,7 +80,10 @@ export function replayEvent(): Plan | null {
   engine.stopReplay(); // a running replay ends first (its end resets `replaying`), so the rebuild below sticks
   solo.value = null; // the replay builds the whole event up, not one kind
   replaying.value = true; // rebuilds the layers at once (an effect), including the hidden stages
-  if (!entries.length) return null;
+  if (!entries.length) {
+    replaying.value = false; // nothing to replay, so no replay's end will reset it
+    return null;
+  }
   hover.value = null;
   // The phases follow the bundle's display hints, not the colours drawn: a colour mode or choice that colours hits
   // through a relation (e.g. "Particle type") must not make them appear with the clusters.

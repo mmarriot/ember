@@ -44,7 +44,8 @@ try {
 }
 
 /** A drag on the panel's edge: the width follows the pointer until it is released. The handle captures the pointer, so
- *  its moves keep coming when it leaves the thin handle. */
+ *  its moves keep coming when it leaves the thin handle. The capture ends on a release and also on a cancel (a touch
+ *  turned into a scroll), so the drag ends with it. */
 function startResize(e: PointerEvent) {
   const handle = e.currentTarget as HTMLElement;
   handle.setPointerCapture(e.pointerId);
@@ -55,7 +56,7 @@ function startResize(e: PointerEvent) {
     document.body.classList.remove("resizing");
   };
   handle.addEventListener("pointermove", move);
-  handle.addEventListener("pointerup", up, { once: true });
+  handle.addEventListener("lostpointercapture", up, { once: true });
 }
 
 export function Sidebar() {

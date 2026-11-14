@@ -2,7 +2,7 @@
 
 A static web page (TypeScript, Preact signals, three.js) that reads bundles over HTTP range requests: on opening, the
 header and index; then one request per event shown. What it draws and how comes from the bundle's display hints
-([format.md](format.md)). A first tour is in [Getting started](getting-started.md#4-five-things-to-try-first).
+([format.md](format.md)). A first tour is in [Getting started](getting-started.md#step-4-look-at-the-event).
 
 ## Data sets
 

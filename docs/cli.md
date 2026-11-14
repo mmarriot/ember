@@ -14,7 +14,7 @@ evd sync | publish | simulate | clean        the site's own commands (cron, oper
 evd --version                evd 0.2.0
 ```
 
-How to get it is in [Getting started](getting-started.md#the-evd-command). `python3 -m evdtools ...` from a clone is
+How to get it is in [Getting started](getting-started.md#step-1-get-the-evd-command). `python3 -m evdtools ...` from a clone is
 the same command. `-h` after any command prints its options.
 
 > The site's address and directory (`https://cms-evd.web.cern.ch`, `/eos/project/c/cms-evd/www`) are provisional:
@@ -142,7 +142,7 @@ area is the access rights of the folders on the site ([Hosting](hosting.md#users
 | `cmsDriver.py not found: run cmsenv first` | as above |
 | `FILE: cannot tell which geometry it was made with (...)` | give `--geometry`, e.g. `--geometry D110` |
 | `this release has no default for geometry G; give --era and --conditions` | give them |
-| `this CMSSW release has no NANO:@EVD. The event-display NanoAOD is the package DPGAnalysis/EventDisplayNanoAOD ...` | the CMSSW area lacks the flavour: add it as [Getting started](getting-started.md#before-you-start) says, or use a release that has it, then `cmsenv` and again |
+| `this CMSSW release has no NANO:@EVD. The event-display NanoAOD is the package DPGAnalysis/EventDisplayNanoAOD ...` | the CMSSW area lacks the flavour: add it as [Getting started](getting-started.md#what-you-need) says, or use a release that has it, then `cmsenv` and again |
 | `the export job failed (exit code N); the end of its output (all of it: FILE): ...` | the cmsRun job failed; its last lines follow and the whole log is kept in the file named. A wrong era or conditions for the file ends here: give `--era`, `--conditions` |
 | `LOGIN has no bundle named NAME (evd list)` | `evd list` shows the names |
 | `argument --days: 'N' is not a whole number of 1 or more` (`evd clean`) | give at least 1 |

@@ -7,13 +7,13 @@ What a first user runs into. Every message of the `evd` command, with what to do
 
 **`evd: ... has none of the tables that the profile cms draws (it has: Jet, Muon, ...)`.**
 The file is analysis NanoAOD. The event display needs the detector-level tables that CMSSW writes with the
-`NANO:@EVD` step ([Getting started](getting-started.md#2-your-own-events-from-a-new-reconstruction-job)); MiniAOD
+`NANO:@EVD` step ([Getting started](getting-started.md#step-2-make-the-event-display-nanoaod)); MiniAOD
 and analysis NanoAOD do not hold hits or the links between objects.
 
 **`evd` says the release has no `NANO:@EVD`, or cmsDriver says "Impossible to map EVD".**
 The release does not have the event-display NanoAOD. Until it is merged:
 `git cms-merge-topic mmarriot:eventdisplay-nano && scram b` in your area
-([Before you start](getting-started.md#before-you-start)).
+([What you need](getting-started.md#what-you-need)).
 
 **`evd: display EcalHits: no column halfWidth` (or another table and column).**
 The file and the converter are of different versions: the tables changed between them. Use the `evd` that goes with
@@ -32,7 +32,7 @@ defaults for that geometry). Detection covers Run4 geometries described by XML f
 `evd` prints the end of the cmsRun log. The usual reasons: the file was made with another release than the one you
 are in (use the same one); with an era or process modifiers that differ from the release's default for its geometry
 (`--era`; process modifiers cannot be passed yet: run the `cmsDriver.py` command of
-[Getting started](getting-started.md#3-a-step3root-you-already-have) by hand with `--procModifiers`); or with an
+[How-to guides](how-to.md#convert-a-step3-file-you-already-have) by hand with `--procModifiers`); or with an
 event content that lacks what the tables read (`FEVTDEBUGHLT` and `RECOSIM` are what is tested).
 
 **My account name here is not my CERN login.**

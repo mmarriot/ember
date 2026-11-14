@@ -3,21 +3,27 @@
 
 [project]
 site_name = "evd"
-site_description = "Web event display for CMS: events written by CMSSW as NanoAOD tables, turned into a link by one command and drawn in the browser"
+site_description = "A web event display for CMS: one command turns a CMSSW output file into a link, and the browser draws the event"
 site_url = "https://mmarriot.github.io/evd/"
-# A new page in docs/ needs its line here, or the site has no way to it.
+# A new page in docs/ needs its line here, or the site has no way to it. The menu is ordered by what a reader needs:
+# the tutorial, then recipes, then reference, then the background on truth, then the site's operators.
 nav = [
   { "Home" = "index.md" },
   { "Getting started" = "getting-started.md" },
-  { "The evd command" = "cli.md" },
-  { "CMSSW side" = "cmssw.md" },
-  { "Viewer" = "viewer.md" },
-  { "Truth" = "truth.md" },
-  { "Truth graph" = "truth-graph.md" },
-  { "Profiles" = "profiles.md" },
-  { "Bundle format" = "format.md" },
-  { "Hosting" = "hosting.md" },
+  { "How-to guides" = "how-to.md" },
   { "Questions and problems" = "faq.md" },
+  { "Reference" = [
+    { "The evd command" = "cli.md" },
+    { "Viewer" = "viewer.md" },
+    { "CMSSW side" = "cmssw.md" },
+    { "Profiles" = "profiles.md" },
+    { "Bundle format" = "format.md" },
+  ] },
+  { "Truth" = [
+    { "How truth is shown" = "truth.md" },
+    { "The truth graph" = "truth-graph.md" },
+  ] },
+  { "Hosting the site" = "hosting.md" },
 ]
 
 # Setting this table replaces Zensical's default extensions (smartsymbols, magiclink, ...), so the pages render as on

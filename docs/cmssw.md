@@ -9,7 +9,7 @@ and can be read with uproot or ROOT like any other.
 > `eventdisplay-nano-generic` (the generic table producers) and, on top of it, `eventdisplay-nano` (the other
 > producers and the flavour). Neither is pushed yet. Until the package is in a release, a CMSSW area gets it with
 > `git cms-merge-topic mmarriot:eventdisplay-nano` and `scram b` (see
-> [Getting started](getting-started.md#before-you-start)). This page describes the branch as measured on
+> [Getting started](getting-started.md#what-you-need)). This page describes the branch as measured on
 > CMSSW_20_1_X_2026-11-12-2300; the package's own `README.md` in CMSSW has the full column lists.
 
 ## Using it

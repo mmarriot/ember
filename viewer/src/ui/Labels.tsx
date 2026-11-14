@@ -22,7 +22,7 @@ import {
   shared,
 } from "../model/store";
 import { ranked } from "./navigate";
-import { engine } from "./Viewport";
+import { engine } from "./scene";
 
 /** The object under the pointer in the side panel's object rows. */
 export const rowHover = signal<Ref | null>(null);

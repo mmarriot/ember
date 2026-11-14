@@ -1,0 +1,103 @@
+/* What the view shows while no data set is open (Start.tsx): the start panel, the reason a data set did not open,
+   or that one is on its way; and the hint shown while a file is dragged over the page. */
+/* No data set open (Start.tsx): over the empty view, under the top bar's panels; the side panel, which would be
+   empty, gives its place to it. */
+.app.nodata .sidebar,
+.app.nodata .resizer {
+  display: none;
+}
+.app.nodata main {
+  grid-column: 1 / -1;
+  grid-row: 2 / -1;
+}
+.app.nodata .eventnav,
+.app.nodata .topbar > .views {
+  opacity: 0.4;
+} /* nothing to step through or turn: inert, disabled (Header.tsx, Viewport.tsx) */
+.app.nodata .topbar > .views button {
+  cursor: default;
+}
+.startpanel {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  padding: 24px;
+  overflow: auto;
+  background: var(--bg);
+}
+.startpanel > * {
+  margin: auto;
+} /* centred, and scrollable from its top when the view is short */
+.startpanel.quiet {
+  color: var(--muted);
+}
+.startpanel .card {
+  max-width: 560px;
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+.startpanel h1 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 8px;
+  font-size: 22px;
+}
+.startpanel p {
+  margin: 0 0 12px;
+}
+.startpanel ol {
+  margin: 0 0 12px;
+  padding-left: 20px;
+}
+.startpanel li {
+  margin: 8px 0;
+}
+.startpanel .link {
+  font-size: inherit;
+}
+.startpanel .buttons {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+.startpanel .detail {
+  font:
+    11px ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.command {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.drophint {
+  position: fixed;
+  inset: 0;
+  z-index: 12;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--overlay);
+  pointer-events: none;
+}
+.drophint > div {
+  padding: 28px 40px;
+  font-size: 16px;
+  text-align: center;
+  background: var(--surface);
+  border: 2px dashed var(--accent);
+  border-radius: 12px;
+}
+.drophint small {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}

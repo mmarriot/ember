@@ -1,33 +1,16 @@
-// The truth sections of the selection's card (ui/Navigator.tsx; docs/truth.md), the same for every kind of object:
+// The truth in the selection's card (Navigator.tsx; docs/truth.md), the same for every kind of object:
 // - for a reco object, its truth card: what the kind reconstructs, the associator's best match, and how good that
 //   match is in linear numbers (purity, completeness) next to the associator's own score, with the generator particle
 //   it belongs to;
 // - for a truth particle (and for a reco object's match), its lineage: where it sits in the truth graph, from the
 //   collision down to its daughters, with the levels it belongs to and the reco objects matched to it.
-// Every line says where it comes from: the simulation (fact), the CMSSW associator (a match, never "is"), or evd.
+// Every line says where it comes from: the simulation (a fact), the CMSSW associator (a match, never "is"), or evd.
 import type { Header } from "../io/format";
-import { completeness, percent, quality, TARGETS, type TruthStatus } from "../model/match";
+import { completeness, percent, quality, TARGETS } from "../model/match";
 import { bestPartners, identities } from "../model/relations";
-import { signal } from "@preact/signals";
-import { matchTally } from "../model/chain";
-import {
-  bundle,
-  describe,
-  event,
-  kindOf,
-  labelOf,
-  largestFirst,
-  layerOf,
-  modes,
-  short,
-  stepName,
-  truthName,
-  truthStatuses,
-} from "../model/store";
-import { passing } from "./Layers";
+import { bundle, describe, event, kindOf, labelOf, layerOf, modes, short, truthStatuses } from "../model/store";
 import { ObjChip } from "./chips";
 import { Info } from "./Info";
-import { jump } from "./navigate";
 
 /** Names of truth::LevelFlag bits worth showing on a particle (SimDataFormats/TruthInfo ParticleData.h). */
 const LEVELS: [number, string, string][] = [
@@ -430,170 +413,4 @@ function claimsOf(header: Header, truth: string, rows: Set<number>) {
       if (rows.has(partner[o])) out.set(partner[o], [...(out.get(partner[o]) ?? []), [info.from, o]]);
   }
   return out;
-}
-
-/** The count unfolded in the scorecard: "<table>|<class>". */
-const opened = signal<string | null>(null);
-const CLASSES = [
-  ["clean", "q-clean", "a best match with purity at or above the kind's threshold"],
-  ["impure", "q-impure", "a best match below the threshold: merged with, or mostly from, something else"],
-  [
-    "unmatched",
-    "q-unmatched",
-    "no match from the associator: a fake, or an object the associator does not consider (e.g. a candidate without calorimeter energy)",
-  ],
-] as const;
-
-/** The Truth tab's scorecard: for each reco kind the CMSSW associator matches, how many of the objects that pass their
- *  cuts and filters are a clean match, an impure one, or unmatched (model/chain.ts matchTally). A count unfolds to its
- *  objects, largest first: the event's fakes and merges, one click away. */
-export function Scorecard() {
-  const b = bundle.value,
-    ev = event.value,
-    statuses = truthStatuses.value;
-  if (!b || !ev || !modes.value.roots.truth) return null;
-  const rows = b.header.display
-    .filter((d, i, all) => !d.truth && !d.context && !d.alternative && all.findIndex((x) => x.table === d.table) === i)
-    .flatMap((d) => {
-      const s = statuses.get(d.table),
-        p = s?.kind === "match" ? passing(d) : null,
-        tally = s?.kind === "match" && p ? matchTally(ev, b.header, s.relation, p.pass) : null;
-      return tally && s?.kind === "match" ? [{ d, tally, match: s.match }] : [];
-    });
-  if (!rows.length) return null;
-  return (
-    <section class="scorecard">
-      <h3>
-        Reco ↔ truth in this event{" "}
-        <Info title="Reco ↔ truth in this event">
-          <p>
-            For each kind of reco object that CMSSW's associator matches to the truth: how many of the objects drawn
-            (passing their cuts and filters) are a clean match, an impure one, or have none.
-          </p>
-          <p>Click a number to list those objects, largest first; click one to select it.</p>
-          <p>Kinds without an associator are under Truth coverage.</p>
-        </Info>
-      </h3>
-      <table class="score">
-        <thead>
-          <tr>
-            <th />
-            {CLASSES.map(([name, , what]) => (
-              <th title={what}>{name === "unmatched" ? "no match" : name}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map(({ d, tally, match }) => {
-            const open = CLASSES.find(([name]) => opened.value === `${d.table}|${name}`)?.[0],
-              list = open ? largestFirst(d.table, tally[open]) : [];
-            return (
-              <>
-                <tr>
-                  <td
-                    title={`${match.target ? `They reconstruct ${TARGETS[match.target]}. ` : ""}${tally.good !== undefined ? `Clean: at least ${percent(tally.good)} of its ${match.measure === "hits" ? "hits" : match.measure === "pt2" ? "tracks' pT²" : "energy"} from its match.` : ""}`}
-                  >
-                    {stepName(d.table)}
-                  </td>
-                  {CLASSES.map(([name, cls]) => {
-                    const k = `${d.table}|${name}`,
-                      n = tally[name].length;
-                    return (
-                      <td>
-                        <button
-                          class={`num ${n ? cls : "zero"}`}
-                          disabled={!n}
-                          aria-expanded={opened.value === k}
-                          title={n ? "List them" : undefined}
-                          onClick={() => (opened.value = opened.value === k ? null : k)}
-                        >
-                          {n.toLocaleString()}
-                        </button>
-                      </td>
-                    );
-                  })}
-                </tr>
-                {open && (
-                  <tr class="list">
-                    <td colSpan={4}>
-                      {list.slice(0, 40).map((r) => (
-                        <button class={`chip q-${open}`} onClick={() => jump({ table: d.table, row: r })}>
-                          {describe(d.table, r) || `#${r}`}
-                        </button>
-                      ))}
-                      {list.length > 40 && <span class="muted"> … {list.length - 40} more</span>}
-                    </td>
-                  </tr>
-                )}
-              </>
-            );
-          })}
-        </tbody>
-      </table>
-    </section>
-  );
-}
-
-/** The Truth tab's first section: what the truth graph says about each kind drawn from this bundle (docs/truth.md
- *  "Where truth stops"), in the words of the inspector and the colour key. */
-export function Coverage() {
-  const b = bundle.value,
-    statuses = truthStatuses.value;
-  if (!b || !modes.value.roots.truth) return null;
-  const seen = new Set<string>(),
-    rows: [string, TruthStatus][] = [];
-  for (const d of b.header.display) {
-    const s = statuses.get(d.table),
-      kind = truthName(d.table);
-    if (!s || d.context || d.alternative || seen.has(kind)) continue;
-    seen.add(kind);
-    rows.push([kind, s]);
-  }
-  const gap = (n?: number) => (n !== undefined ? ` (truth-graph.md gap ${n})` : "");
-  const what = (s: TruthStatus) =>
-    s.kind === "match"
-      ? [
-          `matched by CMSSW`,
-          `${s.match.target ? `reconstruct ${TARGETS[s.match.target]}; ` : ""}clean from ${percent(s.match.good)} of its ${s.match.measure === "hits" ? "hits" : s.match.measure === "pt2" ? "tracks' pT²" : "energy"}${s.match.in ? ` (${s.match.in})` : ""}`,
-        ]
-      : s.kind === "fact"
-        ? [
-            "simulation fact",
-            `simulated energy per particle in each hit${s.in ? ` (${s.in})` : ""}${s.unit ? `, recorded per ${typeof s.unit === "string" ? s.unit : Object.values(s.unit.names).join(", ")}` : ""}`,
-          ]
-        : s.kind === "derived"
-          ? ["derived in evd", `${s.reason}${gap(s.gap)}`]
-          : s.kind === "container"
-            ? ["with what contains it", "no truth of its own: drawn in the colour of the object it belongs to"]
-            : ["no truth for this kind", `${s.reason}${gap(s.gap)}`];
-  // Folded to one line of counts (e.g. "7 matched · 9 no truth"): the list is long, and the collections come after it.
-  const counts = (["match", "fact", "derived", "container", "none"] as const)
-    .map((k) => [k, rows.filter(([, st]) => st.kind === k).length] as const)
-    .filter(([, n]) => n);
-  const SHORT = { match: "matched", fact: "fact", derived: "derived", container: "via container", none: "no truth" };
-  return (
-    <section class="coverage">
-      <details>
-        <summary>
-          <h3>Truth coverage</h3> <span class="count">{counts.map(([k, n]) => `${n} ${SHORT[k]}`).join(" · ")}</span>
-        </summary>
-        <p class="hint">
-          What the truth graph says about each kind: matched by CMSSW's associator, a simulation fact, or derived in
-          evd. Where it has no answer, evd builds none.
-        </p>
-        <ul class="coverage">
-          {rows.map(([kind, s]) => {
-            const [word, detail] = what(s),
-              why = s.kind === "none" || s.kind === "derived";
-            return (
-              <li class={s.kind === "none" ? "none" : undefined} title={detail}>
-                <span class="kindname">{kind}</span> {word}
-                {why && <span class="muted">: {detail}</span>}
-              </li>
-            );
-          })}
-        </ul>
-      </details>
-    </section>
-  );
 }

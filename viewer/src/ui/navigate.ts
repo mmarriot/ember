@@ -33,7 +33,7 @@ import {
   view,
 } from "../model/store";
 import type { Ref } from "../model/relations";
-import { engine } from "./Viewport";
+import { engine } from "./scene";
 
 export function jump(ref: Ref) {
   focusOn(ref);
@@ -80,7 +80,7 @@ export function cross() {
 }
 
 /** Look at one domain (header `domains`): only its layers, those of shared domains and those without a domain are
- *  drawn, in its view and colour mode (store.ts activeMode), and its layers' tab opens in the side panel; null:
+ *  drawn, in its view and colour mode (store/colours.ts activeMode), and its layers' tab opens in the side panel; null:
  *  everything, in the bundle's starting view. A selection is kept: the view frames its objects in the domain (e.g. a
  *  jet's calorimeter clusters), else the domain's region (All: the objects). `animate`: glide there. */
 export function chooseDomain(name: string | null, animate = true) {

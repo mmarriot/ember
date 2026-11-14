@@ -1,11 +1,12 @@
-// Guided tour: each event is built up step by step (model/tour.ts: outwards from the collision point, from the
-// detector's hits to the physics objects), each step's objects growing in while the camera frames them and a caption
-// says what they are; then the bundle's own view, whose leading objects (else main showers) are visited one by one
-// (selected, so the inspector describes them); then the next event; until any key or touch, or the play button.
-// A bundle without the kinds of object the steps name (test beam, cosmics) replays each event instead
-// (render/replay.ts), then visits its main showers. Profile view.tour "beam" (collider data): the camera starts on the
-// whole detector and never enters it (Engine.tourCamera); "orbit" (default): it frames the objects at their own scale
-// and orbits them.
+// The guided tour (key P), event after event until any key or touch, or the play button:
+// 1. The event is built up step by step (model/tour.ts: outwards from the collision point, from the detector's hits to
+//    the physics objects). Each step's objects grow in while the camera frames them and a caption says what they are.
+//    A bundle without the kinds of object the steps name (test beam, cosmics) is replayed instead (render/replay.ts).
+// 2. The event as the bundle shows it: its leading objects (else its main showers) are visited one by one, each
+//    selected so that the card describes it.
+// 3. The next event.
+// The camera follows the profile's view.tour: "beam" (collider data) starts on the whole detector and never enters it
+// (Engine.tourCamera); "orbit" (the default) frames the objects at their own scale and orbits them.
 import { batch, signal } from "@preact/signals";
 import type { DisplayLayer } from "../io/format";
 import {
@@ -34,7 +35,7 @@ import { startDomain } from "../model/domains";
 import { tourPlan } from "../model/tour";
 import { stopLive } from "./live";
 import { chooseDomain, ranked } from "./navigate";
-import { engine, growTables, replayEvent } from "./Viewport";
+import { engine, growTables, replayEvent } from "./scene";
 
 const ORBIT = 1.2; // turns per minute (orbit tours)
 const SHOWERS = 3; // visited per event

@@ -1,0 +1,820 @@
+/* The side panel (Sidebar.tsx): the presets, the tabs and their collections (Layers.tsx), the Truth and Event tabs,
+   and the colour key at the bottom; its edge can be dragged to resize it. */
+.sidebar {
+  background: var(--surface-2);
+  border-right: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+.tabs {
+  display: flex;
+  flex-direction: column;
+}
+.sidebar > .tabs {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+.sidebar > .presets {
+  margin: 10px 12px 0;
+}
+.tablist {
+  display: flex;
+  gap: 2px;
+  padding: 8px 12px 0;
+  border-bottom: 1px solid var(--line);
+  position: sticky;
+  top: 0;
+  background: inherit;
+  z-index: 1;
+}
+.tab {
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: none;
+  padding: 8px 10px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.tab:hover {
+  background: none;
+  color: var(--text);
+}
+.tab.active {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+  font-weight: 600;
+}
+.tab:focus-visible {
+  outline: none;
+  background: var(--accent-soft);
+}
+.tabpanel {
+  padding: 12px;
+}
+.sidebar .tablist {
+  background: var(--surface-2);
+  z-index: 2;
+}
+.resizer {
+  position: fixed;
+  top: var(--topbar);
+  bottom: 0;
+  left: calc(var(--sidebar) - 3px);
+  width: 6px;
+  cursor: col-resize;
+  z-index: 5;
+}
+.resizer:hover,
+.resizing .resizer {
+  background: var(--accent-soft);
+}
+.resizing {
+  cursor: col-resize;
+  user-select: none;
+}
+
+/* Presets: a caption, the list, and "apply again". */
+.presets {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+.presets select {
+  flex: 1;
+  min-width: 0;
+}
+.presets .icon-button {
+  flex: none;
+}
+
+/* Sections of a tab (kinds of object, truth, event) under small headings, ruled between. */
+.tabpanel section + section,
+.tabpanel section + details.others {
+  border-top: 1px solid var(--line);
+  margin-top: 8px;
+  padding-top: 8px;
+}
+.tabpanel section > h3 {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  margin-bottom: 2px;
+}
+.tabpanel section > h3 .count {
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 400;
+}
+/* A kind's heading folds it (Layers.tsx). */
+.tabpanel section > h3 .fold {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+}
+.tabpanel section > h3 .fold::before {
+  content: "▾ ";
+}
+.tabpanel section > h3 .fold[aria-expanded="false"]::before {
+  content: "▸ ";
+}
+.tabpanel section > h3 .fold:hover {
+  color: var(--text);
+  background: none;
+}
+details.others > summary {
+  font-weight: 600;
+}
+
+/* A kind's "only": draws that kind alone (the view says so while it lasts, viewport.css). */
+.tabpanel section > h3 .only {
+  float: right;
+  font-size: 10px;
+  padding: 0 6px;
+  border-radius: 8px;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--muted);
+  opacity: 0.55;
+}
+.tabpanel section > h3:hover .only,
+.tabpanel section > h3 .only:focus-visible {
+  opacity: 1;
+}
+.tabpanel section > h3 .only.on {
+  opacity: 1;
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+/* A collection's row: tick, glyph, name, its state as chips, its count and ⋯. */
+.layer {
+  padding: 2px 0;
+}
+.layer .row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.layer label {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  cursor: pointer;
+}
+.layer .row label {
+  flex: 1;
+  min-width: 0;
+}
+.layer .row .name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.layer .row .tag {
+  flex: none;
+  margin-left: -2px;
+}
+.layer .row .count {
+  margin-left: auto;
+}
+.layer .count {
+  white-space: nowrap;
+}
+.more {
+  flex: none;
+  border: none;
+  background: none;
+  color: var(--muted);
+  padding: 0 6px;
+  line-height: 1.2;
+  border-radius: 4px;
+}
+.more:hover,
+.more.on {
+  background: var(--surface);
+  color: var(--text);
+}
+.options {
+  margin: 4px 0 6px 24px;
+  padding: 6px 8px;
+  border-left: 2px solid var(--line-strong);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.options .legend {
+  margin: 0;
+}
+.layer.off .row .name {
+  color: var(--muted);
+}
+.layer .glyph {
+  width: 14px;
+  text-align: center;
+  color: var(--muted);
+  flex: none;
+}
+/* Truth colours: one word on a kind's heading (or row), rows of kinds without truth faint. */
+.truthword {
+  margin-left: 6px;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  padding: 0 4px;
+  border-radius: 3px;
+  border: 1px dashed var(--line-strong, var(--line));
+  color: var(--muted);
+  vertical-align: 1px;
+}
+.truthword.match,
+.truthword.fact {
+  border-style: solid;
+  color: var(--text);
+}
+.layer.faint {
+  opacity: 0.5;
+}
+/* The side panel's rows: state as chips, the cut as a chip that opens its slider. */
+.cutchip,
+.rowchip {
+  flex: none;
+  font-size: 10.5px;
+  line-height: 1.5;
+  padding: 0 6px;
+  border-radius: 8px;
+  white-space: nowrap;
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 400;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.cutchip {
+  margin-left: 6px;
+}
+.cutchip.changed,
+.rowchip.on {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.tabpanel section > h3 .cutchip {
+  vertical-align: 1px;
+}
+.layer .row .listbtn {
+  border: none;
+  background: none;
+  padding: 0 2px;
+  font: inherit;
+  font-size: 12px;
+  margin-left: auto;
+}
+.layer .row .listbtn:hover {
+  color: var(--text);
+}
+.layer .row > .count {
+  margin-left: auto;
+  padding: 0 2px;
+}
+.layer .row .rowchip + .count,
+.layer .row .cutchip + .count {
+  margin-left: 4px;
+}
+
+/* A cut: its slider and value, in the pop-up of its chip. */
+.cut {
+  margin: 2px 0 4px;
+}
+.cut > .sub {
+  font-size: 11px;
+  margin-left: 0;
+}
+.cutrow {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  font-size: 12px;
+}
+.cutrow input[type="range"] {
+  flex: 1;
+  min-width: 40px;
+  accent-color: var(--accent);
+}
+.cutname {
+  flex: none;
+  max-width: 42%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+}
+.cutvalue {
+  width: 74px;
+  padding: 2px 4px;
+}
+.cutrow .unit {
+  flex: none;
+}
+.popover .cut {
+  margin: 0;
+  min-width: 280px;
+}
+.filterpop code {
+  display: block;
+  margin: 0 0 8px;
+  overflow-wrap: anywhere;
+}
+
+/* Under a row: its colour scale, and behind ⋯ its colour choice, expression form and custom columns. */
+.legend {
+  margin: 3px 0 0 24px;
+  font-size: 11px;
+  color: var(--muted);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  align-items: center;
+}
+.legend:empty {
+  display: none;
+}
+.colourby {
+  font-size: 11px;
+  padding: 1px 4px;
+  max-width: 130px;
+}
+.ramp {
+  width: 56px;
+  height: 8px;
+  border-radius: 2px;
+  flex: none;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+.dots {
+  display: flex;
+  gap: 2px;
+}
+.dots i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: block;
+}
+.items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+}
+.items span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.items i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: block;
+}
+.defn {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 3px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+}
+.defn code {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.defn .muted {
+  flex: none;
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.exprform {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}
+.exprform .row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.exprform .name {
+  flex: 1;
+  min-width: 0;
+}
+.exprform input {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 5px 8px;
+}
+.exprform .expr {
+  font:
+    12px ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+}
+.exprform details {
+  margin-top: 0;
+}
+.feedback {
+  font-size: 11px;
+  color: var(--muted);
+  min-height: 1.45em;
+}
+.feedback.bad {
+  color: var(--error);
+}
+/* Physics tab: the event in one line, and each kind's largest objects. */
+.headline {
+  margin: 0 0 10px;
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+.headline b {
+  font-variant-numeric: tabular-nums;
+}
+table.objects {
+  width: calc(100% - 22px);
+  margin: 2px 0 6px 22px;
+  border-collapse: collapse;
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+table.objects th {
+  font-weight: 500;
+  color: var(--muted);
+  text-align: right;
+  padding: 0 4px;
+}
+table.objects td {
+  text-align: right;
+  padding: 1px 4px;
+  white-space: nowrap;
+}
+table.objects th:first-child,
+table.objects td:first-child {
+  text-align: left;
+  width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 0;
+}
+table.objects tbody tr {
+  cursor: pointer;
+}
+table.objects tbody tr:hover {
+  background: var(--surface);
+}
+table.objects tbody tr.selected {
+  background: var(--accent);
+  color: #fff;
+}
+table.objects tr.more {
+  cursor: default;
+  color: var(--muted);
+}
+table.objects tr.more td {
+  text-align: left;
+}
+/* Detector tab: one folded section per part of the detector. */
+details.part + details.part {
+  border-top: 1px solid var(--line);
+  margin-top: 6px;
+  padding-top: 6px;
+}
+details.part > summary {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  cursor: pointer;
+  padding: 2px 0 6px;
+  font-size: 13px;
+  color: inherit;
+}
+details.part > summary::before {
+  content: "▸";
+  color: var(--muted);
+}
+details.part[open] > summary::before {
+  content: "▾";
+}
+details.part > summary::-webkit-details-marker {
+  display: none;
+}
+details.part > summary .muted {
+  font-size: 11px;
+}
+details.part > summary .link {
+  margin-left: auto;
+}
+
+/* The Truth tab: the scorecard, the truth coverage, what became of each particle, and the tree. */
+section.scorecard {
+  margin: 0 0 12px;
+}
+table.score {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+table.score th {
+  font-weight: 500;
+  font-size: 11px;
+  color: var(--muted);
+  text-align: right;
+  padding: 0 2px 2px;
+}
+table.score td {
+  padding: 1px 2px;
+  text-align: right;
+}
+table.score td:first-child {
+  text-align: left;
+}
+table.score .num {
+  min-width: 34px;
+  padding: 0 6px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+table.score .num.zero {
+  color: var(--muted);
+  border-color: transparent;
+  background: none;
+  cursor: default;
+}
+table.score .num[aria-expanded="true"] {
+  border-color: currentColor;
+}
+table.score tr.list td {
+  text-align: left;
+  padding: 3px 0 6px;
+}
+table.score .num.q-clean {
+  color: var(--clean);
+}
+table.score .num.q-impure {
+  color: var(--impure);
+}
+table.score .num.q-unmatched {
+  color: var(--nomatch);
+}
+section.coverage {
+  margin: 0 0 12px;
+}
+section.coverage > details {
+  margin: 0;
+}
+section.coverage > details > summary {
+  color: inherit;
+}
+section.coverage > details > summary h3 {
+  display: inline;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+ul.coverage {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  font-size: 12px;
+}
+ul.coverage li {
+  margin: 0 0 3px;
+}
+ul.coverage .kindname {
+  font-weight: 600;
+}
+ul.coverage li.none {
+  opacity: 0.75;
+}
+table.outcome td {
+  padding: 2px 4px 2px 0;
+  font-size: 12px;
+  vertical-align: middle;
+}
+table.outcome td:nth-child(2) {
+  text-align: left;
+  white-space: nowrap;
+}
+table.outcome td:nth-child(3) {
+  color: var(--muted);
+  text-align: right;
+}
+.outcome .missed .chip {
+  border-color: #e5534b;
+}
+.tree ul {
+  list-style: none;
+  margin: 0;
+  padding-left: 14px;
+}
+.tree > ul {
+  padding-left: 0;
+}
+.tree li {
+  margin: 1px 0;
+}
+.tree .node {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+.tree .toggle {
+  width: 16px;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0;
+}
+.tree .label {
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  padding: 1px 4px;
+  border-radius: 4px;
+  font: inherit;
+}
+.tree .label:hover {
+  background: var(--surface-2);
+}
+.tree .label.selected {
+  background: var(--accent);
+  color: white;
+}
+.tree .swatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex: none;
+}
+.tree .found {
+  margin: 4px 0 8px;
+}
+.tree .chip.selected {
+  background: var(--accent);
+  color: white;
+}
+.tree input.expr {
+  width: 100%;
+  margin: 4px 0;
+}
+/* Per-event summary charts (Event tab): one row per group, label | bar | value. */
+.bars {
+  display: grid;
+  gap: 2px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.bar {
+  display: grid;
+  grid-template-columns: 2.5em 1fr 4.5em;
+  align-items: center;
+  gap: 6px;
+}
+.bar > span:first-child {
+  color: var(--muted);
+  text-align: right;
+}
+.bar > span:last-child {
+  text-align: right;
+}
+.bar .track {
+  height: 10px;
+  background: var(--surface-2);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.bar .track > span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+}
+/* The colour key under the tabs: which object each colour stands for, or the selection's truth <-> reco pair. */
+.colourkey {
+  flex: none;
+  max-height: 45%;
+  overflow-y: auto;
+  margin: 0;
+  padding: 8px 12px 10px;
+  border-top: 1px solid var(--line-strong);
+  background: var(--surface);
+}
+.colourkey > summary {
+  color: var(--text);
+  font-weight: 600;
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+.colourkey .hint {
+  margin: 4px 0 0;
+}
+.colourkey .switch {
+  float: right;
+  display: inline-flex;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  overflow: hidden;
+  font-weight: 400;
+}
+.colourkey .switch button {
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 11px;
+  padding: 1px 7px;
+  cursor: pointer;
+}
+.colourkey .switch button.on {
+  background: var(--line-strong);
+  color: var(--text);
+}
+.key.inline {
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+}
+.colourkey .key:not(.inline) li {
+  display: block;
+} /* a class and its meaning flow as one line of text */
+.colourkey .key:not(.inline) i {
+  display: inline-block;
+  margin-right: 6px;
+  vertical-align: -1px;
+}
+.key {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.key li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+}
+.key i {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex: none;
+}
+.key i.small {
+  width: 6px;
+  height: 6px;
+  margin: 0 2px;
+}
+.key .chip {
+  margin: 1px 0;
+}
+.key li b {
+  font-weight: 600;
+  color: var(--text, inherit);
+}
+.keyhelp {
+  margin: 4px 0 0;
+}
+
+/* Phones: the panel is a sheet under the view, folded to its tabs and the colour key's title (narrow.css); the
+   handle opens it. */
+.sheet-handle {
+  display: none;
+}

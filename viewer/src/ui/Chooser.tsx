@@ -34,7 +34,7 @@ import {
   refreshCatalogue,
 } from "../model/store";
 import { stopLive } from "./live";
-import { Icon } from "./widgets";
+import { Icon, usePressOutside } from "./widgets";
 
 /** Open or closed; the start panels open it too (ui/Start.tsx). */
 export const chooserOpen = signal(false);
@@ -123,15 +123,7 @@ export function Chooser() {
   const ref = useRef<HTMLDivElement>(null),
     button = useRef<HTMLButtonElement>(null),
     open = chooserOpen.value;
-  useEffect(() => {
-    // a press outside closes it
-    if (!open) return;
-    const away = (e: PointerEvent) => {
-      if (!ref.current?.contains(e.target as Node)) chooserOpen.value = false;
-    };
-    document.addEventListener("pointerdown", away);
-    return () => document.removeEventListener("pointerdown", away);
-  }, [open]);
+  usePressOutside(ref, open, () => (chooserOpen.value = false));
   // And so does the focus going elsewhere (Tab past its last link): a panel left open over the view, with the keys
   // back at the view, is in the way. A press on the panel's own background moves the focus nowhere, and keeps it.
   const onFocusOut = (e: FocusEvent) => {

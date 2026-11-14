@@ -1,7 +1,7 @@
 // The top bar's menu: every control of the view in one place, grouped, with its key and whether it is on. Many of
 // them have no button of their own (labels, replay, next object, levels), so the menu is where they can be found.
 import { signal } from "@preact/signals";
-import { useEffect, useRef } from "preact/hooks";
+import { useRef } from "preact/hooks";
 import {
   anchor,
   bundle,
@@ -25,7 +25,9 @@ import {
 import { toggleLive } from "./live";
 import { back, cross, nextDomain, nextObject, showWhole } from "./navigate";
 import { stopTour, toggleTour } from "./tour";
-import { engine, replayEvent, VIEWS } from "./Viewport";
+import { engine, replayEvent } from "./scene";
+import { VIEWS } from "./Viewport";
+import { usePressOutside } from "./widgets";
 
 /** Open or closed; Esc closes it first (App.tsx). */
 export const menuOpen = signal(false);
@@ -35,15 +37,7 @@ type Item = { label: string; keys?: string; on?: boolean; off?: boolean; run: ()
 export function Menu() {
   const ref = useRef<HTMLDivElement>(null),
     open = menuOpen.value;
-  useEffect(() => {
-    // a press outside closes it
-    if (!open) return;
-    const away = (e: PointerEvent) => {
-      if (!ref.current?.contains(e.target as Node)) menuOpen.value = false;
-    };
-    document.addEventListener("pointerdown", away);
-    return () => document.removeEventListener("pointerdown", away);
-  }, [open]);
+  usePressOutside(ref, open, () => (menuOpen.value = false));
 
   const parts = (bundle.value?.header.domains?.length ?? 0) >= 2,
     f = focus.value;

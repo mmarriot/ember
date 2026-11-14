@@ -1,15 +1,18 @@
 // An object's name as a button, wherever the selection's card names one. A click looks at it: the view shows it as a
-// selection (with its parts), and the card stays where it is (store.ts look). A double click opens its own card.
+// selection (with its parts), and the card stays where it is (store/selection.ts look). A double click opens its own card.
 // Pointing at it rings it in the view. For a kind the CMSSW associator matches, a dot says what it found for this
 // object: clean, impure or no match, so a list shows at a glance which are which.
 import { useEffect } from "preact/hooks";
 import { sameRef } from "../model/relations";
 import { anchor, describe, highlight, labelOf, look, matchOf, openCard, selection } from "../model/store";
 import { rowHover } from "./Labels";
-import { engine } from "./Viewport";
+import { engine } from "./scene";
 
 const WORDS = { clean: "clean match", impure: "impure match", unmatched: "no truth match", matched: "matched" };
 const glide = () => engine?.frame(highlight.peek() ?? undefined, true, 800);
+
+/** The chip of row `r` of table `t`, named as its kind describes it; `title`: more to say on hover. */
+export const chip = (t: string, r: number, title = "") => <ObjChip table={t} row={r} title={title} />;
 
 export function ObjChip({
   table,

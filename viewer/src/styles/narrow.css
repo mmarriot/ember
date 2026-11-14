@@ -1,0 +1,133 @@
+/* Narrower windows. Below 1300 px a top bar with the parts of the detector tightens; below 1100 px the parts become
+   a drop-down list; below 900 px the top bar wraps and the side panel goes under the view; below 700 px (phones)
+   the side panel is a sheet at the bottom. Last, so that these rules win over the ones they change. */
+/* A bar with the domain buttons too (.parts): tighter before it wraps. */
+@media (max-width: 1300px) {
+  .topbar.parts .chooser {
+    flex-basis: clamp(120px, calc(100vw - 960px), 340px);
+  } /* no jump box, the logo alone */
+  .topbar.parts {
+    gap: 8px;
+    padding: 0 10px;
+  }
+  .topbar.parts .segmented button {
+    padding: 5px 8px;
+  }
+  .topbar.parts .brand {
+    font-size: 0;
+  } /* the logo only */
+  .topbar.parts .jump {
+    display: none;
+  }
+  .topbar.parts .eventnav {
+    flex: none;
+  } /* the data set menu shrinks instead */
+  .topbar.parts .eventid {
+    min-width: 120px;
+  }
+}
+@media (max-width: 1100px) {
+  .topbar.parts .domains {
+    display: none;
+  }
+  .topbar.parts .domainlist {
+    display: inline-block;
+  }
+  .topbar.parts .chooser {
+    flex-basis: clamp(120px, calc(100vw - 720px), 340px);
+  }
+}
+
+@media (max-width: 900px) {
+  /* the top bar wraps, so the chooser's button may be anywhere on it: its panel takes the top of the window */
+  .chooser,
+  .topbar.parts .chooser {
+    flex: 0 1 340px;
+  } /* a bar that wraps: its own row's share */
+  .chooserpanel {
+    position: fixed;
+    left: 8px;
+    right: 8px;
+    top: 8px;
+    width: auto;
+    max-height: calc(100vh - 16px);
+  }
+  /* and the menu button too: the menu opens as a sheet at the bottom */
+  .menupanel {
+    position: fixed;
+    left: 8px;
+    right: 8px;
+    top: auto;
+    bottom: 8px;
+    max-height: 75vh;
+    overflow: auto;
+    justify-content: center;
+  }
+  .app {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 40vh 1fr;
+  }
+  .topbar {
+    flex-wrap: wrap;
+    padding: 8px;
+    gap: 8px;
+  }
+  .eventnav {
+    margin-left: 0;
+  }
+  .inspector {
+    width: calc(100% - 24px);
+    max-height: 50%;
+  }
+  .hintbar,
+  .resizer {
+    display: none;
+  }
+}
+
+@media (max-width: 700px) {
+  .app {
+    grid-template-rows: auto 1fr auto;
+  }
+  main {
+    grid-row: 2;
+  }
+  .sidebar {
+    grid-row: 3;
+    max-height: 55vh;
+    border-right: none;
+    border-top: 1px solid var(--line);
+  }
+  .sheet-handle {
+    display: block;
+    border: none;
+    border-radius: 0;
+    background: none;
+    color: var(--muted);
+    font-size: 11px;
+    padding: 4px;
+  }
+  .sidebar.closed > .tabs {
+    flex: none;
+  }
+  .sidebar.closed > .tabs > .tabpanel,
+  .sidebar.closed > .presets,
+  .sidebar.closed .colourkey > :not(summary) {
+    display: none;
+  }
+  .viewport > .views ~ .hintbar {
+    display: none;
+  }
+  .topbar .barlabel {
+    display: none;
+  } /* keeps the bar to three rows */
+  .menupanel {
+    position: fixed;
+    left: 8px;
+    right: 8px;
+    top: auto;
+    bottom: 8px;
+    grid-template-columns: 1fr;
+    max-height: 75vh;
+  } /* a sheet */
+}

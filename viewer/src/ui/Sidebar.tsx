@@ -1,7 +1,9 @@
-// Left panel: the profile's presets; a tab per part of the detector (layer `domain`) with its collections (with a domain
-// bar: a tab per shared domain, e.g. Physics, and one Detector tab for the parts, following the bar), the truth
-// (its collections, what became of each particle, the tree) and the event; the colour key under them. Its width can
-// be dragged.
+// The side panel: the profile's presets, the tabs, and the colour key under them (Key.tsx). The tabs:
+// - one per part of the detector (layer `domain`) with its collections (Layers.tsx). With a domain bar, the parts of
+//   the detector share one Detector tab, which follows the bar, and each shared domain (e.g. Physics) has its own;
+// - Truth (TruthTab.tsx): the scorecard, the truth collections, what became of each particle, and the tree;
+// - Event (EventInfo.tsx).
+// Its width can be dragged; on phones it is a sheet under the view, folded until a tab or its handle opens it.
 import { signal } from "@preact/signals";
 import type { ComponentChildren } from "preact";
 import { activePreset } from "../model/custom";
@@ -12,9 +14,49 @@ import { chooseDomain } from "./navigate";
 import { EventInfo } from "./EventInfo";
 import { ColourKey } from "./Key";
 import { Collections, tabOf } from "./Layers";
-import { Truth, treeRelations } from "./Tree";
+import { treeRelations } from "./Tree";
+import { TruthTab } from "./TruthTab";
 import { stopTour } from "./tour";
 import { Icon, Tabs } from "./widgets";
+
+/** Phones (narrow screens): the panel is a sheet under the view, folded to its tabs and the colour key's title until
+ *  a tab or the handle opens it; wider screens ignore it. */
+const sheetOpen = signal(false);
+
+// The panel's width: the CSS variable --sidebar on the root, remembered in this browser (when storage is available: not
+// always, e.g. in a private window). Read once, as the page loads.
+const DEFAULT_WIDTH = 340,
+  KEY = "evd.sidebar";
+function setWidth(px: number) {
+  const w = Math.round(Math.min(560, Math.max(260, px)));
+  document.documentElement.style.setProperty("--sidebar", `${w}px`);
+  try {
+    localStorage.setItem(KEY, String(w));
+  } catch {
+    /* not persisted */
+  }
+}
+try {
+  const w = Number(localStorage.getItem(KEY));
+  if (w) setWidth(w);
+} catch {
+  /* default width */
+}
+
+/** A drag on the panel's edge: the width follows the pointer until it is released. The handle captures the pointer, so
+ *  its moves keep coming when it leaves the thin handle. */
+function startResize(e: PointerEvent) {
+  const handle = e.currentTarget as HTMLElement;
+  handle.setPointerCapture(e.pointerId);
+  document.body.classList.add("resizing");
+  const move = (m: PointerEvent) => setWidth(m.clientX);
+  const up = () => {
+    handle.removeEventListener("pointermove", move);
+    document.body.classList.remove("resizing");
+  };
+  handle.addEventListener("pointermove", move);
+  handle.addEventListener("pointerup", up, { once: true });
+}
 
 export function Sidebar() {
   const b = bundle.value,
@@ -37,7 +79,7 @@ export function Sidebar() {
   ]);
   if (names.some((name) => detectors.includes(name)))
     tabs.push([DETECTOR, () => <Detector names={detectors.filter((name) => names.includes(name))} layers={reco} />]);
-  if (truth || treeRelations().length) tabs.push([truth ? "Truth" : "Tree", Truth]);
+  if (truth || treeRelations().length) tabs.push([truth ? "Truth" : "Tree", TruthTab]);
   tabs.push(["Event", EventInfo]);
   return (
     <>
@@ -142,40 +184,4 @@ function Detector({ names, layers }: { names: string[]; layers: DisplayLayer[] }
       })}
     </>
   );
-}
-
-/** Phones (narrow screens): the panel is a sheet under the view, folded to its tabs and the colour key's title until
- *  a tab or the handle opens it; wider screens ignore it. */
-const sheetOpen = signal(false);
-
-// Sidebar width: a CSS variable on the root, remembered per browser (storage may be unavailable, e.g. private mode).
-const DEFAULT_WIDTH = 340,
-  KEY = "evd.sidebar";
-function setWidth(px: number) {
-  const w = Math.round(Math.min(560, Math.max(260, px)));
-  document.documentElement.style.setProperty("--sidebar", `${w}px`);
-  try {
-    localStorage.setItem(KEY, String(w));
-  } catch {
-    /* not persisted */
-  }
-}
-try {
-  const w = Number(localStorage.getItem(KEY));
-  if (w) setWidth(w);
-} catch {
-  /* default width */
-}
-
-function startResize(e: PointerEvent) {
-  const handle = e.currentTarget as HTMLElement;
-  handle.setPointerCapture(e.pointerId);
-  document.body.classList.add("resizing");
-  const move = (m: PointerEvent) => setWidth(m.clientX);
-  const up = () => {
-    handle.removeEventListener("pointermove", move);
-    document.body.classList.remove("resizing");
-  };
-  handle.addEventListener("pointermove", move);
-  handle.addEventListener("pointerup", up, { once: true });
 }

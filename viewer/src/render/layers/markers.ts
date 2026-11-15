@@ -1,7 +1,8 @@
 // Markers: objects drawn as discs of constant size on screen (vertices, layer clusters, hits seen as points). One
 // point per object, so the vertex shader runs once per object.
 import * as THREE from "three";
-import { position, toF32, valueRange } from "../colour";
+import { toF32 } from "../../io/format";
+import { position, valueRange } from "../colour";
 import {
   baseUniforms,
   commonFields,

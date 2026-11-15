@@ -1,7 +1,8 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import { related } from "../model/relations";
-import { around, blobSource, Bundle, httpSource, type Source } from "./bundle";
+import { around, blobSource, Bundle, FormatError, httpSource, type Source } from "./bundle";
+import { gatedSource, testBundle } from "./testing";
 
 // One TICL v6 GPU event, made by: ember convert ... --max-events 1 -o golden/v6_1event.ember
 const golden = () =>
@@ -148,5 +149,57 @@ describe("event cache", () => {
     expect(around(0, 0, 10)).toEqual({ keep: [0, 1, 9], next: 1 }); // the first event shown
     expect(around(1, 0, 2)).toEqual({ keep: [1, 0], next: 0 });
     expect(around(0, 0, 1)).toEqual({ keep: [0], next: null });
+  });
+});
+
+describe("a bundle from anyone", () => {
+  it("reads a well-formed one", async () => {
+    const b = await Bundle.open(blobSource(testBundle({ events: 2 })));
+    expect([...(await b.event(1)).relations.R.indices]).toEqual([1, 0]);
+  });
+
+  it("refuses relations that would point outside their tables or loop for ever", async () => {
+    const bad = [
+      { offsets: [0, 1, 2], indices: [1, 2] }, // T has 2 rows
+      { offsets: [0, 4e9, 2], indices: [0, 1] }, // a loop over offsets[0]..offsets[1] would run 4e9 times
+      { offsets: [0, 1], indices: [0] }, // one offset short
+    ];
+    for (const r of bad) {
+      const b = await Bundle.open(blobSource(testBundle(r)));
+      await expect(b.event(0)).rejects.toBeInstanceOf(FormatError);
+    }
+  });
+
+  it("refuses a record that names a table the header lacks, or arrays outside the record", async () => {
+    const broken = [
+      (m: Record<string, unknown>) => ({ ...m, tables: { Nope: { n: 1, columns: { x: [0, 1] } } }, relations: {} }),
+      (m: Record<string, unknown>) => ({ ...m, tables: { T: { n: 2, columns: { x: [4096, 2] } } }, relations: {} }),
+    ];
+    for (const record of broken) {
+      const b = await Bundle.open(blobSource(testBundle({ record })));
+      await expect(b.event(0)).rejects.toBeInstanceOf(FormatError);
+    }
+  });
+
+  it("refuses an event it does not have", async () => {
+    const b = await Bundle.open(blobSource(testBundle()));
+    await expect(b.event(1)).rejects.toBeInstanceOf(RangeError);
+    await expect(b.event(Number.NaN)).rejects.toBeInstanceOf(RangeError);
+  });
+
+  it("reads a run's tables again after a failed read", async () => {
+    const blob = testBundle({ events: 2, runTable: true });
+    let fail = false,
+      runAt = -1;
+    const b = await Bundle.open(
+      gatedSource(blob, async (offset) => {
+        if (fail && offset === runAt) throw new Error("network");
+      }),
+    );
+    runAt = b.runs[0].offset!;
+    fail = true;
+    await expect(b.event(0)).rejects.toThrow("network");
+    fail = false; // the network is back
+    expect((await b.event(1)).tables.C.n).toBe(1);
   });
 });

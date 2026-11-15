@@ -20,7 +20,17 @@ if sys.version_info < (3, 7):
 import zipapp  # after the check: older versions lack what is used below
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-MAIN = "import sys\n\nfrom embertools.__main__ import main\n\nsys.exit(main())\n"
+# What the file runs. It checks the Python version first, in syntax that old versions parse, so that `ember` under the
+# system python3 of an old machine says what to do instead of failing on the first newer feature.
+MAIN = """import sys
+
+if sys.version_info < (3, 9):
+    sys.exit("ember needs Python 3.9 or later, and this python3 is %d.%d: run cmsenv first" % sys.version_info[:2])
+
+from embertools.__main__ import main
+
+sys.exit(main())
+"""
 
 
 def build(output):

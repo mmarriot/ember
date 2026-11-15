@@ -22,10 +22,10 @@ import {
   truthColours,
   view,
 } from "../model/store";
-import { toggleLive } from "./live";
-import { back, cross, nextDomain, nextObject, showWhole } from "./navigate";
-import { stopTour, toggleTour } from "./tour";
-import { engine, replayEvent } from "./scene";
+import { toggleLive } from "../control/live";
+import { back, cross, nextDomain, nextObject, showWhole } from "../control/navigate";
+import { stopTour, toggleTour } from "../control/tour";
+import { engine, replayEvent } from "../control/scene";
 import { VIEWS } from "./Viewport";
 import { usePressOutside } from "./widgets";
 

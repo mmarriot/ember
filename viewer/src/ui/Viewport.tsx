@@ -29,9 +29,9 @@ import {
 } from "../model/store";
 import type { ViewName } from "../io/format";
 import { Labels } from "./Labels";
-import { jump } from "./navigate";
-import { engine, startScene } from "./scene";
-import { stopTour, tourCaption } from "./tour";
+import { jump } from "../control/navigate";
+import { engine, startScene } from "../control/scene";
+import { stopTour, tourCaption } from "../control/tour";
 
 export function Viewport() {
   const canvas = useRef<HTMLCanvasElement>(null);

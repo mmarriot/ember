@@ -359,7 +359,7 @@ function arcLength(path: NonNullable<Layer["path"]>, i: number) {
   return length;
 }
 
-/** The tour's grow-in (ui/tour.ts): the objects of `layers` appear over `seconds`, outwards from the collision point
+/** The tour's grow-in (control/tour.ts): the objects of `layers` appear over `seconds`, outwards from the collision point
  *  (by distance: the bulk of them, 1st to 97th percentile, spread over the time), and paths grow from their starts at
  *  one speed (a path as long as the longest tenth takes all of it). Only these layers' clocks should run
  *  (Engine.replay `only`): the others stay as they are. */

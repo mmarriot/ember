@@ -23,7 +23,7 @@ import {
 } from "../model/store";
 import { Info } from "./Info";
 import { Collections } from "./Layers";
-import { jump } from "./navigate";
+import { jump } from "../control/navigate";
 import { passing } from "./ObjectRows";
 import { Tree, treeRelations } from "./Tree";
 

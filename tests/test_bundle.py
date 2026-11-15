@@ -115,9 +115,59 @@ def test_records_compressed_on_threads_are_written_in_the_order_added(tmp_path):
 
 
 def test_a_record_that_cannot_be_written_leaves_no_file(tmp_path):
+    """A record that fails to encode on a compression thread: the error comes out of the writer, and no file stays."""
     path = tmp_path / "broken.ember"
-    with pytest.raises(KeyError), BundleWriter(str(path), HEADER, threads=2) as w:
+    bad = {"clusterHits": {"offsets": np.array(["not a number"]), "indices": np.zeros(0, np.uint32)}}
+    with pytest.raises(ValueError), BundleWriter(str(path), HEADER, threads=2) as w:
         w.add((1, 1, 1), {"Hits": (1, {"x": np.ones(1, np.float32)})}, {})
-        w.add((1, 1, 2), {"Hits": (1, {"x": np.ones(1, np.complex64)})}, {})  # no such column type
+        w.add((1, 1, 2), {"Hits": (1, {"x": np.ones(1, np.float32)})}, bad)
         w.add((1, 1, 3), {"Hits": (1, {"x": np.ones(1, np.float32)})}, {})
     assert not path.exists() and not list(tmp_path.glob("broken.ember.tmp*"))
+
+
+def test_a_column_of_another_type_than_the_header_says_is_refused(tmp_path):
+    """A reader views the bytes as the header's type: float32 bytes under an f64 header would read as other numbers."""
+    eid, tables, rels = event(1)
+    tables["Clusters"][1]["e"] = tables["Clusters"][1]["e"].astype(np.float32)
+    with (
+        pytest.raises(ValueError, match=r"Clusters\.e is float32, but the header says f64"),
+        BundleWriter(str(tmp_path / "t.ember"), HEADER) as w,
+    ):
+        w.add(eid, tables, rels)
+    assert not list(tmp_path.iterdir())  # nothing left behind
+
+    complex_column = event(1)
+    complex_column[1]["Clusters"][1]["e"] = np.zeros(3, np.complex64)  # a type no bundle can store
+    extra_column = event(1)
+    extra_column[1]["Hits"][1]["y"] = np.zeros(7, np.float32)
+    for record, message in ((complex_column, r"Clusters\.e is complex64"), (extra_column, r"Hits\.y is not in the")):
+        with pytest.raises(ValueError, match=message), BundleWriter(str(tmp_path / "t.ember"), HEADER) as w:
+            w.add(*record)
+
+
+def test_validate_reports_damage_and_goes_on(tmp_path):
+    path = str(tmp_path / "t.ember")
+    with BundleWriter(path, HEADER) as w:
+        eid, tables, rels = event(1)
+        w.add(eid, tables, rels)
+        eid, tables, rels = event(2)
+        rels["clusterHits"]["indices"] = np.array([0, 6, 1, 2, 7])  # Hits has 7 rows
+        w.add(eid, tables, rels)
+        eid, tables, rels = event(3)
+        rels["clusterHits"]["offsets"] = np.array([0, 3, 2, 5])  # not increasing
+        w.add(eid, tables, rels)
+        eid, tables, rels = event(4)
+        rels["unknown"] = rels["clusterHits"]
+        w.add(eid, tables, rels)
+    b = Bundle(path)
+    first = b.events[0]
+    with open(path, "r+b") as f:  # damage event 0's compressed data
+        f.seek(first["offset"] + first["length"] // 2)
+        f.write(b"\xff" * 16)
+    problems = validate(path)
+    assert problems[0].startswith("event 0: cannot be read")
+    assert problems[1:] == [
+        "event 1: relation clusterHits points past Hits (7 rows)",
+        "event 2: relation clusterHits has bad offsets",
+        "event 3: relation unknown is not in the header",
+    ]

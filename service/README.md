@@ -94,7 +94,7 @@ Top-level keys:
 - optionally `site` and `state` (default: `EMBER_SITE_DIR` and `<EMBER_SERVICE_DIR>/state`).
 
 Each campaign has `name` (its folder under `data/`; not `u`), `title`, `inputs` (a glob), `profile`, and `max_events`
-per file. Optional keys:
+per file (0 or left out: all). Optional keys:
 
 - `xrootd`: a prefix for reading the inputs, for example `root://eoscms.cern.ch/`;
 - `stem: "wildcards"`: name the bundles after the wildcard parts of the path, for inputs that share a file name (one
@@ -120,8 +120,10 @@ CMSSW area (a release with `NANO:@EVD`, set up once with `cmsrel`).
 Then it runs `python3 -m embertools sync --config campaigns.json --max-files 1`. `EMBER_CONFIG` and `EMBER_MAX_FILES`
 override both values. The pass:
 
-1. takes the lock (`state/lock/`, created atomically). If another run holds it, the pass exits. A lock older than
-   3 h is treated as left by a dead run: it is removed, with that run's partial bundles;
+1. takes the lock (`state/lock/`, created atomically). If another run holds it, the pass exits. The run that holds it
+   touches it before each input, so a lock untouched for 3 h was left by a run that died. It is taken over by a rename
+   (only one of several passes can win it), and the partial bundles as old as it are removed. A run removes the lock
+   at its end only if it is still its own;
 2. lists each campaign's inputs, and skips those that already have a bundle, that were modified less than `settle`
    seconds ago (they may still be copying), or that failed `max_failures` times;
 3. converts at most `--max-files` of them, in natural file-name order, with the campaign's profile, keeping at most

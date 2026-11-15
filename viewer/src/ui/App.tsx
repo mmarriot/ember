@@ -9,6 +9,7 @@ import { effect, signal } from "@preact/signals";
 import { useEffect } from "preact/hooks";
 import type { ViewName } from "../io/format";
 import { startDomain } from "../model/domains";
+import { readLink, writeLink } from "../model/link";
 import { loadIdentity, loadRecent, mine, pruneRecent, refreshMine } from "../model/library";
 import {
   activeMode,
@@ -49,10 +50,10 @@ import { Card } from "./Card";
 import { menuOpen } from "./Menu";
 import { Sidebar } from "./Sidebar";
 import { DropHint, Start } from "./Start";
-import { back, chooseDomain, cross, nextDomain, nextObject, showWhole } from "./navigate";
-import { stopLive } from "./live";
-import { stopTour, toggleTour } from "./tour";
-import { engine, replayEvent } from "./scene";
+import { back, chooseDomain, cross, nextDomain, nextObject, showWhole } from "../control/navigate";
+import { stopLive } from "../control/live";
+import { stopTour, toggleTour } from "../control/tour";
+import { engine, replayEvent } from "../control/scene";
 import { Viewport } from "./Viewport";
 import { Toasts } from "./widgets";
 
@@ -94,7 +95,7 @@ export function App() {
  *  (#b=…&e=…); an address written as a query (?b=…&e=…) works too. `e` is the event's place in the file, from 0 (the
  *  top bar counts from 1: "2 of 50"), not its event number (the "Event…" box takes that). */
 function openFromAddress() {
-  const url = new URLSearchParams(location.hash.slice(1) || location.search.slice(1));
+  const link = readLink(location.hash.slice(1) || location.search.slice(1));
 
   // Who the page is for, and their files, are asked for at once, in the background; a linked data set does not wait
   // for them. A bare address opens the site's newest shared data set as soon as the site's list is in. Only a site
@@ -102,7 +103,7 @@ function openFromAddress() {
   loadRecent();
   const shared = refreshCatalogue(),
     own = loadIdentity().then(() => refreshMine());
-  const linked = url.get("b") || null; // "b=" names nothing
+  const linked = link?.bundle ?? null;
   restoring.value = linked;
 
   (linked ? Promise.resolve() : shared.then(() => (catalogue.value.bundles.length ? undefined : own)))
@@ -111,21 +112,16 @@ function openFromAddress() {
       started.value = true;
       // The address's view, selection and colours are for its data set, once its event is on screen. Another data set
       // chosen while the link's was on its way wins: openBundle then returns false (store/open.ts).
-      if (!name || !(await openBundle(name, undefined, Number(url.get("e") ?? 0))) || !linked) return;
+      if (!name || !(await openBundle(name, undefined, link?.event ?? 0)) || !link) return;
 
-      const d = url.get("d"); // "All": everything, in a bundle that opens on a domain
+      const { domain: d, view: v, only, selection: s, truth, level } = link;
       if (d) chooseDomain(d === ALL ? null : d, false);
-      const v = url.get("v") as ViewName | null;
-      if (v && Object.values(VIEW_KEYS).includes(v)) view.value = v;
-      const only = url.get("only"); // one kind alone
+      if (v && (Object.values(VIEW_KEYS) as string[]).includes(v)) view.value = v as ViewName;
       if (only && bundle.peek()?.header.display.some((l) => soloKey(l) === only)) solo.value = only;
       // A link made before the data set was converted again may name a row that no longer exists.
-      const [table, row] = (url.get("s") ?? "").split(":");
-      if (table && row && Number(row) < (event.peek()?.tables[table]?.n ?? 0))
-        selection.value = { table, row: Number(row) };
-      if (url.get("c") === "truth" && truthColours.peek()) colourChoice.value = "truth";
-      const lv = url.get("lv");
-      if (lv && selection.peek()) focusLevel.value = lv; // a level the focus does not have is ignored (store/selection.ts shownLevel)
+      if (s && s.row < (event.peek()?.tables[s.table]?.n ?? 0)) selection.value = s;
+      if (truth && truthColours.peek()) colourChoice.value = "truth";
+      if (level && selection.peek()) focusLevel.value = level; // a level the focus does not have is ignored (store/selection.ts shownLevel)
     })
     .finally(() => (restoring.value = null));
 }
@@ -167,14 +163,14 @@ function writeAddress() {
     const s = selection.value,
       d = domain.value ?? (startDomain(bundle.value?.header) ? ALL : null),
       lv = s && shownLevel.value;
-    const p = new URLSearchParams({
-      b: bundleName.value,
-      e: String(eventIndex.value),
-      v: view.value,
-      ...(d ? { d } : {}),
-      ...(s ? { s: `${s.table}:${s.row}` } : {}),
-      ...(lv ? { lv } : {}),
-      ...(activeMode.value === "truth" ? { c: "truth" } : {}),
+    const address = writeLink({
+      bundle: bundleName.value,
+      event: eventIndex.value,
+      view: view.value,
+      ...(d ? { domain: d } : {}),
+      ...(s ? { selection: s } : {}),
+      ...(lv ? { level: lv } : {}),
+      truth: activeMode.value === "truth",
       ...(solo.value ? { only: solo.value } : {}),
     });
 
@@ -187,10 +183,10 @@ function writeAddress() {
         (opening.value === link || (opening.value === null && (!bundleName.value || bundleName.value === link)));
     if (held) return;
 
-    // A local file has no address: a link to it would open nothing, not even for me after a reload.
-    if (opened.value?.local) history.replaceState(null, "", location.pathname + location.search);
-    // "/" and ":" may stand as they are in a fragment: the link reads b=data/u/alice/x.ember, not b=data%2Fu%2F…
-    else if (bundleName.value) history.replaceState(null, "", `#${p}`.replace(/%2F/g, "/").replace(/%3A/g, ":"));
+    // A local file has no address: a link to it would open nothing, not even for me after a reload (nor would an old
+    // ?b= query, which a reload would follow).
+    if (opened.value?.local) history.replaceState(null, "", location.pathname);
+    else if (bundleName.value) history.replaceState(null, "", `#${address}`);
   });
 }
 
@@ -247,6 +243,7 @@ function listenForDrops() {
     const file = e.dataTransfer?.files[0];
     if (file) {
       stopLive();
+      stopTour();
       void openLocal(file);
     }
   };

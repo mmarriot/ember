@@ -162,6 +162,16 @@ def test_a_reconstruction_file_is_exported_first(setup, capsys, monkeypatch):
     assert main(["step3.root", "ttbar.root"]) == 1 and "mix" in capsys.readouterr().err
     assert main(["convert", "step3.root", "-o", "x.ember"]) == 1 and "ember view" in capsys.readouterr().err
 
+    # Events asked for by number may be anywhere in the file: all of it is exported, whatever --max-events says.
+    calls.clear()
+    main(["step3.root", "--profile", "test.json", "--events", "40,41", "--max-events", "2", "-o", "x.ember"])
+    assert calls[0][1] is None and "of all of them with cmsRun" in capsys.readouterr().out
+
+
+def test_a_run_information_file_that_is_not_there_stops_before_converting(setup, capsys):
+    assert main(["convert", "ttbar.root", "-o", "x.ember", "--profile", "test.json", "--run-info", "runs.jsn"]) == 1
+    assert "no run information file runs.jsn" in capsys.readouterr().err and not os.path.exists("x.ember")
+
 
 def test_the_older_commands_still_work(setup, capsys):
     for command in ("convert", "from-nano"):
@@ -337,3 +347,31 @@ def test_list_gives_the_link_of_a_bundle_named_like_a_column_heading(setup, caps
     capsys.readouterr()
     assert main(["list", "-l"]) == 0
     assert capsys.readouterr().out.splitlines()[2].strip() == "https://ember.example/#b=data/u/alice/NAME.ember"
+
+
+def test_the_command_starts_without_numpy():
+    """`ember list` and `ember rm` run before cmsenv, where python3 has no numpy: only the commands that read bundles
+    import it, and without it they say what to do (main)."""
+    code = "import sys; import embertools.__main__; print('numpy' in sys.modules)"
+    out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True).stdout
+    assert out.strip() == "False"
+
+
+def test_a_command_that_needs_numpy_says_to_run_cmsenv(monkeypatch, capsys):
+    from embertools import __main__
+
+    def needs_numpy(args):
+        raise ModuleNotFoundError("No module named 'numpy'", name="numpy")
+
+    monkeypatch.setitem(__main__.COMMANDS, "inspect", needs_numpy)
+    assert main(["inspect", "x.ember"]) == 1
+    assert capsys.readouterr().err == "ember: this command needs the Python package numpy: run cmsenv first\n"
+
+
+def test_inspect_says_what_an_empty_bundle_holds(setup, capsys):
+    from embertools.bundle import BundleWriter
+
+    header = {"schema": "evd/1", "profile": "t", "source": {"files": ["x.root"]}, "tables": {}, "relations": {}}
+    with BundleWriter("empty.ember", {**header, "display": []}):
+        pass
+    assert main(["inspect", "empty.ember"]) == 0 and "empty.ember: 0 events" in capsys.readouterr().out

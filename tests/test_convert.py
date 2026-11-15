@@ -63,7 +63,7 @@ def test_selection_and_per_run_tables(files):
 
 def test_chosen_events_in_event_order(files):
     profile, with_runs, _, tmp = files
-    b, log = run([with_runs], tmp / "a.ember", profile, events={3, 1, 0, 99})
+    b, log = run([with_runs], tmp / "a.ember", profile, events=[(0, 1), (3, 3), (99, 99)])
     assert [e["event"] for e in b.events] == [0, 3]  # event 1 fails the selection
     assert "3 of the requested events" in log
 

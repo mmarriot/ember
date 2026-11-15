@@ -41,10 +41,10 @@ import { Chain } from "./Chain";
 import { chip } from "./chips";
 import { keyColumns, Properties, Rows } from "./Properties";
 import { Info } from "./Info";
-import { back } from "./navigate";
+import { back } from "../control/navigate";
 import { PairBars } from "./PairBars";
 import { Lineage, TruthCard } from "./TruthCard";
-import { engine } from "./scene";
+import { engine } from "../control/scene";
 import { Icon } from "./widgets";
 
 const name = (r: Ref) => {

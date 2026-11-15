@@ -6,7 +6,7 @@ import { useEffect } from "preact/hooks";
 import { sameRef } from "../model/relations";
 import { anchor, describe, highlight, labelOf, look, matchOf, openCard, selection } from "../model/store";
 import { rowHover } from "./Labels";
-import { engine } from "./scene";
+import { engine } from "../control/scene";
 
 const WORDS = { clean: "clean match", impure: "impure match", unmatched: "no truth match", matched: "matched" };
 const glide = () => engine?.frame(highlight.peek() ?? undefined, true, 800);

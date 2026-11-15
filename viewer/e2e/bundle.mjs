@@ -716,7 +716,7 @@ async function deepChecks(page, h, fail, shot) {
   await page.keyboard.press("Escape"); // the replay and tour start from the whole event
   await checkReplay(page, h, fail);
 
-  // The tour builds the event up step by step (ui/tour.ts: its captions in the order of the plan, window.emberTourPlan),
+  // The tour builds the event up step by step (control/tour.ts: its captions in the order of the plan, window.emberTourPlan),
   // or for a bundle without the kinds the steps name, replays it and selects its main showers; any key stops it.
   const cam = () => page.evaluate(() => window.emberEngine.cam3d.position.toArray().map(Math.round).join());
   const c0 = await cam();

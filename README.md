@@ -66,7 +66,8 @@ CMSSW ── NANO:@EVD ──► NanoAOD ── ember ──► .ember bundle �
 ```
 embertools/          the `ember` command: converter, bundle reader and writer, site and user areas, export from step3
 embertools/profiles/ the profiles
-viewer/              the viewer: src/io (reader), src/model (state), src/render (three.js), src/ui; e2e/ (browser checks)
+viewer/              the viewer: src/io (reader), src/model (state), src/render (three.js), src/control (store to
+                     engine: scene, navigation, live, tour), src/ui (components); e2e/ (browser checks)
 tests/               Python tests
 golden/              one simulated event as a bundle, read by the viewer's tests
 docs/                the documentation site (built with zensical.toml)

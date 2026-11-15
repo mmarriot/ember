@@ -23,7 +23,7 @@ import {
 } from "../model/store";
 import { chip } from "./chips";
 import { Info, togglePopover } from "./Info";
-import { chooseDomain } from "./navigate";
+import { chooseDomain } from "../control/navigate";
 
 const INLINE = 3; // a step with at most this many objects names them; a longer one counts them and unfolds
 const LISTED = 40; // objects listed in an unfolded step

@@ -46,7 +46,54 @@ def load_profile(name_or_path, _within=()):
         included = load_profile(name, (*_within, key))
         included.pop("name", None)
         merged = _merge(merged, included)
-    return _merge(merged, profile)
+    merged = _merge(merged, profile)
+    if not _within:  # once, on the whole profile: an included one may leave keys to the profile that includes it
+        check_shape(merged, name_or_path)
+    return merged
+
+
+# The keys an entry of each list must have; the converter reads them without asking (docs/profiles.md).
+REQUIRED = {
+    "relations": ("name", "kind"),
+    "display": ("table", "label", "position"),
+    "derive": ("table",),
+    "select": ("table",),
+}
+
+
+def check_shape(profile, where):
+    """A Problem that says what is missing where, for a profile whose lists and cuts are not shaped as
+    docs/profiles.md says; without it, a missing key would surface as a traceback deep in the converter."""
+    kinds = profile.get("kinds", {})
+    for section, keys in REQUIRED.items():
+        entries = profile.get(section, [])
+        if not isinstance(entries, list):
+            raise Problem(f"profile {where}: {section} must be a list")
+        for k, entry in enumerate(entries):
+            if not isinstance(entry, dict):
+                raise Problem(f"profile {where}: {section}[{k}] must be an object")
+            if section == "display":  # a layer takes the keys of its kind (display.py)
+                entry = {**kinds.get(entry.get("kind"), {}), **entry}
+            label = f"{section}[{k}]" + (f" ({entry['name']})" if "name" in entry else "")
+            needed = (
+                [*keys, *(("via",) if entry.get("kind") == "compose" else ("from", "to"))]
+                if section == "relations"
+                else keys
+            )
+            missing = [key for key in needed if key not in entry]
+            if missing:
+                raise Problem(f"profile {where}: {label} has no {', '.join(repr(m) for m in missing)}")
+    cuts = profile.get("cuts", {})
+    if not isinstance(cuts, dict):
+        raise Problem(f"profile {where}: cuts must be an object of table: [conditions]")
+    for table, conds in cuts.items():
+        if not isinstance(conds, list) or not all(
+            isinstance(c, dict) or (isinstance(c, list) and len(c) == 3) for c in conds
+        ):
+            raise Problem(
+                f"profile {where}: cuts of {table} must be a list of conditions, each [column, operator, number]"
+                " or an object"
+            )
 
 
 def _find_file(name_or_path, within):

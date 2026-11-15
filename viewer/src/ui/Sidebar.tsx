@@ -10,13 +10,13 @@ import { activePreset } from "../model/custom";
 import { applyPreset } from "../model/presets";
 import type { DisplayLayer } from "../io/format";
 import { bundle, bundleName, DETECTOR, domain, openTab } from "../model/store";
-import { chooseDomain } from "./navigate";
+import { chooseDomain } from "../control/navigate";
 import { EventInfo } from "./EventInfo";
 import { ColourKey } from "./Key";
 import { Collections, tabOf } from "./Layers";
 import { treeRelations } from "./Tree";
 import { TruthTab } from "./TruthTab";
-import { stopTour } from "./tour";
+import { stopTour } from "../control/tour";
 import { Icon, Tabs } from "./widgets";
 
 /** Phones (narrow screens): the panel is a sheet under the view, folded to its tabs and the colour key's title until
@@ -44,7 +44,8 @@ try {
 }
 
 /** A drag on the panel's edge: the width follows the pointer until it is released. The handle captures the pointer, so
- *  its moves keep coming when it leaves the thin handle. */
+ *  its moves keep coming when it leaves the thin handle. The capture ends on a release and also on a cancel (a touch
+ *  turned into a scroll), so the drag ends with it. */
 function startResize(e: PointerEvent) {
   const handle = e.currentTarget as HTMLElement;
   handle.setPointerCapture(e.pointerId);
@@ -55,7 +56,7 @@ function startResize(e: PointerEvent) {
     document.body.classList.remove("resizing");
   };
   handle.addEventListener("pointermove", move);
-  handle.addEventListener("pointerup", up, { once: true });
+  handle.addEventListener("lostpointercapture", up, { once: true });
 }
 
 export function Sidebar() {

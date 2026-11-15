@@ -74,9 +74,9 @@ export const cuts = signal<Record<string, number>>({});
 /** Per display layer key of an `onSelection` layer: draw every object, not only the selection's. */
 export const showAll = signal<Record<string, boolean>>({});
 
-/** Per display layer key: the legend of the layer as drawn (written by ui/scene.ts). */
+/** Per display layer key: the legend of the layer as drawn (written by control/scene.ts). */
 export const legends = signal<Record<string, Legend>>({});
-/** Per display layer key: how many objects pass the cuts (written by ui/scene.ts). */
+/** Per display layer key: how many objects pass the cuts (written by control/scene.ts). */
 export const shown = signal<Record<string, number>>({});
 
 /** The camera preset. */

@@ -4,6 +4,7 @@
 import { useState } from "preact/hooks";
 import logo from "../../logo.svg";
 import { DOCS_URL, mine, PUBLISH_COMMAND, titleOf } from "../model/library";
+import { readLink } from "../model/link";
 import { bundle, catalogue, openBundle, openFailure, opening, started } from "../model/store";
 import { chooserOpen, pickLocalFile } from "./Chooser";
 
@@ -102,7 +103,7 @@ function Failed() {
   // Trying again: a file of this computer cannot be fetched by its name (it is chosen again); a link's data set is
   // opened as the link says (its event and view are still in the address), by loading the page again; one chosen
   // here is simply opened again.
-  const linked = new URLSearchParams(location.hash.slice(1) || location.search.slice(1)).get("b") === f.name;
+  const linked = readLink(location.hash.slice(1) || location.search.slice(1))?.bundle === f.name;
   const again =
     f.local || f.kind === "gone" || f.kind === "badname"
       ? null

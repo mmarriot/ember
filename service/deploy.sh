@@ -17,16 +17,20 @@ BIN=${EMBER_BIN_DIR:-$(dirname "$SITE")/bin}
 
 (cd "$REPO/viewer" && npm run build)
 mkdir -p "$SITE/assets" "$SITE/data/u" "$SERVICE/code" "$SERVICE/logs" "$BIN"
-# New assets first, index.html last, so a visitor never gets a page that points at missing files.
+# New assets first, index.html last, so a visitor never gets a page that points at missing files. One command per
+# line: set -e does not stop on a failure inside `a && b`, and the --delete below would then remove the assets that
+# the old index.html still loads.
 rsync -a "$REPO/viewer/dist/assets/" "$SITE/assets/"
-cp "$REPO/viewer/dist/index.html" "$SITE/index.html.tmp" && mv "$SITE/index.html.tmp" "$SITE/index.html"
+cp "$REPO/viewer/dist/index.html" "$SITE/index.html.tmp"
+mv "$SITE/index.html.tmp" "$SITE/index.html"
 rsync -a --delete "$REPO/viewer/dist/assets/" "$SITE/assets/"  # then drop files of older builds
 # The cron jobs work on the site this deployment was made for (service/env.sh reads this file). Written before the code,
 # so that a cron run that starts during the copy never finds new code with old settings.
 printf "export EMBER_SITE_DIR='%s'\nexport EMBER_SITE_URL='%s'\nexport EMBER_SERVICE_DIR='%s'\n" "$SITE" "$EMBER_SITE_URL" "$SERVICE" > "$SERVICE/code/site.env"
 rsync -a --delete --exclude __pycache__ "$REPO/embertools" "$REPO/service" "$SERVICE/code/"
 # The `ember` command as one file, replaced by a rename so that a running copy is never half-written.
-python3 "$REPO/tools/build_zipapp.py" "$BIN/ember.new" > /dev/null && mv "$BIN/ember.new" "$BIN/ember"
+python3 "$REPO/tools/build_zipapp.py" "$BIN/ember.new" > /dev/null
+mv "$BIN/ember.new" "$BIN/ember"
 # The command's name before the rename: people's aliases and scripts that call bin/evd get the new command.
 ln -sfn ember "$BIN/evd"
 # Run information from the run registry needs mysql-connector-python (pure Python): installed once next to the code.

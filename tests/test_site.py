@@ -41,7 +41,7 @@ def seconds(iso):
 def test_publish_lists_the_bundle_in_the_users_area_and_gives_its_link(tmp_path):
     root = str(tmp_path / "site")
     os.makedirs(root)
-    entry, replaced = site.publish(bundle(tmp_path / "a.ember"), root, "alice", "ttbar", "ttbar PU200")
+    entry, replaced = site.publish_to_user_area(bundle(tmp_path / "a.ember"), root, "alice", "ttbar", "ttbar PU200")
     assert not replaced and os.path.exists(os.path.join(root, "data/u/alice/ttbar.ember"))
     listed = index(root)
     assert listed["bundles"] == [entry] and listed["updated"]
@@ -57,13 +57,15 @@ def test_publish_lists_the_bundle_in_the_users_area_and_gives_its_link(tmp_path)
 def test_publishing_a_name_again_replaces_it_and_the_list_is_by_time_of_publication(tmp_path, monkeypatch):
     root = str(tmp_path / "site")
     os.makedirs(root)
-    clock = iter(range(1_800_000_000, 1_800_000_100, 10))
+    clock = iter(range(1_800_000_000, 1_800_001_000, 10))
     monkeypatch.setattr(time, "time", lambda: next(clock))
     # converted in the other order than published: the list follows the publication
-    site.publish(bundle(tmp_path / "a.ember", created="2026-11-05T00:00:00+00:00"), root, "alice", "old")
-    site.publish(bundle(tmp_path / "b.ember", created="2026-11-02T00:00:00+00:00"), root, "alice", "ttbar")
-    site.publish(bundle(tmp_path / "d.ember", created="2026-11-01T00:00:00+00:00"), root, "alice", "last")
-    entry, replaced = site.publish(bundle(tmp_path / "c.ember", 5, "2026-11-03T00:00:00+00:00"), root, "alice", "ttbar")
+    site.publish_to_user_area(bundle(tmp_path / "a.ember", created="2026-11-05T00:00:00+00:00"), root, "alice", "old")
+    site.publish_to_user_area(bundle(tmp_path / "b.ember", created="2026-11-02T00:00:00+00:00"), root, "alice", "ttbar")
+    site.publish_to_user_area(bundle(tmp_path / "d.ember", created="2026-11-01T00:00:00+00:00"), root, "alice", "last")
+    entry, replaced = site.publish_to_user_area(
+        bundle(tmp_path / "c.ember", 5, "2026-11-03T00:00:00+00:00"), root, "alice", "ttbar"
+    )
     assert replaced and [(e["file"], e["events"]) for e in site.listing(root, "alice")] == [
         ("data/u/alice/ttbar.ember", 5),
         ("data/u/alice/last.ember", 2),
@@ -77,8 +79,8 @@ def test_publishing_a_name_again_replaces_it_and_the_list_is_by_time_of_publicat
 def test_remove_takes_the_bundle_and_its_entry_away(tmp_path):
     root = str(tmp_path / "site")
     os.makedirs(root)
-    site.publish(bundle(tmp_path / "a.ember"), root, "alice", "a")
-    site.publish(bundle(tmp_path / "a.ember"), root, "alice", "b")
+    site.publish_to_user_area(bundle(tmp_path / "a.ember"), root, "alice", "a")
+    site.publish_to_user_area(bundle(tmp_path / "a.ember"), root, "alice", "b")
     assert site.remove(root, "alice", "a") and not site.remove(root, "alice", "a")
     assert [e["file"] for e in site.listing(root, "alice")] == ["data/u/alice/b.ember"]
     assert os.listdir(os.path.join(root, "data/u/alice")).count("a.ember") == 0
@@ -87,13 +89,13 @@ def test_remove_takes_the_bundle_and_its_entry_away(tmp_path):
 @pytest.mark.parametrize("name", ["a/b", "../x", "", ".hidden", "a b"])
 def test_a_name_that_is_not_a_plain_file_name_is_refused(tmp_path, name):
     with pytest.raises(Problem, match="bundle name"):
-        site.publish(bundle(tmp_path / "a.ember"), str(tmp_path), "alice", name)
+        site.publish_to_user_area(bundle(tmp_path / "a.ember"), str(tmp_path), "alice", name)
 
 
 def test_something_that_is_not_a_complete_bundle_is_not_published(tmp_path):
     (tmp_path / "half.ember").write_bytes(Path(bundle(tmp_path / "a.ember")).read_bytes()[:-20])
     with pytest.raises(ValueError):
-        site.publish(str(tmp_path / "half.ember"), str(tmp_path), "alice", "half")
+        site.publish_to_user_area(str(tmp_path / "half.ember"), str(tmp_path), "alice", "half")
     assert not os.path.exists(tmp_path / "data")
 
 
@@ -114,7 +116,7 @@ def test_a_site_out_of_reach_or_not_writable_is_a_problem_with_a_way_out(tmp_pat
         with pytest.raises(Problem, match="cannot write"):
             site.store(str(root)).check("data/u/alice")  # found before converting
         with pytest.raises(Problem, match="cannot write"):
-            site.publish(bundle(tmp_path / "a.ember"), str(root), "alice", "a")
+            site.publish_to_user_area(bundle(tmp_path / "a.ember"), str(root), "alice", "a")
     finally:
         os.chmod(root / "data" / "u", stat.S_IRWXU)
     site.store(str(root)).check("data/u/alice")
@@ -146,7 +148,7 @@ def test_clean_removes_expired_bundles_and_brings_the_lists_up_to_date(tmp_path)
     kept_outside = bundle(os.path.join(root, "data", "campaign", "old.ember"))
     age(kept_outside, 400)
     for user, name in (("alice", "fresh"), ("alice", "expired"), ("bob", "expired")):
-        site.publish(bundle(tmp_path / "a.ember"), root, user, name, f"{name} title")
+        site.publish_to_user_area(bundle(tmp_path / "a.ember"), root, user, name, f"{name} title")
     area = lambda user, f: os.path.join(root, "data", "u", user, f)
     age(area("alice", "expired.ember"), 31)
     age(area("bob", "expired.ember"), 45)
@@ -220,8 +222,8 @@ def test_a_site_reached_through_xrootd_is_published_to_listed_and_removed_from(t
     os.makedirs(root)
     site.store(url).check("data/u/alice")
     assert site.listing(url, "alice") == []  # no index yet
-    site.publish(bundle(tmp_path / "a.ember"), url, "alice", "a")
-    entry, replaced = site.publish(bundle(tmp_path / "b.ember", 4), url, "alice", "a")
+    site.publish_to_user_area(bundle(tmp_path / "a.ember"), url, "alice", "a")
+    entry, replaced = site.publish_to_user_area(bundle(tmp_path / "b.ember", 4), url, "alice", "a")
     assert replaced and site.listing(url, "alice") == [entry] == index(root)["bundles"] and entry["events"] == 4
     assert sorted(os.listdir(os.path.join(root, "data/u/alice"))) == ["a.ember", "index.json"]  # nothing half-copied
     assert site.remove(url, "alice", "a") and not site.remove(url, "alice", "a") and site.listing(url, "alice") == []
@@ -239,7 +241,7 @@ def test_an_eos_path_that_is_not_mounted_goes_through_xrootd(monkeypatch):
 def test_no_kerberos_ticket_is_said_in_words(tmp_path, xrootd, monkeypatch):
     monkeypatch.setenv("FAKE_XROOTD_DENIED", "1")
     with pytest.raises(Problem, match="kinit"):
-        site.publish(bundle(tmp_path / "a.ember"), xrootd[0], "alice", "a")
+        site.publish_to_user_area(bundle(tmp_path / "a.ember"), xrootd[0], "alice", "a")
 
 
 # Review findings: each of these failed before its fix.
@@ -250,7 +252,7 @@ def test_a_login_that_is_not_a_plain_account_name_is_refused_everywhere(tmp_path
     kept = bundle(root / "data" / "simulation" / "ttbar.ember")
     (root / "index.json").write_text('{"bundles": []}')
     calls = [
-        lambda: site.publish(bundle(tmp_path / "a.ember"), str(root), user, "x"),
+        lambda: site.publish_to_user_area(bundle(tmp_path / "a.ember"), str(root), user, "x"),
         lambda: site.remove(str(root), user, "ttbar"),
         lambda: site.listing(str(root), user),
     ]
@@ -274,7 +276,7 @@ def test_clean_does_not_follow_a_symlinked_area_or_touch_what_is_not_a_plain_fil
     open(victims[1], "w").close()
     for v in victims:
         age(v, 40)
-    site.publish(bundle(tmp_path / "a.ember"), str(root), "alice", "mine")
+    site.publish_to_user_area(bundle(tmp_path / "a.ember"), str(root), "alice", "mine")
     os.symlink("../simulation", root / "data" / "u" / "mallory")  # an area that is a link
     os.symlink(victims[0], root / "data" / "u" / "alice" / "link.ember")  # a link in an area
     os.symlink("/nonexistent", root / "data" / "u" / "alice" / "dangling.ember")
@@ -292,8 +294,8 @@ def test_clean_never_writes_through_a_link_planted_in_an_area(tmp_path):
     names the index used to be written under are written through; the link itself is replaced."""
     root = tmp_path / "site"
     root.mkdir()
-    site.publish(bundle(tmp_path / "a.ember"), str(root), "bob", "his")
-    site.publish(bundle(tmp_path / "a.ember"), str(root), "mallory", "hers")
+    site.publish_to_user_area(bundle(tmp_path / "a.ember"), str(root), "bob", "his")
+    site.publish_to_user_area(bundle(tmp_path / "a.ember"), str(root), "mallory", "hers")
     victim = root / "data" / "u" / "bob" / "index.json"
     before = victim.read_bytes()
     area = root / "data" / "u" / "mallory"
@@ -313,7 +315,7 @@ def test_clean_keeps_a_bundle_published_anew_while_it_ran(tmp_path, monkeypatch)
     root = tmp_path / "site"
     root.mkdir()
     for name in ("a_old", "b_new"):  # read in this order
-        site.publish(bundle(tmp_path / "a.ember"), str(root), "alice", name)
+        site.publish_to_user_area(bundle(tmp_path / "a.ember"), str(root), "alice", name)
     old = root / "data" / "u" / "alice" / "a_old.ember"
     age(old, 40)
     entry = site._entry
@@ -339,7 +341,7 @@ def test_an_area_swapped_for_a_link_while_clean_runs_does_not_redirect_it(tmp_pa
     victim = bundle(campaign / "zz_old.ember")
     age(victim, 40)
     for name in ("a_new", "zz_old"):
-        site.publish(bundle(tmp_path / "a.ember"), str(root), "mallory", name)
+        site.publish_to_user_area(bundle(tmp_path / "a.ember"), str(root), "mallory", name)
     area = root / "data" / "u" / "mallory"
     age(area / "zz_old.ember", 40)
     entry = site._entry
@@ -364,7 +366,7 @@ def test_an_area_swapped_for_a_link_while_clean_runs_does_not_redirect_it(tmp_pa
 def test_files_written_to_the_site_are_readable_by_the_web_server(tmp_path):
     root = tmp_path / "site"
     root.mkdir()
-    site.publish(bundle(tmp_path / "a.ember"), str(root), "alice", "a")
+    site.publish_to_user_area(bundle(tmp_path / "a.ember"), str(root), "alice", "a")
     for f in ("a.ember", "index.json"):
         assert stat.S_IMODE(os.stat(root / "data" / "u" / "alice" / f).st_mode) & 0o044 == 0o044
 
@@ -373,7 +375,7 @@ def test_clean_only_removes_the_temporary_files_a_publish_leaves(tmp_path):
     root = str(tmp_path / "site")
     os.makedirs(root)
     for name in ("step3.tmpfix", "a.tmp1"):
-        site.publish(bundle(tmp_path / "a.ember"), root, "alice", name)
+        site.publish_to_user_area(bundle(tmp_path / "a.ember"), root, "alice", name)
     area = os.path.join(root, "data", "u", "alice")
     left = [os.path.join(area, n) for n in ("big.ember.tmp123", "index.json.tmp77")]
     for path in left + [os.path.join(area, n) for n in ("step3.tmpfix.ember", "a.tmp1.ember")]:
@@ -387,7 +389,7 @@ def test_an_odd_file_in_one_area_does_not_stop_clean_or_list(tmp_path):
     root = str(tmp_path / "site")
     os.makedirs(root)
     for user in ("alice", "bob", "carol", "zed"):
-        site.publish(bundle(tmp_path / "a.ember"), root, user, "old")
+        site.publish_to_user_area(bundle(tmp_path / "a.ember"), root, user, "old")
         age(os.path.join(root, "data", "u", user, "old.ember"), 40)
     area = lambda user, f: os.path.join(root, "data", "u", user, f)
     open(area("alice", "empty.ember"), "w").close()
@@ -415,7 +417,7 @@ def test_an_odd_file_in_one_area_does_not_stop_clean_or_list(tmp_path):
 def test_clean_refuses_to_keep_bundles_for_less_than_a_day(tmp_path, days):
     root = str(tmp_path / "site")
     os.makedirs(root)
-    site.publish(bundle(tmp_path / "a.ember"), root, "alice", "mine")
+    site.publish_to_user_area(bundle(tmp_path / "a.ember"), root, "alice", "mine")
     with pytest.raises(ValueError, match="at least 1"):
         site.clean(root, days=days, log=lambda _: None)
     assert os.path.exists(os.path.join(root, "data", "u", "alice", "mine.ember"))
@@ -430,7 +432,7 @@ def test_only_a_refusal_is_reported_as_a_missing_ticket(tmp_path, xrootd, monkey
     """A path with "auth" in it is not an authentication failure."""
     monkeypatch.setenv("FAKE_XROOTD_FULL", "1")
     with pytest.raises(Problem) as e:
-        site.publish(bundle(tmp_path / "a.ember"), f"root://fake/{tmp_path}/author_site", "authier", "x")
+        site.publish_to_user_area(bundle(tmp_path / "a.ember"), f"root://fake/{tmp_path}/author_site", "authier", "x")
     assert "quota exceeded" in str(e.value) and "kinit" not in str(e.value)
 
 
@@ -453,7 +455,7 @@ def test_bundles_named_evdb_from_before_the_rename_are_still_bundles(tmp_path):
     ]
 
     assert site.remove(root, "alice", "removed") and not site.remove(root, "alice", "removed")
-    entry, replaced = site.publish(bundle(tmp_path / "a.ember", 3), root, "alice", "replaced")
+    entry, replaced = site.publish_to_user_area(bundle(tmp_path / "a.ember", 3), root, "alice", "replaced")
     assert replaced and entry["file"] == "data/u/alice/replaced.ember"
     assert sorted(os.listdir(area)) == ["index.json", "kept.evdb", "replaced.ember"]
     assert [e["file"] for e in site.listing(root, "alice")] == ["data/u/alice/replaced.ember", "data/u/alice/kept.evdb"]
@@ -465,7 +467,7 @@ def test_through_xrootd_a_bundle_named_evdb_is_replaced_and_removed_too(tmp_path
     os.makedirs(area)
     bundle(os.path.join(area, "a.evdb"))
     bundle(os.path.join(area, "b.evdb"))  # on the site but in no index: still removed by name
-    entry, replaced = site.publish(bundle(tmp_path / "x.ember"), url, "alice", "a")
+    entry, replaced = site.publish_to_user_area(bundle(tmp_path / "x.ember"), url, "alice", "a")
     assert replaced and sorted(os.listdir(area)) == ["a.ember", "b.evdb", "index.json"]
     assert site.remove(url, "alice", "b") and sorted(os.listdir(area)) == ["a.ember", "index.json"]
     assert site.listing(url, "alice") == [entry]

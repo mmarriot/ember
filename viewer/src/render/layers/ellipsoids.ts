@@ -2,9 +2,9 @@
 // apart by their surface. Unlike the other representations these are updated on the CPU (a few thousand objects at
 // most): each instance's matrix and colour are rewritten when the cut, the selection or the replay clock changes.
 import * as THREE from "three";
+import { toF32 } from "../../io/format";
 import { REPLAY_OFF } from "../replay";
 import { commonFields, cutter, type Layer, type LayerInput, positions } from "./layer";
-import { toF32 } from "../colour";
 
 const SHOWER_STYLES = { solid: 0, shell: 1, cage: 2, core: 3 } as const;
 // Instanced unit spheres scaled and rotated per shower; normals use the inverse transpose, so the shading and the

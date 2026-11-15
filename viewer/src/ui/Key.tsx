@@ -23,7 +23,7 @@ import {
   truthStatuses,
 } from "../model/store";
 import { Info } from "./Info";
-import { jump } from "./navigate";
+import { jump } from "../control/navigate";
 
 /** The pair view's classes, as the regions of the particle and the candidate: colour, name, meaning. */
 const CLASSES: [Exclude<PairClass, 0 | 5>, string, string][] = [

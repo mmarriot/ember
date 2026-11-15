@@ -5,7 +5,7 @@ import type { Relation } from "../io/format";
 import { filterMask, filters } from "../model/custom";
 import { bundle, describe, event, labelOf, largestFirst, layerOf, selection, theme } from "../model/store";
 import { PALETTES } from "../render/colour";
-import { jump } from "./navigate";
+import { jump } from "../control/navigate";
 
 const go = (table: string, row: number) => jump({ table, row });
 const MAX = 100; // children (or roots) listed per node; the rest are counted

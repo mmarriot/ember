@@ -186,7 +186,7 @@ match). See [Colours and the truth ↔ reco pair](#colours-and-the-truth--reco-p
 A caption says what is happening.
 
 **Tour** (`P`, or the play button) builds up each event step by step, outwards from the collision point and from the
-detector's hits to the physics objects (`viewer/src/model/tour.ts`). The steps are: collision point, tracker hits,
+detector's hits to the physics objects (`viewer/src/model/tourPlan.ts`). The steps are: collision point, tracker hits,
 tracks, timing layer, calorimeter hits, clusters, HGCal showers, muon chambers, muon tracks, particle flow, jets,
 missing momentum, leptons and photons, b tagging.
 

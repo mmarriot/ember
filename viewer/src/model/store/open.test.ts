@@ -1,15 +1,29 @@
 import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { blobSource, HttpError, type Source } from "../io/bundle";
-import { type Listed, recent } from "./library";
+import { blobSource, Bundle, HttpError, type Source } from "../../io/bundle";
+import { gatedSource, testBundle } from "../../io/testing";
+import { type Listed, recent } from "../library";
 // The store sets the page's theme as it loads: a stand-in page (the tests run without a DOM).
 Object.assign(globalThis, { document: { documentElement: { dataset: {} } } });
-const { bundle, bundleName, catalogue, keepShown, openBundle, opened, openFailure, opening, toasts } = await import(
-  "./store"
-);
+const {
+  bundle,
+  bundleName,
+  catalogue,
+  eventIndex,
+  keepShown,
+  openBundle,
+  opened,
+  openFailure,
+  opening,
+  rawEvent,
+  selection,
+  showAll,
+  shownEntry,
+  toasts,
+} = await import(".");
 
 const golden = async () =>
-  blobSource(new Blob([readFileSync(new URL("../../../golden/v6_1event.ember", import.meta.url))]));
+  blobSource(new Blob([readFileSync(new URL("../../../../golden/v6_1event.ember", import.meta.url))]));
 const gone = (name: string) => async () => {
   throw new HttpError(name, 404);
 };
@@ -73,7 +87,7 @@ describe("openBundle", () => {
   });
 
   describe("a link to an .evdb bundle published again since the rename, as .ember", () => {
-    const bytes = readFileSync(new URL("../../../golden/v6_1event.ember", import.meta.url));
+    const bytes = readFileSync(new URL("../../../../golden/v6_1event.ember", import.meta.url));
     /** A site with these files, as fetch sees it: a whole file for any request (status 200), else 404. */
     const site = (files: string[]) => {
       const asked: string[] = [];
@@ -231,7 +245,7 @@ describe("openBundle", () => {
     });
     try {
       await openBundle("https://elsewhere.example/data/u/alice/x.ember", golden);
-      const { filters } = await import("./custom");
+      const { filters } = await import("../custom");
       filters.value = { ...filters.value, Anything: "0" };
       const settings = () => [...saved.keys()].filter((k) => k.startsWith("evd.custom."));
       expect(settings()).toEqual([]);
@@ -264,5 +278,64 @@ describe("openBundle", () => {
     expect(openFailure.value).toMatchObject({ kind: "unreadable", local: true });
     expect(openFailure.value!.text).toMatch(/convert it again/);
     expect(openFailure.value!.text).not.toMatch(/upload/);
+  });
+});
+
+describe("switching data sets", () => {
+  /** Opens a's event 3 and selects an object in it; returns that event. */
+  const openA = async () => {
+    await openBundle("data/sim/a.ember", async () => blobSource(testBundle({ events: 5 })), 3);
+    selection.value = { table: "T", row: 1 };
+    return rawEvent.value;
+  };
+  /** A source of b whose header reads at once and whose event records wait for `release`: true reads them, false
+   *  fails them. */
+  const heldB = async () => {
+    const blob = testBundle({ events: 2 }),
+      { events } = await Bundle.open(blobSource(blob)),
+      records = events[0].offset,
+      end = events[1].offset + events[1].length;
+    let release!: (ok: boolean) => void;
+    const held = new Promise<boolean>((r) => (release = r));
+    const source = gatedSource(blob, async (offset) => {
+      if (offset >= records && offset < end && !(await held)) throw new Error("network");
+    });
+    return { source, release };
+  };
+
+  it("changes nothing on screen until the new data set's first event is read, then everything at once", async () => {
+    const eventA = await openA();
+    const b = await heldB();
+    const opening = openBundle("data/sim/b.ember", async () => b.source);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(bundleName.value).toBe("data/sim/a.ember"); // the address and the share button still name a's event 3
+    expect(rawEvent.value).toBe(eventA);
+    expect(eventIndex.value).toBe(3);
+    expect(selection.value).toEqual({ table: "T", row: 1 });
+    b.release(true);
+    expect(await opening).toBe(true);
+    expect(bundleName.value).toBe("data/sim/b.ember");
+    expect(eventIndex.value).toBe(0);
+    expect(selection.value).toBeNull();
+    expect(shownEntry.value?.event).toBe(0);
+  });
+
+  it("keeps the data set on screen whole when the new one's first event cannot be read", async () => {
+    const eventA = await openA();
+    const b = await heldB();
+    const opening = openBundle("data/sim/b.ember", async () => b.source);
+    b.release(false);
+    expect(await opening).toBe(false);
+    expect(bundleName.value).toBe("data/sim/a.ember");
+    expect(rawEvent.value).toBe(eventA);
+    expect(shownEntry.value?.event).toBe(3);
+    expect(toasts.value.at(-1)?.kind).toBe("error");
+  });
+
+  it("starts the new data set with its own settings, not the tour's show-all of the previous one", async () => {
+    await openA();
+    showAll.value = { "T:markers": true };
+    await openBundle("data/sim/b.ember", async () => blobSource(testBundle()));
+    expect(showAll.value).toEqual({});
   });
 });

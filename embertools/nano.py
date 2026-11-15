@@ -26,7 +26,7 @@ def convert(
     output,
     profile_name="hgcal",
     max_events=None,
-    log=sys.stderr,
+    log=None,
     data_time=None,
     run_info=None,
     events=None,
@@ -35,18 +35,21 @@ def convert(
     threads=None,
 ):
     """Write the events of the NanoAOD `files` that pass the profile's selection to the bundle `output`; returns how
-    many were written. Progress and what was found go to `log`.
+    many were written. Progress and what was found go to `log` (default: standard error).
 
     max_events  write at most this many events (None: all)
     data_time   when the input data was taken or produced (a datetime), recorded in the header
     run_info    where to find information about the runs (see runinfo.load)
-    events      only these event numbers (a set)
+    events      only these event numbers (ranges, see parse_events)
     run_tables  a NanoAOD file whose Runs tree has the per-run tables (e.g. the channel table) of the same runs, for
                 inputs made without them
     sort        list the events in (run, lumi, event) order (only the index is sorted)
     threads     threads that decompress the input and compress the records (default: threads_available())
     """
+    log = log or sys.stderr  # the stream of the moment, not the one there was when this module was imported
     profile = load_profile(profile_name)
+    if run_info and not run_info.startswith("registry:") and not os.path.isfile(run_info):
+        raise Problem(f"no run information file {run_info}")  # now, not after converting every event
     first = open_file(files[0])  # stays open to read its events
     try:
         with open_file(run_tables) if run_tables else contextlib.nullcontext(first) as r:
@@ -135,12 +138,21 @@ def written_by(f):
 
 
 def parse_events(spec):
-    """The set of event numbers in "416622,416630-416640" (ranges include both ends)."""
-    out = set()
+    """The event numbers in "416622,416630-416640", as a list of (first, last) ranges that include both ends. Kept as
+    ranges, not expanded: CMS event numbers reach 10^9, and a set of a range that wide would not fit in memory."""
+    out = []
     for part in filter(None, (p.strip() for p in spec.split(","))):
         lo, _, hi = part.partition("-")
-        out.update(range(int(lo), int(hi or lo) + 1))
+        out.append((int(lo), int(hi or lo)))
     return out
+
+
+def chosen_events(numbers, events):
+    """A mask of the `numbers` that are in the ranges `events` (parse_events): one vectorised comparison per range."""
+    mask = np.zeros(len(numbers), bool)
+    for lo, hi in events:
+        mask |= (numbers >= lo) & (numbers <= hi)
+    return mask
 
 
 def threads_available(limit=4):
@@ -210,7 +222,7 @@ def _entries(tree, conv, events, progress, pool=None):
 
     if events is not None:
         numbers, runs = tree["event"].array(library="np"), tree["run"].array(library="np")
-        chosen = np.flatnonzero(np.isin(numbers, list(events)))
+        chosen = np.flatnonzero(chosen_events(numbers, events))
         progress(len(chosen))
         for e in chosen[np.lexsort((numbers[chosen], runs[chosen]))]:
             yield read_entry(e), 0

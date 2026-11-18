@@ -91,6 +91,12 @@ def parser():
         "instead of ember's own tables of the RECO collections. Costly: at 200 pileup PAT + NANO alone took 2.25 s "
         "per event, 8.6 GB of memory and 32 s to start, against 0.7 s, 3.3 GB and 19 s for the whole job without it",
     )
+    edm.add_argument(
+        "--no-truth-associators",
+        action="store_true",
+        help="simulation with the truth graph: do not run the reco <-> truth associators whose maps the file does not "
+        "hold (they take about 3.5 s per event at 200 pileup, little without pileup): no reco <-> truth matches then",
+    )
 
     p = sub.add_parser("list", help="list your published bundles")
     p.add_argument("-l", "--links", action="store_true", help="print each bundle's link")
@@ -233,8 +239,8 @@ def _view(args):
     if publish:  # before any work (an export takes minutes): the site must be there, and the user's area writable
         user, files = site.login(args.user), site.store(site.site_dir(args.site))
         files.check(f"{site.USERS}/{user}")
-    options = ("geometry", "era", "conditions", "nano", "config", "pat")
-    unused = [f"--{o}" for o in options if getattr(args, o)] if kind == "nano" else []
+    options = ("geometry", "era", "conditions", "nano", "config", "pat", "no_truth_associators")
+    unused = [f"--{o.replace('_', '-')}" for o in options if getattr(args, o)] if kind == "nano" else []
     if unused:
         print(
             f"ember: {', '.join(unused)} ignored: for CMSSW reconstruction files, and the input is NanoAOD",
@@ -304,6 +310,7 @@ def _make_nanoaod(args, work, limit, total):
         log=_Indented(sys.stdout),
         config=args.config,
         pat=args.pat,
+        associators=not args.no_truth_associators,
     )
     print(f"  NanoAOD made in {time.time() - started:.0f} s")
     if args.nano:

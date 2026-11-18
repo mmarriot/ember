@@ -83,12 +83,16 @@ CONFIG = "ember_cfg.py"
 CLUSTER_HITS = {"CaloClusterHitsTableProducer", "PFClusterHitsTableProducer", "SuperClusterHitsTableProducer"}
 
 
-def config(settings, inputs, events, inventory, release, threads=4, output=OUTPUT, made_by="", drop=(), pat=False):
+def config(
+    settings, inputs, events, inventory, release, threads=4, output=OUTPUT, made_by="", drop=(), pat=False,
+    associators=True,
+):  # fmt: skip
     """(the text of ember_cfg.py, the notes on what was left out). `inputs`: EDM file URLs (file:... or root://...),
     `events`: how many (None: all), `release`: the module plugins of the release (plugins()), `drop`: products of
     the input that the release cannot read (export.unreadable()). `pat`: the text is the part to append to the
     configuration of `cmsDriver.py -s PAT,NANO --processName EMBER` (export.cmsdriver), whose standard NanoAOD has the
-    physics objects: ember's tables of everything else, written in that job's NanoAOD."""
+    physics objects: ember's tables of everything else, written in that job's NanoAOD. `associators`: run the
+    truth associators whose maps the input does not hold (truth())."""
     w = _Writer(settings, inventory, release)
     w.header(inputs, made_by, pat)
     w.process(inputs, events, threads, drop, pat)
@@ -98,6 +102,7 @@ def config(settings, inputs, events, inventory, release, threads=4, output=OUTPU
     w.clusters()
     w.tracks()
     w.physics(pat)
+    w.truth(associators)
     w.output(output, pat)
     return w.text(), w.notes
 
@@ -110,6 +115,7 @@ class _Writer:
         self.parts, self.notes = [], []
         self.hgcal_nano = False  # whether DPGAnalysis/HGCalNanoAOD's tables are loaded (layer clusters, tracks)
         self.cluster_hits = CLUSTER_HITS <= release
+        self.hit_tables = {}  # hit table module -> name of its truth table
 
     def text(self):
         wrap = lambda n: textwrap.fill(n, 116, initial_indent="#   - ", subsequent_indent="#     ")
@@ -233,6 +239,7 @@ process.load("PhysicsTools.TruthInfo.recHitTable_cfi")
 process.emberTables.add(process.recHitTable)
 """
             )
+            self.hit_tables["recHitTable"] = "TruthHGCalRecHits"
         self.hgcal_reco()
 
     def hgcal_reco(self):
@@ -333,6 +340,7 @@ process.pfRecHitTable = cms.EDProducer("PFRecHitFlatTableProducer", objName=cms.
 ))
 process.emberTables.add(process.pfRecHitTable)
 """
+        self.hit_tables["pfRecHitTable"] = "TruthPFRecHits"
         if remade:
             reco = "Reconstruction_Data_cff" if s.data else "Reconstruction_cff"
             if pat:
@@ -583,6 +591,73 @@ position = cms.PSet(
     z=Var("z", "float", precision=14, doc="z [cm]"),
 )"""
             + "".join(rows)
+        )
+
+    # Truth
+
+    def truth(self, associators=True):
+        """The truth graph's tables (PhysicsTools/TruthInfo, pull request "NanoAOD tables of the MC-truth graph"), when
+        the release has their producers and the input the graph: particles, vertices, children; the simulated energy
+        of each particle in each hit of the hit tables written above; the reco <-> truth associations, from the maps
+        the input holds, else (`associators`) by running the associators. The particles: the default selection plus
+        every particle that entered the calorimeter, which carry the hits' energy."""
+        inv = self.inv
+        if not inv.has("truthLogicalGraphProducer"):
+            if self.s.phase2 and not self.s.data:
+                self.notes.append("truth: the input has no truth graph (truthLogicalGraphProducer)")
+            return
+        if not self.need("TruthGraphFlatTableProducer", "TruthGraphHitFlatTableProducer"):
+            self.notes[-1] += (
+                " (the truth tables: in CMSSW after the pull request 'NanoAOD tables of the MC-truth graph')"
+            )
+            return
+        stored = {
+            (p.module, p.instance): p.process
+            for p in inv.items
+            if p.module.endswith("Associators") and not p.module.startswith("hlt") and p.instance
+        }
+        hits = ""
+        if inv.has("truthLogicalGraphHitIndexProducer"):
+            hits = "from PhysicsTools.TruthInfo.truthGraphHitFlatTable_cfi import truthGraphHitFlatTable\n" + "".join(
+                f'table("{name[0].lower()}{name[1:]}Table", truthGraphHitFlatTable.clone(\n'
+                f'    hitTable="{module}", hitIdColumn="rechit_ID", name="{name}"))\n'
+                for module, name in self.hit_tables.items()
+            )
+        else:
+            self.notes.append("truth of the hits: the input has no hit index (truthLogicalGraphHitIndexProducer)")
+        if not associators:
+            self.notes.append("the truth associators the input's maps do not replace (--no-truth-associators)")
+        stored_text = "".join(f"\n    {k!r}: {v!r}," for k, v in sorted(stored.items()))
+        self.add(
+            f"""
+# The truth graph: its particles (the signal, the particles reco objects are matched to, every particle that entered
+# the calorimeter, and their ancestors), their vertices and children (PhysicsTools/TruthInfo,
+# SimGeneral/TruthGraphAssociatorProducers)
+process.load("SimGeneral.TruthGraphAssociatorProducers.truthGraphNanoTables_cff")
+from SimGeneral.TruthGraphAssociatorProducers.truthGraphNanoTables_cff import truthGraphAssociationTables
+process.truthGraphTable = process.truthGraphCaloBoundaryTable.clone()
+process.emberTables.add(process.truthGraphTable)
+# The simulated energy of each particle in each hit of the hit tables above
+{hits}# The reco <-> truth associations: an input with maps of its own (made with the associators in its reconstruction)
+# gives them, read from the process that made them (the associators could need collections it lacks); else the
+# associators make the maps here: about 3 s of CPU per event at 200 pileup, little without pileup.
+storedMaps = {{{stored_text}
+}}
+runAssociators = {associators} and not storedMaps
+needAssociators = False
+for label in truthGraphAssociationTables:
+    module = getattr(process, label)
+    key = (module.src.getModuleLabel(), module.src.getProductInstanceLabel())
+    if key in storedMaps:
+        module.src = cms.InputTag(*key, storedMaps[key])
+    elif not runAssociators:
+        continue
+    else:
+        needAssociators = True
+    process.emberTables.add(module)
+if needAssociators:
+    process.emberTables.add(process.truthGraphNanoAssociatorsTask)
+"""
         )
 
     def output(self, output, pat=False):

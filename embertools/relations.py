@@ -29,7 +29,12 @@ def build_relation(rel, tables):
         if "toKey" in rel:  # the list holds keys (e.g. DetIds) of `to` rows, not their numbers
             offsets, indices, weights = _keys_to_rows(offsets, indices, column(rel["toKey"]), weights)
     elif kind == "links":  # one row per (from, to) pair; a `to` below 0 means no target
-        offsets, indices, weights = _from_links(column(rel["fromIndex"]), column(rel["toIndex"]), weights, n_from)
+        dst = column(rel["toIndex"])
+        if "toKey" in rel:  # the pairs name `to` rows by key (e.g. a DetId): keys no `to` row has are dropped
+            rows, found = _find_keys(np.asarray(dst), column(rel["toKey"]))
+            dst = np.full(len(dst), -1, np.int64)
+            dst[found] = rows
+        offsets, indices, weights = _from_links(column(rel["fromIndex"]), dst, weights, n_from)
     elif kind == "index":  # a column that holds one row of the other table (below 0: none)
         offsets, indices = _from_index(rel, column, n_from)
     elif kind == "key":  # rows of `from` and `to` with equal key columns (e.g. the same DetId in two hit tables)

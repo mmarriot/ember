@@ -167,3 +167,37 @@ def test_the_profile_is_chosen_by_what_it_draws_or_the_file_refused(tmp_path):
     other = write(tmp_path / "other.root", {"Thing": {"a": [[1.0]]}}, {})
     with pytest.raises(Problem, match="none of the profiles phase2, run3, nano, hgcal, cms draws its tables"):
         convert([other], str(tmp_path / "x.ember"), "auto", log=io.StringIO())
+
+
+def test_truth_hits_are_found_by_detid_in_the_split_tables_and_momenta_derived():
+    profile = {
+        "derive": [
+            *SPLIT,
+            {"table": "TruthPFRecHits", "lookup": "pfrechits", "index": "hitIdx", "columns": {"detId": "rechit_ID"}},
+            {"table": "Truth", "momentum": ["pt", "eta", "phi"]},
+        ],
+        "internal": ["TruthPFRecHits"],
+        "relations": [
+            {"name": f"truthHits{t}", "kind": "links", "from": "Truth", "to": f"{t}Hits", "table": "TruthPFRecHits",
+             "fromIndex": "TruthPFRecHits.particleIdx", "toIndex": "TruthPFRecHits.detId", "toKey": f"{t}Hits.rechit_ID",
+             "weights": ["TruthPFRecHits.simEnergy"]}
+            for t in ("EB", "HB")
+        ],
+        "display": [{"table": "Truth", "label": "T", "position": ["px", "py", "pz"]}],
+    }  # fmt: skip
+    I4 = np.dtype("i4")
+    conv = converter(
+        {"pfrechits": HITS, "Truth": {"pt": F4, "eta": F4, "phi": F4},
+         "TruthPFRecHits": {"particleIdx": I4, "hitIdx": I4, "simEnergy": F4}},
+        profile,
+    )  # fmt: skip
+    event = {
+        "pfrechits": hits(HB, EB, HF),
+        "Truth": {"pt": [10.0, 0.0], "eta": [0.0, -(22756 + 5.0)], "phi": [0.0, 0.0]},  # the 2nd: pt 0, pz -5 (ROOT)
+        "TruthPFRecHits": {"particleIdx": [1, 0, 1], "hitIdx": [0, 1, 2], "simEnergy": [0.5, 0.25, 1.0]},
+    }
+    _, tables, rel = conv.event(chunk(conv, event), 0)
+    eb, hb = rel["truthHitsEB"], rel["truthHitsHB"]
+    assert list(eb["offsets"]) == [0, 1, 1] and list(eb["weights"]["simEnergy"]) == [0.25]  # the EB hit, row 0
+    assert list(hb["offsets"]) == [0, 0, 1] and list(hb["indices"]) == [0]  # the HB hit; the HF one is in neither
+    assert np.allclose(tables["Truth"][1]["pz"], [0.0, -5.0]) and np.allclose(tables["Truth"][1]["px"], [10.0, 0.0])

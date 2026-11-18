@@ -79,6 +79,7 @@ Options for CMSSW files (reconstruction, MiniAOD) only:
 | `--nano FILE.root` | also keep the NanoAOD that `ember` made, as this file |
 | `--config FILE.py` | also keep the cmsRun configuration that made it (`cmsRun FILE.py` runs it again) |
 | `--pat` | for a reconstruction file: the physics objects of PAT and standard NanoAOD (corrected jets, IDs, b-tags, taus), from `cmsDriver.py -s PAT,NANO`, instead of `ember`'s own tables of the RECO collections; its hits, clusters and tracks are added to that job. It costs: at 200 pile-up PAT and NANO alone took 2.25 s per event, 8.6 GB of memory and 32 s to start, where the whole job takes 0.7 s per event, 3.3 GB and 19 s without it. |
+| `--no-truth-associators` | for simulation with the truth graph (Phase 2 RECO and FEVT): do not run the reco ↔ truth associators whose maps the file does not hold. They take about 1 s per event at 200 pile-up (3 s of CPU), little without pile-up; without them the bundle has the truth graph and the simulated energy in each hit, but no reco ↔ truth matches. |
 
 If you give these options for a NanoAOD input, `ember` ignores them and says so.
 

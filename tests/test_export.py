@@ -251,7 +251,7 @@ def test_the_phase2_configuration_has_what_the_input_and_the_release_have():
     assert any("hits of clusters" in n for n in notes) and "#   - the hits of clusters" in text
 
     text, notes = configuration(s, PHASE2, RELEASE | cmsrun.CLUSTER_HITS)
-    assert not notes and "#   (nothing)" in text
+    assert notes == ["truth: the input has no truth graph (truthLogicalGraphProducer)"]
     assert 'cms.EDProducer("CaloClusterHitsTableProducer",\n    src=cms.InputTag("hgcalMergeLayerClusters")' in text
     assert 'hitsName=cms.string("PFClusterECALHits")' in text
 
@@ -430,3 +430,36 @@ def test_export_with_pat_runs_cmsdriver_then_appends_the_tables(tools):
     text = Path(work, "ember_cfg.py").read_text()
     assert text.startswith("process = 1\n") and "Ember's tables, after the PAT + standard NANO configuration" in text
     assert "recHitTable_cfi" in text and "--pat: PAT and standard NanoAOD" in log.getvalue()
+
+
+TRUTH = {"TruthGraphFlatTableProducer", "TruthGraphHitFlatTableProducer"}
+GRAPH = [
+    "truthGraph_truthLogicalGraphProducer__HLT.",
+    "truthLogicalGraphHitIndex_truthLogicalGraphHitIndexProducer__HLT.",
+]
+
+
+def test_the_truth_tables_are_written_when_the_release_and_the_input_have_them():
+    s = cmsrun.Settings(True, False, "Phase2C22I13M9", "ExtendedRun4D104", "auto:phase2_realistic_T35")
+    text, notes = configuration(s, PHASE2, RELEASE | TRUTH)
+    assert "truth: the input has no truth graph (truthLogicalGraphProducer)" in notes
+    assert "truthGraphCaloBoundaryTable" not in text
+    text, notes = configuration(s, PHASE2 + GRAPH, RELEASE)
+    assert "truthGraphCaloBoundaryTable" not in text and any("TruthGraphFlatTableProducer" in n for n in notes)
+    text, notes = configuration(s, PHASE2 + GRAPH, RELEASE | TRUTH)
+    assert "process.truthGraphTable = process.truthGraphCaloBoundaryTable.clone()" in text and not notes[1:]
+    assert 'hitTable="recHitTable", hitIdColumn="rechit_ID", name="TruthHGCalRecHits"' in text
+    assert 'hitTable="pfRecHitTable", hitIdColumn="rechit_ID", name="TruthPFRecHits"' in text
+    assert "storedMaps = {\n}" in text and "runAssociators = True and not storedMaps" in text
+    # maps of the input's own reconstruction (a TICL v6 sample) are read from it, from the process that made them
+    stored = "ticlAssociationMap_truthBranchTracksterAssociators_ticlTracksterLinksTruthToReco_RECO."
+    text, _ = cmsrun.config(
+        s, ["file:/in.root"], 5, cmsrun.Inventory(cmsrun.products([*PHASE2, *GRAPH, stored])), RELEASE | TRUTH,
+        associators=False,
+    )  # fmt: skip
+    ast.parse(text)
+    assert "('truthBranchTracksterAssociators', 'ticlTracksterLinksTruthToReco'): 'RECO'," in text
+    assert "runAssociators = False and not storedMaps" in text
+    run3 = cmsrun.Settings(False, True, "Run3_2025", "", "GT")
+    text, notes = configuration(run3, RUN3, RELEASE | TRUTH)  # data: no truth, and nothing to say about it
+    assert "truthGraph" not in text and not any("truth" in n for n in notes)

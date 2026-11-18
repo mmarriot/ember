@@ -352,10 +352,12 @@ def export(
     log=sys.stderr,
     config=None,
     pat=False,
+    associators=True,
 ):
     """Write the cmsRun configuration for the EDM files `inputs` in `workdir` (a copy to `config` if given), run it
     there, and return the NanoAOD file it wrote. `pat`: for a reconstruction file, the physics objects of PAT and
-    standard NanoAOD instead of ember's own tables of the RECO collections (cmsrun.config). When the job fails, the
+    standard NanoAOD instead of ember's own tables of the RECO collections (cmsrun.config); `associators`: run the
+    truth associators whose maps the input does not hold (3.5 s per event at 200 pileup). When the job fails, the
     Problem raised shows the end of the job's output and where all of it was kept."""
     prefix, env = _environment(cmssw)
     inv = inventory(inputs[0])
@@ -373,7 +375,7 @@ def export(
             _run([*prefix, *command], workdir, env, "cmsDriver.log")
         text, notes = cmsrun.config(
             s, list(map(_source, inputs)), events, inv, cmsrun.plugins(prefix, env), threads,
-            made_by=f"embertools {__version__}", drop=unreadable(inv, prefix, env), pat=pat,
+            made_by=f"embertools {__version__}", drop=unreadable(inv, prefix, env), pat=pat, associators=associators,
         )  # fmt: skip
         with open(path, "a" if pat else "w") as f:
             f.write(text)

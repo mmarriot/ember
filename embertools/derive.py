@@ -99,7 +99,12 @@ def apply_derive(d, tables):
     elif "momentum" in d:
         pt, eta, phi = (None if c is None else cols[c].astype(np.float64) for c in d["momentum"])
         cols["px"], cols["py"] = (pt * np.cos(phi)).astype(np.float32), (pt * np.sin(phi)).astype(np.float32)
-        cols["pz"] = (pt * np.sinh(eta) if eta is not None else np.zeros(n)).astype(np.float32)
+        if eta is None:
+            pz = np.zeros(n)
+        else:  # pt 0: ROOT writes eta = +-(22756 + |pz|), so pz = sign(eta) (|eta| - 22756)
+            with np.errstate(over="ignore", invalid="ignore"):
+                pz = np.where(pt > 0, pt * np.sinh(eta), np.sign(eta) * np.maximum(np.abs(eta) - 22756, 0))
+        cols["pz"] = pz.astype(np.float32)
     elif "xyFromEtaPhiZ" in d:
         eta, phi, z = (cols[c].astype(np.float64) for c in d["xyFromEtaPhiZ"])
         r = z / np.sinh(eta)  # the transverse radius, as tan(theta) = 1 / sinh(eta)

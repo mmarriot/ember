@@ -1,19 +1,24 @@
 # Hosting the site
 
-This page is for the people who set up and run an Ember site. Users do not need it.
+> **Planned, not available.** The CMS site and its service that this page describes do not exist yet: no EOS project
+> space, no user areas, no shared samples kept by cron. Until they do, `ember FILE.root` writes the bundle on your
+> machine, and you open it at https://marriot-evd.web.cern.ch, a personal copy of the viewer with a few data sets
+> ([Getting started](getting-started.md)). The commands and scripts below exist, and were run against a local folder
+> and a test folder on EOS. Everything marked **unverified** comes from the documentation of the CERN services, and has
+> not been tried.
+
+This page is for the people who will set up and run an Ember site. Users do not need it.
 
 The site is a **static website**: a folder of files, served over HTTPS behind the CERN single sign-on. There is no
-server process and no database. Commands write everything in it: each user's `ember FILE.root`, and two cron jobs.
+server process and no database. Commands write everything in it: each user's `ember FILE.root`, which publishes to
+the site when it is configured (`EMBER_SITE_DIR` or `--site`), and two cron jobs.
 
 This page gives the overview, and what to ask CERN IT for. The operating details (configuration keys, what each pass
 does, how to redeploy) are in the repository's
 [`service/README.md`](https://github.com/mmarriot/ember/blob/main/service/README.md).
 
-> **Not set up yet.** The CMS site does not exist. `/eos/project/c/cms-ember/` and `https://cms-ember.web.cern.ch` are
-> placeholders. They are set in one file (`embertools/site.py`), and `EMBER_SITE_DIR`, `EMBER_SITE_URL` and
-> `EMBER_SERVICE_DIR` override them. Everything marked **unverified** on this page comes from the documentation of the
-> CERN services, and has not been tried. The scripts themselves were run against a local folder and a test folder on
-> EOS.
+`/eos/project/c/cms-ember/` and `https://cms-ember.web.cern.ch` are placeholders. They are set in one file
+(`embertools/site.py`), and `EMBER_SITE_DIR`, `EMBER_SITE_URL` and `EMBER_SERVICE_DIR` override them.
 
 ## Layout
 
@@ -74,7 +79,8 @@ A checklist for the request to CERN IT and CMS. All of it is **unverified** unti
 
 ## Users' areas and their access
 
-The first time a user runs `ember FILE.root`, it creates `data/u/<login>/`. It writes the bundle and the index there,
+The first time a user publishes to the site (`ember FILE.root` with the site configured), `ember` creates
+`data/u/<login>/`. It writes the bundle and the index there,
 either through the mounted file system (lxplus) or through XRootD with the user's Kerberos ticket.
 
 Set up these rights once on the site folder, with EOS ACLs:
@@ -158,26 +164,28 @@ step, with dry runs first.
 ### Shared samples: RelVal campaigns
 
 A new user should have something to open without running anything. For this, a campaign can take CMSSW
-reconstruction files. With `"export"` in its entry, `sync` first makes the event-display NanoAOD of the first
-`max_events` events of each file. It runs `cmsDriver.py -s NANO:@EVD` in a clean environment, set up from the CMSSW
-area that the entry names. Then it converts the NanoAOD:
+reconstruction files. With `"export"` in its entry, `sync` first makes the NanoAOD of the first `max_events` events
+of each file, as `ember FILE.root` does: it writes `ember_cfg.py` from the modules of the CMSSW area that the entry
+names, and runs it in a clean environment set up from that area ([CMSSW side](cmssw.md)). Then it converts the
+NanoAOD:
 
 ```json
 { "name": "relval_CMSSW_20_1_0_pre6", "title": "RelVal CMSSW_20_1_0_pre6",
   "inputs": "/eos/cms/store/relval/CMSSW_20_1_0_pre6/RelVal*/GEN-SIM-RECO/*_D121_*/*/*.root",
-  "xrootd": "root://eoscms.cern.ch/", "profile": "cms", "max_events": 10,
+  "xrootd": "root://eoscms.cern.ch/", "profile": "auto", "max_events": 10,
   "stem": "wildcards", "stem_parts": [0, 1, 2],
   "export": {"cmssw": "/eos/project/c/cms-ember/service/cmssw/CMSSW_20_1_0_pre6", "geometry": "D121"} }
 ```
 
 This makes one bundle of 10 events per sample, under the heading "RelVal CMSSW_20_1_0_pre6" in the viewer's list.
 
-A new release is a new entry, with its own CMSSW area. Run `cmsrel` once, in a release that has `NANO:@EVD`. Until
-the flavour is merged, merge in the topic branch and build it.
+A new release is a new entry, with its own CMSSW area: run `cmsrel` once for it. For the hits of each cluster and
+the truth, merge the CMSSW branches into that area and build it, until they are in the release
+([CMSSW side](cmssw.md#the-cmssw-branches)).
 
 **Unverified:** the path pattern is an example, based on the layout of an earlier release. No RelVal file has been
-through this under acron yet. The same code was run by hand on a step3 file: 39 s for 2 events, most of it for the
-job to start.
+through this under acron yet. The export was measured by hand on step3 files: about 20 s for the job to start, then
+0.6 to 0.7 s per event ([CMSSW side](cmssw.md#what-it-costs)).
 
 ## Deploying
 
@@ -208,8 +216,11 @@ pip should run `pip uninstall evdtools`, or the old `evd` stays on their `PATH`.
 
 ## Quota and retention
 
-- A bundle is about 0.85 MB per event without pile-up, and 18 MB per event at 200 pile-up. `ember` publishes 10 events
-  by default, so a typical bundle at 200 pile-up is 180 MB. A hundred users who each keep five of those use 90 GB.
+- A bundle of ttbar is about 0.4 MB per event without pile-up and 5 to 6 MB per event at 200 pile-up, without truth.
+  With truth it is larger: about 17 MB per event at 200 pile-up, and the ttbar bundles of Ember's earlier export are
+  0.85 MB and 20 to 30 MB per event.
+  `ember` writes 10 events by default, so a bundle at 200 pile-up is 50 to 300 MB. A hundred users who each keep five
+  of the largest use 150 GB.
 - Bundles expire 30 days after they were last published. `ember clean --days N`, or `EMBER_KEEP_DAYS` for the cron job,
   changes this.
 - **There is no quota per user**: one person can fill the space. If that happens, the folder sizes under `data/u/`
@@ -220,5 +231,5 @@ pip should run `pip uninstall evdtools`, or the old `evd` stays on their `PATH`.
 ## What each visitor costs
 
 Each open page reads `index.json` and the visitor's own index every 30 s while the tab is visible. It makes one
-ranged read per event shown (0.85 to 18 MB). The web server only serves files. There is nothing to scale except EOS
+ranged read per event shown (0.4 to 30 MB). The web server only serves files. There is nothing to scale except EOS
 and the web front end, which CERN IT runs.

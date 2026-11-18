@@ -5,17 +5,23 @@ What new users run into, and what to do. Every message of the `ember` command is
 
 ## Getting events in
 
-**`ember: ... has none of the tables that the profile cms draws (it has: Jet, Muon, ...)`**
+**`ember: FILE: none of the profiles phase2, run3, nano, hgcal, cms draws its tables (it has: ...)`**
 
-The file is analysis NanoAOD. The event display needs the detector-level tables that CMSSW writes with the
-`NANO:@EVD` step ([Getting started, step 2](getting-started.md#step-2-make-the-event-display-nanoaod)). MiniAOD and
-analysis NanoAOD do not hold the hits or the links between objects.
+The file is a kind of NanoAOD that no built-in profile knows: its tables have other names. Standard NanoAOD,
+`NANO:@HGCAL` and the NanoAOD that `ember` writes all work. For another kind, write a profile and give it with
+`--profile` ([Profiles](profiles.md)).
 
-**`ember` says that the release has no `NANO:@EVD`, or cmsDriver says "Impossible to map EVD".**
+**My bundle has only physics objects: no hits, clusters or tracks.**
 
-Your release does not have the event-display NanoAOD yet. Until it is merged, add it to your CMSSW area with
-`git cms-merge-topic mmarriot:eventdisplay-nano && scram b`, once the branch is pushed
-([What you need](getting-started.md#what-you-need)).
+The input was a MiniAOD or a NanoAOD. They do not hold the hits or the clusters: `ember` can draw only what the file
+has. Run `ember` on the reconstruction file (RECO or FEVT) of the same events instead
+([Which files work](how-to.md#which-files-work)).
+
+**`ember` says `left out: the hits of clusters: this release has no CaloClusterHitsTableProducer, ...`**
+
+The hits of each cluster need a CMSSW branch that is not merged yet. Without it, the clusters are drawn, but selecting
+one does not show its hits. Add the branch to your CMSSW area with `git cms-merge-topic mmarriot:nanoaod-cluster-hits`
+and build ([Get the cluster hits and the truth](how-to.md#get-the-cluster-hits-and-the-truth)).
 
 **`ember: display EcalHits: no column halfWidth`** (or another table and column)
 
@@ -23,7 +29,7 @@ The file and the converter come from different versions, and the tables changed 
 goes with the release that wrote the file. The first line that `ember` prints names that release. `ember --version`
 names the converter.
 
-**`ember: cannot reach ...` or `ember: cannot write ...: root://eosproject.cern.ch/ refused`**
+**`ember: cannot reach ...` or `ember: cannot write ...: root://eosproject.cern.ch/ refused`** (publishing to a site)
 
 You have no valid Kerberos ticket. Run `kinit <your login>@CERN.CH`, then try again. On lxplus the site is a mounted
 folder, and your login is enough.
@@ -36,13 +42,17 @@ files.
 
 **The export job fails on my step3 file.**
 
-`ember` prints the end of the cmsRun log. The usual reasons are:
+`ember` prints the end of the cmsRun log, and keeps the whole log and `ember_cfg.py` in the files it names. The usual
+reasons are:
 
-- The file was made with a release other than the one you are in. Use the same release.
-- The file was made with an era or process modifiers that differ from the release's defaults for its geometry. Give
-  `--era`. `ember` cannot pass process modifiers yet: run the `cmsDriver.py` command
-  [by hand](how-to.md#convert-a-step3-file-you-already-have) with `--procModifiers`.
-- The file's event content lacks what the tables read. `FEVTDEBUGHLT` and `RECOSIM` are the tested event contents.
+- The file was made with an era or conditions other than the ones `ember` found. Give `--era` and `--conditions`.
+- The release is older than the one that made the file, or than the modules the configuration names. Use the
+  release that made the file, or a newer one. A module that CMSSW renamed or changed also ends here: please
+  [report it](https://github.com/mmarriot/ember/issues).
+
+Process modifiers (such as `ticl_v6`) do not need to be given: `ember_cfg.py` runs no reconstruction, only modules
+that write tables. To look into a failure, keep the configuration with `--config FILE.py`, and run `cmsRun FILE.py`
+yourself.
 
 **My account name on this machine is not my CERN login.**
 
@@ -51,8 +61,8 @@ viewer lists as yours.
 
 **Does it work for Run 3, or for real data?**
 
-This is not tested. The `NANO:@EVD` step is written and measured for Phase-2 full simulation. The truth tables need
-the truth graph, and only those samples have it.
+Yes. `ember` reads Run 3 RECO, data and simulation (tested on JetMET 2025C data), Run 3 MiniAOD and any NanoAOD. Run 3
+files have no truth graph, so their bundles have no truth. Run 2 and older files are not supported.
 
 **Can I convert only some events?**
 
@@ -75,8 +85,9 @@ another name, the bundle is under that name (see `EMBER_USER` above).
 
 **I dropped a file on the page, and the share button gives no link.**
 
-Your browser reads a dropped file from your computer. The file is not on the site, so it has no link. To get a link,
-publish the file it was made from: `ember FILE.root`.
+Your browser reads a dropped file from your computer. The file is not on the site, so it has no link. Send the file
+itself: the other person drops it on the viewer too. Links to your own bundles need a site that holds them: the CMS
+site is planned ([Hosting](hosting.md)).
 
 **The link I sent opens the right event, but not my cuts.**
 
@@ -86,8 +97,9 @@ keep the cuts, the ticked collections or the camera position.
 
 **An event at 200 pile-up takes a while to open.**
 
-Such an event is an 18 MB download, and about 500,000 hits to draw. `--max-events` does not change this. What helps:
-the cuts in the side panel, and looking at one part of the detector at a time (the **Look at** bar).
+Such an event is about 5 MB to read without truth, about 17 MB with it (20 to 30 MB in the ttbar data sets of
+https://marriot-evd.web.cern.ch), and several hundred thousand hits to draw. `--max-events` does not change this.
+What helps: the cuts in the side panel, and looking at one part of the detector at a time (the **Look at** bar).
 
 **A reconstructed object has no truth match, or says "no truth".**
 
@@ -97,20 +109,23 @@ muons, taus, missing momentum). The tag on each step of the selection's card say
 
 **Everything is grey in the truth colours.**
 
-The bundle has no truth. Either the input was made without the truth graph (FastSim, or an era without the
-`enableTruth` modifier), or the file's truth tables are empty. Run `ember inspect FILE.ember`: it shows the bundle's
+The bundle has no truth. Either the release that ran `ember_cfg.py` had no truth graph tables (they need a CMSSW
+branch for now: [Get the cluster hits and the truth](how-to.md#get-the-cluster-hits-and-the-truth)), or the input has
+no truth graph (AOD, MiniAOD, NanoAOD, Run 3, FastSim, premixed pile-up, or an era without the `enableTruth`
+modifier), or the file's truth tables are empty. Run `ember inspect FILE.ember`: it shows the bundle's
 relations and the largest tables of the first events. Look for `TruthParticles`.
 
 ## Everything else
 
 **Where does my data go?**
 
-To the CMS site's storage, in `data/u/<your login>/`. CMS members who have the link can read it. The site is behind
-the CERN single sign-on, so it is not public. With `-o FILE.ember`, nothing leaves your machine.
+Nowhere. `ember` writes the bundle on your machine, and when you drop it on the viewer, your browser reads it from
+your disk: nothing is uploaded. Only with a site configured (`--site` or `EMBER_SITE_DIR`) does `ember` copy the
+bundle to that site, in `data/u/<your login>/`.
 
 **Can I use Ember without the site?**
 
-Yes. Write a file with `ember FILE.root -o FILE.ember`, and drop it on any viewer page. See
+Yes, that is the default. You can also run a viewer yourself: see
 [Look at a bundle without the site](how-to.md#look-at-a-bundle-without-the-site).
 
 **How do I report a problem?**

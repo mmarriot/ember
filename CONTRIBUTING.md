@@ -125,8 +125,11 @@ that fails without the fix.
 [docs/format.md](docs/format.md) every display hint. An entry that names a table missing from the file is dropped,
 so one profile serves files with and without the table. Add a case to `tests/test_builtin_profiles.py`.
 
-**Add a table that CMSSW does not write yet.** Change the CMSSW package `DPGAnalysis/EventDisplayNanoAOD`, then add a
-profile entry here ([docs/cmssw.md](docs/cmssw.md#adding-a-collection)).
+**Add a table that `ember` does not write yet.** If the release has a producer for it, add it to the configuration
+that `ember` writes (`embertools/cmsrun.py`), only when the release has the producer and the input has the collection
+(`need`, `inv.has`), with a case in `tests/test_export.py`. Then add a profile entry. If CMSSW has no producer for it,
+it needs a small, generic CMSSW pull request first
+([docs/cmssw.md](docs/cmssw.md#planned-every-hit-and-every-object)).
 
 **Support another kind of data** (a test stand, a test beam). Write a profile. Start from `mct.json` or
 `testbeam.json`. Per-run tables (such as a channel map), event selection and run information are all profile keys.

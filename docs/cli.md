@@ -122,7 +122,7 @@ name ends in `.ember` or in the older `.evdb`.
 
 ## Site commands
 
-These are for the people who run the site ([Hosting](hosting.md)). Users do not need them.
+These are for the people who run a site ([Hosting](hosting.md): the CMS site is planned). Users do not need them.
 
 ```
 ember sync --config campaigns.json [--max-files N] [--dry-run]       convert new files of the campaigns, rewrite the index
@@ -215,7 +215,7 @@ Any other message is a bug. Run the command again with `EMBER_DEBUG=1`, and repo
   `index.json`. So a reader never sees half a file. Where the site is not mounted, each of these steps is one `xrdcp`
   or `xrdfs` call.
 - **A reconstruction file** adds one cmsRun job, with ember's own configuration. With 4 threads it takes about 20 s
-  to start (Run 3 data: 15 s), then 0.6 s per event without pile-up, or 0.7 s per event at 200 pile-up (Run 3 data:
+  to start (Run 3 data: 16 s), then 0.6 s per event without pile-up, or 0.7 s per event at 200 pile-up (Run 3 data:
   0.25 s). Before it, finding the settings and checking the input's classes take a few seconds.
 
 **Measured sizes and times**, per event, on ttbar events with geometry `ExtendedRun4D104` (stock reconstruction) and

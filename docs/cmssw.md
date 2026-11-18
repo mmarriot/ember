@@ -1,197 +1,217 @@
-# CMSSW side: the `NANO:@EVD` flavour
+# CMSSW side: what `ember` runs
 
-Ember reads NanoAOD. The CMSSW package `DPGAnalysis/EventDisplayNanoAOD` defines a NanoAOD *flavour*, `NANO:@EVD`. It
-writes the reconstructed event as flat tables:
+Ember reads NanoAOD. It gets it in one of two ways:
 
-- hits, with their geometry;
-- clusters, tracks, particle-flow objects and physics objects;
-- the links between them;
-- the truth graph.
+- **NanoAOD that CMS already makes** is read as it is, with no CMSSW job: standard NanoAOD (any `NANO` flavour, for
+  example from MiniAOD), and the HGCal tables of `NANO:@HGCAL` (DPGAnalysis/HGCalNanoAOD).
+- **For a reconstruction file** (RECO, FEVT, AOD) `ember` writes a cmsRun configuration of its own, `ember_cfg.py`,
+  from modules that **your CMSSW release already has**, runs it, and converts its output. A MiniAOD gets standard
+  NanoAOD instead (`cmsDriver.py -s NANO`).
 
-Nothing in the package knows about the viewer. The output is plain NanoAOD, and you can read it with uproot or ROOT
-like any other NanoAOD file.
+Nothing has to be merged in CMSSW for this to work. The modules are CMSSW's own NanoAOD table producers, so the
+output is plain NanoAOD, which you can read with uproot or ROOT like any other. Two CMSSW branches, not merged yet,
+add generic table producers for what the release cannot write: the hits of each cluster, and the truth graph
+([below](#the-cmssw-branches)). `ember` uses them when your release has them.
 
-The names on the CMSSW side are descriptive, not Ember's: `NANO:@EVD` is a generic *event-display* NanoAOD, and
-Ember is the tool that reads it. So the flavour, the package and its branches keep their names.
+The code is `embertools/cmsrun.py` (the configuration) and `embertools/export.py` (the settings and the job). This
+page describes them as tested with the integration build CMSSW_20_1_X_2026-11-17-2300.
 
-> **Not merged yet.** The package is on two branches against CMSSW_20_1_X, which will become two pull requests:
-> `eventdisplay-nano-generic` (the generic table producers) and, on top of it, `eventdisplay-nano` (the other
-> producers and the flavour). Neither branch is pushed yet. Until the package is in a release, add it to a CMSSW area,
-> once the branch is pushed, with `git cms-merge-topic mmarriot:eventdisplay-nano` and `scram b`
-> ([Getting started](getting-started.md#what-you-need)). This page describes the branch as measured on
-> CMSSW_20_1_X_2026-11-12-2300. The package's own `README.md` in CMSSW has the full lists of columns.
+## How `ember` writes the configuration
 
-## Using it
+What goes in `ember_cfg.py` is decided from three things:
 
-**Inside a reconstruction job**, where everything the job makes is available:
+- **what your release has:** its module plugins, from `edmPluginDump -a` (0.1 s, so it is not cached);
+- **what the input holds:** its products, from the branch names of its `Events` tree;
+- **the era:** Phase 2 (HGCal, TICL, the ECAL barrel, HCAL) or Run 3 (also the ECAL endcap, the preshower and the
+  HCAL endcap). The era, geometry and global tag are found from the file, or given with `--era`, `--geometry` and
+  `--conditions` ([How-to](how-to.md#convert-a-step3-file-you-already-have)).
 
-```bash
-cmsDriver.py step3 -s RAW2DIGI,RECO,RECOSIM,NANO:@EVD \
-    --eventcontent FEVTDEBUGHLT,NANOAODSIM --datatier GEN-SIM-RECO,NANOAODSIM  ...your other options...
+A table whose producer the release lacks, or whose collection the input lacks, is left out. The header of the
+configuration lists each one, with the reason, and `ember` prints the same lines (`left out: ...`). Products of the
+input whose class the release has no dictionary for (the SoA collections of a development release, for example) are
+dropped on input, so that cmsRun can open the file. What was made from them stays.
+
+`--config FILE.py` keeps the configuration. It is one readable Python file, with the input files, the number of
+events and the settings written in it. `cmsRun FILE.py` runs it again in the same release, and
+`ember convert ember_nano.root -o NAME.ember` converts its output. A failed job keeps it next to its log.
+
+```python
+# The NanoAOD that Ember reads, from a CMSSW reconstruction file, with modules of this release only.
+# Written by embertools 0.2.0; keep it, change it, and run it again with: cmsRun ember_cfg.py
+# Then: ember convert ember_nano.root -o NAME.ember
+#
+# Phase 2 simulation: era Phase2C22I13M9, geometry ExtendedRun4D104, conditions 201X_mcRun4_realistic_v1
+# Left out (not in the input, or not in this release):
+#   - the hits of clusters: this release has no CaloClusterHitsTableProducer, PFClusterHitsTableProducer,
+#     SuperClusterHitsTableProducer (in CMSSW after the pull request 'NanoAOD tables of the hits of calorimeter
+#     clusters')
+import FWCore.ParameterSet.Config as cms
+
+...
 ```
-
-The job writes the NanoAOD next to the reconstruction output, as `<fileout stem>_inNANOAODSIM.root`.
-
-**On a reconstruction file that already exists**, with `FEVTDEBUGHLT` content (what RelVal `GEN-SIM-RECO` files hold)
-or `RECOSIM` content:
-
-```bash
-cmsDriver.py ember -s NANO:@EVD --conditions <as the file> --geometry <as the file> --era <as the file> --mc \
-    --eventcontent NANOAODSIM --datatier NANOAODSIM -n -1 --filein file:step3.root --fileout file:ember_nano.root
-```
-
-`ember step3.root` runs this for you ([The `ember` command](cli.md#ember-view)).
-
-**Scope today:** Phase-2 full simulation, on `FEVTDEBUGHLT` and `RECOSIM` content. A `RECOSIM` file gave the same
-rows in all 97 tables as the `FEVTDEBUGHLT` file of the same 10 events. Run 3, FastSim, premixed pile-up and real
-data have not been tested. `AODSIM` and MiniAOD inputs lack the hits, so they are not supported.
-
-**When an input is missing.** The flavour needs Phase-2 RECO-level content. It was tested in the reconstruction job,
-and on `FEVTDEBUGHLT` and `RECOSIM` files.
-
-- Most producers stop the job when their input is missing.
-- The exceptions are the calorimeter hit tables and the cluster → hit tables. They skip a missing collection: the
-  table keeps its columns, with the rows of the collections that are there.
-- With truth (the `enableTruth` modifier of the Phase-2 eras), the input must hold the truth graph
-  (`truthLogicalGraphProducer` and its hit index). Without it, CMSSW's associators stop the job.
-- A reference into a collection other than the configured one is an error. An index is never written into the wrong
-  table.
 
 ## What it writes
 
-About 100 tables on a stock release (97 on the ttbar sample measured here).
+| part | tables | module (package) | era |
+|---|---|---|---|
+| HGCal hits | `rechits`: every rechit of CE-E and CE-H (silicon and scintillator) with its DetId, energy, time and position | `RecHitFlatTableProducer` (PhysicsTools/TruthInfo), positions from TICLGeom (RecoTICL/Geometry) | Phase 2 |
+| ECAL and HCAL hits | `pfrechits`: the rechits above the particle-flow thresholds, with DetId, energy, time and position. The converter splits it into `EBHits`, `EEHits`, `ESHits`, `HBHits`, `HEHits`, `HOHits` and `HFHits`. | `PFRecHitFlatTableProducer` (PhysicsTools/TruthInfo), positions from CaloGeometry. When the input does not keep the PF rechits (Run 3 RECO keeps only those that cleaning removed), the reconstruction's own producers make them again in the job. | both |
+| HGCal reconstruction | `HGCalLayerClusters`; one table per trackster collection of the input, named after it (for example `ticlTrackstersCLUE3DHigh`, `ticlTracksterLinks`, `ticlCandidate`), each with its list of layer clusters; `TICLCandidates`, with their tracksters and tracks | the tables that `NANO:@HGCAL` writes (DPGAnalysis/HGCalNanoAOD), with only the columns that are drawn | Phase 2 |
+| PF clusters | `PFClusterECAL`, `PFClusterHCAL`, `PFClusterHF`, `PFClusterHO`, and `PFClusterPS` in Run 3 | `LayerClustersCollectionTableProducer` (DPGAnalysis/HGCalNanoAOD), a table of any `reco::CaloCluster` collection | both |
+| Superclusters | `SuperClusterEB`; `SuperClusterEE` (Run 3); `SuperClusterHGCal` (Phase 2) | `SimpleSuperclusterFlatTableProducer` (PhysicsTools/NanoAOD) | both |
+| The hits of each cluster | for each cluster table `X` above and `HGCalLayerClusters`: a count `nXHits` on `X`, and a table `XHits` of `detId` and `fraction`, one row per (cluster, hit) | `CaloClusterHitsTableProducer`, `PFClusterHitsTableProducer`, `SuperClusterHitsTableProducer`: the branch `nanoaod-cluster-hits` | both |
+| Tracks | `GeneralTrack`: the general tracks, with their momentum, reference point and outermost hit (and, in Phase 2, their HGCal entry point) | HGCalNanoAOD's track table (`hgcalGeneralTracks_cfi`) | both |
+| Physics objects | `Jet` (AK4 Puppi jets, or CHS jets where the file has no Puppi jets: uncorrected, pT > 10 GeV), `PuppiMET`, `PFMET`, `Electron`, `Photon`, `Muon`, `ElectronHGC` and `PhotonHGC` (the HGCal electrons and photons of Phase 2), `PV` (the leading primary vertex), `SV`, `OfflineBeamSpot` | PhysicsTools/NanoAOD's `Simple*FlatTableProducer`s on the RECO collections, with the names and columns that standard NanoAOD uses. With `--pat`: standard NanoAOD ([below](#physics-objects-and-pat)). | both |
+| Truth | the truth graph tables ([below](#truth)) | the branch `truthgraph-nano-tables` | Phase 2 |
 
-- Rows keep the order of the CMSSW collection they come from. So an index column (`trackIdx`, `clusterIdx`, ...) is
-  the position in that collection.
-- When an index is made from a reference, the producer checks it against the collection it must point into.
-- Each column carries its description and unit in the file. See them with `Events->Print()` in ROOT, or in the branch
-  titles in uproot.
+- The tables keep the order of the CMSSW collection they come from.
+- The cluster-hit tables give each hit by its DetId. The converter finds the hit with that DetId in the hit tables,
+  so one relation covers every hit table (the three HGCal sections, or EB and EE). A hit below the PF thresholds is
+  not in `pfrechits`, and its link is dropped.
+- No table carries a cell size. The converter works it out from the DetId ([Profiles](profiles.md#derive-new-columns)).
+- The float columns that `ember` configures keep only the bits they need: 14 mantissa bits for positions (about
+  0.3 mm at 5 m), 12 for energies, 10 for axes and widths, 8 for fractions. The TruthInfo hit tables have no
+  precision option, and keep all 23.
+- The NanoAOD file is temporary, so it is written with LZ4, which is quick to write and to read back.
 
-| part | tables | what |
+## Physics objects, and PAT
+
+RECO has no jet energy corrections, jet IDs or b-tag tables that a NanoAOD table producer can read. So, by default,
+the physics objects come straight from the RECO collections: uncorrected jets with no IDs or b-tags, and no taus.
+These tables cost under 1 ms per event.
+
+`--pat` takes the physics objects from PAT and standard NanoAOD instead. `ember` writes the configuration of
+`cmsDriver.py ember -s PAT,NANO --processName EMBER`, and appends its own tables of the hits, clusters, HGCal objects
+and tracks to it, in the same output file. The bundle then has:
+
+- corrected jets with their IDs and b-tags, and taus (`Tau`);
+- `PV`, `SV` and MET with the columns of standard NanoAOD;
+- one `Electron` and one `Photon` table, as standard NanoAOD has: no `ElectronHGC` or `PhotonHGC`.
+
+It costs (Phase-2 ttbar, 10 events, 4 threads):
+
+| | `ember`'s tables, whole job | PAT and NANO alone |
 |---|---|---|
-| Calorimeter hits | `HGCalHits`; `EcalHits`, `HBHEHits`, `HFHits`, `HOHits` | every rechit with its `detId`, energy, time and position. HGCal cells carry their `halfWidth`. Barrel and forward towers carry their `dEta`, `dPhi` and `thickness`, from the cell's corners. |
-| HGCal / TICL | `HGCalLayerClusters`, `HGCalLayerClusterHits`; `ticlTrackstersCLUE3DHigh`, `ticlTracksterLinks`, `ticlTracksterLinksSuperclusteringDNN`, `ticlCandidate` (each with its `...vertices` list of layer clusters); `TICLCandidates` with their tracks and tracksters | layer clusters with their hits; every trackster collection that the release registers, with its layer clusters; TICL candidates. The TICL tables are reused from `DPGAnalysis/HGCalNanoAOD`. |
-| Tracker and timing | `Tracks`, `TrackHits`; `Vertices`, `VertexTracks`; `BeamSpot`; `MTDHits`; (`GeneralTrack`, `GSFTrack`, `TrackMuonInfo` from HGCalNanoAOD) | general tracks with their hits in global coordinates, and their MTD time and position; primary vertices with their tracks and fit weights; BTL and ETL rechits |
-| Particle flow | `PFCandidates`, `PFCandidateClusters{ECAL,HCAL,HF,HO}`; `PFClusters{ECAL,HCAL,HF,HO}`, `PFCluster{...}Hits`; `Jets`, `JetConstituents`; `PuppiMET`, `PFMET` | candidates with their track, GSF track, muon, TICL candidate and clusters; PF clusters with their hits; AK4 Puppi jets with their constituents; MET |
-| Physics objects | `JetsCHS`, `JetsCHSConstituents`; `SecondaryVertices`, `SecondaryVertexTracks`; `Electrons`, `ElectronsHGC`, `Photons`, `PhotonsHGC`; `EGammaSuperClusters`, `HGCalEGammaSuperClusters` and their `...Hits`; `GsfTracks`, `GsfTrackHits`; `Taus`, `TauSignalCands` | CHS jets with the b-tags that RECO has; secondary vertices; electrons and photons of the barrel and of HGCal, with their supercluster, tracks and PF candidate; taus with their signal candidates |
-| Muon system | `Muons`, `MuonTracks`, `MuonTrackHits`, `MuonSegments`, `MuonSegmentMatches`, `MuonChamberMatches`, `MuonHits`, `MuonChambers` | muons with their standalone and global tracks, and the segments and chambers they match; every segment and rechit; the chambers in use, as boxes |
-| Truth graph | `TruthParticles`, `TruthVertices`, `TruthParticleChildren`; `Truth{HGCal,Ecal,HBHE,HF,HO,Muon}Hits`; `<collection>ToTruth` and `<collection>FromTruth` for tracks, vertices, secondary vertices, ECAL and HCAL PF clusters and every trackster collection | see [Truth](#truth) below |
+| time per event, no pile-up | 0.57 s | 0.85 s |
+| time per event, 200 pile-up | 0.71 s | 2.25 s |
+| time to start | 19 s | about 32 s |
+| memory, 200 pile-up | 3.3 GB | 8.6 GB |
 
-### Truth
+End to end with `--pat`, 5 events took 55 s and 5.5 GB on Phase-2 ttbar without pile-up, and 52 s and 3.5 GB on Run 3
+RECO.
 
-Truth is the CMSSW truth graph (`truth::Graph`, PhysicsTools/TruthInfo) and nothing else. CaloParticles, SimClusters
-and TrackingParticles are not written. [Truth graph](truth-graph.md) explains why, and what the graph still lacks.
+A MiniAOD always gets standard NanoAOD (`cmsDriver.py -s NANO`): it has no hits or clusters to add. When the file has
+a trigger that was run again (`reHLT`, in RelVals), the trigger objects are read from it.
 
-- The Phase-2 eras carry the process modifier `enableTruth`. With it, the graph and its hit index are built at the
-  DIGI step and kept in `RECOSIM` and `FEVTDEBUGHLT`, and the flavour adds its truth tables. Without it, the flavour
-  writes no truth tables at all. FastSim eras drop the modifier.
-- `TruthParticles` holds the signal interaction, every particle that entered a calorimeter (pile-up included, so
-  every hit with simulated energy has its particle), every particle that a reco object is matched to, and their
-  ancestors. By CMSSW's default, the graph holds pile-up from the in-time bunch crossing only.
-- `Truth...Hits`: for each particle that entered a calorimeter, the simulated energy that it and its descendants
-  left in each hit (from the hit index). For muon hits, this is per simulation unit: DT wire, CSC layer, RPC roll,
-  GEM partition.
-- `...ToTruth` / `...FromTruth`: the reco ↔ truth association maps of SimGeneral/TruthGraphAssociatorProducers. There
-  is one row per pair, with its shared energy (or hits, or pT² share) and score. No standard sequence runs these
-  associators. The flavour holds them in a `cms.Task`, so they run only for the maps that a table reads. The list of
-  collections follows the release's own registry (`truthGraphAssociationLabels_cff`), so a new trackster iteration
-  appears without a change here.
+## Truth
+
+Truth in Ember is CMSSW's truth graph (`truth::Graph`, PhysicsTools/TruthInfo), its hit index, and the reco ↔ truth
+associations of SimGeneral/TruthGraphAssociatorProducers, and nothing else. CaloParticles, SimClusters and
+TrackingParticles are not used. [Truth graph](truth-graph.md) explains why, and what the graph still lacks.
+
+**The tables.** The release has no NanoAOD tables of the truth graph. The branch `truthgraph-nano-tables` adds them.
+When your release has them and the input holds the graph, `ember_cfg.py` writes: <!-- W2-CHECK -->
+
+- `TruthParticles`, `TruthVertices`, `TruthParticleChildren`: the signal interaction, the particles that reco objects
+  are matched to, every particle that entered the calorimeter (so that each hit's simulated energy has its particle),
+  and the ancestors of all of them; their production and end vertices; the parent → child links;
+- `TruthHGCalRecHits` and `TruthPFRecHits`: the simulated energy that each of these particles and its descendants
+  left in each hit of `rechits` and `pfrechits`, from the graph's hit index;
+- `<Key>ToTruth` and `TruthTo<Key>`, with their `...Links` tables: the reco ↔ truth associations in both directions,
+  for the collections that the release's label registry names: general tracks, the trackster collections, ECAL and
+  HCAL PF clusters, primary and secondary vertices. The `truth` profile draws all but the vertex ones, as `ember`
+  writes only the leading primary vertex.
+
+The associations come from the maps the input holds, when it has them (the TICL v6 samples were made with the
+associators), and no associator runs. Otherwise CMSSW's associators run in the job. `--no-truth-associators` skips
+them: the bundle then has the graph and the hit energies, but no reco ↔ truth matches.
+
+**Which inputs have it.** The Phase-2 eras carry the process modifier `enableTruth`. With it, the DIGI step builds the
+graph and its hit index, and `FEVTDEBUGHLT` and `RECOSIM` keep them. So a stock Phase-2 step3 file has them, with the
+pile-up of the in-time bunch crossing only (the TICL v6 samples have all crossings; the profile keeps the in-time
+one). AOD, MiniAOD, NanoAOD, premixed pile-up, FastSim and Run 3 files have no truth graph. For Phase-2 simulation
+without it, the header of `ember_cfg.py` says so.
+
+**What it costs**, on Phase-2 ttbar at 200 pile-up (3 events, 4 threads): the job takes 3.1 s per event with the
+associators, 2.1 s without them (`--no-truth-associators`), and 0.7 s without truth. The associators take 1.8 s per
+event for the tracks, 1.0 s for the tracksters and 0.25 s for the PF clusters, and the truth tables 0.14 s; the rest
+is reading the stored graph and hit index. The bundle is about 17 MB per event instead of 5. Without pile-up, a job of
+10 events takes 29 s with truth and 28 s without.
+
+## The CMSSW branches
+
+Both are generic NanoAOD table producers, useful for truth-graph studies, validation and ML training without Ember.
+Add them to a CMSSW_20_1_X area with `git cms-merge-topic` ([How-to](how-to.md#get-the-cluster-hits-and-the-truth)).
+
+| branch | what it adds | state |
+|---|---|---|
+| `mmarriot:nanoaod-cluster-hits` | PhysicsTools/NanoAOD: `CaloClusterHitsTableProducer`, `PFClusterHitsTableProducer`, `SuperClusterHitsTableProducer`. For any `reco::CaloCluster`, `reco::PFCluster` or `reco::SuperCluster` collection, a hit count on the cluster table, and a table of `detId` and `fraction` (from `hitsAndFractions()`). At 200 pile-up, the layer-cluster hits take 0.006 s per event. | pushed; the pull request to CMSSW is not open yet |
+| `mmarriot:truthgraph-nano-tables` | PhysicsTools/TruthInfo and SimGeneral/TruthGraphAssociatorProducers: the truth graph tables above (`TruthGraphFlatTableProducer`, `TruthGraphHitFlatTableProducer`, `truthGraphNanoTables_cff`) | pushed; it builds on [cms-sw/cmssw#52451](https://github.com/cms-sw/cmssw/pull/52451) and contains its commits. Its pull request follows when #52451 is merged. |
 
 ## What it costs
 
-Nothing, unless you ask for it: no standard workflow schedules any of it.
+Measured with the integration build CMSSW_20_1_X_2026-11-17-2300, 4 threads, 10 events, without truth. Phase 2 is
+ttbar with geometry `ExtendedRun4D104` and the stock reconstruction; Run 3 is JetMET 2025C RECO data, read from EOS.
 
-The numbers below were measured on ttbar at 14 TeV, geometry `ExtendedRun4D104`, CMSSW_20_1_X_2026-11-12-2300. The
-flavour ran on a reconstruction file with 8 threads (20 events without pile-up, 10 at 200 pile-up). They are the
-numbers of the package's `README.md`. Module times are the framework's real time per module and event, summed over
-the modules of a kind.
+| per event | Phase 2, no pile-up | Phase 2, 200 pile-up | Run 3 data |
+|---|---|---|---|
+| cmsRun: time to start (once per job) | 19 s | 20 s | 16 s |
+| cmsRun: time per event | 0.57 s | 0.71 s | 0.24 s |
+| NanoAOD | 0.55 MB | 7.3 MB | 0.16 MB |
+| bundle | 0.37 MB | 5.2 MB | 0.14 MB |
+| with the cluster hits: NanoAOD, bundle | 0.58 MB, 0.39 MB | 9.0 MB, 6.0 MB | 0.20 MB, 0.18 MB |
 
-| per event | no pile-up | 200 pile-up |
-|---|---|---|
-| NanoAOD size | 0.94 MB | 21.5 MB |
-| event loop, real time | 0.3 to 0.4 s | 1.6 to 1.7 s |
-| CMSSW's truth association producers | 35 ms | 3.6 s |
-| the NanoAOD output module | 19 ms | 0.57 s |
-| this package's table producers | 32 ms | 0.49 s |
-| of which `HGCalHits` (a geometry lookup per hit, 0.3 µs each) | 18 ms | 0.16 s |
-| the tables reused from `DPGAnalysis/HGCalNanoAOD` | 5 ms | 0.13 s |
-| peak memory of the job | 3.9 GB | 11 to 12 GB |
+- The job start is most of the time for 10 events: loading the libraries, building the geometry and the conditions.
+  Before it, `ember` takes a few seconds to find the settings and to check the input's classes.
+- A RECO event at 200 pile-up is 177 MB on disk, but the job takes 0.7 s for it. The source reads a product from the
+  file only when a module asks for it, so most of the event (truth, trigger, digis) is never read or decompressed.
+- At 200 pile-up with the cluster hits, the largest tables are the HGCal rechits (4.7 MB per event, at full
+  precision), the hits of the layer clusters (1.6 MB), the layer clusters (1.1 MB) and the tracks (0.44 MB).
 
-At 200 pile-up, three quarters of the module time is CMSSW's own truth association (mostly for tracks and
-tracksters). This package only schedules it. The largest tables are then `TruthParticles` (4.7 MB per event, 109k
-rows), `HGCalHits` (3.3 MB, 487k rows), `HGCalLayerClusters` (2.0 MB) and `TruthHGCalHits` (2.0 MB).
-
-Inside the reconstruction job (20 ttbar events without pile-up, 16 threads), the job took 63 s with the flavour and
-65 s without it, with the same peak memory: no measurable change. The cost inside the job at 200 pile-up has not been
-measured. The standalone numbers above are its upper bound per event.
-
-Three choices keep the file small and the output fast. All three are in the flavour's customisation and
-configuration.
-
-- **Compression: ZSTD level 5**, instead of the LZMA of analysis NanoAOD. For the same content at 200 pile-up, per
-  event in the output module:
-
-  | algorithm | size | time |
-  |---|---|---|
-  | ZSTD level 5 | 21.5 MB | 0.57 s |
-  | ZLIB level 4 | 21.9 MB | 0.78 s |
-  | LZMA level 9 | 15.3 MB | 1.88 s |
-
-  ZLIB and LZMA were measured before the tracker and MTD hits had reduced precision, which saves 1%. The NanoAOD file
-  is an intermediate step (the bundle is what is kept), so speed was chosen over the last 30% of size.
-- **Float precision.** The large tables keep 12 to 16 mantissa bits of their float columns: 14 for calorimeter and
-  MTD hits and truth particles, 16 for tracker hits and truth vertices, 12 for fractions and scores. This is 0.15 mm
-  at 2.5 m, and 15 µm at 1 m. The zeroed bits are what compresses: 24.4 MB per event at full precision, 21.5 MB with
-  reduced precision. Each producer has a `precision` parameter (`-1`: keep all bits).
-- **No columns that can be derived** on the hit tables: `eta` and `phi` follow from `x`, `y`, `z`.
-
-To see where the time goes in your own job, add `process.options.wantSummary = True` (a TimeReport per module at the
-end of the log), or use the `FastTimerService`.
+To see where the time goes in a job, add `process.options.wantSummary = True` to the configuration (a TimeReport per
+module at the end of the log), and run it with `cmsRun`.
 
 ## SoA collections
 
-Collections in SoA form (`PortableHostCollection`) are not persistent. So a table made from one exists only when the
-flavour runs **inside the job that makes the collection**. A step3 file never has them.
+Offline reconstruction (`step3`, `FEVTDEBUGHLT`) of a stock release stores no SoA collections. SoA reaches a file only
+from HLT or NGT outputs, or from samples made with extra keep rules (such as the TICL v6 development samples). The
+release cannot write SoA collections as NanoAOD tables yet: that needs a generic SoA table producer, which waits for
+[cms-sw/cmssw#52491](https://github.com/cms-sw/cmssw/pull/52491). So `ember_cfg.py` writes the legacy collections, and
+lists the input's SoA collections as left out. Where a NanoAOD file has both, the converter writes one source per kind
+of object ([Profiles](profiles.md#display-kinds-prefer-stages-layers)).
 
-The package has a generic producer for them, `SoATableProducer<Collection>`. A new SoA collection needs one line: an
-alias and its `DEFINE_FWK_MODULE`. Its columns take their names from the layout itself, in a release whose SoA
-descriptors carry names ([cms-sw/cmssw#52491](https://github.com/cms-sw/cmssw/pull/52491)). Before that, they take
-their names from a list in the configuration.
+## Planned: every hit and every object
 
-On a stock release the flavour schedules no SoA table, because the standard Phase-2 offline reconstruction makes no
-SoA collection yet. The TICL v6 development branch adds its own SoA collections (HGCal SoA rechits, layer clusters,
-tracksters) on top.
+The goal is that the viewer shows all the hits and all the objects of an event. This is what `ember_cfg.py` does not
+write yet, and how each one is planned. Bundles made with Ember's earlier export (for example the ttbar data sets on
+https://marriot-evd.web.cern.ch) have most of them, through tables that are no longer made.
 
-## Adding a collection
+| not written yet | planned route |
+|---|---|
+| PF candidates, as objects | a table in `ember_cfg.py`: the release's `SimpleCandidateFlatTableProducer` on `particleFlow` |
+| the muon system: DT, CSC, GEM and RPC hits and segments | the release's muon DPG tables (DPGAnalysis/MuonTools, `NANO:@MUDPG`) in `ember_cfg.py`; DT segments need their global x, y, z configured |
+| PF candidate → track and clusters | a small generic CMSSW producer |
+| jet → constituents (now only their number, `nConstituents`) | a generic CMSSW producer, or the JME constituent tables with `--pat` (to check) |
+| MTD hits | a table producer of the release, if there is one, or else a small one |
+| the hits on tracks (tracker hits) | a small generic CMSSW producer |
+| vertex ↔ track | a small generic CMSSW producer |
+| tau constituents | a CMSSW producer, or `--pat` |
+| b-tags without `--pat` | a table producer for RECO's `JetTagCollection`s (the release has only PAT's) |
+| SoA tables | the generic SoA table producer ([above](#soa-collections)) |
+| exact HGCal cell outlines | see below |
+| HGCal fine scintillator tiles (geometries other than D104) | a DetId rule, tested against every cell of such a geometry. Today these tiles get no cell size. |
 
-1. **Write a table.** If NanoAOD's `Simple<Type>FlatTableProducer` can describe it (plain columns from string
-   expressions), configure one in `python/eventDisplayNano_cff.py`. If it needs geometry or links to other tables,
-   write a producer in `plugins/` that puts a `nanoaod::FlatTable`:
-   - rows in collection order;
-   - a link as an index column, made with `nanotable::rowOf`. It checks that the reference points into the
-     collection that the index is for;
-   - a link to hits through the hit table's `detId` column (`nanotable::KeyRows`);
-   - `skipNonExistingSrc` for inputs that a file may not have.
-2. **Schedule it.** Add the module to the Task of its part of the detector in `eventDisplayNano_cff.py`. Module
-   labels start with `evd` and end with `Table` (the output keeps `*Table*`).
-3. **Check it.** `test/validate_export.py ember_nano.root` runs the consistency checks: indices in range, finite
-   positions, link counts equal to the objects' counts. Add checks for the new table. The flavour's RelVal workflow,
-   `runTheMatrix.py -w upgrade -l 29634.214` (`_EventDisplayNano`), must still pass.
-4. **Draw it.** Add a `display` entry, and relations for its links, to an Ember profile ([Profiles](profiles.md)). A
-   table that no profile entry names is still converted, and listed in the viewer's Event tab.
+**HGCal cells as drawn today.** Each HGCal cell is drawn as a regular hexagon centred on the cell's position, with
+its corners at the cell's half-width (the apothem for silicon, r·Δφ/2 for a scintillator tile). So:
 
-## Not exported yet
+- every cell has the same orientation. The real cell lattice is rotated by 30° from it in most layers, and the
+  rotation changes from layer to layer;
+- a cell is drawn slightly smaller than it is (its corners where its sides are), so neighbours never overlap;
+- partial cells at the edge of a wafer are drawn whole, and scintillator tiles are drawn as hexagons.
 
-- **Level-1 and HLT objects.**
-- **Reco ↔ truth associations that CMSSW does not have:** jets, electrons and photons, muons, taus, MET, PF
-  candidates, HF and HO PF clusters, and layer clusters. [cms-sw/cmssw#52451](https://github.com/cms-sw/cmssw/pull/52451)
-  adds the last. Ember does not put its own matching in their place. Each one appears when its associator exists
-  ([Truth graph](truth-graph.md#gap-table)).
-- **TICL candidate ↔ truth** on a stock release. CMSSW has no candidate associator. The association it writes under
-  `ticlCandidateToTruth` is that of the candidates' own tracksters (table `ticlCandidate`). So the viewer shows the
-  match on those tracksters ("Candidate tracksters"), and none on the candidates. The profile reads the table this way
-  whenever the file has `ticlCandidate` (relation option `unless`, [Profiles](profiles.md#relations)).
-- **Track → MTD rechit links** (a track carries its MTD hit's position and time), and **MTD hit truth**.
-- **Tracker hits that are on no track.** RECO stores clusters, and only the hits on tracks are written.
-- **SoA collections** on a stock release ([above](#soa-collections)).
-- **Out-of-time pile-up truth:** it is not in the graph by default.
+Positions, energies and the hits that each object owns are exact; only the outline of each cell is approximate. The
+plan: the converter takes each layer's lattice angle from the cell centres (rotation only, nothing in CMSSW), and
+exact outlines come later with a CMSSW producer of the cells' corners.
+
+Each CMSSW producer above is proposed only if users ask for it. Requests are welcome in the
+[issue tracker](https://github.com/mmarriot/ember/issues).

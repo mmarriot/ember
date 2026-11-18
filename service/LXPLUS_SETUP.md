@@ -14,8 +14,7 @@ outside the paths below. Background: [README.md](README.md).
 - When `python3` lacks uproot, numpy, scipy or XRootD, the entry points source
   `/cvmfs/sft.cern.ch/lcg/views/LCG_107/x86_64-el9-gcc13-opt/setup.sh`.
 - The inputs are the `inputs` globs of `service/campaigns.json`, read through XRootD. This needs a Kerberos token,
-  which acron jobs get. A campaign with `export` also needs its CMSSW area: run `cmsrel` for it once, in a release
-  that has `NANO:@EVD`.
+  which acron jobs get. A campaign with `export` also needs its CMSSW area: run `cmsrel` for it once.
 
 ## Steps
 

@@ -1,10 +1,10 @@
 # Ember site service
 
-This folder runs the event-display site: a static website on EOS, with no server process. CERN Web Services serves
-the folder behind the single sign-on. Everything else is files that commands write:
+This folder runs an Ember site (the CMS site is planned): a static website on EOS, with no server process. CERN Web
+Services serves the folder behind the single sign-on. Everything else is files that commands write:
 
 ```
-users, anywhere with CMSSW:   ember FILE.root ─► <site>/data/u/<login>/<name>.ember + its index.json ─► a link to share
+users, EMBER_SITE_DIR set:    ember FILE.root ─► <site>/data/u/<login>/<name>.ember + its index.json ─► a link to share
 cron on lxplus, every 15 min: run_sync.sh  ─► ember sync: new files of the campaigns ─► <site>/data/<campaign>/*.ember
                                                (test-stand NanoAOD; RelVal reconstruction files, exported first)
                                                and <site>/index.json (newest data first)
@@ -102,12 +102,12 @@ per file (0 or left out: all). Optional keys:
   in the other wildcards share one bundle, and only the first of them is converted;
 - `runInfo`: the same as `--run-info`, for example `registry:RunRegistryP5.RunTable`;
 - `export: {"cmssw": <CMSSW area>, "geometry": "D121"}` (optional: `era`, `conditions`, `threads`): the inputs are
-  CMSSW reconstruction files. The event-display NanoAOD of their first `max_events` events is made first, by
-  `cmsDriver.py -s NANO:@EVD` in that CMSSW area (`embertools/export.py`).
+  CMSSW reconstruction files. The NanoAOD of their first `max_events` events is made first, by the cmsRun
+  configuration that `ember` writes from the modules of that CMSSW area (`embertools/export.py`, `cmsrun.py`).
 
 `campaigns.example.json` shows all of them, with a RelVal campaign: one bundle of 10 events per RelVal sample of a
 release, under the heading "RelVal CMSSW_x". A new release is a new campaign, added to `campaigns.json`, with its own
-CMSSW area (a release with `NANO:@EVD`, set up once with `cmsrel`).
+CMSSW area (set up once with `cmsrel`; merge in the CMSSW branches of docs/cmssw.md for cluster hits and truth).
 
 ## What a sync pass does
 

@@ -127,7 +127,8 @@ def test_calo_layers_in_cms():
 
 def test_physics_and_pf_in_cms():
     """cms includes physics.json and pf.json: Puppi jets as cones and MET as arrows from the leading vertex (its
-    position gathered through relations that are not written), PF MET a hidden alternative, PF candidates unticked
+    position gathered through relations that are not written), PF MET hidden next to Puppi MET (other objects:
+    both written), PF candidates unticked
     and filtered to what PUPPI kept, the vertices in the shared Physics domain where the event opens; kinds without an
     associator carry their truthGap."""
     p = load_profile("cms")
@@ -198,10 +199,7 @@ def test_physics_and_pf_in_cms():
         30,
         4,
     )
-    assert d["PuppiMET"]["visible"] and not d["PFMET"]["visible"] and d["PFMET"]["alternative"]
-    assert load_profile("cms")["prefer"].index("Puppi") < load_profile("cms")["prefer"].index(
-        "CHS"
-    )  # Puppi jets shown, CHS hidden
+    assert d["PuppiMET"]["visible"] and not d["PFMET"]["visible"] and "PFMET" in conv.header([], "cms")["tables"]
     assert not d["PFCandidates"]["visible"] and d["PFCandidates"]["filter"] == "puppiWeight > 0"
     assert d["Vertices"]["domain"] == "Physics" and d["PFClustersECAL"]["domain"] == "Calo"
     assert d["Jets"]["truthGap"]["gap"] == 21 and d["PFCandidates"]["truthGap"]["gap"] == 20

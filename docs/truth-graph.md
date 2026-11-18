@@ -271,13 +271,13 @@ invisible):
 |---|---|---|
 | `TruthParticles` pt, eta, phi, mass, t | 1.5 | can be derived from the momentum and the vertex |
 | `TruthParticles` x, y, z | 0.56 | the production vertex's position (used for drawing; could be read through `truthProdVertex`) |
-| legacy truth hits (`TruthHGCalHits`) | 2.1 | duplicate the SoA truth hits where SoA exists (legacy hits start hidden) |
+| legacy truth hits (`TruthHGCalHits`) | 2.1 | duplicate the SoA truth hits where SoA exists: no longer written there (one source per kind) |
 | TruthToReco entries with `sharedFraction` < 0.1 | ≈ 1.6 (62% of 2.6) | 56 particles per interpretation trackster |
 | particles with neither HGCal hits nor matches | ≈ 3.5 (estimate) | 73k of 108k rows: CaloBoundary particles in the barrel and forward regions, kept for barrel truth hits that are not exported yet |
 
-None of these is dropped yet. Each is a choice to make when the bundle is split into parts. The leaner direction is
-to export what the truth display needs (per-particle direct hits, a total simulated energy per hit, barrel hits), and
-to drop what it does not need.
+Only the legacy truth hits are dropped (where SoA hits exist). Each of the others is a choice to make when the bundle
+is split into parts. The leaner direction is to export what the truth display needs (per-particle direct hits, a
+total simulated energy per hit, barrel hits), and to drop what it does not need.
 
 ## What to watch for in CMSSW
 

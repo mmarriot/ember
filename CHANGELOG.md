@@ -68,6 +68,12 @@ with a message while an old one is set without its new name. `deploy.sh` links `
 - `python3 -m evdtools from-nano` is now `ember convert` (`from-nano` still works).
 - The viewer's tour takes under a minute per event of the whole detector, instead of about two: 10 steps instead of
   14, shorter captions shown for less time, and shorter visits of the leading objects.
+- **One source per kind of object.** Of a file with both SoA and legacy objects of a kind, the converter writes only
+  the preferred source (profile `prefer`); before, it wrote both and the viewer hid one. A ttbar event of the `cms`
+  profile is about half the size at 0 pileup (84 MB for 50 events, now 43 MB) and 30% smaller at 200 pileup. Other
+  objects of a kind are kept: CHS jets and PF MET (hidden, as before), CLUE3D tracksters. Until the DetId relations,
+  HGCal superclusters lose the link to their hits in such files (it points at the legacy hits). The viewer opens older
+  bundles as before, minus their legacy copies (the "Other reconstruction paths" in the layer list).
 
 ### Fixed
 

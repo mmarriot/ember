@@ -10,26 +10,21 @@ def display_layers(profile, tables, relations):
     merged key by key) and is grouped under the kind's label; kinds are listed in profile order, then the layers
     without a kind.
 
-    Within a kind, layers whose `source` ranks below the best source present (profile `prefer`, first is best) start
-    hidden and are marked `alternative`, so that a file with both SoA and legacy objects shows one of them.
+    `tables` holds one source per kind: the converter leaves out the others first (less_preferred).
 
-    Profile `stages` lists kinds in reconstruction order (e.g. trackster, linked trackster, candidate). The preferred
-    layers of the stage kinds present get `stage` 0, 1, ...; all but the last stage start hidden, so that the default
+    Profile `stages` lists kinds in reconstruction order (e.g. trackster, linked trackster, candidate). The layers
+    of the stage kinds present get `stage` 0, 1, ...; all but the last stage start hidden, so that the default
     view shows the final objects. `"colourBy": "stage"` becomes the relation from the latest stage that reaches the
     layer's table, or is dropped if none does. `relations` are the profile relations present, by name.
     """
-    kinds, prefer = profile.get("kinds", {}), profile.get("prefer", [])
-
-    def rank(layer):
-        return prefer.index(layer["source"]) if layer.get("source") in prefer else len(prefer)
-
+    kinds = profile.get("kinds", {})
     layers = [_styled(layer, kinds) for layer in profile.get("display", []) if layer["table"] in tables]
-    preferred = _hide_alternatives(layers, rank, len(prefer))
-    stages = _assign_stages(preferred, profile.get("stages", []))
+    with_kind = [layer for layer in layers if layer.get("kind")]
+    stages = _assign_stages(with_kind, profile.get("stages", []))
     for layer in layers:
         layer.pop("stageOf", None)  # a profile key, not a display hint
         if layer.get("colourBy") == "stage":
-            _colour_by_stage(layer, preferred, stages, relations)
+            _colour_by_stage(layer, with_kind, stages, relations)
 
     order = list(kinds)
     return sorted(layers, key=lambda layer: order.index(layer["kind"]) if layer.get("kind") in kinds else len(order))
@@ -45,26 +40,32 @@ def _styled(layer, kinds):
     return dict(layer)
 
 
-def _hide_alternatives(layers, rank, worst):
-    """Hide the layers of each kind that come from a less preferred source than the best one present, and mark them
-    `alternative`. Returns the preferred layers that have a kind."""
+def less_preferred(profile, tables):
+    """The tables of the display layers whose `source` ranks below the best source of their kind present in `tables`
+    (profile `prefer`, first is best; a source not listed ranks last; equal ranks are all kept). A file with both SoA
+    and legacy objects of a kind keeps one of them: the converter does not write these tables. Only layers with a
+    `source` compete: a layer without one is other objects of the kind (e.g. CLUE3D tracksters next to CLUEstering
+    ones), and a table that another of its layers shows is kept."""
+    prefer = profile.get("prefer", [])
+
+    def rank(layer):
+        return prefer.index(layer["source"]) if layer["source"] in prefer else len(prefer)
+
+    present = [layer for layer in profile.get("display", []) if layer["table"] in tables]
+    sourced = [layer for layer in present if layer.get("kind") and "source" in layer]
     best = {}
-    for layer in layers:
-        if layer.get("kind"):
-            best[layer["kind"]] = min(best.get(layer["kind"], worst), rank(layer))
-    for layer in layers:
-        if layer.get("kind") and rank(layer) > best[layer["kind"]]:
-            layer["visible"] = False
-            layer["alternative"] = True
-    return [layer for layer in layers if layer.get("kind") and rank(layer) == best[layer["kind"]]]
+    for layer in sourced:
+        best[layer["kind"]] = min(best.get(layer["kind"], len(prefer)), rank(layer))
+    losing = [layer for layer in sourced if rank(layer) > best[layer["kind"]]]
+    return {layer["table"] for layer in losing} - {layer["table"] for layer in present if layer not in losing}
 
 
-def _assign_stages(preferred, stage_kinds):
-    """Number the preferred layers by their reconstruction stage and hide all but the last stage. A layer with
-    `stageOf` takes the stage of that kind (e.g. tracks shown with the candidates that use them). Returns the stage
-    kinds present, in order."""
-    stages = [k for k in stage_kinds if any(layer["kind"] == k for layer in preferred)]
-    for layer in preferred:
+def _assign_stages(with_kind, stage_kinds):
+    """Number the layers that have a kind by their reconstruction stage and hide all but the last stage. A layer
+    with `stageOf` takes the stage of that kind (e.g. tracks shown with the candidates that use them). Returns the
+    stage kinds present, in order."""
+    stages = [k for k in stage_kinds if any(layer["kind"] == k for layer in with_kind)]
+    for layer in with_kind:
         kind = layer.get("stageOf", layer["kind"])
         if kind in stages:
             layer["stage"] = stages.index(kind)
@@ -73,12 +74,12 @@ def _assign_stages(preferred, stage_kinds):
     return stages
 
 
-def _colour_by_stage(layer, preferred, stages, relations):
+def _colour_by_stage(layer, with_kind, stages, relations):
     """Replace `"colourBy": "stage"` by the relation that reaches the layer's table from the latest stage that has
     one, or drop it if no stage does."""
     del layer["colourBy"]
     for k in reversed(range(len(stages))):
-        sources = {x["table"] for x in preferred if x.get("stage") == k}
+        sources = {x["table"] for x in with_kind if x.get("stage") == k}
         name = next((n for n, r in relations.items() if r["from"] in sources and r["to"] == layer["table"]), None)
         if name:
             layer["colourBy"] = {"relation": name}

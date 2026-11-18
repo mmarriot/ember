@@ -15,6 +15,9 @@
 //   the replay (checkReplay).
 import { BIG, bigEvents, eventRead, expected404, log } from "./common.mjs";
 
+/** In an older bundle's header, as stored: a layer the viewer leaves out (io/bundle.ts oneSourcePerKind). */
+const legacyCopy = (d) => d.alternative && d.source === "legacy";
+
 /** Check bundle `file` (`tag`: its name in the progress lines and screenshots). `state.page`: the page open now, which
  *  the caller closes when the check ends or runs out of time. */
 export async function checkBundle(run, file, tag, state) {
@@ -113,7 +116,7 @@ export async function checkBundle(run, file, tag, state) {
   await shot("2_event");
 
   // Select an object that is made of others: from a relation into a drawn table, preferring later stages.
-  const drawnTables = new Set(h.display.map((d) => d.table));
+  const drawnTables = new Set(h.display.filter((d) => !legacyCopy(d)).map((d) => d.table));
   const score = (d) =>
     Object.values(h.relations)
       .filter((r) => !r.association && r.from === d.table)
@@ -626,7 +629,7 @@ async function checkScorecard(page, h, fail, shot, tag) {
   const truth = new Set(h.display.filter((d) => d.truth).map((d) => d.table));
   if (
     !Object.values(h.relations).some(
-      (r) => r.match && truth.has(r.to) && h.display.some((d) => d.table === r.from && !d.alternative),
+      (r) => r.match && truth.has(r.to) && h.display.some((d) => d.table === r.from && !legacyCopy(d)),
     )
   )
     return;

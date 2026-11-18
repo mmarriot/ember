@@ -187,9 +187,8 @@ function byHit(ev: EventData, name: string, nHits: number) {
 
 /** What truth particles left in the given objects' hits, one group per detector (simulated energy is never summed
  *  across detectors: sampling and homogeneous calorimeters, photoelectrons in HF): per particle, the sum of the fact
- *  relations' weight over those hits, in hit layers for which `use` holds (e.g. drawn, so a hit is not counted twice
- *  through two hit tables). Largest first; groups without any energy are left out. */
-export function simEnergyByParticle(ev: EventData, header: Header, objects: Related, use: (table: string) => boolean) {
+ *  relations' weight over those hits. Largest first; groups without any energy are left out. */
+export function simEnergyByParticle(ev: EventData, header: Header, objects: Related) {
   const groups = new Map<
     string,
     { in: string; unit?: Fact["unit"]; table: string; weight: string; total: number; sums: Map<number, number> }
@@ -200,7 +199,7 @@ export function simEnergyByParticle(ev: EventData, header: Header, objects: Rela
       rows = objects.get(f.to),
       weight = info.best?.weight ?? info.weights[0];
     const w = weight ? rel?.weights[weight] : undefined;
-    if (!rel || !rows || !w || !use(f.to)) continue;
+    if (!rel || !rows || !w) continue;
     const g = groups.get(f.in) ?? { in: f.in, unit: f.unit, table: f.from, weight, total: 0, sums: new Map() };
     // Through the hits: the relation read from the hit side, once per event, so a selection costs its own hits.
     const { offsets, particle, entry } = byHit(ev, f.name, ev.tables[f.to]?.n ?? 0);

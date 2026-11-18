@@ -21,7 +21,7 @@ type Relations = Header["relations"];
 /** The levels below the focus (`focus`: its table) that `hl` (its highlight) has objects in, top first. `own`: whether
  *  a table is reached through the focus's own relations (what it is made of or contains), not only through an
  *  association (e.g. its truth particle). Left out: the focus's own kind and reconstruction stage (e.g. a candidate's
- *  track), truth, background and alternative layers. Ordered by reverse display order, as profiles list kinds from
+ *  track), truth and background layers. Ordered by reverse display order, as profiles list kinds from
  *  the bottom up (hits first, candidates last). With `relations`, a focus can have several branches (a candidate's
  *  tracksters and its track, each down to its own hits): a level that holds another (a chain of plain relations from
  *  one of its tables to the other's) comes before it, and the levels that hold none (the leaves: each branch's smallest objects)
@@ -37,7 +37,7 @@ export function focusLevels(
   const levels: (Level & { tables: Set<string> })[] = [];
   for (const d of [...display].reverse()) {
     const rows = hl.get(d.table);
-    if (!rows?.size || !own(d.table) || d.table === focus || d.context || d.alternative || d.truth) continue;
+    if (!rows?.size || !own(d.table) || d.table === focus || d.context || d.truth) continue;
     if (top && (kindName(d) === kindName(top) || (d.stage !== undefined && d.stage === top.stage))) continue;
     const name = kindName(d);
     let level = levels.find((l) => l.name === name);

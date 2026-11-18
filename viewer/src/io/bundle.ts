@@ -3,6 +3,7 @@
 // views on the decompressed record: no parsing and no copies.
 import {
   COLUMN_TYPES,
+  type DisplayLayer,
   type EventData,
   type Header,
   type IndexEntry,
@@ -135,6 +136,7 @@ export class Bundle {
     readonly events: IndexEntry[],
     readonly runs: RunEntry[],
     private readonly source: Source,
+    private readonly dropped: Dropped,
   ) {}
 
   static async open(source: Source): Promise<Bundle> {
@@ -150,7 +152,7 @@ export class Bundle {
       const index = JSON.parse(
         text(await source.read(Number(trailer.getBigUint64(0, true)), trailer.getUint32(8, true))),
       );
-      return new Bundle(header, index.events, index.runs ?? [], source);
+      return new Bundle(header, index.events, index.runs ?? [], source, oneSourcePerKind(header));
     } catch (e) {
       // A file too short for its header or trailer (RangeError from the DataView), or whose header or index is not
       // JSON (SyntaxError): not a bundle either. What the source itself reports (HTTP, network) is passed on.
@@ -223,7 +225,7 @@ export class Bundle {
   private async record(entry: { offset: number; length: number }) {
     const data = await gunzip(await this.source.read(entry.offset, entry.length));
     try {
-      return parseRecord(data, this.header);
+      return parseRecord(data, this.header, this.dropped);
     } catch (e) {
       // A record whose JSON is cut off (SyntaxError), that names a table the header lacks (TypeError), or whose arrays
       // lie outside it (RangeError): not a complete bundle, as Bundle.open says of the header.
@@ -232,6 +234,35 @@ export class Bundle {
       throw e;
     }
   }
+}
+
+/** Tables and relations of a record that the header no longer lists (oneSourcePerKind): not read. */
+interface Dropped {
+  tables: Set<string>;
+  relations: Set<string>;
+}
+
+/** A bundle written before the converter kept one source per kind (see CHANGELOG.md) may hold the same objects
+ *  twice, e.g. HGCal hits as SoA and as legacy, with the layers of the less preferred source marked `alternative`.
+ *  Those layers are taken out of the header here, with their tables and every relation to or from them, so that the
+ *  bundle reads as one written today and nothing else in the viewer needs to know. Their arrays stay in the records
+ *  (they are decompressed with the rest) but are never viewed. In the bundles written so far, the copies of the same
+ *  objects are the `legacy` ones; the other `alternative` layers (CHS jets, PF MET) are other objects, which the
+ *  converter now keeps too, so they stay, hidden as before. */
+export function oneSourcePerKind(header: Header): Dropped {
+  const copy = (d: DisplayLayer) =>
+    (d as DisplayLayer & { alternative?: boolean }).alternative && d.source === "legacy";
+  const tables = new Set(header.display.filter(copy).map((d) => d.table)),
+    relations = new Set<string>();
+  if (!tables.size) return { tables, relations };
+  header.display = header.display.filter((d) => !tables.has(d.table));
+  for (const t of tables) delete header.tables[t];
+  for (const [name, r] of Object.entries(header.relations))
+    if (tables.has(r.from) || tables.has(r.to)) {
+      delete header.relations[name];
+      relations.add(name);
+    }
+  return { tables, relations };
 }
 
 /** Where an array is in a record's binary chunk: [byte offset from the start of the chunk, number of elements]. */
@@ -245,7 +276,7 @@ interface RecordMeta {
 
 /** An event (or run) record, decompressed: "EVD1", u32 JSON length, the JSON (RecordMeta), then the binary chunk. Each
  *  column becomes a typed-array view on `buf` of the type its header entry names. */
-function parseRecord(buf: ArrayBuffer, header: Header): EventData {
+function parseRecord(buf: ArrayBuffer, header: Header, dropped: Dropped): EventData {
   const dv = new DataView(buf);
   if (text(buf.slice(0, 4)) !== "EVD1") throw new FormatError("bad event record");
   const hlen = dv.getUint32(4, true);
@@ -256,6 +287,7 @@ function parseRecord(buf: ArrayBuffer, header: Header): EventData {
 
   const tables: Record<string, Table> = {};
   for (const [name, t] of Object.entries(meta.tables)) {
+    if (dropped.tables.has(name)) continue;
     const types = header.tables[name].columns;
     tables[name] = {
       n: t.n,
@@ -264,6 +296,7 @@ function parseRecord(buf: ArrayBuffer, header: Header): EventData {
   }
   const relations: Record<string, Relation> = {};
   for (const [name, r] of Object.entries(meta.relations)) {
+    if (dropped.relations.has(name)) continue;
     relations[name] = {
       offsets: view("u32", r.offsets),
       indices: view("u32", r.indices),

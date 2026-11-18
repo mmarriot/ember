@@ -30,6 +30,8 @@ export interface TestBundle {
   runTable?: boolean;
   /** Changes each event's record JSON (docs/format.md "Record"), e.g. to break it. */
   record?: (meta: Record<string, unknown>) => object;
+  /** Changes the header JSON. */
+  header?: (header: Record<string, unknown>) => object;
 }
 
 /** A bundle file made in memory. */
@@ -39,6 +41,7 @@ export function testBundle({
   indices = [1, 0],
   runTable = false,
   record: change = (meta) => meta,
+  header: changeHeader = (header) => header,
 }: TestBundle = {}) {
   const f32 = (doc = "") => ({ type: "f32", doc });
   const header = {
@@ -64,7 +67,7 @@ export function testBundle({
       },
     });
 
-  const head = padded(JSON.stringify(header), 12),
+  const head = padded(JSON.stringify(changeHeader(header)), 12),
     start = new Uint8Array(12);
   start.set(enc.encode("EVDB"));
   new DataView(start.buffer).setUint32(4, 1, true);

@@ -1,5 +1,5 @@
-// The collections of one side-panel tab (a part of the detector, or the truth): grouped by kind of object, with the
-// other reconstruction paths folded at the end. A kind's heading carries its cut as a chip ("pT ≥ 30 GeV": a click
+// The collections of one side-panel tab (a part of the detector, or the truth): grouped by kind of object. A kind's
+// heading carries its cut as a chip ("pT ≥ 30 GeV": a click
 // opens its slider, Cuts.tsx) and "only". A collection is one line: tick, name, its state as chips (a filter, drawn
 // for the selection only, hidden while something is selected), its count (a click lists its largest objects,
 // ObjectRows.tsx) and ⋯ (colour, filter, new columns: LayerOptions.tsx). Under it only its colour scale, when the
@@ -44,11 +44,8 @@ const fold = (id: string) => {
 };
 
 export function Collections({ layers }: { layers: DisplayLayer[] }) {
-  // Alternatives (e.g. legacy next to SoA) are folded at the end, so the kinds read as the chain.
-  const main = layers.filter((l) => !l.alternative),
-    alternatives = layers.filter((l) => l.alternative);
   const groups = new Map<string, DisplayLayer[]>();
-  for (const d of main) groups.set(d.group, [...(groups.get(d.group) ?? []), d]);
+  for (const d of layers) groups.set(d.group, [...(groups.get(d.group) ?? []), d]);
   // A kind whose collections share one cut carries it on its heading; otherwise (one per calorimeter; particles cut,
   // vertices not) each cut is on the first row it applies to.
   const cutsOf = (ls: DisplayLayer[]) => [...new Set(ls.flatMap((d) => (d.cut ? [d.cut.group] : [])))];
@@ -57,7 +54,7 @@ export function Collections({ layers }: { layers: DisplayLayer[] }) {
     d.cut && !onHeading(ls) && ls.find((x) => x.cut?.group === d.cut!.group) === d ? d.cut.group : undefined;
   return (
     <>
-      <Headline layers={main} />
+      <Headline layers={layers} />
       {[...groups].map(([group, ls]) => {
         const id = layerKey(ls[0]),
           shut = folded.value.has(id),
@@ -100,26 +97,10 @@ export function Collections({ layers }: { layers: DisplayLayer[] }) {
                 </button>
               )}
             </h3>
-            {!shut && ls.map((d) => <LayerRow key={layerKey(d)} d={d} label={d.label} cut={rowCut(d, ls)} here={ls} />)}
+            {!shut && ls.map((d) => <LayerRow key={layerKey(d)} d={d} cut={rowCut(d, ls)} here={ls} />)}
           </section>
         );
       })}
-      {alternatives.length > 0 && (
-        <details class="others">
-          <summary title="The same kinds of object from another reconstruction path; hidden by default">
-            Other reconstruction paths ({alternatives.length})
-          </summary>
-          {alternatives.map((d) => (
-            <LayerRow
-              key={layerKey(d)}
-              d={d}
-              label={`${d.group} · ${d.label}`}
-              here={alternatives}
-              cut={d.cut && alternatives.find((x) => x.cut?.group === d.cut!.group) === d ? d.cut.group : undefined}
-            />
-          ))}
-        </details>
-      )}
     </>
   );
 }
@@ -145,8 +126,7 @@ function TruthWord({ table }: { table: string }) {
   );
 }
 /** The layers of a kind (its heading's group) in the current bundle. */
-const kindLayers = (d: DisplayLayer) =>
-  (bundle.value?.header.display ?? []).filter((l) => l.group === d.group && !l.alternative);
+const kindLayers = (d: DisplayLayer) => (bundle.value?.header.display ?? []).filter((l) => l.group === d.group);
 /** Whether the layers have one truth status (so one word on their heading). */
 const sameTruth = (ls: DisplayLayer[]) => new Set(ls.map((l) => truthStatuses.value.get(l.table)?.kind)).size <= 1;
 
@@ -199,17 +179,7 @@ function FilterPop({ table }: { table: string }) {
 }
 
 /** One collection's row; under it its colour scale or, behind ⋯, its options, and its largest objects when listed. */
-function LayerRow({
-  d,
-  label,
-  cut,
-  here = [],
-}: {
-  d: DisplayLayer;
-  label: string;
-  cut?: string;
-  here?: DisplayLayer[];
-}) {
+function LayerRow({ d, cut, here }: { d: DisplayLayer; cut?: string; here: DisplayLayer[] }) {
   const b = bundle.value!,
     key = layerKey(d),
     n = event.value?.tables[d.table]?.n ?? 0,
@@ -244,7 +214,7 @@ function LayerRow({
           <span class="glyph" aria-hidden="true">
             {glyph(d)}
           </span>
-          <span class="name">{label}</span>
+          <span class="name">{d.label}</span>
           {d.source && (
             <span class="tag" title="Reconstruction path">
               {d.source}

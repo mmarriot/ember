@@ -181,6 +181,43 @@ describe("a bundle from anyone", () => {
     }
   });
 
+  it("reads one written before one source per kind as one written today", async () => {
+    // L: T's rows again, from a less preferred source (legacy, `alternative`), with a relation T -> L. O: other
+    // objects of T's kind, also marked `alternative` then (as CHS jets were), which the converter keeps today.
+    const b = await Bundle.open(
+      blobSource(
+        testBundle({
+          header: (h: any) => ({
+            ...h,
+            tables: { ...h.tables, L: h.tables.T, O: h.tables.T },
+            relations: { ...h.relations, TL: { from: "T", to: "L", weights: [] } },
+            display: [
+              ...h.display,
+              { ...h.display[0], table: "L", source: "legacy", visible: false, alternative: true },
+              { ...h.display[0], table: "O", source: "CHS", visible: false, alternative: true },
+            ],
+          }),
+          record: (m: any) => ({
+            ...m,
+            tables: { ...m.tables, L: m.tables.T, O: m.tables.T },
+            relations: { ...m.relations, TL: m.relations.R },
+          }),
+        }),
+      ),
+    );
+    expect([
+      b.header.display.map((d) => d.table),
+      Object.keys(b.header.tables),
+      Object.keys(b.header.relations),
+    ]).toEqual([["T", "O"], ["T", "O"], ["R"]]);
+    const ev = await b.event(0);
+    expect([Object.keys(ev.tables), Object.keys(ev.relations), [...ev.relations.R.indices]]).toEqual([
+      ["T", "O"],
+      ["R"],
+      [1, 0],
+    ]);
+  });
+
   it("refuses an event it does not have", async () => {
     const b = await Bundle.open(blobSource(testBundle()));
     await expect(b.event(1)).rejects.toBeInstanceOf(RangeError);

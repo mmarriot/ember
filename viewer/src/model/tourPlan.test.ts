@@ -1,10 +1,16 @@
 import { describe, expect, it } from "vitest";
-import type { DisplayLayer } from "../io/format";
+import { oneSourcePerKind } from "../io/bundle";
+import type { DisplayLayer, Header } from "../io/format";
 import all from "./fixtures/all_header.json";
 import cms from "./fixtures/cms_header.json";
 import { stepLayers, stepMs, TOUR_STEPS, tourPlan } from "./tourPlan";
 
-const display = (h: unknown) => (h as { display: DisplayLayer[] }).display;
+// The fixtures are headers of bundles written before one source per kind, as the viewer reads them.
+const display = (h: unknown) => {
+  const header = structuredClone({ tables: {}, ...(h as object) }) as Header;
+  oneSourcePerKind(header);
+  return header.display;
+};
 const titles = (h: unknown) => tourPlan(display(h)).map((s) => s.step.title);
 const tables = (h: unknown, title: string) =>
   tourPlan(display(h))
@@ -26,8 +32,8 @@ describe("tour plan", () => {
       "b tagging",
     ]);
   });
-  it("shows a kind's layers that the bundle shows by default, else all of them; no alternatives or truth", () => {
-    // ECAL and HCAL barrel, HGCal; not HCAL outer and forward (hidden by default), nor the merged HGCal hits (an alternative)
+  it("shows a kind's layers that the bundle shows by default, else all of them; no truth", () => {
+    // ECAL and HCAL barrel, HGCal; not HCAL outer and forward (hidden by default)
     expect(tables(all, "Calorimeter hits")).toEqual([
       "EcalHits",
       "HBHEHits",
@@ -36,9 +42,9 @@ describe("tour plan", () => {
       "HGCalSoARecHitsHSci",
     ]);
     expect(tables(all, "The collision point")).toEqual(["BeamSpot", "Vertices"]); // the beam spot is hidden by default
-    expect(tables(all, "Jets")).toEqual(["Jets"]); // not the CHS alternative
+    expect(tables(all, "Jets")).toEqual(["Jets"]);
     expect(tables(all, "Particle flow")).toEqual(["PFCandidates"]); // hidden by default, the only layer of its kind
-    for (const s of tourPlan(display(all))) expect(s.layers.some((d) => d.truth || d.alternative)).toBe(false);
+    for (const s of tourPlan(display(all))) expect(s.layers.some((d) => d.truth)).toBe(false);
   });
   it("shows only the last reconstruction stage of a kind with stages", () => {
     const stages = [0, 1, 2].map(

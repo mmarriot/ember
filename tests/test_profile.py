@@ -58,23 +58,76 @@ def one_event(conv, event):
 
 
 def test_kinds_style_group_and_order():
-    d = converter({"SoAHits": XYZE, "LegacyHits": XYZE, "LegacyClusters": XYZE, "Other": XYZE}, PROFILE).display
-    assert [x["table"] for x in d] == ["SoAHits", "LegacyHits", "LegacyClusters", "Other"]  # kinds order, then the rest
-    soa, legacy = d[0], d[1]
+    d = converter({"SoAHits": XYZE, "LegacyClusters": XYZE, "Other": XYZE}, PROFILE).display
+    assert [x["table"] for x in d] == ["SoAHits", "LegacyClusters", "Other"]  # kinds order, then the rest
+    soa = d[0]
     assert (soa["group"], soa["repr"], soa["label"]) == ("Hits", "cells", "H")
     assert soa["cut"] == {"group": "Hit energy", "default": 0.1, "column": "e"}
+    assert d[2]["group"] == "Misc"  # layers without a kind are unchanged
+    legacy = converter({"LegacyHits": XYZE}, PROFILE).display[0]
     assert legacy["cut"]["default"] == 0.2  # the layer's own keys win
-    assert d[3]["group"] == "Misc"  # layers without a kind are unchanged
 
 
-def test_preferred_source_shown_others_hidden():
-    d = {
-        x["table"]: x for x in converter({"SoAHits": XYZE, "LegacyHits": XYZE, "LegacyClusters": XYZE}, PROFILE).display
+def test_one_source_per_kind():
+    """Of a kind present from several sources, only the best (profile `prefer`) is written; its relations and derives
+    may still read the others, which are not written, nor are the relations to them."""
+    profile = {
+        **PROFILE,
+        "relations": [
+            {
+                "name": "soaLegacy",
+                "kind": "key",
+                "from": "SoAHits",
+                "to": "LegacyHits",
+                "fromKey": "SoAHits.id",
+                "toKey": "LegacyHits.id",
+            },
+            {
+                "name": "clusterHits",
+                "kind": "index",
+                "from": "LegacyHits",
+                "to": "LegacyClusters",
+                "index": "LegacyHits.c",
+            },
+        ],
+        "derive": [{"table": "SoAHits", "gather": [{"relation": "soaLegacy", "columns": {"w": "w"}}]}],
     }
-    assert {t: x["visible"] for t, x in d.items()} == {"SoAHits": True, "LegacyHits": False, "LegacyClusters": True}
-    assert d["LegacyHits"]["alternative"] and "alternative" not in d["LegacyClusters"]  # no SoA clusters: shown
-    d = converter({"LegacyHits": XYZE}, PROFILE).display
-    assert [(x["table"], x["visible"]) for x in d] == [("LegacyHits", True)]  # only legacy present: shown
+    types = {"SoAHits": {**XYZE, "id": U4}, "LegacyHits": {**XYZE, "id": U4, "w": F4, "c": I4}, "LegacyClusters": XYZE}
+    conv = converter(types, profile)
+    d = {x["table"]: x for x in conv.display}
+    assert {t: x["visible"] for t, x in d.items()} == {"SoAHits": True, "LegacyClusters": True}  # no SoA clusters
+    header = conv.header([], "t")
+    assert set(header["tables"]) == {"SoAHits", "LegacyClusters"} and header["relations"] == {}
+    hits = {c: [1.0] for c in "xyze"}
+    _, tables, rels = one_event(
+        conv,
+        {
+            "SoAHits": {**hits, "id": [7]},
+            "LegacyHits": {**hits, "id": [7], "w": [0.4], "c": [0]},
+            "LegacyClusters": hits,
+        },
+    )
+    assert set(tables) == {"SoAHits", "LegacyClusters"} and rels == {}
+    np.testing.assert_allclose(tables["SoAHits"][1]["w"], [0.4])  # gathered from the legacy hits
+    d = converter({"LegacyHits": {**XYZE, "c": I4}}, PROFILE).display
+    assert [(x["table"], x["visible"]) for x in d] == [("LegacyHits", True)]  # only legacy present: written, shown
+
+
+def test_which_layers_compete_for_their_kind():
+    """Only layers with a `source` compete, within their kind; equal sources and a profile without `prefer` keep
+    every one; a table that another of its layers shows is kept; a sameRows copy is not present."""
+    tables = {"SoAHits": XYZE, "LegacyHits": XYZE, "MoreHits": XYZE}
+    more = {"table": "MoreHits", "kind": "hit", "label": "M", "position": ["x", "y", "z"]}  # other objects: no source
+    written = lambda profile, types=tables: set(converter(types, profile).header([], "t")["tables"])
+    assert written({**PROFILE, "display": [*PROFILE["display"], more]}) == {"SoAHits", "MoreHits"}
+    assert written({k: v for k, v in PROFILE.items() if k != "prefer"}) == {"SoAHits", "LegacyHits", "MoreHits"}
+    assert written({**PROFILE, "prefer": ["SoA"]}) == {"SoAHits", "MoreHits"}  # legacy unlisted: ranks last
+    tie = {**PROFILE["display"][2], "source": "SoA"}  # the legacy hits' layer, as a second SoA source
+    assert written({**PROFILE, "display": [PROFILE["display"][1], tie]}) == {"SoAHits", "LegacyHits", "MoreHits"}
+    loses_and_wins = {**PROFILE["display"][1], "table": "LegacyHits", "kind": "cluster", "label": "C"}
+    assert "LegacyHits" in written({**PROFILE, "display": [*PROFILE["display"], loses_and_wins]})
+    same = [{"keep": "LegacyHits", "drop": "SoAHits", "columns": [["x", "x"]]}]  # the SoA copy is dropped first
+    assert written({**PROFILE, "sameRows": same}, {"SoAHits": XYZE, "LegacyHits": XYZE}) == {"LegacyHits"}
 
 
 def test_missing_display_column_is_an_error():
@@ -131,10 +184,10 @@ def test_stages_show_the_last_and_colour_by_it():
         "Tracks": XYZE,
     }
     d = {x["table"]: x for x in converter(types, profile).display}
-    assert (d["Showers"]["stage"], d["Linked"]["stage"]) == (0, 1) and "stage" not in d["OldShowers"]
+    assert (d["Showers"]["stage"], d["Linked"]["stage"]) == (0, 1) and "OldShowers" not in d  # one source per kind
     assert d["Tracks"]["stage"] == 0 and not d["Tracks"]["visible"]  # stageOf: joins the shower stage
     assert "stageOf" not in d["Tracks"]  # a profile key, not passed to the viewer
-    assert [d[t]["visible"] for t in ("Showers", "OldShowers", "Linked")] == [False, False, True]
+    assert [d[t]["visible"] for t in ("Showers", "Linked")] == [False, True]
     assert d["LCs"]["colourBy"] == {"relation": "linkedLCs"}  # the latest stage that reaches the clusters
     d = {x["table"]: x for x in converter({t: types[t] for t in ("LCs", "Showers")}, profile).display}
     assert d["Showers"]["visible"] and d["LCs"]["colourBy"] == {"relation": "showerLCs"}

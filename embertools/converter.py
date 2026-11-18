@@ -1,8 +1,8 @@
 """The Converter: a display profile resolved against the tables of one file, which turns events into bundle records.
 
 Resolving a profile drops its entries for tables the file lacks, so that one profile serves legacy-only, SoA-only and
-mixed files. Tables of the Runs tree are per-run tables: read once per run, available to
-lookups, and written once per run.
+mixed files; of a mixed file it writes one source per kind (profile `prefer`). Tables of the Runs tree are per-run
+tables: read once per run, available to lookups, and written once per run.
 
 Each event then goes through these steps (Converter.event):
   read its tables -> derive columns -> build the relations (CSR) -> gather columns through them -> row cuts ->
@@ -21,7 +21,7 @@ import numpy as np
 from . import __version__
 from .bundle import type_code
 from .derive import apply_derive, derived_columns, gather
-from .display import display_layers, named_columns
+from .display import display_layers, less_preferred, named_columns
 from .profile import table_column
 from .relations import build_relation, compose_relations, cut_relation, owner_rows
 
@@ -64,6 +64,8 @@ class Converter:
         # every event and not written; relations to or from it are redirected to the kept table.
         self.same = [s for s in profile.get("sameRows", []) if s["keep"] in self.tables and s["drop"] in self.tables]
         self.internal = (set(profile.get("internal", [])) & set(self.tables)) | {s["drop"] for s in self.same}
+        # One source per kind (profile `prefer`): the tables of the less preferred sources are not written.
+        self.internal |= less_preferred(profile, set(self.tables) - self.internal)
         self.derived = set()  # (table, column) of the columns that are made here, not read from the file
         self._take_over_copied_columns()
 

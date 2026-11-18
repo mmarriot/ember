@@ -192,9 +192,7 @@ export function pairFor(
   if (anyParticle && key && ids) {
     efficiency = { candidate: 0, others: 0, missed: 0 };
     const owns = new Uint8Array(key.length),
-      hitRels = hitFacts
-        .map((f) => [f.name, header.relations[f.name]] as const)
-        .filter(([name, info]) => ev.relations[name] && !header.display.find((d) => d.table === info.to)?.alternative);
+      hitRels = hitFacts.map((f) => [f.name, header.relations[f.name]] as const).filter(([name]) => ev.relations[name]);
     for (const [name] of hitRels) {
       const o = ev.relations[name].offsets;
       for (let p = 0; p + 1 < o.length; p++) if (o[p + 1] > o[p]) owns[p] = 1;
@@ -227,7 +225,7 @@ export function pairFor(
     for (const t of hitTables) {
       const cls = classes.get(t),
         energy = ev.tables[t]?.columns.energy;
-      if (!cls || !energy || header.display.find((d) => d.table === t)?.alternative) continue;
+      if (!cls || !energy) continue;
       for (let i = 0; i < cls.length; i++)
         if (cls[i] === PAIR.matched) purity.particle += Number(energy[i]);
         else if (cls[i] === PAIR.contamination) purity.other += Number(energy[i]);

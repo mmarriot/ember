@@ -216,7 +216,7 @@ Any other message is a bug. Run the command again with `EMBER_DEBUG=1`, and repo
   or `xrdfs` call.
 - **A reconstruction file** adds one cmsRun job, with ember's own configuration. With 4 threads it takes about 20 s
   to start (Run 3 data: 16 s), then 0.6 s per event without pile-up, or 0.7 s per event at 200 pile-up (Run 3 data:
-  0.25 s). Before it, finding the settings and checking the input's classes take a few seconds.
+  0.24 s). Before it, finding the settings and checking the input's classes take a few seconds.
 
 **Measured sizes and times**, per event, on ttbar events with geometry `ExtendedRun4D104` (stock reconstruction) and
 the integration build CMSSW_20_1_X_2026-11-17-2300, 4 threads, without truth (with it, see below the table):

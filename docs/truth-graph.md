@@ -77,7 +77,8 @@ Sources: CMSSW_20_1_0_pre5 with the truth-graph developments and the earlier exp
    hit, simulated energy). The SoA ones are written only where SoA hit tables are written, which a stock release does
    not do ([CMSSW side](cmssw.md#soa-collections)). The truth tables write the same particles, vertices and links,
    the association tables in both directions, and a hit table for any hit table with a DetId column.
-4. **The Ember profile** `embertools/profiles/hgcal.json:64-114` reads all of these as relations. `sameRows`
+4. **The Ember profiles** read all of these as relations: `truth.json` for the truth tables, and
+   `embertools/profiles/hgcal.json:64-114` for the earlier export. `sameRows`
    redirects the legacy CLUEstering relations to the SoA tracksters (`hgcal.json:12`, `_resolve_relations` in `embertools/converter.py`).
 
 ### Definitions the display inherits (shared energy, scores)
@@ -156,10 +157,10 @@ Where each gap is:
     over the object's hits, without fractions.
 
   Neither knows the cell's total simulated energy, and both inherit gaps 2 to 4.
-- **Check:** a producer alias such as `TruthBranchLayerClusterAssociatorsProducer` appears (or a `layerClusters` key
-  in `truthGraphRecoLabelsPSet`), and the step3 file has `*_truthBranchLayerClusterAssociators_*`. The truth tables
-  then need the layer-cluster maps in their configuration, and Ember needs one reco → truth and truth → reco relation
-  pair from `HGCalLayerClusters`. The existing `sameRows` redirect moves it onto `HGCalSoALayerClusters`.
+- **Check:** a producer alias such as `TruthBranchLayerClusterAssociatorsProducer` appears (or a `layerClusters` key in
+  `truthGraphRecoLabelsPSet`), and the step3 file has `*_truthBranchLayerClusterAssociators_*`. The truth tables then
+  need the layer-cluster maps in their configuration, and Ember needs one reco → truth and truth → reco relation pair
+  from `HGCalLayerClusters`. The existing `sameRows` redirect moves it onto `HGCalSoALayerClusters`.
 
 ### 2. Hits are exported at a different level from the matches
 

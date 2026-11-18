@@ -23,11 +23,18 @@ The hits of each cluster need a CMSSW branch that is not merged yet. Without it,
 one does not show its hits. Add the branch to your CMSSW area with `git cms-merge-topic mmarriot:nanoaod-cluster-hits`
 and build ([Get the cluster hits and the truth](how-to.md#get-the-cluster-hits-and-the-truth)).
 
-**`ember: display EcalHits: no column halfWidth`** (or another table and column)
+**`ember` says `left out: this release has no TruthGraphFlatTableProducer, TruthGraphHitFlatTableProducer ...`**
 
-The file and the converter come from different versions, and the tables changed between them. Use the `ember` that
-goes with the release that wrote the file. The first line that `ember` prints names that release. `ember --version`
-names the converter.
+The input holds the truth graph, but your release cannot write it as NanoAOD tables yet. The bundle has no truth. Add
+the branch with `git cms-merge-topic mmarriot:truthgraph-nano-tables` and build (same how-to). If instead it says
+`truth: the input has no truth graph`, the file was made without it (see
+[Which files work](how-to.md#which-files-work)).
+
+**`ember: display T: no column C; it has: ...`**
+
+The file has table `T`, but without a column that the profile draws: the file and the converter come from different
+versions, and the tables changed between them. For a reconstruction file, update `ember` and run it again. For a
+NanoAOD file, use the `ember` of the time it was made. `ember --version` names the converter.
 
 **`ember: cannot reach ...` or `ember: cannot write ...: root://eosproject.cern.ch/ refused`** (publishing to a site)
 
@@ -50,9 +57,9 @@ reasons are:
   release that made the file, or a newer one. A module that CMSSW renamed or changed also ends here: please
   [report it](https://github.com/mmarriot/ember/issues).
 
-Process modifiers (such as `ticl_v6`) do not need to be given: `ember_cfg.py` runs no reconstruction, only modules
-that write tables. To look into a failure, keep the configuration with `--config FILE.py`, and run `cmsRun FILE.py`
-yourself.
+Process modifiers (such as `ticl_v6`) do not need to be given: `ember_cfg.py` runs no reconstruction, only the modules
+that write tables and those that make what they read (PF rechits, truth associators). To look into a failure, keep the
+configuration with `--config FILE.py`, and run `cmsRun FILE.py` yourself.
 
 **My account name on this machine is not my CERN login.**
 

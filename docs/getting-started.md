@@ -77,6 +77,7 @@ making the NanoAOD of the first 10 with cmsRun
   conditions 201X_mcRun4_realistic_v1 (the file's global tag, ...)
   era Phase2C22I13M9 (this release's default for ExtendedRun4D104; the file does not record its era)
   left out: the hits of clusters: this release has no CaloClusterHitsTableProducer, ...
+  left out: this release has no TruthGraphFlatTableProducer, TruthGraphHitFlatTableProducer (the truth tables: ...)
   running cmsRun ember_cfg.py (--config FILE.py keeps it)
   NanoAOD made in 29 s
   profile phase2 (chosen for the tables of ember_nano.root)
@@ -89,10 +90,10 @@ to see it, drop it on https://marriot-evd.web.cern.ch (your browser reads the fi
 **What happened:**
 
 1. `ember` found the geometry, conditions and era that the file was made with, and printed them.
-2. It wrote a cmsRun configuration, `ember_cfg.py`, from the modules of your release: the tables of the hits,
-   clusters, tracksters, tracks and physics objects that the file has. It lists what it left out, here the hits of
-   each cluster, which need a CMSSW branch until it is merged. Add `--config mine_cfg.py` to keep the configuration,
-   to read it or to run it again with `cmsRun`.
+2. It wrote a cmsRun configuration, `ember_cfg.py`, from the modules of your release: the tables of the hits, clusters,
+   tracksters, tracks and physics objects that the file has. It lists what it left out, here the hits of each cluster
+   and the truth tables, which need CMSSW branches until they are merged. Add `--config mine_cfg.py` to keep the
+   configuration, to read it or to run it again with `cmsRun`.
 3. It ran the configuration on the first 10 events, in a temporary folder.
 4. It converted the NanoAOD into a bundle, with the profile that draws most of it, and wrote `step3.ember` in the
    current folder. Ask for more events with `--max-events 50`, or for all with `--max-events 0`.

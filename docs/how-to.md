@@ -26,7 +26,7 @@ Type to filter the list. Use ↑ ↓ and Enter to open a data set, and Esc to cl
 | Run 3 reconstruction (RECO), data or simulation | writes and runs `ember_cfg.py`; the PF rechits are made again in the job, because RECO keeps only those that cleaning removed | ECAL barrel, endcap and preshower, HB, HE, HO and HF hits, PF clusters, superclusters, tracks, physics objects; the hits of each cluster with the optional branch. No truth. |
 | AOD | writes and runs `ember_cfg.py` | the same, without the calorimeter hits that AOD does not keep: `ember_cfg.py` lists what it left out. Not tested on a whole AOD file. |
 | MiniAOD, Phase 2 or Run 3 | runs `cmsDriver.py -s NANO` (standard NanoAOD) | the physics objects only: MiniAOD has no hits or clusters |
-| Run 2 and older | stops: `run N is before Run 3` | |
+| Run 2 and older | stops: for data `run N is before Run 3`, for simulation `cannot tell the era of this Run 3 file` | |
 
 Truth needs the truth graph in the input. The Phase-2 eras build it at the DIGI step and keep it in `FEVTDEBUGHLT` and
 `RECOSIM`, with the pile-up of the in-time bunch crossing. AOD, MiniAOD, NanoAOD, premixed pile-up, FastSim and Run 3
@@ -56,17 +56,18 @@ If `ember` cannot tell, or if the file was made with other settings, give them y
 ember step3.root --geometry D110 --era Phase2C17I13M9 --conditions auto:phase2_realistic_T33
 ```
 
-`ember_cfg.py` runs no reconstruction, only the modules that write tables (and, for Run 3, those that remake the PF
-rechits). So the process modifiers that your file was made with do not need to be given: TICL v6 files (made with
-`--procModifiers ticl_v6`) work as they are.
+`ember_cfg.py` runs no reconstruction, only the modules that write tables, and those that make what the tables read: the
+PF rechits where the input does not keep them (Run 3 RECO, AOD), and the truth associators. So the process modifiers
+that your file was made with do not need to be given: TICL v6 files (made with `--procModifiers ticl_v6`) work as they
+are.
 
-To keep the configuration and the NanoAOD that `ember` made, add `--config ember_cfg.py --nano ember_nano.root`.
-`cmsRun ember_cfg.py` runs the configuration again, in the same release, and `ember ember_nano.root` converts its
-output. You can change the configuration first, for example to add a table: the header of the file lists what it left
-out, and why.
+To keep the configuration and the NanoAOD that `ember` made, add `--config ember_cfg.py --nano ember_nano.root`. `cmsRun
+ember_cfg.py` runs the configuration again, in the same release, and `ember convert ember_nano.root -o NAME.ember`
+converts its output. You can change the configuration first, for example to add a table: the header of the file lists
+what it left out, and why.
 
 **How long it takes:** with 4 threads, about 20 s for the job to start (Run 3 data: 16 s), then about 0.6 s per
-event without pile-up, or 0.7 s per event at 200 pile-up (Run 3 data: 0.25 s). `-j 8` gives the job 8 threads.
+event without pile-up, or 0.7 s per event at 200 pile-up (Run 3 data: 0.24 s). `-j 8` gives the job 8 threads.
 
 ## Get the cluster hits and the truth
 

@@ -88,7 +88,7 @@ Not in this version. Each one is described where it belongs.
 | layer | one collection as the viewer draws it, for example "Tracks". Each layer has a row in the side panel. |
 | kind | a type of object, for example tracks, jets or hits. Several layers can show the same kind. |
 | part of the detector | Tracker, Calo, HGCal, Muons, or Physics (the physics objects). The viewer can show one part at a time. In the bundle format a part is called a *domain*. |
-| the site | a website that serves the viewer, for example https://marriot-evd.web.cern.ch. The planned CMS site will also hold bundles. |
+| the site | a website that serves the viewer and some data sets, for example https://marriot-evd.web.cern.ch. The planned CMS site will also hold each user's bundles. |
 | user area | planned: your own folder on the CMS site, `data/u/<your login>/`, where `ember` publishes your bundles |
 | data set | a bundle as the viewer lists it, in the data set chooser |
 | shared groups | data sets that a site keeps up to date itself, for example RelVal samples |

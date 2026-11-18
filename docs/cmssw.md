@@ -45,6 +45,8 @@ events and the settings written in it. `cmsRun FILE.py` runs it again in the sam
 #   - the hits of clusters: this release has no CaloClusterHitsTableProducer, PFClusterHitsTableProducer,
 #     SuperClusterHitsTableProducer (in CMSSW after the pull request 'NanoAOD tables of the hits of calorimeter
 #     clusters')
+#   - this release has no TruthGraphFlatTableProducer, TruthGraphHitFlatTableProducer (the truth tables: in CMSSW
+#     after the pull request 'NanoAOD tables of the MC-truth graph')
 import FWCore.ParameterSet.Config as cms
 
 ...
@@ -60,18 +62,20 @@ import FWCore.ParameterSet.Config as cms
 | PF clusters | `PFClusterECAL`, `PFClusterHCAL`, `PFClusterHF`, `PFClusterHO`, and `PFClusterPS` in Run 3 | `LayerClustersCollectionTableProducer` (DPGAnalysis/HGCalNanoAOD), a table of any `reco::CaloCluster` collection | both |
 | Superclusters | `SuperClusterEB`; `SuperClusterEE` (Run 3); `SuperClusterHGCal` (Phase 2) | `SimpleSuperclusterFlatTableProducer` (PhysicsTools/NanoAOD) | both |
 | The hits of each cluster | for each cluster table `X` above and `HGCalLayerClusters`: a count `nXHits` on `X`, and a table `XHits` of `detId` and `fraction`, one row per (cluster, hit) | `CaloClusterHitsTableProducer`, `PFClusterHitsTableProducer`, `SuperClusterHitsTableProducer`: the branch `nanoaod-cluster-hits` | both |
-| Tracks | `GeneralTrack`: the general tracks, with their momentum, reference point and outermost hit (and, in Phase 2, their HGCal entry point) | HGCalNanoAOD's track table (`hgcalGeneralTracks_cfi`) | both |
+| Tracks | `GeneralTrack`: the general tracks, with their momentum, reference point and outermost hit (and, in Phase 2 with TICL candidates, their HGCal entry point) | HGCalNanoAOD's track table (`hgcalGeneralTracks_cfi`) | both |
 | Physics objects | `Jet` (AK4 Puppi jets, or CHS jets where the file has no Puppi jets: uncorrected, pT > 10 GeV), `PuppiMET`, `PFMET`, `Electron`, `Photon`, `Muon`, `ElectronHGC` and `PhotonHGC` (the HGCal electrons and photons of Phase 2), `PV` (the leading primary vertex), `SV`, `OfflineBeamSpot` | PhysicsTools/NanoAOD's `Simple*FlatTableProducer`s on the RECO collections, with the names and columns that standard NanoAOD uses. With `--pat`: standard NanoAOD ([below](#physics-objects-and-pat)). | both |
 | Truth | the truth graph tables ([below](#truth)) | the branch `truthgraph-nano-tables` | Phase 2 |
 
 - The tables keep the order of the CMSSW collection they come from.
-- The cluster-hit tables give each hit by its DetId. The converter finds the hit with that DetId in the hit tables,
-  so one relation covers every hit table (the three HGCal sections, or EB and EE). A hit below the PF thresholds is
+- The cluster-hit tables give each hit by its DetId. The converter finds the hit with that DetId in a hit table:
+  the profiles have one relation per hit table, all built from the same cluster-hit table (for example the ECAL PF
+  clusters' hits in `EBHits` and in `EEHits`). A hit below the PF thresholds is
   not in `pfrechits`, and its link is dropped.
 - No table carries a cell size. The converter works it out from the DetId ([Profiles](profiles.md#derive-new-columns)).
-- The float columns that `ember` configures keep only the bits they need: 14 mantissa bits for positions (about
-  0.3 mm at 5 m), 12 for energies, 10 for axes and widths, 8 for fractions. The TruthInfo hit tables have no
-  precision option, and keep all 23.
+- The float columns that `ember` configures keep only the mantissa bits they need, 6 to 14 of the 23, chosen per
+  column: 14 for positions (about 0.3 mm at 5 m), 12 for cluster energies, η and φ, 10 for pT, times, axes and widths,
+  8 for fractions, 6 for the jets' energy fractions. The TruthInfo hit tables have no precision option, and keep all
+  23.
 - The NanoAOD file is temporary, so it is written with LZ4, which is quick to write and to read back.
 
 ## Physics objects, and PAT
@@ -100,8 +104,8 @@ It costs (Phase-2 ttbar, 10 events, 4 threads):
 End to end with `--pat`, 5 events took 55 s and 5.5 GB on Phase-2 ttbar without pile-up, and 52 s and 3.5 GB on Run 3
 RECO.
 
-A MiniAOD always gets standard NanoAOD (`cmsDriver.py -s NANO`): it has no hits or clusters to add. When the file has
-a trigger that was run again (`reHLT`, in RelVals), the trigger objects are read from it.
+A MiniAOD always gets standard NanoAOD (`cmsDriver.py -s NANO`): it has no hits or clusters to add. With a MiniAOD or
+`--pat`, when the file has a trigger that was run again (`reHLT`, in RelVals), the trigger objects are read from it.
 
 ## Truth
 
@@ -145,8 +149,8 @@ Add them to a CMSSW_20_1_X area with `git cms-merge-topic` ([How-to](how-to.md#g
 
 | branch | what it adds | state |
 |---|---|---|
-| `mmarriot:nanoaod-cluster-hits` | PhysicsTools/NanoAOD: `CaloClusterHitsTableProducer`, `PFClusterHitsTableProducer`, `SuperClusterHitsTableProducer`. For any `reco::CaloCluster`, `reco::PFCluster` or `reco::SuperCluster` collection, a hit count on the cluster table, and a table of `detId` and `fraction` (from `hitsAndFractions()`). At 200 pile-up, the layer-cluster hits take 0.006 s per event. | pushed; the pull request to CMSSW is not open yet |
-| `mmarriot:truthgraph-nano-tables` | PhysicsTools/TruthInfo and SimGeneral/TruthGraphAssociatorProducers: the truth graph tables above (`TruthGraphFlatTableProducer`, `TruthGraphHitFlatTableProducer`, `truthGraphNanoTables_cff`) | pushed; it builds on [cms-sw/cmssw#52451](https://github.com/cms-sw/cmssw/pull/52451) and contains its commits. Its pull request follows when #52451 is merged. |
+| `mmarriot:nanoaod-cluster-hits` (the pull request that `ember`'s messages call "NanoAOD tables of the hits of calorimeter clusters") | PhysicsTools/NanoAOD: `CaloClusterHitsTableProducer`, `PFClusterHitsTableProducer`, `SuperClusterHitsTableProducer`. For any `reco::CaloCluster`, `reco::PFCluster` or `reco::SuperCluster` collection, a hit count on the cluster table, and a table of `detId` and `fraction` (from `hitsAndFractions()`). At 200 pile-up, the layer-cluster hits take 0.006 s per event. | pushed; the pull request to CMSSW is not open yet |
+| `mmarriot:truthgraph-nano-tables` ("NanoAOD tables of the MC-truth graph") | PhysicsTools/TruthInfo and SimGeneral/TruthGraphAssociatorProducers: the truth graph tables above (`TruthGraphFlatTableProducer`, `TruthGraphHitFlatTableProducer`, `truthGraphNanoTables_cff`) | pushed; it builds on [cms-sw/cmssw#52451](https://github.com/cms-sw/cmssw/pull/52451) and contains its commits. Its pull request follows when #52451 is merged. |
 
 ## What it costs
 
@@ -199,7 +203,7 @@ https://marriot-evd.web.cern.ch) have most of them, through tables that are no l
 | b-tags without `--pat` | a table producer for RECO's `JetTagCollection`s (the release has only PAT's) |
 | SoA tables | the generic SoA table producer ([above](#soa-collections)) |
 | exact HGCal cell outlines | see below |
-| HGCal fine scintillator tiles (geometries other than D104) | a DetId rule, tested against every cell of such a geometry. Today these tiles get no cell size. |
+| HGCal fine scintillator tiles (geometries other than D104) | a DetId rule, tested against every cell of such a geometry. Today these tiles get NaN as their size, so they are most likely not drawn (not checked on screen). |
 
 **HGCal cells as drawn today.** Each HGCal cell is drawn as a regular hexagon centred on the cell's position, with
 its corners at the cell's half-width (the apothem for silicon, r·Δφ/2 for a scintillator tile). So:

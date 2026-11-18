@@ -89,9 +89,9 @@ with a message while an old one is set without its new name. `deploy.sh` links `
 - **`ember FILE.root` writes `NAME.ember` here**, to drop on the viewer at https://marriot-evd.web.cern.ch (nothing is
   uploaded). It publishes to a site only when one is set (`--site` or `EMBER_SITE_DIR`).
 - **Standard NanoAOD and NANO:@HGCAL open directly**, and `--profile auto` (now the default) picks the profile that
-  draws the most of a file. New profiles `phase2`, `run3`, `reco` and `nano`; the converter derives calorimeter cell
-  sizes from the DetId, splits tables by DetId bits, finds a cluster's hits by DetId (which gives HGCal superclusters
-  their hits back in these files), and reads NanoAOD singleton tables.
+  draws the most of a file. New profiles `phase2`, `run3`, `reco`, `nano` and `truth`; the converter derives calorimeter
+  cell sizes from the DetId, splits tables by DetId bits, finds a cluster's hits by DetId (which gives HGCal
+  superclusters their hits back in these files), and reads NanoAOD singleton tables.
 - A bundle without truth (data, standard NanoAOD) no longer opens a truth and reco pair.
 
 ### Fixed

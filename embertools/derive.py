@@ -1,16 +1,23 @@
 """Derived columns: columns a profile's `derive` entries add to a table (docs/profiles.md, "derive").
 
 Kinds of derive, by the key that names them:
-  lookup             columns copied from the row of another table (often a per-run table) named by an index column
+  lookup             columns copied from the row of another table (often a per-run table) named by an index column,
+                     or from one fixed `row` of it (e.g. the leading primary vertex)
   rowIndex           the row's number in the event, before cuts
   xyFromEtaPhiZ      x and y from eta, phi and z
+  momentum           px, py and pz from pt, eta and phi (or pt and phi: pz 0, e.g. missing transverse momentum)
+  bits               integer columns cut out of the bits of another (e.g. the subdetector of a DetId)
+  cell               the size of calorimeter cells from their DetId and position (cells.py)
   neighbourDistance  scale x the distance to the k-th nearest other row (a cell size estimated from the hits' spacing)
   gather             columns copied from the first row reached through a relation (needs the event's relations)
+  split              (converter.py) new tables of the rows of a table that pass conditions, e.g. one per subdetector
 
 Tables here are an event's tables as the converter holds them: {name: (rows, {column: array})}.
 """
 
 import numpy as np
+
+from . import cells
 
 
 def derived_columns(d, tables):
@@ -18,13 +25,31 @@ def derived_columns(d, tables):
     metadata ({name: {"doc", "columns": {column: (dtype, doc)}}})."""
     if "lookup" in d:
         source, own = tables[d["lookup"]]["columns"], tables[d["table"]]["columns"]
+        by = f"row {d['row']}" if "row" in d else f"by {d.get('index')}"
         out = {}
         for new, col in d["columns"].items():
-            if col not in source or d["index"] not in own:
-                raise ValueError(f"lookup {d['table']} -> {d['lookup']}: no column {col} or {d['index']}")
+            if col not in source or ("row" not in d and d.get("index") not in own):
+                raise ValueError(f"lookup {d['table']} -> {d['lookup']}: no column {col} or {d.get('index')}")
             dtype, doc = source[col]
-            out[new] = (lookup_dtype(dtype), f"{doc} (from {d['lookup']}.{col} by {d['index']})")
+            out[new] = (lookup_dtype(dtype), f"{doc} (from {d['lookup']}.{col}, {by})")
         return out
+    if "bits" in d:
+        own = tables[d["table"]]["columns"]
+        for new, (col, first, count) in d["bits"].items():
+            if col not in own:
+                raise ValueError(f"bits {d['table']}.{new}: no column {col}")
+        return {
+            new: (np.dtype("i4"), f"bits {first} to {first + count - 1} of {col}")
+            for new, (col, first, count) in d["bits"].items()
+        }
+    if "cell" in d:
+        if d["cell"] not in cells.COLUMNS:
+            raise ValueError(f"cell {d['table']}: unknown rule {d['cell']}; known: {', '.join(cells.COLUMNS)}")
+        return {c: (np.dtype("f4"), f"{doc} (from the DetId)") for c, doc in cells.COLUMNS[d["cell"]].items()}
+    if "momentum" in d:
+        return {
+            c: (np.dtype("f4"), f"derived from {', '.join(filter(None, d['momentum']))}") for c in ("px", "py", "pz")
+        }
     if "rowIndex" in d:
         return {d["rowIndex"]: (np.dtype("i4"), "row number in the event (0 first), e.g. the leading primary vertex")}
 
@@ -53,18 +78,28 @@ def lookup_dtype(dtype):
 
 
 def apply_derive(d, tables):
-    """Add the columns of a lookup, rowIndex, xyFromEtaPhiZ or neighbourDistance derive to its table in `tables`."""
+    """Add the columns of a derive (any kind but gather and split) to its table in `tables`."""
     n, cols = tables[d["table"]]
     if "rowIndex" in d:
         cols[d["rowIndex"]] = np.arange(n, dtype=np.int32)
     elif "lookup" in d:
         n_source, source = tables[d["lookup"]]
-        idx = np.asarray(cols[d["index"]], np.int64)
+        idx = np.full(n, d["row"], np.int64) if "row" in d else np.asarray(cols[d["index"]], np.int64)
         ok = (idx >= 0) & (idx < n_source)
         for new, col in d["columns"].items():
             src = source[col]
             cols[new] = np.full(n, np.nan if src.dtype.kind == "f" else -1, lookup_dtype(src.dtype))
             cols[new][ok] = src[idx[ok]]
+    elif "bits" in d:
+        for new, (col, first, count) in d["bits"].items():
+            cols[new] = ((np.asarray(cols[col]).astype(np.int64) >> first) & ((1 << count) - 1)).astype(np.int32)
+    elif "cell" in d:
+        detid, *position = (cols[c] for c in (d["detId"], *d["position"]))
+        cols.update(cells.compute(d["cell"], detid, *position, d.get("geometry", "run3")))
+    elif "momentum" in d:
+        pt, eta, phi = (None if c is None else cols[c].astype(np.float64) for c in d["momentum"])
+        cols["px"], cols["py"] = (pt * np.cos(phi)).astype(np.float32), (pt * np.sin(phi)).astype(np.float32)
+        cols["pz"] = (pt * np.sinh(eta) if eta is not None else np.zeros(n)).astype(np.float32)
     elif "xyFromEtaPhiZ" in d:
         eta, phi, z = (cols[c].astype(np.float64) for c in d["xyFromEtaPhiZ"])
         r = z / np.sinh(eta)  # the transverse radius, as tan(theta) = 1 / sinh(eta)

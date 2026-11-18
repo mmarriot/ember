@@ -1,0 +1,50 @@
+{
+  "name": "nano",
+  "note": "Physics objects of standard NanoAOD (PhysicsTools/NanoAOD: any NANO flavour, e.g. from MiniAOD) and the same tables in Ember's own NanoAOD of a reconstruction file (written from the RECO collections, no PAT step: uncorrected AK4 Puppi jets, Puppi and PF MET, electrons, photons, muons, the leading primary vertex, secondary vertices). Only these tables are kept (keepUnused false): a standard NanoAOD has about a hundred. NanoAOD stores pt, eta and phi: momenta are derived from them, and objects start at the leading primary vertex (row 0 of PV), so jets are cones and MET an arrow from it, electrons and muons helices to the calorimeter surface (r 129 cm, |z| 320 cm) and photons lines to it. Physics domain: shared, 3D, the start domain.",
+  "keepUnused": false,
+  "derive": [
+    {"table": "Jet", "lookup": "PV", "row": 0, "columns": {"x": "x", "y": "y", "z": "z"}},
+    {"table": "Tau", "lookup": "PV", "row": 0, "columns": {"x": "x", "y": "y", "z": "z"}},
+    {"table": "Electron", "lookup": "PV", "row": 0, "columns": {"x": "x", "y": "y", "z": "z"}},
+    {"table": "Electron", "momentum": ["pt", "eta", "phi"]},
+    {"table": "ElectronHGC", "lookup": "PV", "row": 0, "columns": {"x": "x", "y": "y", "z": "z"}},
+    {"table": "ElectronHGC", "momentum": ["pt", "eta", "phi"]},
+    {"table": "Muon", "lookup": "PV", "row": 0, "columns": {"x": "x", "y": "y", "z": "z"}},
+    {"table": "Muon", "momentum": ["pt", "eta", "phi"]},
+    {"table": "Photon", "lookup": "PV", "row": 0, "columns": {"x": "x", "y": "y", "z": "z"}},
+    {"table": "Photon", "momentum": ["pt", "eta", "phi"]},
+    {"table": "PhotonHGC", "lookup": "PV", "row": 0, "columns": {"x": "x", "y": "y", "z": "z"}},
+    {"table": "PhotonHGC", "momentum": ["pt", "eta", "phi"]},
+    {"table": "PuppiMET", "lookup": "PV", "row": 0, "columns": {"x": "x", "y": "y", "z": "z"}},
+    {"table": "PuppiMET", "momentum": ["pt", null, "phi"]},
+    {"table": "PFMET", "lookup": "PV", "row": 0, "columns": {"x": "x", "y": "y", "z": "z"}},
+    {"table": "PFMET", "momentum": ["pt", null, "phi"]}
+  ],
+  "kinds": {
+    "jet": {"label": "Jets", "domain": "Physics", "repr": "cones", "visible": true, "labels": 4, "colourBy": "none", "fixedColour": "#f0a830", "cut": {"group": "Jet pT", "label": "jet pT", "unit": "GeV", "default": 30}},
+    "electron": {"label": "Electrons", "domain": "Physics", "repr": "helix", "visible": true, "labels": 2, "width": 3, "colourBy": "none", "fixedColour": "#3cc864", "cut": {"group": "Electron pT", "label": "electron pT", "unit": "GeV", "default": 10}},
+    "muon": {"label": "Muons", "domain": "Physics", "repr": "helix", "visible": true, "labels": 2, "width": 3, "colourBy": "none", "fixedColour": "#e04040", "cut": {"group": "Muon pT", "label": "muon pT", "unit": "GeV", "default": 10}},
+    "photon": {"label": "Photons", "domain": "Physics", "repr": "segments", "visible": true, "labels": 2, "width": 3, "colourBy": "none", "fixedColour": "#40d0e0", "cut": {"group": "Photon pT", "label": "photon pT", "unit": "GeV", "default": 20}},
+    "tau": {"label": "Taus", "domain": "Physics", "repr": "cones", "visible": false, "labels": 2, "colourBy": "none", "fixedColour": "#a070e0", "cut": {"group": "Tau pT", "label": "tau pT", "unit": "GeV", "default": 20}},
+    "met": {"label": "MET", "domain": "Physics", "repr": "segments", "visible": true, "labels": 1, "colourBy": "none", "fixedColour": "#8a94a6"},
+    "vertex": {"label": "Vertices", "domain": "Physics", "repr": "markers", "visible": true, "colourBy": "row"},
+    "secondaryVertex": {"label": "Secondary vertices", "domain": "Physics", "repr": "markers", "visible": true, "colourBy": "row"}
+  },
+  "display": [
+    {"table": "Jet", "kind": "jet", "label": "AK4", "position": ["x", "y", "z"], "direction": ["eta", "phi"], "length": {"to": {"r": 129, "z": 320}}, "radius": 0.4, "size": "pt", "cut": {"column": "pt"}, "describe": {"columns": ["pt", "eta"]}, "list": {"columns": ["pt", "eta", "phi"], "sort": "pt", "max": 10}, "inspect": ["pt", "eta", "phi", "mass", "nConstituents"], "fractions": {"chHEF": "charged hadrons", "neHEF": "neutral hadrons", "chEmEF": "charged EM", "neEmEF": "neutral EM", "muEF": "muons"}},
+    {"table": "Electron", "kind": "electron", "label": "Electrons", "position": ["x", "y", "z"], "momentum": ["px", "py", "pz"], "charge": "charge", "length": {"to": {"r": 129, "z": 320}}, "size": "pt", "cut": {"column": "pt"}, "describe": {"columns": ["pt", "eta"]}, "list": {"columns": ["pt", "eta", "phi"], "sort": "pt", "max": 5}, "inspect": ["pt", "eta", "phi", "charge"]},
+    {"table": "ElectronHGC", "kind": "electron", "label": "Electrons (HGCal)", "position": ["x", "y", "z"], "momentum": ["px", "py", "pz"], "charge": "charge", "length": {"to": {"r": 129, "z": 320}}, "size": "pt", "cut": {"column": "pt"}, "describe": {"columns": ["pt", "eta"]}, "list": {"columns": ["pt", "eta", "phi"], "sort": "pt", "max": 5}, "inspect": ["pt", "eta", "phi", "charge"]},
+    {"table": "Muon", "kind": "muon", "label": "Muons", "position": ["x", "y", "z"], "momentum": ["px", "py", "pz"], "charge": "charge", "length": {"to": {"r": 129, "z": 320}}, "size": "pt", "cut": {"column": "pt"}, "describe": {"columns": ["pt", "eta"]}, "list": {"columns": ["pt", "eta", "phi"], "sort": "pt", "max": 5}, "inspect": ["pt", "eta", "phi", "charge", "isGlobal", "isTracker", "isStandalone"]},
+    {"table": "Photon", "kind": "photon", "label": "Photons", "position": ["x", "y", "z"], "direction": ["px", "py", "pz"], "length": {"to": {"r": 129, "z": 320}}, "size": "pt", "cut": {"column": "pt"}, "describe": {"columns": ["pt", "eta"]}, "list": {"columns": ["pt", "eta", "phi"], "sort": "pt", "max": 5}, "inspect": ["pt", "eta", "phi"]},
+    {"table": "PhotonHGC", "kind": "photon", "label": "Photons (HGCal)", "position": ["x", "y", "z"], "direction": ["px", "py", "pz"], "length": {"to": {"r": 129, "z": 320}}, "size": "pt", "cut": {"column": "pt"}, "describe": {"columns": ["pt", "eta"]}, "list": {"columns": ["pt", "eta", "phi"], "sort": "pt", "max": 5}, "inspect": ["pt", "eta", "phi"]},
+    {"table": "Tau", "kind": "tau", "label": "Taus", "position": ["x", "y", "z"], "direction": ["eta", "phi"], "length": {"to": {"r": 129, "z": 320}}, "radius": 0.15, "size": "pt", "cut": {"column": "pt"}, "describe": {"columns": ["pt", "eta"]}, "list": {"columns": ["pt", "eta", "decayMode"], "sort": "pt", "max": 5}, "inspect": ["pt", "eta", "phi", "mass", "charge", "decayMode"]},
+    {"table": "PuppiMET", "kind": "met", "label": "Puppi MET", "position": ["x", "y", "z"], "direction": ["px", "py", "pz"], "length": {"column": "pt", "scale": 150, "log": true, "min": 80, "max": 450}, "arrow": true, "width": 4, "views": ["3d", "front"], "size": "pt", "describe": {"columns": ["pt"]}, "list": {"columns": ["pt", "phi"], "headline": "value"}, "inspect": ["pt", "phi", "sumEt"]},
+    {"table": "PFMET", "kind": "met", "label": "PF MET", "visible": false, "position": ["x", "y", "z"], "direction": ["px", "py", "pz"], "length": {"column": "pt", "scale": 150, "log": true, "min": 80, "max": 450}, "arrow": true, "width": 4, "views": ["3d", "front"], "size": "pt", "describe": {"columns": ["pt"]}, "list": {"columns": ["pt", "phi"], "headline": "value"}, "inspect": ["pt", "phi", "sumEt"]},
+    {"table": "PV", "kind": "vertex", "label": "Leading primary vertex", "position": ["x", "y", "z"], "size": null, "inspect": ["x", "y", "z", "ndof", "chi2"]},
+    {"table": "SV", "kind": "secondaryVertex", "label": "Secondary", "position": ["x", "y", "z"], "size": null, "describe": {"columns": ["ntracks"]}, "inspect": ["x", "y", "z", "ntracks"]}
+  ],
+  "domains": [
+    {"name": "Physics", "shared": true, "region": {"rMax": 180, "zMax": 350}, "view": "3d", "colourMode": "layers"}
+  ],
+  "view": {"domain": "Physics"}
+}

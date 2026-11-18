@@ -1,0 +1,72 @@
+{
+  "name": "phase2",
+  "note": "Ember's own NanoAOD of a Phase-2 reconstruction file (ember FILE.root: embertools/cmsrun.py), and NANO:@HGCAL files (DPGAnalysis/HGCalNanoAOD, whose tables it shares): HGCal rechits (PhysicsTools/TruthInfo table 'rechits': positions from TICLGeom; cell half widths from the DetId: the 0.403 / 0.604 cm apothems of high- and low-density silicon, r dphi / 2 of the 288 scintillator tiles), layer clusters, tracksters with their layer clusters, TICL candidates with their tracksters and tracks (legacy collections: offline RECO stores no SoA collections, and the release has no SoA table producers); ECAL barrel and HCAL PF rechits (TruthInfo table 'pfrechits', split here by the DetId's subdetector: Phase 2 has no ECAL endcap, preshower or HCAL endcap) drawn as towers, EB 0.0174 x 1 degree, HCAL from the DetId's ieta and depth (geometry sweep of D104), EB and HO showing energy as length; PF clusters, superclusters, tracks, physics objects (reco.json, nano.json). A cluster's hits are found by DetId (when the release writes cluster-hits tables). No truth: the release has no NanoAOD tables of the truth graph yet. Trackster axes are read as (x, z, y) because HGCalNanoAOD swaps eVector0_y/z.",
+  "include": ["nano", "reco"],
+  "internal": ["linkedTracksters", "TICLCandidatesExtra", "TICLCandidatesTrackIdxs", "TICLCandidatesGsfTrackIdxs", "HGCalLayerClustersHits", "SuperClusterHGCalHits", "ticlTrackstersCLUE3DHighvertices", "ticlTrackstersCLUEsteringvertices", "ticlTracksterLinksvertices", "ticlTracksterLinksSuperclusteringDNNvertices", "ticlTracksterInterpretationsvertices", "ticlCandidatevertices"],
+  "derive": [
+    {"table": "rechits", "cell": "hgcal", "detId": "rechit_ID", "position": ["rechit_x", "rechit_y", "rechit_z"]},
+    {"table": "pfrechits", "bits": {"det": ["rechit_ID", 28, 4], "subdet": ["rechit_ID", 25, 3]}},
+    {"table": "pfrechits", "split": {"EBHits": [["det", "==", 3], ["subdet", "==", 1]], "HBHits": [["det", "==", 4], ["subdet", "==", 1]], "HOHits": [["det", "==", 4], ["subdet", "==", 3]], "HFHits": [["det", "==", 4], ["subdet", "==", 4]]}},
+    {"table": "HBHits", "cell": "hcal", "geometry": "phase2", "detId": "rechit_ID", "position": ["rechit_x", "rechit_y", "rechit_z"]},
+    {"table": "HOHits", "cell": "hcal", "geometry": "phase2", "detId": "rechit_ID", "position": ["rechit_x", "rechit_y", "rechit_z"]},
+    {"table": "HFHits", "cell": "hcal", "geometry": "phase2", "detId": "rechit_ID", "position": ["rechit_x", "rechit_y", "rechit_z"]},
+    {"table": "TICLCandidates", "gather": [{"relation": "candidateTrackster", "columns": {"x": "barycenter_x", "y": "barycenter_y", "z": "barycenter_z", "axis_x": "eVector0_x", "axis_y": "eVector0_z", "axis_z": "eVector0_y", "ev1": "EV1", "ev2": "EV2", "ev3": "EV3"}}, {"relation": "candidateOwnTrackster", "columns": {"x": "barycenter_x", "y": "barycenter_y", "z": "barycenter_z", "axis_x": "eVector0_x", "axis_y": "eVector0_z", "axis_z": "eVector0_y", "ev1": "EV1", "ev2": "EV2", "ev3": "EV3"}}, {"relation": "candidateTrack", "columns": {"x": "hgcal_x", "y": "hgcal_y", "z": "hgcal_z"}}]}
+  ],
+  "relations": [
+    {"name": "clue3dLCs", "kind": "counts", "from": "ticlTrackstersCLUE3DHigh", "to": "HGCalLayerClusters", "counts": "ticlTrackstersCLUE3DHigh.nticlTrackstersCLUE3DHighvertices", "indices": "ticlTrackstersCLUE3DHighvertices.vertices", "weights": ["ticlTrackstersCLUE3DHighvertices.vertex_mult"]},
+    {"name": "clusteringLCs", "kind": "counts", "from": "ticlTrackstersCLUEstering", "to": "HGCalLayerClusters", "counts": "ticlTrackstersCLUEstering.nticlTrackstersCLUEsteringvertices", "indices": "ticlTrackstersCLUEsteringvertices.vertices", "weights": ["ticlTrackstersCLUEsteringvertices.vertex_mult"]},
+    {"name": "linksLCs", "kind": "counts", "from": "ticlTracksterLinks", "to": "HGCalLayerClusters", "counts": "ticlTracksterLinks.nticlTracksterLinksvertices", "indices": "ticlTracksterLinksvertices.vertices", "weights": ["ticlTracksterLinksvertices.vertex_mult"]},
+    {"name": "superclusterLCs", "kind": "counts", "from": "ticlTracksterLinksSuperclusteringDNN", "to": "HGCalLayerClusters", "counts": "ticlTracksterLinksSuperclusteringDNN.nticlTracksterLinksSuperclusteringDNNvertices", "indices": "ticlTracksterLinksSuperclusteringDNNvertices.vertices", "weights": ["ticlTracksterLinksSuperclusteringDNNvertices.vertex_mult"]},
+    {"name": "interpretationLCs", "kind": "counts", "from": "ticlTracksterInterpretations", "to": "HGCalLayerClusters", "counts": "ticlTracksterInterpretations.nticlTracksterInterpretationsvertices", "indices": "ticlTracksterInterpretationsvertices.vertices", "weights": ["ticlTracksterInterpretationsvertices.vertex_mult"]},
+    {"name": "ownTracksterLCs", "kind": "counts", "from": "ticlCandidate", "to": "HGCalLayerClusters", "counts": "ticlCandidate.nticlCandidatevertices", "indices": "ticlCandidatevertices.vertices", "weights": ["ticlCandidatevertices.vertex_mult"]},
+    {"name": "candidateTrackster", "kind": "counts", "from": "TICLCandidates", "to": "ticlTracksterInterpretations", "counts": "TICLCandidates.nTICLCandidatesExtra", "indices": "TICLCandidatesExtra.tracksterIndex"},
+    {"name": "candidateOwnTrackster", "kind": "counts", "from": "TICLCandidates", "to": "ticlCandidate", "counts": "TICLCandidates.nTICLCandidatesExtra", "indices": "TICLCandidatesExtra.tracksterIndex"},
+    {"name": "candidateLinkedTracksters", "kind": "counts", "from": "TICLCandidates", "to": "ticlTracksterLinks", "counts": "TICLCandidates.nLinkedTracksters", "indices": "linkedTracksters.tracksterIndex"},
+    {"name": "candidateTrack", "kind": "index", "from": "TICLCandidates", "to": "GeneralTrack", "index": "TICLCandidates.trackIdx"},
+    {"name": "layerClusterHits", "kind": "counts", "from": "HGCalLayerClusters", "to": "rechits", "counts": "HGCalLayerClusters.nHGCalLayerClustersHits", "indices": "HGCalLayerClustersHits.detId", "toKey": "rechits.rechit_ID", "weights": ["HGCalLayerClustersHits.fraction"]},
+    {"name": "superClusterHGCalHits", "kind": "counts", "from": "SuperClusterHGCal", "to": "rechits", "counts": "SuperClusterHGCal.nSuperClusterHGCalHits", "indices": "SuperClusterHGCalHits.detId", "toKey": "rechits.rechit_ID", "weights": ["SuperClusterHGCalHits.fraction"]},
+    {"name": "candidateLCs", "kind": "compose", "from": "TICLCandidates", "to": "HGCalLayerClusters", "via": ["candidateTrackster", "interpretationLCs"]},
+    {"name": "candidateOwnLCs", "kind": "compose", "from": "TICLCandidates", "to": "HGCalLayerClusters", "via": ["candidateOwnTrackster", "ownTracksterLCs"]}
+  ],
+  "cuts": {"TICLCandidates": [{"defined": "x"}]},
+  "stages": ["trackster", "linkedTrackster", "interpretation", "candidateTrackster", "candidate"],
+  "kinds": {
+    "rechit": {"label": "Hits", "domain": "HGCal", "repr": "cells", "palette": "heat", "visible": true, "cut": {"group": "Hit energy", "unit": "GeV", "default": 0.035}},
+    "layerCluster": {"label": "Layer clusters", "domain": "HGCal", "repr": "markers", "palette": "cool", "visible": true, "cut": {"group": "Layer cluster energy", "unit": "GeV", "default": 0.0}},
+    "trackster": {"label": "Tracksters", "domain": "HGCal", "repr": "ellipsoids", "colourBy": "row", "visible": true},
+    "linkedTrackster": {"label": "Linked tracksters", "domain": "HGCal", "repr": "ellipsoids", "shape": "shell", "colourBy": "row", "visible": true},
+    "interpretation": {"label": "Interpretations", "domain": "HGCal", "repr": "ellipsoids", "shape": "cage", "colourBy": "row", "visible": true},
+    "candidateTrackster": {"label": "Candidate tracksters", "domain": "HGCal", "repr": "ellipsoids", "shape": "cage", "colourBy": "row", "visible": true},
+    "candidate": {"label": "Candidates", "domain": "HGCal", "repr": "ellipsoids", "shape": "core", "visible": true, "colourBy": {"category": "pdgID", "abs": true, "names": {"22": "photon", "11": "electron", "13": "muon", "211": "charged hadron", "130": "neutral hadron", "111": "neutral pion"}}}
+  },
+  "display": [
+    {"table": "rechits", "kind": "rechit", "label": "HGCal", "position": ["rechit_x", "rechit_y", "rechit_z"], "time": "rechit_time", "colour": "rechit_energy", "size": "halfWidth", "cut": {"column": "rechit_energy"}, "inspect": ["rechit_energy", "rechit_time", "rechit_ID"]},
+    {"table": "HGCalLayerClusters", "kind": "layerCluster", "label": "Merged", "position": ["position_x", "position_y", "position_z"], "time": "time", "colour": "energy", "colourBy": "stage", "size": null, "cut": {"column": "energy"}, "describe": {"columns": ["energy"]}},
+    {"table": "ticlTrackstersCLUE3DHigh", "kind": "trackster", "label": "CLUE3D", "position": ["barycenter_x", "barycenter_y", "barycenter_z"], "time": "time", "axis": ["eVector0_x", "eVector0_z", "eVector0_y"], "extent": ["EV1", "EV2", "EV3"], "colour": "raw_energy", "size": null, "describe": {"columns": ["raw_energy"]}},
+    {"table": "ticlTrackstersCLUEstering", "kind": "trackster", "label": "CLUEstering", "position": ["barycenter_x", "barycenter_y", "barycenter_z"], "time": "time", "axis": ["eVector0_x", "eVector0_z", "eVector0_y"], "extent": ["EV1", "EV2", "EV3"], "colour": "raw_energy", "size": null, "describe": {"columns": ["raw_energy"]}},
+    {"table": "ticlTracksterLinks", "kind": "linkedTrackster", "label": "Trackster links", "position": ["barycenter_x", "barycenter_y", "barycenter_z"], "time": "time", "axis": ["eVector0_x", "eVector0_z", "eVector0_y"], "extent": ["EV1", "EV2", "EV3"], "colour": "raw_energy", "size": null, "describe": {"columns": ["raw_energy"]}},
+    {"table": "ticlTracksterLinksSuperclusteringDNN", "kind": "linkedTrackster", "label": "Superclustering DNN", "position": ["barycenter_x", "barycenter_y", "barycenter_z"], "time": "time", "axis": ["eVector0_x", "eVector0_z", "eVector0_y"], "extent": ["EV1", "EV2", "EV3"], "colour": "raw_energy", "size": null, "describe": {"columns": ["raw_energy"]}},
+    {"table": "ticlTracksterInterpretations", "kind": "interpretation", "label": "Interpretations", "position": ["barycenter_x", "barycenter_y", "barycenter_z"], "time": "time", "axis": ["eVector0_x", "eVector0_z", "eVector0_y"], "extent": ["EV1", "EV2", "EV3"], "colour": "raw_energy", "size": null, "describe": {"columns": ["raw_energy"]}},
+    {"table": "ticlCandidate", "kind": "candidateTrackster", "label": "Of the candidates", "position": ["barycenter_x", "barycenter_y", "barycenter_z"], "time": "time", "axis": ["eVector0_x", "eVector0_z", "eVector0_y"], "extent": ["EV1", "EV2", "EV3"], "colour": "raw_energy", "size": null, "describe": {"columns": ["raw_energy"]}},
+    {"table": "TICLCandidates", "kind": "candidate", "label": "TICL candidates", "position": ["x", "y", "z"], "axis": ["axis_x", "axis_y", "axis_z"], "extent": ["ev1", "ev2", "ev3"], "time": "time", "colour": "energy", "size": null, "describe": {"columns": ["pdgID", "raw_energy"], "names": {"pdgID": {"11": "e⁻", "-11": "e⁺", "13": "μ⁻", "-13": "μ⁺", "22": "γ", "111": "π⁰", "211": "π⁺", "-211": "π⁻", "130": "K⁰L"}}}},
+    {"table": "SuperClusterHGCal", "kind": "superCluster", "label": "HGCal", "domain": "HGCal", "position": ["x", "y", "z"]},
+    {"table": "EBHits", "kind": "caloHit", "label": "ECAL barrel", "position": ["rechit_x", "rechit_y", "rechit_z"], "cell": {"shape": "tower", "face": "cylinder", "dEta": 0.0174, "dPhi": 0.01745, "depth": {"column": "rechit_energy", "scale": 22, "log": true, "min": 0.5, "max": 45}}, "cut": {"group": "ECAL barrel energy", "label": "ECAL barrel", "column": "rechit_energy", "unit": "GeV", "default": 1.0}},
+    {"table": "HBHits", "kind": "caloHit", "label": "HCAL barrel", "position": ["rechit_x", "rechit_y", "rechit_z"], "cell": {"shape": "tower", "face": "cylinder", "dEta": "dEta", "dPhi": "dPhi", "depth": "depth"}, "cut": {"group": "HCAL barrel energy", "label": "HCAL barrel", "column": "rechit_energy", "unit": "GeV", "default": 1.0}},
+    {"table": "HOHits", "kind": "caloHit", "label": "HCAL outer", "position": ["rechit_x", "rechit_y", "rechit_z"], "cell": {"shape": "tower", "face": "cylinder", "dEta": "dEta", "dPhi": "dPhi", "depth": {"column": "rechit_energy", "scale": 22, "log": true, "min": 0.5, "max": 45}}, "cut": {"group": "HCAL outer energy", "label": "HCAL outer", "column": "rechit_energy", "unit": "GeV", "default": 1.0}, "visible": false},
+    {"table": "HFHits", "kind": "caloHit", "label": "HCAL forward", "position": ["rechit_x", "rechit_y", "rechit_z"], "cell": {"shape": "tower", "face": "disc", "dEta": "dEta", "dPhi": "dPhi", "depth": "depth"}, "cut": {"group": "HCAL forward energy", "label": "HCAL forward", "column": "rechit_energy", "unit": "GeV", "default": 3.0}, "visible": false, "views": ["3d", "side", "rz"]}
+  ],
+  "domains": [
+    {"name": "Calo", "region": {"rMax": 420, "zMax": 450}, "view": "front", "colourMode": "layers"},
+    {"name": "HGCal", "region": {"rMax": 260, "zMax": 515}, "view": "3d"}
+  ],
+  "outlines": [
+    {"name": "Tracker", "r": [2, 118], "z": [0, 270]},
+    {"name": "ECAL barrel", "r": [129, 152], "z": [0, 291]},
+    {"name": "HGCal", "r": [30, 260], "z": [320, 515]},
+    {"name": "HCAL barrel", "r": [181, 289], "z": [0, 433]},
+    {"name": "Solenoid", "r": [295, 380], "z": [0, 630]},
+    {"name": "HCAL outer", "r": [390, 414], "z": [0, 707]},
+    {"name": "HCAL forward", "r": [12, 130], "z": [1115, 1280]}
+  ],
+  "view": {"tour": "beam", "minRadius": 90}
+}

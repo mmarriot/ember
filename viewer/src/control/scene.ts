@@ -74,8 +74,9 @@ let plan: Plan | null = null;
 // replay can walk through them; afterwards only the visible layers are rebuilt.
 const replaying = signal(false);
 
-/** Replay how the shown event built up (see render/replay.ts); returns the plan, with its phase times. */
-export function replayEvent(): Plan | null {
+/** Replay how the shown event built up (see render/replay.ts); returns the plan, with its phase times (s of replay;
+ *  `pace`: real seconds per second of replay). */
+export function replayEvent(pace = 1): Plan | null {
   if (!engine) return null;
   engine.stopReplay(); // a running replay ends first (its end resets `replaying`), so the rebuild below sticks
   solo.value = null; // the replay builds the whole event up, not one kind
@@ -107,21 +108,22 @@ export function replayEvent(): Plan | null {
   plan = planReplay(items, header?.replay, parts);
   // The parts drawn whole only for the replay shrink away at its end, rather than vanishing when the layers are rebuilt.
   for (const e of entries) if (replayOnly(e.d, e.key, highlight.peek())) e.layer.setRetire(plan.linkEnd);
-  engine.replay(plan.seconds);
+  engine.replay(plan.seconds, undefined, pace);
   if (import.meta.env.DEV) Object.assign(window, { emberPlan: plan }); // for the e2e tests
   return plan;
 }
 
-/** The tour: grow in the drawn layers of these tables over `seconds` (render/replay.ts growIn), the others staying as
- *  they are. Unlike replayEvent, nothing is rebuilt: the tour has drawn the layers it shows. */
-export function growTables(tables: Set<string>, seconds: number) {
+/** The tour: grow in the drawn layers of these tables over `seconds` (render/replay.ts growIn; times `pace` in real
+ *  seconds), the others staying as they are. Unlike replayEvent, nothing is rebuilt: the tour has drawn the layers it
+ *  shows. */
+export function growTables(tables: Set<string>, seconds: number, pace = 1) {
   if (!engine) return;
   engine.stopReplay(); // the previous step's objects in their final state
   plan = null; // no replay captions: the tour has its own
   const layers = entries.filter((e) => tables.has(e.d.table)).map((e) => e.layer);
   if (!layers.length) return;
   growIn(layers, seconds);
-  engine.replay(seconds + 0.6, layers); // + the last objects' growth (render/layers/: 0.5 s)
+  engine.replay(seconds + 0.6, layers, pace); // + the last objects' growth (render/layers/: 0.5 s)
 }
 
 /** Create the engine on `canvas` and keep what it draws in step with the store. Returns the function that stops the

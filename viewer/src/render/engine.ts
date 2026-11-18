@@ -56,8 +56,9 @@ export class Engine {
   private dirty = true;
   /** The camera's flight in progress (see fly), started at `t0` (ms, performance.now()). */
   private flight: { t0: number; ms: number; swing: number; from: Pose; to: Pose } | null = null;
-  /** The replay in progress: started at `t0`, ends after `seconds`; `only`: the layers whose clocks run. */
-  private replayClock: { t0: number; seconds: number; only?: Layer[] } | null = null;
+  /** The replay in progress: started at `t0`, ends after `seconds`; `only`: the layers whose clocks run; `pace`: real
+   *  seconds per second of replay. */
+  private replayClock: { t0: number; seconds: number; only?: Layer[]; pace: number } | null = null;
   /** The selection's cross-fade in progress (see fadeHighlight). */
   private highlightFade: { t0: number; ms: number } | null = null;
   /** Auto-rotation of the 3D view, turns per minute (0: none). */
@@ -606,11 +607,12 @@ export class Engine {
   // Animations of the scene: the replay and the selection's cross-fade.
 
   /** Run the replay set up with planReplay() over `seconds`, from an empty view; `only`: just these layers replay,
-   *  the others stay in their final state (e.g. the tour growing in one step's objects). */
-  replay(seconds: number, only?: Layer[]) {
+   *  the others stay in their final state (e.g. the tour growing in one step's objects). `pace`: real seconds per
+   *  second of replay (the tour's pace; 2 is half speed). */
+  replay(seconds: number, only?: Layer[], pace = 1) {
     for (const l of only ?? this.layers) l.setClock(0);
     this.draw(); // the first draw uploads the rebuilt layers to the GPU: the clock starts after it, not during it
-    this.replayClock = { t0: performance.now(), seconds, only };
+    this.replayClock = { t0: performance.now(), seconds, only, pace };
   }
 
   stopReplay() {
@@ -627,7 +629,7 @@ export class Engine {
 
   /** One frame of the replay: every replaying layer's clock to the time since its start. */
   private tick(now: number) {
-    const t = (now - this.replayClock!.t0) / 1000;
+    const t = (now - this.replayClock!.t0) / 1000 / this.replayClock!.pace;
     if (t >= this.replayClock!.seconds) return this.stopReplay();
     for (const l of this.replayClock!.only ?? this.layers) l.setClock(t);
     this.onReplayTick(t);

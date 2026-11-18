@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { DisplayLayer } from "../io/format";
 import all from "./fixtures/all_header.json";
 import cms from "./fixtures/cms_header.json";
-import { stepLayers, TOUR_STEPS, tourPlan } from "./tourPlan";
+import { stepLayers, stepMs, TOUR_STEPS, tourPlan } from "./tourPlan";
 
 const display = (h: unknown) => (h as { display: DisplayLayer[] }).display;
 const titles = (h: unknown) => tourPlan(display(h)).map((s) => s.step.title);
@@ -15,18 +15,14 @@ describe("tour plan", () => {
   it("goes out from the collision point and up from hits to physics objects (whole-detector bundle)", () => {
     expect(titles(all)).toEqual([
       "The collision point",
-      "Tracker hits",
       "Tracks",
-      "Timing layer",
       "Calorimeter hits",
       "Clusters",
       "Showers in HGCal",
-      "Muon chambers",
-      "Muon tracks",
+      "Muons",
       "Particle flow",
       "Jets",
-      "Missing momentum",
-      "Leptons and photons",
+      "Leptons, photons, missing momentum",
       "b tagging",
     ]);
   });
@@ -51,14 +47,7 @@ describe("tour plan", () => {
     expect(stepLayers(stages, { kinds: ["candidate"] }).map((d) => d.table)).toEqual(["S2"]);
   });
   it("tours an HGCal-focused bundle through what it has", () => {
-    expect(titles(cms)).toEqual([
-      "The collision point",
-      "Tracker hits",
-      "Tracks",
-      "Calorimeter hits",
-      "Clusters",
-      "Showers in HGCal",
-    ]);
+    expect(titles(cms)).toEqual(["The collision point", "Tracks", "Calorimeter hits", "Clusters", "Showers in HGCal"]);
   });
   it("is empty (the replay tour) for a bundle without the kinds it names, or with only one step", () => {
     expect(tourPlan([{ table: "HGCHit", repr: "cells", label: "Hits", visible: true } as DisplayLayer])).toEqual([]);
@@ -66,5 +55,11 @@ describe("tour plan", () => {
   });
   it("has a caption for every step", () => {
     for (const s of TOUR_STEPS) expect(s.title.length && s.detail.length).toBeTruthy();
+  });
+  it("builds a whole-detector event up in about half a minute, each caption held long enough to read", () => {
+    // the rest of a tour's event (the visits) is timed in control/tour.ts
+    const holds = tourPlan(display(all)).map((s) => stepMs(s.step.detail));
+    expect(holds.reduce((a, b) => a + b, 0)).toBeLessThan(35000);
+    for (const s of TOUR_STEPS) expect(s.detail.length / (stepMs(s.detail) / 1000)).toBeLessThanOrEqual(25); // characters a second
   });
 });

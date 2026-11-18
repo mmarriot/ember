@@ -158,7 +158,7 @@ def test_a_reconstruction_file_is_exported_first(setup, capsys, monkeypatch):
         == 0
     )
     out = capsys.readouterr().out
-    assert calls == [(["step3.root"], 4, "D110", None, None, {"config": None})]
+    assert calls == [(["step3.root"], 4, "D110", None, None, {"config": None, "pat": False})]
     assert (
         "step3.root: CMSSW EDM (RECO, AOD or MiniAOD) from CMSSW_20_1_0, 50 events" in out
         and "the first 4 with cmsRun" in out

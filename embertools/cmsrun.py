@@ -83,20 +83,22 @@ CONFIG = "ember_cfg.py"
 CLUSTER_HITS = {"CaloClusterHitsTableProducer", "PFClusterHitsTableProducer", "SuperClusterHitsTableProducer"}
 
 
-def config(settings, inputs, events, inventory, release, threads=4, output=OUTPUT, made_by="", drop=()):
+def config(settings, inputs, events, inventory, release, threads=4, output=OUTPUT, made_by="", drop=(), pat=False):
     """(the text of ember_cfg.py, the notes on what was left out). `inputs`: EDM file URLs (file:... or root://...),
     `events`: how many (None: all), `release`: the module plugins of the release (plugins()), `drop`: products of
-    the input that the release cannot read (export.unreadable())."""
+    the input that the release cannot read (export.unreadable()). `pat`: the text is the part to append to the
+    configuration of `cmsDriver.py -s PAT,NANO --processName EMBER` (export.cmsdriver), whose standard NanoAOD has the
+    physics objects: ember's tables of everything else, written in that job's NanoAOD."""
     w = _Writer(settings, inventory, release)
-    w.header(inputs, made_by)
-    w.process(inputs, events, threads, drop)
+    w.header(inputs, made_by, pat)
+    w.process(inputs, events, threads, drop, pat)
     if settings.phase2:
         w.hgcal()
-    w.pf_rechits()
+    w.pf_rechits(pat)
     w.clusters()
     w.tracks()
-    w.physics()
-    w.output(output)
+    w.physics(pat)
+    w.output(output, pat)
     return w.text(), w.notes
 
 
@@ -125,8 +127,20 @@ class _Writer:
             self.notes.append(note)
         return not missing
 
-    def header(self, inputs, made_by):
+    def header(self, inputs, made_by, pat=False):
         s = self.s
+        if pat:
+            self.add(
+                f"""
+
+# ---- Ember's tables, after the PAT + standard NANO configuration above (cmsDriver.py -s PAT,NANO). Added by
+# {made_by or "ember"}: hits, clusters, HGCal, tracks; the physics objects are standard NanoAOD's.
+# Left out (not in the input, or not in this release):
+#{{NOTES}}
+from PhysicsTools.NanoAOD.common_cff import Var
+"""
+            )
+            return
         self.add(
             f"""
 # The NanoAOD that Ember reads, from a CMSSW reconstruction file, with modules of this release only.
@@ -146,7 +160,7 @@ process = cms.Process("EMBER", {s.era})
 """
         )
 
-    def process(self, inputs, events, threads, drop=()):
+    def process(self, inputs, events, threads, drop=(), pat=False):
         s = self.s
         tables = """
 # Every table producer goes in this task; the output module runs them as the tables are needed.
@@ -157,6 +171,9 @@ def table(label, module):
     setattr(process, label, module)
     process.emberTables.add(module)
 """
+        if pat:
+            self.add(self.dropped(drop) + tables)
+            return
         geometry = (
             f"Configuration.Geometry.Geometry{s.geometry}Reco_cff"
             if s.phase2
@@ -287,7 +304,7 @@ tracksterTable = process.ticlTrackstersCLUE3DHighTableProducer
             )
         self.add(text)
 
-    def pf_rechits(self):
+    def pf_rechits(self, pat=False):
         """ECAL and HCAL PF rechits (TruthInfo, positions from CaloGeometry), remade in the job if the input lacks
         them (RECO keeps only the cleaned-away ones)."""
         if not self.need("PFRecHitFlatTableProducer"):
@@ -318,6 +335,25 @@ process.emberTables.add(process.pfRecHitTable)
 """
         if remade:
             reco = "Reconstruction_Data_cff" if s.data else "Reconstruction_cff"
+            if pat:
+                text += f"""
+# The input does not keep these PF rechits ({", ".join(remade)}): they are made again from its rechits, with the
+# reconstruction's own producers. Its configuration is read into a process of its own and only what this one lacks
+# is taken (the producers they need, the parameter sets those name, and their EventSetup): loading it here would
+# redefine PAT's modules.
+from Configuration.Eras.Era_{s.era}_cff import {s.era} as recoEra
+reco = cms.Process("RECO", recoEra)
+reco.load("Configuration.StandardSequences.Accelerators_cff")  # its EventSetup has alpaka producers
+reco.load("Configuration.StandardSequences.{reco}")
+missing = {{**reco.producers_(), **reco.psets_(), **reco.vpsets_(), **reco.es_producers_(), **reco.es_sources_()}}
+for name, item in {{**missing, **reco.es_prefers_(), **reco.processAccelerators_()}}.items():
+    if not hasattr(process, name):
+        setattr(process, name, item)
+for kind in {remade!r}:
+    process.emberTables.add(getattr(process, "particleFlowRecHit" + kind))
+"""
+                self.add(text)
+                return
             text += f"""
 # The input does not keep these PF rechits ({", ".join(remade)}): they are made again from its rechits, with the
 # reconstruction's own producers (only those run).
@@ -442,11 +478,16 @@ table("generalTracksTable", generalTracksTable.clone())
 """
         )
 
-    def physics(self):
+    def physics(self, pat=False):
         """Physics objects from the RECO collections, named and laid out as in standard NanoAOD (a subset of its
-        columns), so that the same profile draws a standard NanoAOD."""
+        columns), so that the same profile draws a standard NanoAOD; with `pat`, standard NanoAOD has them, and only
+        the beam spot's position (which its BeamSpot table lacks) is written here."""
         inv = self.inv
-        jets = next((j for j in ("ak4PFJetsPuppi", "ak4PFJetsCHS") if inv.has(j, product_type="recoPFJets")), None)
+        jets = (
+            None
+            if pat
+            else next((j for j in ("ak4PFJetsPuppi", "ak4PFJetsCHS") if inv.has(j, product_type="recoPFJets")), None)
+        )
         rows = []
         if jets and self.need("SimplePFJetFlatTableProducer"):
             rows.append(f"""
@@ -461,7 +502,7 @@ table("jetTable", cms.EDProducer("SimplePFJetFlatTableProducer",
         neEmEF=Var("neutralEmEnergyFraction", "float", precision=6, doc="neutral EM energy fraction"),
         muEF=Var("muonEnergyFraction", "float", precision=6, doc="muon energy fraction"),
     )))""")
-        for label, name, src in (("puppiMet", "PuppiMET", "pfMetPuppi"), ("pfMet", "PFMET", "pfMet")):
+        for label, name, src in () if pat else (("puppiMet", "PuppiMET", "pfMetPuppi"), ("pfMet", "PFMET", "pfMet")):
             if inv.has(src, product_type="recoPFMETs") and self.need("SimpleMETFlatTableProducer"):
                 rows.append(f"""
 table("{label}Table", cms.EDProducer("SimpleMETFlatTableProducer",
@@ -476,7 +517,7 @@ table("{label}Table", cms.EDProducer("SimpleMETFlatTableProducer",
             ("photonHGC", "PhotonHGC", "photonsHGC", "recoPhotons", "pt > 10"),
             ("muon", "Muon", "muons", "recoMuons", "pt > 3"),
         ]
-        for label, name, src, type_, cut in candidates:
+        for label, name, src, type_, cut in [] if pat else candidates:
             if inv.has(src, product_type=type_) and self.need("SimpleCandidateFlatTableProducer"):
                 muon = (
                     '\n        isGlobal=Var("isGlobalMuon", bool, doc="global muon"),'
@@ -491,7 +532,11 @@ table("{label}Table", cms.EDProducer("SimpleCandidateFlatTableProducer", src=cms
     extension=cms.bool(False), skipNonExistingSrc=cms.bool(True), variables=cms.PSet(kinematics,
         charge=Var("charge", "int16", doc="charge"),{muon}
     )))""")
-        if inv.has("offlinePrimaryVertices", product_type="recoVertexs") and self.need("SimpleVertexFlatTableProducer"):
+        if (
+            not pat
+            and inv.has("offlinePrimaryVertices", product_type="recoVertexs")
+            and self.need("SimpleVertexFlatTableProducer")
+        ):
             rows.append("""
 table("pvTable", cms.EDProducer("SimpleVertexFlatTableProducer", src=cms.InputTag("offlinePrimaryVertices"),
     name=cms.string("PV"), doc=cms.string("the leading primary vertex"), cut=cms.string(""), maxLen=cms.uint32(1),
@@ -500,8 +545,10 @@ table("pvTable", cms.EDProducer("SimpleVertexFlatTableProducer", src=cms.InputTa
         ndof=Var("ndof", "float", precision=8, doc="number of degrees of freedom"),
         chi2=Var("normalizedChi2", "float", precision=8, doc="chi2 / ndof"),
         ntracks=Var("tracksSize", "uint16", doc="number of tracks"))))""")
-        if inv.has("inclusiveSecondaryVertices", product_type="recoVertexs") and self.need(
-            "SimpleVertexFlatTableProducer"
+        if (
+            not pat
+            and inv.has("inclusiveSecondaryVertices", product_type="recoVertexs")
+            and self.need("SimpleVertexFlatTableProducer")
         ):
             rows.append("""
 table("svTable", cms.EDProducer("SimpleVertexFlatTableProducer", src=cms.InputTag("inclusiveSecondaryVertices"),
@@ -512,7 +559,7 @@ table("svTable", cms.EDProducer("SimpleVertexFlatTableProducer", src=cms.InputTa
         if inv.has("offlineBeamSpot", product_type="recoBeamSpot") and self.need("SimpleBeamspotFlatTableProducer"):
             rows.append("""
 table("beamSpotTable", cms.EDProducer("SimpleBeamspotFlatTableProducer", src=cms.InputTag("offlineBeamSpot"),
-    name=cms.string("BeamSpot"), doc=cms.string("offline beam spot"), extension=cms.bool(False),
+    name=cms.string("OfflineBeamSpot"), doc=cms.string("offline beam spot"), extension=cms.bool(False),
     variables=cms.PSet(
         x=Var("x0", "float", precision=14, doc="x [cm]"),
         y=Var("y0", "float", precision=14, doc="y [cm]"),
@@ -538,7 +585,20 @@ position = cms.PSet(
             + "".join(rows)
         )
 
-    def output(self, output):
+    def output(self, output, pat=False):
+        if pat:
+            module = "NANOAODoutput" if self.s.data else "NANOAODSIMoutput"
+            self.add(
+                f"""
+# Ember's tables go in the NanoAOD of the PAT + NANO job, read back quickly (LZ4: the file is temporary)
+process.{module}.outputCommands.append("keep nanoaodFlatTable_*_*_EMBER")
+process.{module}.compressionAlgorithm = "LZ4"
+process.{module}.compressionLevel = 4
+process.emberTablesPath = cms.EndPath(process.emberTables)
+process.schedule.append(process.emberTablesPath)
+"""
+            )
+            return
         self.add(
             f"""
 # The output: every table of this process. LZ4 is quick to write and to read back, and the file is temporary.

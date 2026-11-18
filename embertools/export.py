@@ -10,7 +10,8 @@ is the release's default for that geometry (Configuration.PyReleaseValidation.up
 geometry comes from the conditions, and the era from the year (of the run number for data, of the global tag for
 simulation). Each can be given instead (--era, --geometry, --conditions).
 
-A MiniAOD file is turned into standard NanoAOD (cmsDriver.py -s NANO), which the `nano` profile draws.
+A MiniAOD file is turned into standard NanoAOD (cmsDriver.py -s NANO), which the `nano` profile draws. With `pat`,
+a reconstruction file gets PAT and standard NanoAOD too (cmsDriver.py -s PAT,NANO), with ember's tables appended.
 """
 
 import json
@@ -350,10 +351,12 @@ def export(
     threads=4,
     log=sys.stderr,
     config=None,
+    pat=False,
 ):
     """Write the cmsRun configuration for the EDM files `inputs` in `workdir` (a copy to `config` if given), run it
-    there, and return the NanoAOD file it wrote. When the job fails, the Problem raised shows the end of the job's
-    output and where all of it was kept."""
+    there, and return the NanoAOD file it wrote. `pat`: for a reconstruction file, the physics objects of PAT and
+    standard NanoAOD instead of ember's own tables of the RECO collections (cmsrun.config). When the job fails, the
+    Problem raised shows the end of the job's output and where all of it was kept."""
     prefix, env = _environment(cmssw)
     inv = inventory(inputs[0])
     s = settings(inputs[0], geometry, era, conditions, cmssw, log, inv)
@@ -364,11 +367,15 @@ def export(
         print("MiniAOD: standard NanoAOD (cmsDriver.py -s NANO)", file=log)
         _run([*prefix, *cmsdriver(inputs, events, s, threads, hlt=hlt)], workdir, env, "cmsDriver.log")
     else:
+        if pat:
+            print("--pat: PAT and standard NanoAOD (cmsDriver.py -s PAT,NANO), and ember's tables", file=log)
+            command = cmsdriver(inputs, events, s, threads, step="PAT,NANO", hlt=hlt)
+            _run([*prefix, *command], workdir, env, "cmsDriver.log")
         text, notes = cmsrun.config(
             s, list(map(_source, inputs)), events, inv, cmsrun.plugins(prefix, env), threads,
-            made_by=f"embertools {__version__}", drop=unreadable(inv, prefix, env),
+            made_by=f"embertools {__version__}", drop=unreadable(inv, prefix, env), pat=pat,
         )  # fmt: skip
-        with open(path, "w") as f:
+        with open(path, "a" if pat else "w") as f:
             f.write(text)
         for note in notes:
             print(f"left out: {note}", file=log)

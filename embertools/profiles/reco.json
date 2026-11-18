@@ -25,7 +25,7 @@
   },
   "display": [
     {"table": "GeneralTrack", "kind": "track", "label": "General tracks", "position": ["vx", "vy", "vz"], "momentum": ["px", "py", "pz"], "charge": "charge", "end": ["outerX", "outerY", "outerZ"], "filter": "highPurity == 1"},
-    {"table": "BeamSpot", "kind": "beamSpot", "label": "Beam spot", "position": ["x", "y", "z"]},
+    {"table": "OfflineBeamSpot", "kind": "beamSpot", "label": "Beam spot", "position": ["x", "y", "z"]},
     {"table": "PFClusterECAL", "kind": "pfCluster", "label": "ECAL", "position": ["x", "y", "z"]},
     {"table": "PFClusterPS", "kind": "pfCluster", "label": "Preshower", "position": ["x", "y", "z"], "visible": false, "cut": {"group": "Preshower cluster energy", "label": "preshower cluster energy", "default": 0.0}},
     {"table": "PFClusterHCAL", "kind": "pfCluster", "label": "HCAL", "position": ["x", "y", "z"]},

@@ -84,6 +84,13 @@ def parser():
     edm.add_argument(
         "--config", metavar="FILE.py", help="also keep the cmsRun configuration that made it (cmsRun FILE.py reruns it)"
     )
+    edm.add_argument(
+        "--pat",
+        action="store_true",
+        help="reconstruction files: the physics objects of PAT and standard NanoAOD (corrected jets, IDs, b-tags) "
+        "instead of ember's own tables of the RECO collections. Costly: at 200 pileup PAT + NANO alone took 2.25 s "
+        "per event, 8.6 GB of memory and 32 s to start, against 0.7 s, 3.3 GB and 19 s for the whole job without it",
+    )
 
     p = sub.add_parser("list", help="list your published bundles")
     p.add_argument("-l", "--links", action="store_true", help="print each bundle's link")
@@ -226,7 +233,7 @@ def _view(args):
     if publish:  # before any work (an export takes minutes): the site must be there, and the user's area writable
         user, files = site.login(args.user), site.store(site.site_dir(args.site))
         files.check(f"{site.USERS}/{user}")
-    options = ("geometry", "era", "conditions", "nano", "config")
+    options = ("geometry", "era", "conditions", "nano", "config", "pat")
     unused = [f"--{o}" for o in options if getattr(args, o)] if kind == "nano" else []
     if unused:
         print(
@@ -296,6 +303,7 @@ def _make_nanoaod(args, work, limit, total):
         threads=args.threads or 4,
         log=_Indented(sys.stdout),
         config=args.config,
+        pat=args.pat,
     )
     print(f"  NanoAOD made in {time.time() - started:.0f} s")
     if args.nano:

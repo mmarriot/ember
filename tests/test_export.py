@@ -397,3 +397,36 @@ def test_a_broken_cmssw_environment_says_to_run_cmsenv(monkeypatch, tmp_path):
         cmsrun.plugins()
     with pytest.raises(Problem, match="reading the release's geometries failed .* run cmsenv in this shell"):
         export._release_settings([], [], None)
+
+
+def test_with_pat_ember_appends_its_tables_but_its_physics_objects_to_the_standard_configuration():
+    s = cmsrun.Settings(True, False, "Phase2C22I13M9", "ExtendedRun4D104", "auto:phase2_realistic_T35")
+    text, _ = cmsrun.config(
+        s, ["file:/in.root"], 5, cmsrun.Inventory(cmsrun.products(PHASE2)), RELEASE | cmsrun.CLUSTER_HITS, pat=True
+    )
+    ast.parse("import FWCore.ParameterSet.Config as cms\nprocess = None\n" + text)
+    assert 'cms.Process("EMBER"' not in text and "process.source =" not in text and "process.output =" not in text
+    # the PF rechits it remakes (HF, HO here) come from the reconstruction's configuration without redefining PAT's
+    assert 'reco.load("Configuration.StandardSequences.Reconstruction_cff")' in text
+    assert 'process.load("Configuration.StandardSequences.Reconstruction' not in text
+    assert "jetTable" not in text and "electronTable" not in text and "pvTable" not in text  # standard NanoAOD's
+    assert 'name=cms.string("OfflineBeamSpot")' in text  # its BeamSpot table has no x and y
+    assert "recHitTable_cfi" in text and "CaloClusterHitsTableProducer" in text and "pfRecHitTable" in text
+    assert 'process.NANOAODSIMoutput.outputCommands.append("keep nanoaodFlatTable_*_*_EMBER")' in text
+    assert "process.schedule.append(process.emberTablesPath)" in text
+    data = cmsrun.Settings(False, True, "Run3_2025", "", "GT")
+    text, _ = cmsrun.config(data, ["file:/in.root"], 5, cmsrun.Inventory(cmsrun.products(RUN3)), RELEASE, pat=True)
+    assert "process.NANOAODoutput.outputCommands" in text
+
+
+def test_export_with_pat_runs_cmsdriver_then_appends_the_tables(tools):
+    work, step3 = tools
+    log = io.StringIO()
+    export.export([step3], work, 5, "D110", "E", "C", log=log, pat=True)
+    driver = Path(work, "cmsDriver.log").read_text()
+    assert (
+        "-s PAT,NANO --data" in driver and "--processName EMBER" in driver and "--geometry ExtendedRun4D110" in driver
+    )
+    text = Path(work, "ember_cfg.py").read_text()
+    assert text.startswith("process = 1\n") and "Ember's tables, after the PAT + standard NANO configuration" in text
+    assert "recHitTable_cfi" in text and "--pat: PAT and standard NanoAOD" in log.getvalue()

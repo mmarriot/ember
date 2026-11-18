@@ -78,6 +78,7 @@ Options for CMSSW files (reconstruction, MiniAOD) only:
 | `--conditions C` | a global tag, for example `auto:phase2_realistic_T33`. Default: the newest global tag the file names (for data, the newest Prompt or Express one); if it names none, the release's default for the geometry. |
 | `--nano FILE.root` | also keep the NanoAOD that `ember` made, as this file |
 | `--config FILE.py` | also keep the cmsRun configuration that made it (`cmsRun FILE.py` runs it again) |
+| `--pat` | for a reconstruction file: the physics objects of PAT and standard NanoAOD (corrected jets, IDs, b-tags, taus), from `cmsDriver.py -s PAT,NANO`, instead of `ember`'s own tables of the RECO collections; its hits, clusters and tracks are added to that job. It costs: at 200 pile-up PAT and NANO alone took 2.25 s per event, 8.6 GB of memory and 32 s to start, where the whole job takes 0.7 s per event, 3.3 GB and 19 s without it. |
 
 If you give these options for a NanoAOD input, `ember` ignores them and says so.
 

@@ -353,7 +353,8 @@ function Mine() {
       </p>
     ) : (
       <p class="hint none">
-        Nothing published yet: <code>{PUBLISH_COMMAND}</code> converts a file and lists it here.
+        Nothing published yet: where this site is set up for it (<code>EMBER_SITE_DIR</code>),{" "}
+        <code>{PUBLISH_COMMAND}</code> converts a file and lists it here.
       </p>
     );
   }
@@ -365,7 +366,8 @@ function Mine() {
   return (
     <form class="whoami" onSubmit={submit}>
       <label for="cern-login">
-        Files you publish with <code>{PUBLISH_COMMAND}</code> are listed here. Your CERN login:
+        Files you publish with <code>{PUBLISH_COMMAND}</code> (this site set up as <code>EMBER_SITE_DIR</code>) are
+        listed here. Your CERN login:
       </label>
       <div>
         <input

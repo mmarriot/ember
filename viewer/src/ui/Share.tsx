@@ -127,8 +127,8 @@ const NoLink = ({ name }: { name: string }) => (
       <b>{name}</b> is read from your computer: a link to it would open nothing for anyone else.
     </p>
     <p>
-      To share it, publish the file it was converted from: <code>{PUBLISH_COMMAND}</code> puts it on this site and
-      prints a link.
+      To share it, send the file itself; or, where this site is set up for it (<code>EMBER_SITE_DIR</code>), publish the
+      file it was converted from: <code>{PUBLISH_COMMAND}</code> then puts it on this site and prints a link.
     </p>
     <p>
       <a class="link" href={DOCS_URL} target="_blank" rel="noopener">

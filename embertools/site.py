@@ -1,4 +1,4 @@
-"""Where the event-display site is, and each user's area on it.
+"""Where the Ember site is, and each user's area on it.
 
     <site>/data/u/<login>/<name>.ember  a user's bundles, written by `ember view` (or <name>.evdb, from before the
                                         project was called Ember)

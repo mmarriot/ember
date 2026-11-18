@@ -406,8 +406,7 @@ function claimsOf(header: Header, truth: string, rows: Set<number>) {
     out = new Map<number, [string, number][]>();
   for (const [name, info] of Object.entries(header.relations)) {
     const rel = ev.relations[name];
-    if (!rel || !info.association || info.to !== truth || info.from === truth || layerOf(info.from)?.alternative)
-      continue;
+    if (!rel || !info.association || info.to !== truth || info.from === truth) continue;
     const { partner } = bestPartners(rel, info, true, ev.tables[info.from]?.n ?? 0);
     for (let o = 0; o < partner.length; o++)
       if (rows.has(partner[o])) out.set(partner[o], [...(out.get(partner[o]) ?? []), [info.from, o]]);

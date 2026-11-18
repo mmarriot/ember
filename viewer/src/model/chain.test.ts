@@ -209,29 +209,6 @@ describe("recoLadder", () => {
   });
 });
 
-describe("recoLadder with another reconstruction path", () => {
-  // a second jet collection (alternative) also holds PF candidate 0; legacy hits (alternative) repeat the clusters' hits
-  const aev = {
-    ...ev,
-    tables: { ...ev.tables, JetCHS: table(1), HitLegacy: table(4) },
-    relations: { ...ev.relations, jetCHSPF: csr([[0]]), lcLegacy: csr([[0, 1], [2], [3]]) },
-  } as unknown as EventData;
-  const ah = {
-    relations: { ...header.relations, jetCHSPF: plain("JetCHS", "PF"), lcLegacy: plain("LC", "HitLegacy") },
-    display: [
-      ...header.display,
-      layer("JetCHS", "Jets", { label: "CHS", alternative: true }),
-      layer("HitLegacy", "Hits", { label: "legacy", repr: "cells", alternative: true }),
-    ],
-  } as unknown as Header;
-  const l = recoLadder(aev, ah, { table: "PF", row: 0 }, relatedParts(aev, ah, { table: "PF", row: 0 }), statuses, "P");
-  it("names the other path's container as a step of its own, and does not repeat the parts' other copy", () => {
-    expect(l.above.map((r) => r.kind)).toEqual(["Jets", "Jets · CHS"]);
-    expect(l.below.map((r) => r.kind)).not.toContain("Hits · legacy");
-    expect(l.other).toEqual([]);
-  });
-});
-
 describe("recoLadder without display layers", () => {
   it("lists a related table the bundle does not draw apart, under its table's name (a hit's digi)", () => {
     const dev = {

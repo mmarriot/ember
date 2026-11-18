@@ -225,7 +225,6 @@ describe("truth status", () => {
         ["Hit", new Set([0, 1])],
         ["MHit", new Set([0])],
       ]),
-      () => true,
     );
     expect(groups.map((g) => [g.in, g.total, g.particles])).toEqual([
       [

@@ -70,7 +70,7 @@ function Scorecard() {
     statuses = truthStatuses.value;
   if (!b || !ev || !modes.value.roots.truth) return null;
   const rows = b.header.display
-    .filter((d, i, all) => !d.truth && !d.context && !d.alternative && all.findIndex((x) => x.table === d.table) === i)
+    .filter((d, i, all) => !d.truth && !d.context && all.findIndex((x) => x.table === d.table) === i)
     .flatMap((d) => {
       const s = statuses.get(d.table),
         p = s?.kind === "match" ? passing(d) : null,
@@ -162,7 +162,7 @@ function Coverage() {
   for (const d of b.header.display) {
     const s = statuses.get(d.table),
       kind = truthName(d.table);
-    if (!s || d.context || d.alternative || seen.has(kind)) continue;
+    if (!s || d.context || seen.has(kind)) continue;
     seen.add(kind);
     rows.push([kind, s]);
   }
@@ -228,7 +228,7 @@ function Outcome({ table }: { table: string }) {
   );
   const hitRels = rels.filter(([n, r]) => factIn(b.header, n) !== undefined || isHitLayer(layerOf(r.to))); // facts; cells without truth (a tree)
   const final = b.header.display
-    .filter((l) => l.stage !== undefined && !l.alternative && rels.some(([, r]) => r.to === l.table))
+    .filter((l) => l.stage !== undefined && rels.some(([, r]) => r.to === l.table))
     .reduce<(typeof b.header.display)[number] | undefined>((a, l) => (!a || l.stage! > a.stage! ? l : a), undefined);
   const toFinal = final && rels.find(([, r]) => r.to === final.table);
   if (!hitRels.length || !final || !toFinal) return null;

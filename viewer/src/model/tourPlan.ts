@@ -82,11 +82,11 @@ export const TOUR_STEPS: TourStep[] = [
 ];
 
 /** The layers a tour step shows: for each of its kinds, the layers the bundle shows by default, else all of them (e.g.
- *  the beam spot), but not alternatives (another reconstruction of a kind shown), truth or background. Of a kind with
- *  reconstruction stages (e.g. HGCal showers), only the last stage. */
+ *  the beam spot), but not truth or background. Of a kind with reconstruction stages (e.g. HGCal showers), only the
+ *  last stage. */
 export function stepLayers(display: DisplayLayer[], step: Pick<TourStep, "kinds">): DisplayLayer[] {
   return step.kinds.flatMap((kind) => {
-    const ds = display.filter((d) => d.kind === kind && !d.alternative && !d.truth && !d.context),
+    const ds = display.filter((d) => d.kind === kind && !d.truth && !d.context),
       shown = ds.filter((d) => d.visible);
     const last = Math.max(...ds.map((d) => d.stage ?? -Infinity));
     return (shown.length ? shown : ds).filter((d) => d.stage === undefined || d.stage === last);

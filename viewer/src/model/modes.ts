@@ -8,8 +8,8 @@ import { factIn } from "./facts";
 
 export type ColourBy = NonNullable<DisplayLayer["colourBy"]>;
 
-/** The root tables: for truth, the truth layer with the most associations (the particles); for reco, the preferred
- *  layer of the last reconstruction stage. */
+/** The root tables: for truth, the truth layer with the most associations (the particles); for reco, the layer of the
+ *  last reconstruction stage that holds the others of that stage (e.g. candidates, not their tracks). */
 export function modeRoots(header: Header): { truth?: string; reco?: string } {
   const links = (table: string) =>
     Object.values(header.relations).filter((r) => r.association && (r.from === table || r.to === table)).length;
@@ -20,7 +20,7 @@ export function modeRoots(header: Header): { truth?: string; reco?: string } {
   const owns = (table: string) =>
     Object.values(header.relations).filter((r) => !r.association && r.from === table).length;
   const last = header.display
-    .filter((d) => d.stage !== undefined && !d.alternative)
+    .filter((d) => d.stage !== undefined)
     .sort((a, b) => b.stage! - a.stage! || owns(b.table) - owns(a.table))[0];
   return { ...(truth ? { truth: truth.table } : {}), ...(last ? { reco: last.table } : {}) };
 }

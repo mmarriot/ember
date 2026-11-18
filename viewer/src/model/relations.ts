@@ -316,8 +316,7 @@ export function cached<T>(ev: EventData, what: string, make: () => T): T {
 /** For each object of `table`, the object of `root` with the most weight in its parts (-1 for none): over each
  *  relation from `table` into a parts table (weighted by its first weight, e.g. a layer cluster's hit fraction, else
  *  1) and each relation from `root` into the same parts table (by its `best` weight, e.g. the simulated energy a
- *  particle left in a hit, else 1), the root object with the largest sum of products. Parts tables of a less preferred
- *  path (`alternative`, e.g. legacy hits next to SoA ones) are skipped, so a part is not counted twice. Two uses:
+ *  particle left in a hit, else 1), the root object with the largest sum of products. Two uses:
  *  - through an association (`derived`): a stand-in for one the data lack, e.g. the truth particle of a layer cluster;
  *  - through containment: a vote, e.g. the candidate holding most of a trackster's layer clusters.
  *  `weight`: the root -> parts weight summed ("" for counts); `parts`: the parts table; `share`: per object, the
@@ -332,18 +331,9 @@ function content(table: string, root: string, n: number, ev: EventData, header: 
   let weight = "",
     partsTable = "",
     derived = false;
-  const alternative = (t: string) => !!header.display?.some((l) => l.table === t && l.alternative);
   for (const [name, info] of Object.entries(header.relations)) {
     const parts = ev.relations[name];
-    if (
-      !parts ||
-      info.association ||
-      info.from !== table ||
-      info.to === table ||
-      info.to === root ||
-      alternative(info.to)
-    )
-      continue;
+    if (!parts || info.association || info.from !== table || info.to === table || info.to === root) continue;
     for (const [aname, a] of Object.entries(header.relations)) {
       const into = ev.relations[aname],
         nParts = ev.tables[info.to]?.n ?? 0;

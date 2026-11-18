@@ -163,7 +163,7 @@ tracks, only the jets or only the PF candidates. A heading is a kind in one part
 the barrel's.
 
 - The viewer then draws the kind's ticked collections and nothing else, whatever part of the detector you look at.
-  If none is ticked, it draws the collections of the kind's preferred reconstruction path.
+  If none is ticked, it draws all the kind's collections.
 - Selecting an object brings back its parts and its truth.
 - "show everything" on the view ends it. A replay or a tour also ends it. Your ticks are kept.
 - **only** is not offered for kinds that are drawn only for a selection (such as the hits on a track).
@@ -269,8 +269,6 @@ example MET).
 **In the truth colours**, each kind's heading gets one word for what the truth graph says about it: match, fact,
 derived, or no truth. Hover for the reason. Where a kind's layers differ, each row gets its own word. The rows of
 kinds without truth are faint.
-
-Other reconstruction paths are folded at the end of the tab.
 
 On a phone, the panel is a sheet under the view. It is folded to its tabs until you choose one.
 
@@ -418,7 +416,6 @@ holds the most of the trackster's parts, if it holds at least half of them, and 
 parts". An object that
 contains the selection is never listed among its parts.
 
-Collections of another reconstruction path (for example a PF candidate's CHS jet) are steps under their own name.
 Related rows of tables that the bundle does not draw (for example a hit's digi) are listed last, as **other
 tables**.
 

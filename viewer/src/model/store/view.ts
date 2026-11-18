@@ -41,8 +41,8 @@ export const solo = signal<string | null>(null);
 export const soloKey = (d: Pick<DisplayLayer, "domain" | "group">) => `${d.domain ?? ""}|${d.group}`;
 
 /** Per display layer key: drawn. A layer is drawn when it is ticked and in the domain's view; with a kind looked at
- *  alone (`solo`), when it is one of that kind's ticked collections, or, with none of them ticked, one of the
- *  collections of its preferred reconstruction path. The focus changes this further (selection.ts focusLayers). */
+ *  alone (`solo`), when it is one of that kind's ticked collections, or, with none of them ticked, all of its
+ *  collections. The focus changes this further (selection.ts focusLayers). */
 export const drawnLayers = computed(() => {
   const vis = visible.value,
     d = domain.value,
@@ -53,7 +53,7 @@ export const drawnLayers = computed(() => {
   return Object.fromEntries(
     all.map((l) => [
       layerKey(l),
-      only ? alone.includes(l) && (ticked ? !!vis[layerKey(l)] : !l.alternative) : !!vis[layerKey(l)] && inDomain(l, d),
+      only ? alone.includes(l) && (!ticked || !!vis[layerKey(l)]) : !!vis[layerKey(l)] && inDomain(l, d),
     ]),
   );
 });

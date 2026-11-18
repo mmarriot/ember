@@ -26,7 +26,7 @@ export const labelOf = (table: string) => {
 
 /** A table's kind, with its layer's name only where the kind has several collections ("PF clusters · ECAL"). */
 export const stepName = (table: string) => {
-  const all = bundle.value?.header.display.filter((l) => !l.alternative && kindOf(l.table) === kindOf(table)) ?? [];
+  const all = bundle.value?.header.display.filter((l) => kindOf(l.table) === kindOf(table)) ?? [];
   return new Set(all.map((l) => l.table)).size > 1 ? `${kindOf(table)} · ${layerOf(table)?.label}` : kindOf(table);
 };
 

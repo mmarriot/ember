@@ -328,7 +328,7 @@ const focusKeys = computed(() => {
   const inLevels = new Set(lv.flatMap((l) => l.layers).filter((d) => !own(d)));
   const { draw, hide: levelHide } = levelLayers(lv, focusLevel.value, ticked),
     hide = levelHide.filter((d) => !own(d));
-  const others = b.header.display.filter((d) => !inLevels.has(d) && !d.alternative && hl.get(d.table)?.size);
+  const others = b.header.display.filter((d) => !inLevels.has(d) && hl.get(d.table)?.size);
   const keys = (ds: DisplayLayer[]) => ds.map(layerKey).sort().join("|");
   return { shown: keys([...others, ...draw].filter((d) => !ticked(d))), hidden: keys(hide.filter(ticked)) };
 });

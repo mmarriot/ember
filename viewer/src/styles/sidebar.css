@@ -93,8 +93,7 @@
 }
 
 /* Sections of a tab (kinds of object, truth, event) under small headings, ruled between. */
-.tabpanel section + section,
-.tabpanel section + details.others {
+.tabpanel section + section {
   border-top: 1px solid var(--line);
   margin-top: 8px;
   padding-top: 8px;
@@ -130,9 +129,6 @@
 .tabpanel section > h3 .fold:hover {
   color: var(--text);
   background: none;
-}
-details.others > summary {
-  font-weight: 600;
 }
 
 /* A kind's "only": draws that kind alone (the view says so while it lasts, viewport.css). */

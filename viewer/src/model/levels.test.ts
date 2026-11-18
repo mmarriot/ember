@@ -16,7 +16,6 @@ const layer = (table: string, group: string, extra: Partial<DisplayLayer> = {}) 
   }) as DisplayLayer;
 const display = [
   layer("Hit", "Hits", { repr: "cells", visible: true }),
-  layer("LegacyHit", "Hits", { repr: "cells", alternative: true }),
   layer("Readout", "Detector", { repr: "cells", context: true, visible: true }),
   layer("LC", "Layer clusters", { repr: "markers", visible: true }),
   layer("T", "Tracksters", { stage: 0 }),
@@ -58,9 +57,9 @@ describe("focusLevels", () => {
     ]);
     expect(lv[1].layers.map((d) => d.table)).toEqual(["DNN", "Link"]); // one level per kind, all its layers
   });
-  it("leaves out the focus's stage (its track), truth, background and alternative layers", () => {
+  it("leaves out the focus's stage (its track), truth and background layers", () => {
     const tables = focusLevels(display, "Cand", candidate, own).flatMap((l) => l.layers.map((d) => d.table));
-    for (const t of ["Cand", "Track", "P", "Readout", "LegacyHit"]) expect(tables).not.toContain(t);
+    for (const t of ["Cand", "Track", "P", "Readout"]) expect(tables).not.toContain(t);
   });
   it("starts below the focus: a trackster has layer clusters and hits", () => {
     expect(names(focusLevels(display, "T", rows({ T: [2], LC: [0, 1], Hit: [0, 1, 2] }), () => true))).toEqual([

@@ -154,8 +154,6 @@ export interface DisplayLayer {
   describe?: { columns: string[]; names?: Record<string, Record<string, string>> };
   /** Expression applied as the layer's filter until the user changes it (e.g. "isSignal"). */
   filter?: string;
-  /** Set by the converter: a less preferred reconstruction path of a kind that is shown (e.g. legacy next to SoA). */
-  alternative?: boolean;
   /** `ellipsoids`: the surface drawn on the ellipsoid: "solid" (default, translucent), "shell" (outline), "cage"
    *  (rings around the principal axes) or "core" (compact and opaque). */
   shape?: "solid" | "shell" | "cage" | "core";

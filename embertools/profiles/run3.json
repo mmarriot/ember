@@ -5,10 +5,10 @@
   "derive": [
     {"table": "pfrechits", "bits": {"det": ["rechit_ID", 28, 4], "subdet": ["rechit_ID", 25, 3]}},
     {"table": "pfrechits", "split": {"EBHits": [["det", "==", 3], ["subdet", "==", 1]], "EEHits": [["det", "==", 3], ["subdet", "==", 2]], "ESHits": [["det", "==", 3], ["subdet", "==", 3]], "HBHits": [["det", "==", 4], ["subdet", "==", 1]], "HEHits": [["det", "==", 4], ["subdet", "==", 2]], "HOHits": [["det", "==", 4], ["subdet", "==", 3]], "HFHits": [["det", "==", 4], ["subdet", "==", 4]]}},
-    {"table": "EEHits", "cell": "ecalEndcap", "detId": "rechit_ID", "position": ["rechit_x", "rechit_y", "rechit_z"], "views": ["3d", "side", "rz"]},
-    {"table": "ESHits", "cell": "preshower", "detId": "rechit_ID", "position": ["rechit_x", "rechit_y", "rechit_z"], "views": ["3d", "side", "rz"]},
+    {"table": "EEHits", "cell": "ecalEndcap", "detId": "rechit_ID", "position": ["rechit_x", "rechit_y", "rechit_z"]},
+    {"table": "ESHits", "cell": "preshower", "detId": "rechit_ID", "position": ["rechit_x", "rechit_y", "rechit_z"]},
     {"table": "HBHits", "cell": "hcal", "geometry": "run3", "detId": "rechit_ID", "position": ["rechit_x", "rechit_y", "rechit_z"]},
-    {"table": "HEHits", "cell": "hcal", "geometry": "run3", "detId": "rechit_ID", "position": ["rechit_x", "rechit_y", "rechit_z"], "views": ["3d", "side", "rz"]},
+    {"table": "HEHits", "cell": "hcal", "geometry": "run3", "detId": "rechit_ID", "position": ["rechit_x", "rechit_y", "rechit_z"]},
     {"table": "HOHits", "cell": "hcal", "geometry": "run3", "detId": "rechit_ID", "position": ["rechit_x", "rechit_y", "rechit_z"]},
     {"table": "HFHits", "cell": "hcal", "geometry": "run3", "detId": "rechit_ID", "position": ["rechit_x", "rechit_y", "rechit_z"]}
   ],

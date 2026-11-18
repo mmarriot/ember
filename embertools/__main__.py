@@ -154,12 +154,12 @@ def parser():
 
 
 def _site_dir_option(p):
-    p.add_argument("--site", help="the site's directory (default: $EMBER_SITE_DIR, else the CMS site)")
+    p.add_argument("--site", help="the site's directory (default: $EMBER_SITE_DIR)")
 
 
 def _site_options(p):
     _site_dir_option(p)
-    p.add_argument("--url", help="the site's address (default: $EMBER_SITE_URL, else the CMS site)")
+    p.add_argument("--url", help="the site's address (default: $EMBER_SITE_URL)")
     p.add_argument("--user", help="whose area on the site (default: $EMBER_USER, else your login)")
 
 
@@ -240,7 +240,7 @@ def _view(args):
         made = f" from {' and '.join(dict.fromkeys(filter(None, releases)))}" if any(releases) else ""
         print(
             f"{', '.join(map(os.path.basename, args.inputs))}: "
-            f"{'NanoAOD' if kind == 'nano' else 'CMSSW reconstruction'}{made}, {total} events"
+            f"{'NanoAOD' if kind == 'nano' else 'CMSSW EDM (RECO, AOD or MiniAOD)'}{made}, {total} events"
         )
         inputs = args.inputs
         if kind == "edm":
@@ -295,7 +295,7 @@ def _make_nanoaod(args, work, limit, total):
         args.conditions,
         threads=args.threads or 4,
         log=_Indented(sys.stdout),
-        **({"config": args.config} if args.config else {}),
+        config=args.config,
     )
     print(f"  NanoAOD made in {time.time() - started:.0f} s")
     if args.nano:

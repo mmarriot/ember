@@ -44,6 +44,7 @@ PROFILE_KEYS = {
     "prefer",
     "stages",
     "keepUnused",
+    "omit",
 }
 HEADER_KEYS = {"schema", "source", "profile", "tables"}  # written by the converter, never taken from the profile
 OPS = {"<": np.less, "<=": np.less_equal, ">": np.greater, ">=": np.greater_equal, "==": np.equal, "!=": np.not_equal}
@@ -68,6 +69,10 @@ class Converter:
         self.run_scope = set(run_tables)
         self.tables = {t: m for t, m in {**tables, **run_tables}.items() if wanted(t, m)}
         self.made = set()  # tables made by a split, not read from the file
+        # omit: "Table.column" of columns neither read nor written (e.g. one a producer writes that nothing uses)
+        for spec in profile.get("omit", []):
+            table, column = table_column(spec)
+            self.tables.get(table, {}).get("columns", {}).pop(column, None)
 
         # sameRows: a table with the same rows as another (e.g. legacy objects converted 1:1 from SoA) is checked on
         # every event and not written; relations to or from it are redirected to the kept table.

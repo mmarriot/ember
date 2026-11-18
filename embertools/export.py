@@ -25,8 +25,12 @@ from . import Problem, __version__, cmsrun
 
 OUTPUT = cmsrun.OUTPUT
 
-# The first run of each year of Run 3 data (the era of a data file follows its run number).
+# The first run of each year of Run 3 data (the era of a data file follows its run number), and the last run known to
+# be of the last year listed. The release records no such table: the year starts are those of each year's first
+# runs, consistent with the runs of the release's data RelVals (Configuration/PyReleaseValidation relval_steps.py:
+# 2022A 353015 ... 2025 UPC 400387). A later run gets the last era with a warning: 2026 has its own era (Run3_2026).
 RUN3_YEARS = [(2022, 352319), (2023, 365739), (2024, 378238), (2025, 390000)]
+RUN3_LAST_KNOWN = 400387
 
 
 def describe(path):
@@ -58,7 +62,7 @@ def inventory(path):
 
     with open_file(path) as f:
         tree = f["Events"]
-        branches = [b for b in tree.keys(recursive=False) if len(b.rstrip(".").split("_")) == 4]
+        branches = [b for b in tree.keys(recursive=False) if cmsrun.is_product(b)]
         classes = {b: str(tree[b].member("fClassName")) for b in branches if "fClassName" in tree[b].all_members}
         return cmsrun.Inventory(cmsrun.products(branches), classes)
 
@@ -78,18 +82,33 @@ def unreadable(inv, prefix=(), env=None):
     cannot be told. Cost: about 2 s, mostly importing ROOT."""
     if not inv.classes:
         return []
-    result = subprocess.run(
-        [*prefix, "python3", "-c", _DICTIONARIES], input=json.dumps(inv.classes), capture_output=True, text=True,
-        env=env, check=False,
-    )  # fmt: skip
+    out = cmssw_output([*prefix, "python3", "-c", _DICTIONARIES], env, "checking the input's classes", inv.classes)
+    return cmsrun.products(json.loads(out))
+
+
+def cmssw_output(command, env, what, data=None):
+    """The output of a command run in the CMSSW environment (`data`: JSON on its input); a Problem that says to run
+    cmsenv if it fails: CMSSW_BASE set by one shell and another python3 or PATH in this one (an LCG view sourced
+    after cmsenv) break it in ways whose own messages do not say so."""
+    try:
+        result = subprocess.run(
+            command, input=None if data is None else json.dumps(data), capture_output=True, text=True, env=env,
+            check=False,
+        )  # fmt: skip
+    except FileNotFoundError:
+        result = subprocess.CompletedProcess(command, 127, "", f"{command[0]}: not found")
     if result.returncode:
-        return []
-    return cmsrun.products(json.loads(result.stdout))
+        raise Problem(
+            f"{what} failed in the CMSSW environment: run cmsenv in this shell, in a CMSSW release area, then try "
+            f"again (CMSSW_BASE is {os.environ.get('CMSSW_BASE') or 'not set'}). The command said:\n"
+            + "\n".join(result.stderr.strip().splitlines()[-8:])
+        )
+    return result.stdout
 
 
 def tier(inv):
     """ "mini" for MiniAOD (packed PF candidates, no general tracks), else "reco" (RECO, AOD, FEVT)."""
-    mini = inv.has("packedPFCandidates") and not inv.has("generalTracks", type="recoTracks")
+    mini = inv.has("packedPFCandidates") and not inv.has("generalTracks", product_type="recoTracks")
     return "mini" if mini else "reco"
 
 
@@ -167,20 +186,14 @@ def _environment(cmssw):
 
 
 def _release_settings(xml, prefix, env):
-    """What the release says (see _RELEASE), and why it could not say it ("" if it could)."""
-    result = subprocess.run(
-        [*prefix, "python3", "-c", _RELEASE],
-        input=json.dumps(xml),
-        capture_output=True,
-        text=True,
-        env=env,
-        check=False,
-    )
-    if result.returncode:
-        return {"known": {}, "matches": [], "run3": []}, (
-            f"\n(this release's geometries and eras could not be read:\n{result.stderr.strip()[-500:]})"
-        )
-    return json.loads(result.stdout), ""
+    """What the release says of its geometries and eras (see _RELEASE)."""
+    return json.loads(cmssw_output([*prefix, "python3", "-c", _RELEASE], env, "reading the release's geometries", xml))
+
+
+def newest_tag(tags):
+    """The global tag of the last step that wrote the file: the one of the newest release (its leading number, e.g.
+    201X > 200X), as a reconstruction runs in a release no older than the steps before it."""
+    return max(tags, key=lambda t: (int(re.match(r"\d*", t).group() or 0), t))
 
 
 def first_run(path, prefix=(), env=None):
@@ -203,14 +216,14 @@ def settings(path, geometry=None, era=None, conditions=None, cmssw=None, log=sys
     if geometry and era and conditions:
         phase2 = bool(re.match(r"^(?:Extended)?(?:Run4)?D\d+", geometry))
         return cmsrun.Settings(phase2, data, era, geometry_name(geometry) if phase2 else geometry, conditions)
-    release, why = _release_settings(xml, prefix, env)
+    release = _release_settings(xml, prefix, env)
     phase2 = bool(geometry) or bool(release["matches"]) or (bool(xml) and not data)
     if phase2:
-        return _phase2(path, geometry, era, conditions, tags, xml, release, why, data, log)
-    return _run3(path, era, conditions, tags, release, why, data, prefix, env, log)
+        return _phase2(path, geometry, era, conditions, tags, xml, release, data, log)
+    return _run3(path, era, conditions, tags, release, data, prefix, env, log)
 
 
-def _phase2(path, geometry, era, conditions, tags, xml, release, why, data, log):
+def _phase2(path, geometry, era, conditions, tags, xml, release, data, log):
     if geometry is None:
         if len(release["matches"]) != 1:
             if release["matches"]:
@@ -220,16 +233,20 @@ def _phase2(path, geometry, era, conditions, tags, xml, release, why, data, log)
             else:
                 found = "the file does not record its geometry files"
             raise Problem(
-                f"{path}: cannot tell which geometry it was made with ({found}); give --geometry, "
-                "e.g. --geometry D110" + why
+                f"{path}: cannot tell which geometry it was made with ({found}); give --geometry, e.g. --geometry D110"
             )
         geometry = release["matches"][0]
         print(f"geometry {geometry} (from the file's geometry files)", file=log)
     geometry = geometry_name(geometry)
     defaults = release["known"].get(geometry, {})
-    if conditions is None and len(tags) == 1:
-        conditions = tags[0]
-        print(f"conditions {conditions} (the file's global tag)", file=log)
+    if conditions is None and tags:
+        conditions = newest_tag(tags)
+        print(
+            f"conditions {conditions} (the file's global tag"
+            + (f", the newest of {', '.join(tags)}" if len(tags) > 1 else "")
+            + ")",
+            file=log,
+        )
     elif conditions is None and defaults:
         conditions = defaults["conditions"]
         print(
@@ -243,36 +260,33 @@ def _phase2(path, geometry, era, conditions, tags, xml, release, why, data, log)
         print(f"era {era} (this release's default for {geometry}; the file does not record its era)", file=log)
     missing = [name for name, value in (("--era", era), ("--conditions", conditions)) if value is None]
     if missing:
-        raise Problem(
-            f"{path}: this release has no default for geometry {geometry}; give {' and '.join(missing)}" + why
-        )
+        raise Problem(f"{path}: this release has no default for geometry {geometry}; give {' and '.join(missing)}")
     return cmsrun.Settings(True, data, era, geometry, conditions)
 
 
-def _run3(path, era, conditions, tags, release, why, data, prefix, env, log):
+def _run3(path, era, conditions, tags, release, data, prefix, env, log):
     """Run 3: the geometry from the conditions; the era of the year; the global tag the file's reconstruction used
     (data: its newest Prompt or Express tag)."""
     if conditions is None:
         if data:
+            # the newest reconstruction tag: not the HLT's, which the file names too
             reco = [t for t in tags if re.search(r"_(Prompt|Express)", t)] or tags
             if reco:
-                conditions = max(reco, key=lambda t: (re.match(r"\d*", t).group(), t))
+                conditions = newest_tag(reco)
                 print(
                     f"conditions {conditions} (the file's global tag"
-                    + (f", of {', '.join(tags)}" if len(tags) > 1 else "")
+                    + (f", the newest reconstruction one of {', '.join(tags)}" if len(tags) > 1 else "")
                     + ")",
                     file=log,
                 )
             else:
                 conditions = "auto:run3_data_prompt"
                 print(f"conditions {conditions} (the file records no global tag)", file=log)
-        elif len(tags) == 1:
-            conditions = tags[0]
-            print(f"conditions {conditions} (the file's global tag)", file=log)
+        elif tags:
+            conditions = newest_tag(tags)
+            print(f"conditions {conditions} (the file's global tag, the newest of {', '.join(tags)})", file=log)
         else:
-            raise Problem(
-                f"{path}: cannot tell which global tag to use (the file names {', '.join(tags)}); give --conditions"
-            )
+            raise Problem(f"{path}: the file records no global tag; give --conditions")
     if era is None:
         eras = release["run3"]
         if data:
@@ -281,6 +295,12 @@ def _run3(path, era, conditions, tags, release, why, data, prefix, env, log):
             if run is not None and year is None:
                 raise Problem(f"{path}: run {run} is before Run 3; ember reads Phase 2 and Run 3 files only")
             how = f"run {run}" if run else "the newest year this release knows"
+            if run and run > RUN3_LAST_KNOWN:
+                print(
+                    f"warning: run {run} is after the last run ember knows the year of ({RUN3_LAST_KNOWN}, 2025): "
+                    f"taking the 2025 era; give --era (e.g. --era Run3_2026) if the run is of a later year",
+                    file=log,
+                )
         else:
             year = re.search(r"Run3_(\d{4})|(20\d\d)_realistic", conditions)
             year = int(year.group(1) or year.group(2)) if year else None
@@ -288,7 +308,7 @@ def _run3(path, era, conditions, tags, release, why, data, prefix, env, log):
         name = eras[-1] if year is None and eras else "Run3" if year == 2022 else f"Run3_{year}"
         era = name if name in eras else None
         if era is None:
-            raise Problem(f"{path}: cannot tell the era of this Run 3 file; give --era, e.g. --era Run3_2025" + why)
+            raise Problem(f"{path}: cannot tell the era of this Run 3 file; give --era, e.g. --era Run3_2025")
         print(f"era {era} (from {how}; the file does not record its era)", file=log)
     return cmsrun.Settings(False, data, era, "", conditions)
 
@@ -298,22 +318,24 @@ def _source(path):
     return path if re.match(r"\w+:", path) else f"file:{os.path.abspath(path)}"
 
 
-def nano_cmsdriver(inputs, events, settings, threads=4, output=OUTPUT, hlt="HLT"):
-    """The cmsDriver.py command line that writes standard NanoAOD of a MiniAOD file (and its configuration
-    ember_cfg.py, without running it). `hlt`: the process name of the trigger the MiniAOD's trigger objects come from
-    (a RelVal that reran the trigger has a "reHLT" besides the original "HLT")."""
+def cmsdriver(inputs, events, settings, threads=4, output=OUTPUT, step="NANO", hlt="HLT"):
+    """The cmsDriver.py command line that writes standard NanoAOD (`step` "NANO" for a MiniAOD file, "PAT,NANO" for
+    a reconstruction file) in a process named EMBER, and its configuration ember_cfg.py, without running it. `hlt`:
+    the process name of the trigger the trigger objects come from (a RelVal that reran the trigger has a "reHLT"
+    besides the original "HLT")."""
     tier = "NANOAOD" if settings.data else "NANOAODSIM"
     trigger = (
         ["--customise_commands", f'process.unpackedPatTrigger.triggerResults = cms.InputTag("TriggerResults::{hlt}")']
         if hlt != "HLT"
         else []
     )
+    geometry = ["--geometry", settings.geometry] if settings.phase2 else []
     return [
-        "cmsDriver.py", "ember", "-s", "NANO", "--data" if settings.data else "--mc",
+        "cmsDriver.py", "ember", "-s", step, "--data" if settings.data else "--mc",
         "--filein", ",".join(map(_source, inputs)), "--fileout", f"file:{output}",
         "--eventcontent", tier, "--datatier", tier, "-n", str(events if events else -1),
-        "--era", settings.era, "--conditions", settings.conditions, "--nThreads", str(threads),
-        "--python_filename", cmsrun.CONFIG, "--no_exec", *trigger,
+        "--era", settings.era, *geometry, "--conditions", settings.conditions, "--processName", "EMBER",
+        "--nThreads", str(threads), "--python_filename", cmsrun.CONFIG, "--no_exec", *trigger,
     ]  # fmt: skip
 
 
@@ -336,11 +358,11 @@ def export(
     inv = inventory(inputs[0])
     s = settings(inputs[0], geometry, era, conditions, cmssw, log, inv)
     path = os.path.join(workdir, cmsrun.CONFIG)
+    reruns = [p.process for p in inv.items if p.type == "edmTriggerResults" and p.process.endswith("HLT")]
+    hlt = next((p for p in reruns if p != "HLT"), "HLT")
     if tier(inv) == "mini":
         print("MiniAOD: standard NanoAOD (cmsDriver.py -s NANO)", file=log)
-        reruns = [p.process for p in inv.items if p.type == "edmTriggerResults" and p.process.endswith("HLT")]
-        hlt = next((p for p in reruns if p != "HLT"), "HLT")
-        _run([*prefix, *nano_cmsdriver(inputs, events, s, threads, hlt=hlt)], workdir, env, "cmsDriver.log")
+        _run([*prefix, *cmsdriver(inputs, events, s, threads, hlt=hlt)], workdir, env, "cmsDriver.log")
     else:
         text, notes = cmsrun.config(
             s, list(map(_source, inputs)), events, inv, cmsrun.plugins(prefix, env), threads,
@@ -353,17 +375,18 @@ def export(
     if config:
         with open(path) as f, open(config, "w") as out:
             out.write(f.read())
-    print(f"running cmsRun {cmsrun.CONFIG}" + (f" (kept as {config})" if config else ""), file=log)
-    _run([*prefix, "cmsRun", cmsrun.CONFIG], workdir, env, "cmsRun.log")
+    kept = f"kept as {config}" if config else "--config FILE.py keeps it"
+    print(f"running cmsRun {cmsrun.CONFIG} ({kept})", file=log)
+    _run([*prefix, "cmsRun", cmsrun.CONFIG], workdir, env, "cmsRun.log", keep=path)
     nano = os.path.join(workdir, OUTPUT)
     if not os.path.exists(nano):
         raise Problem(f"the export job wrote no {OUTPUT}")
     return nano
 
 
-def _run(command, workdir, env, log_name):
+def _run(command, workdir, env, log_name, keep=None):
     """Run a command of the CMSSW environment in `workdir`, its output in `log_name` there; a Problem with the end
-    of that output if it fails (all of it kept in a new temporary file)."""
+    of that output if it fails (all of it kept in a new temporary file, with a copy of the file `keep` beside it)."""
     log_path = os.path.join(workdir, log_name)
     with open(log_path, "w") as out:
         try:
@@ -376,7 +399,13 @@ def _run(command, workdir, env, log_name):
         fd, kept = tempfile.mkstemp(prefix="ember-cmsRun-", suffix=".log")  # a new file, never one planted in /tmp
         with os.fdopen(fd, "w") as f:
             f.write(output)
+        also = ""
+        if keep:
+            with open(keep) as f, open(kept[: -len(".log")] + "_cfg.py", "x") as out:  # "x": never an existing file
+                out.write(f.read())
+            also = f"; its configuration: {out.name}"
         tail = "\n".join(output.splitlines()[-25:])
         raise Problem(
-            f"the export job failed (exit code {result.returncode}); the end of its output (all of it: {kept}):\n{tail}"
+            f"the export job failed (exit code {result.returncode}); the end of its output (all of it: {kept}{also}):"
+            f"\n{tail}"
         )

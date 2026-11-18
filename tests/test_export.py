@@ -104,9 +104,12 @@ def test_phase2_settings_come_from_the_file_and_the_release_unless_given(monkeyp
         "ExtendedRun4D110",
         "C",
     )
-    release(monkeypatch, ["ExtendedRun4D110"], tags=("T_sim", "T_reco"))  # two global tags: which made the reco?
+    # two global tags: the newest release's made the reconstruction (the step after the simulation's)
+    release(monkeypatch, ["ExtendedRun4D110"], tags=("201X_mcRun4_realistic_v1", "200X_mcRun4_realistic_v1"))
+    assert export.settings("f.root", log=log, inv=SIMULATION).conditions == "201X_mcRun4_realistic_v1"
+    assert "the newest of 201X_mcRun4_realistic_v1, 200X_mcRun4_realistic_v1" in log.getvalue()
+    release(monkeypatch, ["ExtendedRun4D110"], tags=())  # none recorded: the release's default for the geometry
     assert export.settings("f.root", log=log, inv=SIMULATION).conditions == "auto:T33"
-    assert "the file names T_sim, T_reco" in log.getvalue()
 
 
 def test_phase2_settings_that_cannot_be_found_are_asked_for(monkeypatch):
@@ -135,6 +138,8 @@ def test_run3_data_takes_the_era_of_its_run_and_the_global_tag_of_its_reconstruc
         "161X_dataRun3_Prompt_frozen_v1",
     )
     assert "era Run3_2025 (from run 392294" in log.getvalue()
+    release(monkeypatch, [], tags=tags, xml=(), run=401234)  # after the last run of a known year: a warning
+    assert export.settings("f.root", log=log, inv=DATA).era == "Run3_2025" and "--era Run3_2026" in log.getvalue()
     release(monkeypatch, [], tags=tags, xml=(), run=360000)
     assert export.settings("f.root", log=log, inv=DATA).era == "Run3"  # 2022
     release(monkeypatch, [], tags=tags, xml=(), run=300000)
@@ -150,8 +155,8 @@ def test_run3_simulation_takes_the_era_of_its_global_tag(monkeypatch):
     assert export.settings("f.root", log=io.StringIO(), inv=SIMULATION) == (
         False, False, "Run3_2025", "", "150X_mcRun3_2025_realistic_v1",
     )  # fmt: skip
-    release(monkeypatch, [], tags=("a", "b"), xml=())
-    with pytest.raises(Problem, match="give --conditions"):
+    release(monkeypatch, [], tags=(), xml=())
+    with pytest.raises(Problem, match="records no global tag; give --conditions"):
         export.settings("f.root", log=io.StringIO(), inv=SIMULATION)
 
 
@@ -186,6 +191,8 @@ PHASE2 = [
     "ticlTracksters_ticlTrackstersCLUEstering__RECO.",
     "recoPFRecHits_particleFlowRecHitECAL__RECO.",
     "recoPFRecHits_particleFlowRecHitHBHE__RECO.",
+    "HFRecHitsSorted_hfreco__RECO.",
+    "HORecHitsSorted_horeco__RECO.",
     "recoPFClusters_particleFlowClusterECAL__RECO.",
     "recoSuperClusters_particleFlowSuperClusterHGCal__RECO.",
     "recoCaloClusters_hgcalMergeLayerClusters__RECO.",
@@ -202,6 +209,11 @@ PHASE2 = [
 # Run 3 data RECO: PF rechits kept only cleaned away, preshower clusters, no HGCal
 RUN3 = [
     "recoPFRecHits_particleFlowRecHitECAL_Cleaned_reRECO.",
+    "EcalRecHitsSorted_ecalRecHit_EcalRecHitsEB_reRECO.",
+    "EcalRecHitsSorted_ecalPreshowerRecHit_EcalRecHitsES_reRECO.",
+    "HBHERecHitsSorted_hbhereco__reRECO.",
+    "HFRecHitsSorted_hfreco__reRECO.",
+    "HORecHitsSorted_horeco__reRECO.",
     "recoPFClusters_particleFlowClusterECAL__reRECO.",
     "recoPFClusters_particleFlowClusterPS__reRECO.",
     "recoSuperClusters_particleFlowSuperClusterECAL_particleFlowSuperClusterECALBarrel_reRECO.",
@@ -240,7 +252,7 @@ def test_the_phase2_configuration_has_what_the_input_and_the_release_have():
 
     text, notes = configuration(s, PHASE2, RELEASE | cmsrun.CLUSTER_HITS)
     assert not notes and "#   (nothing)" in text
-    assert 'cms.EDProducer("CaloClusterHitsTableProducer", src=cms.InputTag("hgcalMergeLayerClusters")' in text
+    assert 'cms.EDProducer("CaloClusterHitsTableProducer",\n    src=cms.InputTag("hgcalMergeLayerClusters")' in text
     assert 'hitsName=cms.string("PFClusterECALHits")' in text
 
 
@@ -340,8 +352,10 @@ def test_a_failure_keeps_the_job_output_where_it_survives(tools, monkeypatch, tm
     monkeypatch.setattr(tempfile, "tempdir", None)
     with pytest.raises(Problem) as e:
         export.export([step3], work, 5, "D110", "E", "C", log=io.StringIO())
-    kept = [f for f in os.listdir(tmp_path) if f.startswith("ember-cmsRun-")]
-    assert len(kept) == 1 and kept[0] in str(e.value) and "ProductNotFound" in (tmp_path / kept[0]).read_text()
+    kept = sorted(f for f in os.listdir(tmp_path) if f.startswith("ember-cmsRun-"))
+    log, cfg = kept  # the log, and the configuration beside it
+    assert cfg == log[: -len(".log")] + "_cfg.py" and log in str(e.value) and cfg in str(e.value)
+    assert "ProductNotFound" in (tmp_path / log).read_text() and "recHitTable_cfi" in (tmp_path / cfg).read_text()
     assert "exit code 8" in str(e.value) and "ProductNotFound" in str(e.value)
 
 
@@ -353,3 +367,33 @@ def test_products_the_release_cannot_read_are_dropped_on_input_with_nothing_else
     assert '"drop ticlInterpretationHypotheses_ticlTracksterInterpretations_hypotheses_RECO",' in text
     assert "dropDescendantsOfDroppedBranches = cms.untracked.bool(False)" in text  # PF and muons descend from TICL
     assert any("no dictionary" in n for n in notes)
+
+
+def test_a_phase2_input_without_tracksters_still_gets_its_tracks_and_layer_clusters():
+    s = cmsrun.Settings(True, False, "Phase2C22I13M9", "ExtendedRun4D104", "auto:phase2_realistic_T35")
+    no_ticl = [b for b in PHASE2 if not b.startswith("ticlTracksters_")]
+    text, notes = configuration(s, no_ticl, RELEASE | cmsrun.CLUSTER_HITS)
+    assert "TICL tracksters and candidates: the input has none" in notes
+    assert "ticlCandidateTable" not in text and "hgcalLayerClustersTable" in text  # HGCalNanoAOD for the clusters
+    assert "process.emberTables.add(process.generalTracksTable)" in text  # its track table, scheduled
+    no_hgcal = [b for b in no_ticl if "hgcalMergeLayerClusters" not in b]
+    text, _ = configuration(s, no_hgcal, RELEASE)  # no HGCalNanoAOD at all: the track table made here
+    assert "HGCalNanoAOD_cff" not in text and 'table("generalTracksTable", generalTracksTable.clone())' in text
+    assert 'cms.EDProducer("CaloClusterHitsTableProducer"' not in text
+
+
+def test_an_aod_without_the_rechits_to_remake_pf_rechits_gets_a_note():
+    s = cmsrun.Settings(False, True, "Run3_2025", "", "161X_dataRun3_Prompt_frozen_v1")
+    aod = [b for b in RUN3 if "RecHitsSorted" not in b]
+    text, notes = configuration(s, aod)
+    assert "pfRecHitTable" not in text and "Reconstruction_Data_cff" not in text
+    assert any("PF rechits ECAL, HBHE, HF, HO, PS: the input has neither" in n for n in notes)
+
+
+def test_a_broken_cmssw_environment_says_to_run_cmsenv(monkeypatch, tmp_path):
+    monkeypatch.setenv("CMSSW_BASE", "/somewhere")
+    monkeypatch.setenv("PATH", str(tmp_path))  # no edmPluginDump, no python3 of the release
+    with pytest.raises(Problem, match="run cmsenv in this shell"):
+        cmsrun.plugins()
+    with pytest.raises(Problem, match="reading the release's geometries failed .* run cmsenv in this shell"):
+        export._release_settings([], [], None)

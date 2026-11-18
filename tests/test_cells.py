@@ -87,3 +87,9 @@ def test_cells_of_other_detectors_and_unknown_rules():
     assert np.allclose(cells.compute("hcal", [hb], [0], [0], [0], "phase2")["depth"], 19.9)
     with pytest.raises(ValueError, match="unknown cell rule"):
         cells.compute("muon", [1], [0], [0], [0])
+
+
+def test_fine_scintillator_tiles_are_not_sized():
+    coarse = (10 << 28) | (1 << 26)  # HGCal scintillator, granularity bit 24 unset
+    out = cells.compute("hgcal", [coarse, coarse | (1 << 24)], [200.0, 200.0], [0.0, 0.0], [400.0, 400.0])
+    assert np.isclose(out["halfWidth"][0], 200 * np.pi / 288) and np.isnan(out["halfWidth"][1])

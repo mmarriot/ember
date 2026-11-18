@@ -11,8 +11,10 @@ header says so. Table names and columns follow the release's own NanoAOD produce
 standard NanoAOD), so that the profiles that read ember's NanoAOD also read the NanoAOD those flavours make.
 """
 
-import subprocess
+import textwrap
 from collections import namedtuple
+
+from . import Problem
 
 Product = namedtuple("Product", "type module instance process")
 
@@ -20,8 +22,12 @@ Product = namedtuple("Product", "type module instance process")
 def plugins(prefix=(), env=None):
     """The names of the module plugins (EDProducers and others) of the CMSSW release that `prefix` / `env` set up
     (see export._environment): those of edmPluginDump's "CMS EDM Framework Module" category."""
-    result = subprocess.run([*prefix, "edmPluginDump", "-a"], capture_output=True, text=True, env=env, check=False)
-    return module_plugins(result.stdout)
+    from .export import cmssw_output
+
+    names = module_plugins(cmssw_output([*prefix, "edmPluginDump", "-a"], env, "listing the release's plugins"))
+    if not names:
+        raise Problem("edmPluginDump lists no module plugins: run cmsenv in this shell, in a CMSSW release area")
+    return names
 
 
 def module_plugins(dump):
@@ -36,10 +42,15 @@ def module_plugins(dump):
     return names
 
 
+def is_product(branch):
+    """Whether an Events branch holds a product: <type>_<module>_<instance>_<process>. (none of the four has an
+    underscore; other branches, such as EventAuxiliary, have none)."""
+    return len(branch.rstrip(".").split("_")) == 4
+
+
 def products(branches):
-    """The products of an EDM file from the names of its Events branches, <type>_<module>_<instance>_<process>. (none
-    of the four has an underscore; other branches, such as EventAuxiliary, have none)."""
-    return [Product(*parts) for parts in (b.rstrip(".").split("_") for b in branches) if len(parts) == 4]
+    """The products of an EDM file from the names of its Events branches (is_product)."""
+    return [Product(*b.rstrip(".").split("_")) for b in branches if is_product(b)]
 
 
 class Inventory:
@@ -50,18 +61,13 @@ class Inventory:
         self.items = list(items)
         self.classes = classes or {}  # branch name -> class of the product, where known
 
-    def has(self, module, instance="", type=None):
-        return any(
-            p.module == module and p.instance == instance and (type is None or p.type == type) for p in self.items
-        )
+    def has(self, module, instance="", product_type=None):
+        return any(p.module == module and p.instance == instance and product_type in (None, p.type) for p in self.items)
 
-    def modules(self, type):
+    def modules(self, product_type):
         """The module labels of the offline products of a type (no instance, not the HLT's), in file order."""
-        return list(
-            dict.fromkeys(
-                p.module for p in self.items if p.type == type and p.instance == "" and not p.module.startswith("hlt")
-            )
-        )
+        offline = (p.module for p in self.items if p.type == product_type and not p.instance)
+        return list(dict.fromkeys(m for m in offline if not m.startswith("hlt")))
 
     def soa(self):
         """The SoA (portable host) collections in the input."""
@@ -99,11 +105,13 @@ class _Writer:
 
     def __init__(self, settings, inventory, release):
         self.s, self.inv, self.release = settings, inventory, release
-        self.parts, self.notes, self.loaded = [], [], set()
+        self.parts, self.notes = [], []
+        self.hgcal_nano = False  # whether DPGAnalysis/HGCalNanoAOD's tables are loaded (layer clusters, tracks)
         self.cluster_hits = CLUSTER_HITS <= release
 
     def text(self):
-        notes = "".join(f"#   - {n}\n" for n in self.notes) or "#   (nothing)\n"
+        wrap = lambda n: textwrap.fill(n, 116, initial_indent="#   - ", subsequent_indent="#     ")
+        notes = "".join(wrap(n) + "\n" for n in self.notes) or "#   (nothing)\n"
         return "\n".join(self.parts).replace("#{NOTES}\n", notes)
 
     def add(self, text):
@@ -112,8 +120,9 @@ class _Writer:
     def need(self, *plugins):
         """Whether the release has all these module plugins; a note if not."""
         missing = [p for p in plugins if p not in self.release]
-        if missing:
-            self.notes.append(f"this release has no {', '.join(missing)}")
+        note = f"this release has no {', '.join(missing)}"
+        if missing and note not in self.notes:
+            self.notes.append(note)
         return not missing
 
     def header(self, inputs, made_by):
@@ -139,6 +148,15 @@ process = cms.Process("EMBER", {s.era})
 
     def process(self, inputs, events, threads, drop=()):
         s = self.s
+        tables = """
+# Every table producer goes in this task; the output module runs them as the tables are needed.
+process.emberTables = cms.Task()
+
+
+def table(label, module):
+    setattr(process, label, module)
+    process.emberTables.add(module)
+"""
         geometry = (
             f"Configuration.Geometry.Geometry{s.geometry}Reco_cff"
             if s.phase2
@@ -161,15 +179,7 @@ process.source = cms.Source("PoolSource", fileNames=cms.untracked.vstring({files
 )
 {self.dropped(drop)}process.maxEvents.input = {events if events else -1}
 process.options.numberOfThreads = {threads}
-
-# Every table producer goes in this task; the output module runs them as the tables are needed.
-process.emberTables = cms.Task()
-
-
-def table(label, module):
-    setattr(process, label, module)
-    process.emberTables.add(module)
-"""
+{tables}"""
         )
 
     def dropped(self, drop):
@@ -195,9 +205,10 @@ def table(label, module):
         if self.need("RecHitFlatTableProducer") and self.inv.has("HGCalRecHit", "HGCEERecHits"):
             self.add(
                 """
-# HGCal rechits of the three sections in one table "rechits": DetId, energy, time, position and the cell's half
-# width (TICLGeom radius to side), from PhysicsTools/TruthInfo. TICLGeom is an alpaka EventSetup product: it needs
-# the accelerator configuration, and its producer in the task.
+# HGCal rechits of the three sections in one table "rechits": DetId, energy, time, position, from
+# PhysicsTools/TruthInfo (also a "radius", TICLGeom's radius to side: sqrt(3) x the apothem for silicon, FLT_MAX for
+# scintillator; the converter sizes cells from the DetId instead). TICLGeom is an alpaka EventSetup product: it
+# needs the accelerator configuration, and its producer in the task.
 process.load("Configuration.StandardSequences.Accelerators_cff")
 process.load("RecoTICL.Geometry.TICLGeom_cff")
 process.emberTables.add(process.ticlGeomESProducer)
@@ -208,38 +219,49 @@ process.emberTables.add(process.recHitTable)
         self.hgcal_reco()
 
     def hgcal_reco(self):
+        """DPGAnalysis/HGCalNanoAOD's tables: layer clusters if the input has them, one table per trackster collection
+        of the input, TICL candidates if it has tracksters. Its track table is scheduled by tracks()."""
         inv = self.inv
         tracksters = inv.modules("ticlTracksters")
-        plugins = ("TracksterCollectionTableProducer", "TICLCandidateTableProducer", "TICLCandidateExtraTableProducer")
-        if not tracksters or not self.need(*plugins):
-            if not tracksters:
-                self.notes.append("TICL tracksters and candidates: the input has none")
+        layer_clusters = inv.has("hgcalMergeLayerClusters")
+        if not tracksters:
+            self.notes.append("TICL tracksters and candidates: the input has none")
+        plugins = ["LayerClustersCollectionTableProducer"] * layer_clusters + [
+            "TracksterCollectionTableProducer", "TICLCandidateTableProducer", "TICLCandidateExtraTableProducer"
+        ] * bool(tracksters)  # fmt: skip
+        if not plugins or not self.need(*plugins):
             return
+        self.hgcal_nano = True
         soa = inv.soa()
         if soa:
             self.notes.append(
                 f"the SoA collections {', '.join(soa)}: this release has no table producer for them (legacy tables "
                 "are written)"
             )
-        tables = "".join(
-            f'table("{t}TracksterTable", process.ticlTrackstersCLUE3DHighTableProducer.clone(src="{t}", name="{t}", doc="{t}",\n'
-            f'    variables=tracksterVariables, collectionVariables=dict(tracksterVertices=dict(name="{t}vertices",\n'
-            f"    variables=dict(vertex_mult=dict(precision=8))))))\n"
-            for t in tracksters
-        )
-        self.add(
-            f"""
+        labels = ["hgcalLayerClustersTable", "hgcalLayerClustersExtraTable"] * layer_clusters
+        labels += ["ticlCandidateTable", "ticlCandidateExtraTable"] * bool(tracksters)
+        text = f"""
 # HGCal reconstruction as NANO:@HGCAL writes it (DPGAnalysis/HGCalNanoAOD): layer clusters, a table per trackster
 # collection of the input with its layer clusters (the release's table for CLUE3D, made for each collection), TICL
-# candidates with their tracksters and tracks, general and GSF tracks (with their HGCal entry point, which needs the
-# propagators).
+# candidates with their tracksters and tracks (their HGCal entry point needs the propagators).
 process.load("DPGAnalysis.HGCalNanoAOD.HGCalNanoAOD_cff")
 process.load("TrackingTools.MaterialEffects.MaterialPropagator_cfi")
 process.load("TrackingTools.MaterialEffects.OppositeMaterialPropagator_cfi")
-for label in ("hgcalLayerClustersTable", "hgcalLayerClustersExtraTable", "ticlCandidateTable", "ticlCandidateExtraTable",
-              "generalTracksTable", "trackMuonTable", "gsfTracksTable"):
+for label in [{"".join(f"{chr(10)}    {label!r}," for label in labels)}
+]:
     process.emberTables.add(getattr(process, label))
-# The tracksters with the columns drawn, named as HGCalNanoAOD names them (its eVector0_y is the axis's z, and
+"""
+        if layer_clusters:
+            text += """# The layer clusters with the columns drawn (the release's table has eight more, at full precision)
+process.hgcalLayerClustersTable.variables = cms.PSet(
+    energy=Var("energy", "float", precision=12, doc="energy [GeV]"),
+    position_x=Var("x", "float", precision=14, doc="x [cm]"),
+    position_y=Var("y", "float", precision=14, doc="y [cm]"),
+    position_z=Var("z", "float", precision=14, doc="z [cm]"),
+)
+"""
+        if tracksters:
+            text += """# The tracksters with the columns drawn, named as HGCalNanoAOD names them (its eVector0_y is the axis's z, and
 # eVector0_z its y)
 tracksterVariables = cms.PSet(
     raw_energy=Var("raw_energy", "float", precision=12, doc="raw energy [GeV]"),
@@ -254,15 +276,16 @@ tracksterVariables = cms.PSet(
     eVector0_z=Var("eigenvectors()[0].y", "float", precision=10, doc="principal axis, y (as HGCalNanoAOD)"),
     time=Var("time", "float", precision=10, doc="time [ns]"),
 )
-# The layer clusters with the columns drawn (the release's table has eight more, at full precision)
-process.hgcalLayerClustersTable.variables = cms.PSet(
-    energy=Var("energy", "float", precision=12, doc="energy [GeV]"),
-    position_x=Var("x", "float", precision=14, doc="x [cm]"),
-    position_y=Var("y", "float", precision=14, doc="y [cm]"),
-    position_z=Var("z", "float", precision=14, doc="z [cm]"),
-)
-{tables}"""
-        )
+tracksterTable = process.ticlTrackstersCLUE3DHighTableProducer
+"""
+            text += "".join(
+                f'table("{t}TracksterTable", tracksterTable.clone(\n'
+                f'    src="{t}", name="{t}", doc="{t}",\n'
+                f"    variables=tracksterVariables, collectionVariables=dict(tracksterVertices=dict(\n"
+                f'        name="{t}vertices", variables=dict(vertex_mult=dict(precision=8))))))\n'
+                for t in tracksters
+            )
+        self.add(text)
 
     def pf_rechits(self):
         """ECAL and HCAL PF rechits (TruthInfo, positions from CaloGeometry), remade in the job if the input lacks
@@ -271,13 +294,26 @@ process.hgcalLayerClustersTable.variables = cms.PSet(
             return
         s, inv = self.s, self.inv
         kinds = ["ECAL", "HBHE", "HF", "HO"] + ([] if s.phase2 else ["PS"])
-        remade = [k for k in kinds if not inv.has(f"particleFlowRecHit{k}", type="recoPFRecHits")]
-        tags = ", ".join(f'"particleFlowRecHit{k}"' for k in kinds)
+        remade = [k for k in kinds if not inv.has(f"particleFlowRecHit{k}", product_type="recoPFRecHits")]
+        # what remaking each needs (an AOD has only the reduced rechit collections)
+        sources = {"ECAL": [("ecalRecHit", "EcalRecHitsEB")], "PS": [("ecalPreshowerRecHit", "EcalRecHitsES")],
+                   "HBHE": [("hbhereco", "")], "HF": [("hfreco", "")], "HO": [("horeco", "")]}  # fmt: skip
+        lacking = [k for k in remade if not all(inv.has(*src) for src in sources[k])]
+        if lacking:
+            self.notes.append(
+                f"PF rechits {', '.join(lacking)}: the input has neither them nor the rechits to remake them"
+            )
+        kinds = [k for k in kinds if k not in lacking]
+        remade = [k for k in remade if k not in lacking]
+        if not kinds:
+            return
+        tags = "".join(f'\n    "particleFlowRecHit{k}",' for k in kinds)
         text = f"""
 # ECAL and HCAL PF rechits (the hits above the particle-flow thresholds) in one table "pfrechits": DetId, energy,
 # time, position (CaloGeometry), from PhysicsTools/TruthInfo. The converter splits it by subdetector.
 process.pfRecHitTable = cms.EDProducer("PFRecHitFlatTableProducer", objName=cms.string("pfrechits"),
-    label_rechits=cms.VInputTag({tags}))
+    label_rechits=cms.VInputTag({tags}
+))
 process.emberTables.add(process.pfRecHitTable)
 """
         if remade:
@@ -296,38 +332,28 @@ for kind in {remade!r}:
     def clusters(self):
         """PF clusters and superclusters, and the hits of every kind of cluster (once the release has the producers)."""
         s, inv = self.s, self.inv
-        rows = []  # (label, plugin, table, src, hits plugin)
+        rows = []  # (label, table producer, table, src, hits producer)
         for d in ["ECAL", "HCAL", "HF", "HO"] + ([] if s.phase2 else ["PS"]):
             if inv.has(f"particleFlowCluster{d}"):
-                rows.append(
-                    (
-                        f"pfCluster{d}",
-                        "LayerClustersCollectionTableProducer",
-                        f"PFCluster{d}",
-                        f"particleFlowCluster{d}",
-                        "PFClusterHitsTableProducer",
-                    )
-                )
+                plugins = ("LayerClustersCollectionTableProducer", "PFClusterHitsTableProducer")
+                rows.append((f"pfCluster{d}", *plugins[:1], f"PFCluster{d}", f"particleFlowCluster{d}", plugins[1]))
         superclusters = [
-            ("superClusterEB", "SuperClusterEB", "particleFlowSuperClusterECAL", "particleFlowSuperClusterECALBarrel"),
-            (
-                "superClusterEE",
-                "SuperClusterEE",
-                "particleFlowSuperClusterECAL",
-                "particleFlowSuperClusterECALEndcapWithPreshower",
-            ),
-            ("superClusterHGCal", "SuperClusterHGCal", "particleFlowSuperClusterHGCal", ""),
-            ("superClusterHGCal", "SuperClusterHGCal", "ticlEGammaSuperClusters", ""),
+            ("superClusterEB", "SuperClusterEB", "particleFlowSuperClusterECAL:particleFlowSuperClusterECALBarrel"),
+            ("superClusterHGCal", "SuperClusterHGCal", "particleFlowSuperClusterHGCal"),
+            ("superClusterHGCal", "SuperClusterHGCal", "ticlEGammaSuperClusters"),
         ]
-        seen = set()
-        for label, name, module, instance in superclusters:
-            if label not in seen and inv.has(module, instance, "recoSuperClusters"):
-                seen.add(label)
-                src = f"{module}:{instance}" if instance else module
-                rows.append((label, "SimpleSuperclusterFlatTableProducer", name, src, "SuperClusterHitsTableProducer"))
-        if not rows or not self.need("LayerClustersCollectionTableProducer", "SimpleSuperclusterFlatTableProducer"):
-            return
-        text = """
+        if not s.phase2:  # Phase 2 has no ECAL endcap (its endcap collection is always empty)
+            ecal = "particleFlowSuperClusterECAL:particleFlowSuperClusterECALEndcapWithPreshower"
+            superclusters.insert(1, ("superClusterEE", "SuperClusterEE", ecal))
+        for label, name, src in superclusters:
+            module, _, instance = src.partition(":")
+            if label not in {r[0] for r in rows} and inv.has(module, instance, "recoSuperClusters"):
+                plugins = ("SimpleSuperclusterFlatTableProducer", "SuperClusterHitsTableProducer")
+                rows.append((label, plugins[0], name, src, plugins[1]))
+        rows = [r for r in rows if self.need(r[1])]
+        text = ""
+        if rows:
+            text += """
 # PF clusters (HGCalNanoAOD's table producer of reco::CaloCluster collections) and superclusters (standard NanoAOD's
 # supercluster producer): energy and position.
 pfClusterVariables = cms.PSet(
@@ -345,28 +371,20 @@ superClusterVariables = cms.PSet(pfClusterVariables,
     phiWidth=Var("phiWidth", "float", precision=10, doc="phi width"),
     nClusters=Var("clustersSize", "uint16", doc="number of clusters"),
 )
-superClusterVariables.nHits = Var("size", "uint16", doc="number of clusters")
-superClusterVariables.x = Var("position().x()", "float", precision=14, doc="x [cm]")
-superClusterVariables.y = Var("position().y()", "float", precision=14, doc="y [cm]")
-superClusterVariables.z = Var("position().z()", "float", precision=14, doc="z [cm]")
 """
         for label, plugin, name, src, _ in rows:
             variables = "superClusterVariables" if "Super" in plugin else "pfClusterVariables"
             text += (
-                f'table("{label}Table", cms.EDProducer("{plugin}", src=cms.InputTag("{src}"), name=cms.string("{name}"),\n'
+                f'table("{label}Table", cms.EDProducer("{plugin}",\n'
+                f'    src=cms.InputTag("{src}"), name=cms.string("{name}"),\n'
                 f'    doc=cms.string("{src}"), cut=cms.string(""), singleton=cms.bool(False), extension=cms.bool(False),\n'
                 f"    skipNonExistingSrc=cms.bool(True), variables={variables}))\n"
             )
-        if self.s.phase2 and inv.has("hgcalMergeLayerClusters"):
-            rows.append(
-                (
-                    "hgcalLayerClusters",
-                    None,
-                    "HGCalLayerClusters",
-                    "hgcalMergeLayerClusters",
-                    "CaloClusterHitsTableProducer",
-                )
-            )
+        if self.hgcal_nano and inv.has("hgcalMergeLayerClusters"):  # its table is HGCalNanoAOD's (hgcal_reco)
+            rows.append(("hgcalLayerClusters", None, "HGCalLayerClusters", "hgcalMergeLayerClusters",
+                         "CaloClusterHitsTableProducer"))  # fmt: skip
+        if not rows:
+            return
         if self.cluster_hits:
             text += """
 # The hits of each cluster (the same source as its table, no cut): a count on the cluster table (n<Name>Hits) and a
@@ -374,7 +392,8 @@ superClusterVariables.z = Var("position().z()", "float", precision=14, doc="z [c
 """
             for label, _, name, src, hits in rows:
                 text += (
-                    f'table("{label}Hits", cms.EDProducer("{hits}", src=cms.InputTag("{src}"), name=cms.string("{name}"),\n'
+                    f'table("{label}Hits", cms.EDProducer("{hits}",\n'
+                    f'    src=cms.InputTag("{src}"), name=cms.string("{name}"),\n'
                     f'    hitsName=cms.string("{name}Hits"), precision=cms.int32(8), skipNonExistingSrc=cms.bool(True)))\n'
                 )
         else:
@@ -382,20 +401,25 @@ superClusterVariables.z = Var("position().z()", "float", precision=14, doc="z [c
                 "the hits of clusters: this release has no " + ", ".join(sorted(CLUSTER_HITS)) + " (in CMSSW after "
                 "the pull request 'NanoAOD tables of the hits of calorimeter clusters')"
             )
-        self.add(text)
+        if text:
+            self.add(text)
 
     # Tracks and physics objects
 
     def tracks(self):
         """General tracks: HGCalNanoAOD's table (Phase 2: its TICL candidates extend it with their HGCal entry point),
         with the columns the profiles draw, and their outermost position."""
-        if not self.inv.has("generalTracks", type="recoTracks") or not self.need("SimpleTrackFlatTableProducer"):
+        if not self.inv.has("generalTracks", product_type="recoTracks") or not self.need(
+            "SimpleTrackFlatTableProducer"
+        ):
             return
         text = """
 # General tracks, in the table NANO:@HGCAL writes (DPGAnalysis/HGCalNanoAOD), with the columns drawn: a helix from
 # the reference point with the momentum, to the outermost hit (from the track extra)
 """
-        if not self.s.phase2:
+        if self.hgcal_nano:
+            text += "process.emberTables.add(process.generalTracksTable)\n"
+        else:
             text += """from DPGAnalysis.HGCalNanoAOD.hgcalGeneralTracks_cfi import generalTracksTable
 table("generalTracksTable", generalTracksTable.clone())
 """
@@ -422,13 +446,14 @@ table("generalTracksTable", generalTracksTable.clone())
         """Physics objects from the RECO collections, named and laid out as in standard NanoAOD (a subset of its
         columns), so that the same profile draws a standard NanoAOD."""
         inv = self.inv
-        jets = next((j for j in ("ak4PFJetsPuppi", "ak4PFJetsCHS") if inv.has(j, type="recoPFJets")), None)
+        jets = next((j for j in ("ak4PFJetsPuppi", "ak4PFJetsCHS") if inv.has(j, product_type="recoPFJets")), None)
         rows = []
         if jets and self.need("SimplePFJetFlatTableProducer"):
             rows.append(f"""
-table("jetTable", cms.EDProducer("SimplePFJetFlatTableProducer", src=cms.InputTag("{jets}"), name=cms.string("Jet"),
-    doc=cms.string("AK4 jets ({jets}), uncorrected"), cut=cms.string("pt > 10"), singleton=cms.bool(False),
-    extension=cms.bool(False), skipNonExistingSrc=cms.bool(True), variables=cms.PSet(kinematics,
+table("jetTable", cms.EDProducer("SimplePFJetFlatTableProducer",
+    src=cms.InputTag("{jets}"), name=cms.string("Jet"), doc=cms.string("AK4 jets ({jets}), uncorrected"),
+    cut=cms.string("pt > 10"), singleton=cms.bool(False), extension=cms.bool(False), skipNonExistingSrc=cms.bool(True),
+    variables=cms.PSet(kinematics,
         nConstituents=Var("nConstituents", "uint8", doc="number of constituents"),
         chHEF=Var("chargedHadronEnergyFraction", "float", precision=6, doc="charged hadron energy fraction"),
         neHEF=Var("neutralHadronEnergyFraction", "float", precision=6, doc="neutral hadron energy fraction"),
@@ -437,10 +462,11 @@ table("jetTable", cms.EDProducer("SimplePFJetFlatTableProducer", src=cms.InputTa
         muEF=Var("muonEnergyFraction", "float", precision=6, doc="muon energy fraction"),
     )))""")
         for label, name, src in (("puppiMet", "PuppiMET", "pfMetPuppi"), ("pfMet", "PFMET", "pfMet")):
-            if inv.has(src, type="recoPFMETs") and self.need("SimpleMETFlatTableProducer"):
+            if inv.has(src, product_type="recoPFMETs") and self.need("SimpleMETFlatTableProducer"):
                 rows.append(f"""
-table("{label}Table", cms.EDProducer("SimpleMETFlatTableProducer", src=cms.InputTag("{src}"), name=cms.string("{name}"),
-    doc=cms.string("{src}"), singleton=cms.bool(True), extension=cms.bool(False), skipNonExistingSrc=cms.bool(True),
+table("{label}Table", cms.EDProducer("SimpleMETFlatTableProducer",
+    src=cms.InputTag("{src}"), name=cms.string("{name}"), doc=cms.string("{src}"),
+    singleton=cms.bool(True), extension=cms.bool(False), skipNonExistingSrc=cms.bool(True),
     variables=cms.PSet(pt=Var("pt", "float", precision=10, doc="pt [GeV]"), phi=Var("phi", "float", precision=10,
         doc="phi"), sumEt=Var("sumEt", "float", precision=10, doc="scalar sum of Et [GeV]"))))""")
         candidates = [
@@ -451,7 +477,7 @@ table("{label}Table", cms.EDProducer("SimpleMETFlatTableProducer", src=cms.Input
             ("muon", "Muon", "muons", "recoMuons", "pt > 3"),
         ]
         for label, name, src, type_, cut in candidates:
-            if inv.has(src, type=type_) and self.need("SimpleCandidateFlatTableProducer"):
+            if inv.has(src, product_type=type_) and self.need("SimpleCandidateFlatTableProducer"):
                 muon = (
                     '\n        isGlobal=Var("isGlobalMuon", bool, doc="global muon"),'
                     '\n        isTracker=Var("isTrackerMuon", bool, doc="tracker muon"),'
@@ -465,21 +491,25 @@ table("{label}Table", cms.EDProducer("SimpleCandidateFlatTableProducer", src=cms
     extension=cms.bool(False), skipNonExistingSrc=cms.bool(True), variables=cms.PSet(kinematics,
         charge=Var("charge", "int16", doc="charge"),{muon}
     )))""")
-        if inv.has("offlinePrimaryVertices", type="recoVertexs") and self.need("SimpleVertexFlatTableProducer"):
+        if inv.has("offlinePrimaryVertices", product_type="recoVertexs") and self.need("SimpleVertexFlatTableProducer"):
             rows.append("""
 table("pvTable", cms.EDProducer("SimpleVertexFlatTableProducer", src=cms.InputTag("offlinePrimaryVertices"),
     name=cms.string("PV"), doc=cms.string("the leading primary vertex"), cut=cms.string(""), maxLen=cms.uint32(1),
-    singleton=cms.bool(False), extension=cms.bool(False), skipNonExistingSrc=cms.bool(True), variables=cms.PSet(position,
+    singleton=cms.bool(False), extension=cms.bool(False), skipNonExistingSrc=cms.bool(True),
+    variables=cms.PSet(position,
         ndof=Var("ndof", "float", precision=8, doc="number of degrees of freedom"),
         chi2=Var("normalizedChi2", "float", precision=8, doc="chi2 / ndof"),
         ntracks=Var("tracksSize", "uint16", doc="number of tracks"))))""")
-        if inv.has("inclusiveSecondaryVertices", type="recoVertexs") and self.need("SimpleVertexFlatTableProducer"):
+        if inv.has("inclusiveSecondaryVertices", product_type="recoVertexs") and self.need(
+            "SimpleVertexFlatTableProducer"
+        ):
             rows.append("""
 table("svTable", cms.EDProducer("SimpleVertexFlatTableProducer", src=cms.InputTag("inclusiveSecondaryVertices"),
     name=cms.string("SV"), doc=cms.string("inclusive secondary vertices"), cut=cms.string(""),
-    singleton=cms.bool(False), extension=cms.bool(False), skipNonExistingSrc=cms.bool(True), variables=cms.PSet(position,
+    singleton=cms.bool(False), extension=cms.bool(False), skipNonExistingSrc=cms.bool(True),
+    variables=cms.PSet(position,
         ntracks=Var("tracksSize", "uint16", doc="number of tracks"))))""")
-        if inv.has("offlineBeamSpot", type="recoBeamSpot") and self.need("SimpleBeamspotFlatTableProducer"):
+        if inv.has("offlineBeamSpot", product_type="recoBeamSpot") and self.need("SimpleBeamspotFlatTableProducer"):
             rows.append("""
 table("beamSpotTable", cms.EDProducer("SimpleBeamspotFlatTableProducer", src=cms.InputTag("offlineBeamSpot"),
     name=cms.string("BeamSpot"), doc=cms.string("offline beam spot"), extension=cms.bool(False),

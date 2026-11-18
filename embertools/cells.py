@@ -183,7 +183,8 @@ def compute(rule, det_id, x, y, z, geometry="run3"):
     r = np.hypot(x, y)
     if rule == "hgcal":
         silicon = SILICON_APOTHEM[(det_id >> 26) & 3]
-        tile = r * np.pi / TILES_IN_PHI
+        # tiles of the fine granularity (HGCScintillatorDetId bit 24) have another width, not checked: NaN
+        tile = np.where(((det_id >> 24) & 1) == 1, np.nan, r * np.pi / TILES_IN_PHI)
         out = {"halfWidth": np.where((det_id >> 28) == 10, tile, silicon)}
     elif rule == "ecalEndcap":
         # A square of side a at radius r on a plane |z| = const covers a/r in phi and a |z| / (R r) in eta.

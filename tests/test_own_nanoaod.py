@@ -37,14 +37,18 @@ def hits(*ids):
 def test_a_hit_table_is_split_by_the_bits_of_its_detid_and_its_cells_sized():
     profile = {
         "derive": SPLIT,
+        "omit": ["pfrechits.rechit_energy"],
         "display": [{"table": t, "label": t, "position": ["rechit_x"] * 3} for t in ("EBHits", "HBHits")],
     }
     conv = converter({"pfrechits": HITS}, profile)
     assert set(conv.written()) == {"EBHits", "HBHits"}  # the source table is read, not written
-    assert "rechit_energy" not in conv.branches() and "pfrechits_rechit_energy" in conv.branches()
+    assert "rechit_x" not in conv.branches() and "pfrechits_rechit_x" in conv.branches()
+    assert "pfrechits_rechit_energy" not in conv.branches()  # omitted: not read, and not written
     assert "nEBHits" not in conv.branches()  # made here, not read
-    _, tables, _ = conv.event(chunk(conv, {"pfrechits": hits(EB, HB, HF, HB)}), 0)
-    assert tables["EBHits"][0] == 1 and list(tables["HBHits"][1]["rechit_energy"]) == [2, 4]  # HF in neither
+    event = hits(EB, HB, HF, HB)
+    del event["rechit_energy"]
+    _, tables, _ = conv.event(chunk(conv, {"pfrechits": event}), 0)
+    assert tables["EBHits"][0] == 1 and tables["HBHits"][0] == 2 and "rechit_energy" not in tables["HBHits"][1]
     assert np.allclose(tables["HBHits"][1]["dEta"], 0.087) and np.allclose(tables["HBHits"][1]["depth"], 0.9)
     assert list(tables["HBHits"][1]["subdet"]) == [1, 1]
     header = conv.header(["f.root"], "p")

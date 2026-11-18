@@ -5,35 +5,30 @@
 A web event display for CMS. It shows the hits, clusters, tracks and physics objects of an event in your browser,
 and next to them what the simulation says was really there.
 
-You run one command on a CMSSW output file, and it prints a link. Anyone in CMS who opens the link sees the same
-event, the same selected object and the same view.
+You run one command on a CMS file, and it writes a bundle that you open in the viewer in your browser.
 
 <!-- A screenshot belongs here. None is tracked yet: an image of a CMS event is CMS material, and adding one is the
      owner's decision. -->
 
-**Status:** version 0.2, in development. The CMSSW side (`NANO:@EVD`) is not merged yet, and the CMS site is not set
-up yet, so the addresses below are provisional. See [Status](https://mmarriot.github.io/ember/#status) for what works
-today.
+**Status:** version 0.2, in development. The CMS site is not set up yet: bundles are written on your machine and opened
+in the viewer at https://marriot-evd.web.cern.ch. See [Status](https://mmarriot.github.io/ember/#status) for what
+works today.
 
 ## Quick start
 
-In a CMSSW area for Phase-2 full simulation that has the `NANO:@EVD` step:
+After `cmsenv` in a CMSSW release (Phase 2 or Run 3):
 
 ```bash
-# 1. Your own step3 command, with one more step, event content and data tier
-cmsDriver.py step3 ... -s RAW2DIGI,RECO,RECOSIM,NANO:@EVD \
-    --eventcontent FEVTDEBUGHLT,NANOAODSIM --datatier GEN-SIM-RECO,NANOAODSIM
+# A reconstruction file (RECO, FEVT) or a MiniAOD: ember writes a cmsRun configuration from your release's modules,
+# runs it on the first 10 events, and converts the result. NanoAOD files (standard, NANO:@HGCAL) are converted directly.
+ember step3.root                       # writes step3.ember here; --config ember_cfg.py keeps the configuration
 
-# 2. Convert the NanoAOD, publish it to your user area on the site, and print the link
-ember step3_inNANOAODSIM.root
-
-# 3. Open the link, or send it to someone
+# Open it: drop step3.ember on https://marriot-evd.web.cern.ch (your browser reads the file; nothing is uploaded)
 ```
 
-Already have a `step3.root`? Run `ember step3.root`: it makes the NanoAOD first.
-
-The [Getting started](https://mmarriot.github.io/ember/getting-started/) tutorial goes through every step, including
-how to get the `ember` command.
+With a site configured (`--site` or `EMBER_SITE_DIR`), `ember FILE.root` publishes the bundle there instead and prints
+its link. The [Getting started](https://mmarriot.github.io/ember/getting-started/) tutorial goes through every step,
+including how to get the `ember` command.
 
 ## Documentation
 

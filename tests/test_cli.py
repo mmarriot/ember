@@ -158,8 +158,11 @@ def test_a_reconstruction_file_is_exported_first(setup, capsys, monkeypatch):
         == 0
     )
     out = capsys.readouterr().out
-    assert calls == [(["step3.root"], 4, "D110", None, None, {})]
-    assert "step3.root: CMSSW reconstruction from CMSSW_20_1_0, 50 events" in out and "the first 4 with cmsRun" in out
+    assert calls == [(["step3.root"], 4, "D110", None, None, {"config": None})]
+    assert (
+        "step3.root: CMSSW EDM (RECO, AOD or MiniAOD) from CMSSW_20_1_0, 50 events" in out
+        and "the first 4 with cmsRun" in out
+    )
     assert "  geometry ExtendedRun4D110" in out and out.splitlines()[-1].endswith("#b=data/u/alice/step3.ember")
     assert os.path.exists("kept.root")
     assert main(["step3.root", "ttbar.root"]) == 1 and "mix" in capsys.readouterr().err

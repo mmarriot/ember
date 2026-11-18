@@ -161,8 +161,9 @@ export function matchOf(table: string, row: number) {
 // ---- What the view highlights
 
 /** In the "pid" and "truth" modes with something focused: its truth <-> reco pair (model/pair.ts), which colours every
- *  layer. Null when the pair has nothing to show (no candidate, and no hits of its particle), and for a kind with no
- *  truth of its own (a jet never opens a pair; its constituents may). */
+ *  layer. Null when the pair has nothing to show (no candidate, and no hits of its particle), for a kind with no
+ *  truth of its own (a jet never opens a pair; its constituents may), and in a bundle with no truth at all (data, a
+ *  standard NanoAOD): a pair without its truth side says nothing the selection does not. */
 export const pairView = computed<Pair | null>(() => {
   const f = focus.value,
     b = bundle.value,
@@ -174,6 +175,7 @@ export const pairView = computed<Pair | null>(() => {
     !b ||
     !ev ||
     !roots.reco ||
+    !roots.truth ||
     !colouring.reco ||
     f.row >= (ev.tables[f.table]?.n ?? 0)
   )

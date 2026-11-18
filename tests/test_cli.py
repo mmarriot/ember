@@ -83,7 +83,10 @@ def test_output_or_no_publish_only_writes_the_bundle(setup, capsys):
     assert main(["ttbar.root", "--profile", "test.json", "-o", "mine.ember"]) == 0
     assert main(["ttbar.root", "--profile", "test.json", "--no-publish", "--name", "other"]) == 0
     assert len(Bundle("mine.ember")) == 10 and len(Bundle("other.ember")) == 10 and not os.listdir(setup / "site")
-    assert capsys.readouterr().out.splitlines()[-1] == "wrote other.ember"
+    assert capsys.readouterr().out.splitlines()[-2:] == [
+        "wrote other.ember",
+        "to see it, drop it on https://marriot-evd.web.cern.ch (your browser reads the file; nothing is uploaded)",
+    ]
 
 
 def test_list_and_rm(setup, capsys):
@@ -160,7 +163,12 @@ def test_a_reconstruction_file_is_exported_first(setup, capsys, monkeypatch):
     assert "  geometry ExtendedRun4D110" in out and out.splitlines()[-1].endswith("#b=data/u/alice/step3.ember")
     assert os.path.exists("kept.root")
     assert main(["step3.root", "ttbar.root"]) == 1 and "mix" in capsys.readouterr().err
-    assert main(["convert", "step3.root", "-o", "x.ember"]) == 1 and "ember view" in capsys.readouterr().err
+    import uproot
+
+    with uproot.recreate("edm.root") as f:
+        f["Events"] = {"EventAuxiliary": [1, 2], "recoTracks_generalTracks__RECO.": [1, 2]}
+    assert main(["convert", "edm.root", "-o", "x.ember"]) == 1 and "ember view" in capsys.readouterr().err
+    assert main(["convert", "nope.root", "-o", "x.ember"]) == 1 and "nope.root: no such file" in capsys.readouterr().err
 
     # Events asked for by number may be anywhere in the file: all of it is exported, whatever --max-events says.
     calls.clear()
@@ -236,8 +244,8 @@ def test_ember_runs_as_one_file_with_its_profiles_inside(setup):
     assert run("--version").stdout.strip() == f"ember {__version__}"
     done = run("ttbar.root", "--profile", "test.json")
     assert done.returncode == 0 and done.stdout.splitlines()[-1] == "https://ember.example/#b=data/u/alice/ttbar.ember"
-    failed = run("ttbar.root")  # the built-in cms profile is found in the file, and draws nothing of this input
-    assert failed.returncode == 1 and "none of the tables that the profile cms draws" in failed.stderr
+    failed = run("ttbar.root")  # the built-in profiles are found in the file, and none draws this input
+    assert failed.returncode == 1 and "none of the profiles phase2, run3, nano, hgcal, cms draws" in failed.stderr
 
 
 # Review findings: each of these failed before its fix.
@@ -375,3 +383,13 @@ def test_inspect_says_what_an_empty_bundle_holds(setup, capsys):
     with BundleWriter("empty.ember", {**header, "display": []}):
         pass
     assert main(["inspect", "empty.ember"]) == 0 and "empty.ember: 0 events" in capsys.readouterr().out
+
+
+def test_without_a_site_the_bundle_is_written_here_for_the_viewer(setup, capsys, monkeypatch):
+    monkeypatch.delenv("EMBER_SITE_DIR")
+    assert main(["ttbar.root", "--profile", "test.json"]) == 0
+    out = capsys.readouterr().out.splitlines()
+    assert out[-2] == "wrote ttbar.ember" and "drop it on https://marriot-evd.web.cern.ch" in out[-1]
+    assert len(Bundle("ttbar.ember")) == 10 and not os.listdir(setup / "site")
+    assert main(["ttbar.root", "--profile", "test.json", "--site", str(setup / "site"), "--name", "here"]) == 0
+    assert "published here" in capsys.readouterr().out  # a site given on the command line is published to

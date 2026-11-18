@@ -16,6 +16,9 @@ import time
 
 from . import Problem, __version__, site
 
+# The viewer a bundle written here is opened in: the browser reads the file from disk, nothing is uploaded.
+VIEWER = "https://marriot-evd.web.cern.ch"
+
 
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
@@ -47,8 +50,9 @@ def parser():
     """(the argument parser, the names of its commands)."""
     top = argparse.ArgumentParser(
         prog="ember",
-        description="Turn CMS events into event-display bundles and publish them on the event-display "
-        "site. `ember FILE.root` is `ember view FILE.root`: convert, publish to your area, print the link.",
+        description="Turn CMS events into Ember bundles. `ember FILE.root` is `ember view FILE.root`: it writes "
+        f"NAME.ember here, to open in the viewer ({VIEWER}: the browser reads the file, nothing is uploaded); with "
+        "a site configured (--site or EMBER_SITE_DIR) it publishes the bundle there instead and prints its link.",
     )
     top.add_argument("--version", action="version", version=f"ember {__version__}")
     sub = top.add_subparsers(dest="command", required=True, metavar="command")
@@ -56,17 +60,19 @@ def parser():
     # A user's own bundles on the site
     p = sub.add_parser(
         "view",
-        help="convert NanoAOD (or CMSSW reconstruction) files, publish the bundle, print its link",
-        description="Convert event-display NanoAOD files (written with NANO:@EVD), or CMSSW "
-        "reconstruction files (step3: the NanoAOD is made first, which needs cmsenv), to one bundle, "
-        "publish it to your area of the event-display site and print the link to share.",
+        help="convert NanoAOD or CMSSW reconstruction files to a bundle here (or publish it to a configured site)",
+        description="Convert NanoAOD files (standard NanoAOD, NANO:@HGCAL, or Ember's own), or CMSSW "
+        "reconstruction or MiniAOD files (RECO, FEVT, MINIAOD: ember writes a cmsRun configuration from the "
+        "modules of your release and runs it first, which needs cmsenv), to one bundle NAME.ember here. With a "
+        "site configured (--site or EMBER_SITE_DIR), the bundle is published to your area of it instead and "
+        "its link printed.",
     )
     p.add_argument("inputs", nargs="+", metavar="FILE.root")
     p.add_argument("-o", "--output", metavar="FILE.ember", help="write the bundle to this file and do not publish it")
-    p.add_argument("--no-publish", action="store_true", help="write <name>.ember here and do not publish it")
-    p.add_argument("--name", help="the bundle's name on the site (default: the first input's name)")
+    p.add_argument("--no-publish", action="store_true", help="write <name>.ember here, even with a site configured")
+    p.add_argument("--name", help="the bundle's name, here or on the site (default: the first input's name)")
     p.add_argument("--title", help="its title in the viewer's list (default: its name)")
-    _convert_options(p, "cms", "10, or all of those given with --events; 0: all", reconstruction=True)
+    _convert_options(p, "auto", "10, or all of those given with --events; 0: all", reconstruction=True)
     _site_options(p)
     edm = p.add_argument_group(
         "for CMSSW reconstruction files (default: what the file records, and the release's defaults for its geometry)"
@@ -75,6 +81,9 @@ def parser():
     edm.add_argument("--era", help="e.g. Phase2C17I13M9")
     edm.add_argument("--conditions", help="global tag, e.g. auto:phase2_realistic_T33")
     edm.add_argument("--nano", metavar="FILE.root", help="also keep the NanoAOD that was made, as this file")
+    edm.add_argument(
+        "--config", metavar="FILE.py", help="also keep the cmsRun configuration that made it (cmsRun FILE.py reruns it)"
+    )
 
     p = sub.add_parser("list", help="list your published bundles")
     p.add_argument("-l", "--links", action="store_true", help="print each bundle's link")
@@ -85,10 +94,10 @@ def parser():
     _site_options(p)
 
     # Bundle files
-    p = sub.add_parser("convert", aliases=["from-nano"], help="convert NanoAOD event-display tables to a bundle file")
+    p = sub.add_parser("convert", aliases=["from-nano"], help="convert NanoAOD files to a bundle file")
     p.add_argument("inputs", nargs="+")
     p.add_argument("-o", "--output", required=True)
-    _convert_options(p, "hgcal")
+    _convert_options(p, "auto")
     p.add_argument(
         "--sorted",
         action="store_true",
@@ -156,7 +165,11 @@ def _site_options(p):
 
 def _convert_options(p, profile, max_events=None, reconstruction=False):
     """The conversion options; `reconstruction`: the command also takes CMSSW reconstruction files."""
-    p.add_argument("--profile", default=profile, help=f"profile name or JSON path (default: {profile})")
+    p.add_argument(
+        "--profile",
+        default=profile,
+        help="profile name or JSON path (default: auto, the built-in profile that draws the most of the file)",
+    )
     p.add_argument(
         "--max-events",
         type=_number(0),
@@ -197,11 +210,12 @@ def _event_numbers(text):
 
 
 def _view(args):
-    """Convert the inputs to one bundle and, unless told otherwise, publish it and print its link."""
+    """Convert the inputs to one bundle here or, with a site configured, publish it there and print its link."""
     from . import export
     from .nano import convert, parse_events
 
-    publish = not (args.output or args.no_publish)
+    configured = args.site or os.environ.get("EMBER_SITE_DIR")
+    publish = bool(configured) and not (args.output or args.no_publish)
     name = args.name or os.path.splitext(os.path.basename(args.inputs[0]))[0]
     if not args.output:  # the name is that of the file written, on the site or here
         site.check_name(name)
@@ -212,7 +226,8 @@ def _view(args):
     if publish:  # before any work (an export takes minutes): the site must be there, and the user's area writable
         user, files = site.login(args.user), site.store(site.site_dir(args.site))
         files.check(f"{site.USERS}/{user}")
-    unused = [f"--{o}" for o in ("geometry", "era", "conditions", "nano") if getattr(args, o)] if kind == "nano" else []
+    options = ("geometry", "era", "conditions", "nano", "config")
+    unused = [f"--{o}" for o in options if getattr(args, o)] if kind == "nano" else []
     if unused:
         print(
             f"ember: {', '.join(unused)} ignored: for CMSSW reconstruction files, and the input is NanoAOD",
@@ -253,7 +268,7 @@ def _view(args):
                 + (": none of the events asked for is in the input" if args.events else ", so there is no bundle")
             )
         if not publish:
-            print(f"wrote {target}")
+            print(f"wrote {target}\nto see it, drop it on {VIEWER} (your browser reads the file; nothing is uploaded)")
             return 0
         entry, replaced = site.publish_to_user_area(target, site.site_dir(args.site), user, name, args.title)
 
@@ -269,10 +284,7 @@ def _make_nanoaod(args, work, limit, total):
     """Run the export of the reconstruction files `args.inputs` in the folder `work`; returns the NanoAOD file."""
     from . import export
 
-    print(
-        "making the event-display NanoAOD of "
-        f"{'all of them' if not limit or limit >= total else f'the first {limit}'} with cmsRun"
-    )
+    print(f"making the NanoAOD of {'all of them' if not limit or limit >= total else f'the first {limit}'} with cmsRun")
     started = time.time()
     nano = export.export(
         args.inputs,
@@ -283,6 +295,7 @@ def _make_nanoaod(args, work, limit, total):
         args.conditions,
         threads=args.threads or 4,
         log=_Indented(sys.stdout),
+        **({"config": args.config} if args.config else {}),
     )
     print(f"  NanoAOD made in {time.time() - started:.0f} s")
     if args.nano:
@@ -333,12 +346,8 @@ def _rm(args):
 
 
 def _convert(args):
-    from .export import describe
     from .nano import convert, parse_events
 
-    for path in args.inputs:
-        if describe(path)[0] != "nano":
-            raise Problem(f"{path} is a CMSSW reconstruction file, not NanoAOD: `ember view` makes its NanoAOD first")
     n = convert(
         args.inputs,
         args.output,

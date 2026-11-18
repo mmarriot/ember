@@ -56,7 +56,7 @@ import FWCore.ParameterSet.Config as cms
 
 | part | tables | module (package) | era |
 |---|---|---|---|
-| HGCal hits | `rechits`: every rechit of CE-E and CE-H (silicon and scintillator) with its DetId, energy, time and position | `RecHitFlatTableProducer` (PhysicsTools/TruthInfo), positions from TICLGeom (RecoTICL/Geometry) | Phase 2 |
+| HGCal hits | `rechits`: every rechit of CE-E and CE-H (silicon and scintillator) with its DetId, energy, time and position (its `rechit_radius` is left out by the profile: it is not a cell size) | `RecHitFlatTableProducer` (PhysicsTools/TruthInfo), positions from TICLGeom (RecoTICL/Geometry) | Phase 2 |
 | ECAL and HCAL hits | `pfrechits`: the rechits above the particle-flow thresholds, with DetId, energy, time and position. The converter splits it into `EBHits`, `EEHits`, `ESHits`, `HBHits`, `HEHits`, `HOHits` and `HFHits`. | `PFRecHitFlatTableProducer` (PhysicsTools/TruthInfo), positions from CaloGeometry. When the input does not keep the PF rechits (Run 3 RECO keeps only those that cleaning removed), the reconstruction's own producers make them again in the job. | both |
 | HGCal reconstruction | `HGCalLayerClusters`; one table per trackster collection of the input, named after it (for example `ticlTrackstersCLUE3DHigh`, `ticlTracksterLinks`, `ticlCandidate`), each with its list of layer clusters; `TICLCandidates`, with their tracksters and tracks | the tables that `NANO:@HGCAL` writes (DPGAnalysis/HGCalNanoAOD), with only the columns that are drawn | Phase 2 |
 | PF clusters | `PFClusterECAL`, `PFClusterHCAL`, `PFClusterHF`, `PFClusterHO`, and `PFClusterPS` in Run 3 | `LayerClustersCollectionTableProducer` (DPGAnalysis/HGCalNanoAOD), a table of any `reco::CaloCluster` collection | both |
@@ -114,7 +114,7 @@ associations of SimGeneral/TruthGraphAssociatorProducers, and nothing else. Calo
 TrackingParticles are not used. [Truth graph](truth-graph.md) explains why, and what the graph still lacks.
 
 **The tables.** The release has no NanoAOD tables of the truth graph. The branch `truthgraph-nano-tables` adds them.
-When your release has them and the input holds the graph, `ember_cfg.py` writes: <!-- W2-CHECK -->
+When your release has them and the input holds the graph, `ember_cfg.py` writes:
 
 - `TruthParticles`, `TruthVertices`, `TruthParticleChildren`: the signal interaction, the particles that reco objects
   are matched to, every particle that entered the calorimeter (so that each hit's simulated energy has its particle),
@@ -138,9 +138,9 @@ without it, the header of `ember_cfg.py` says so.
 
 **What it costs**, on Phase-2 ttbar at 200 pile-up (3 events, 4 threads): the job takes 3.1 s per event with the
 associators, 2.1 s without them (`--no-truth-associators`), and 0.7 s without truth. The associators take 1.8 s per
-event for the tracks, 1.0 s for the tracksters and 0.25 s for the PF clusters, and the truth tables 0.14 s; the rest
-is reading the stored graph and hit index. The bundle is about 17 MB per event instead of 5. Without pile-up, a job of
-10 events takes 29 s with truth and 28 s without.
+event for the tracks, 1.0 s for the tracksters and 0.25 s for the PF clusters, and the truth tables 0.14 s; the rest is
+reading the stored graph and hit index. The bundle is 17.0 MB per event instead of 5.9 (both with the cluster hits).
+Without pile-up, a job of 10 events takes 29 s with truth and 28 s without.
 
 ## The CMSSW branches
 
@@ -163,7 +163,8 @@ ttbar with geometry `ExtendedRun4D104` and the stock reconstruction; Run 3 is Je
 | cmsRun: time per event | 0.57 s | 0.71 s | 0.24 s |
 | NanoAOD | 0.55 MB | 7.3 MB | 0.16 MB |
 | bundle | 0.37 MB | 5.2 MB | 0.14 MB |
-| with the cluster hits: NanoAOD, bundle | 0.58 MB, 0.39 MB | 9.0 MB, 6.0 MB | 0.20 MB, 0.18 MB |
+| with the cluster hits: NanoAOD, bundle | 0.58 MB, 0.39 MB | 9.0 MB, 5.9 MB | 0.20 MB, 0.17 MB |
+| with the cluster hits and truth: bundle | 0.66 MB | 17.0 MB | (no truth) |
 
 - The job start is most of the time for 10 events: loading the libraries, building the geometry and the conditions.
   Before it, `ember` takes a few seconds to find the settings and to check the input's classes.

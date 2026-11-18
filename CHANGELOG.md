@@ -66,6 +66,8 @@ with a message while an old one is set without its new name. `deploy.sh` links `
 - The site's location is set in one place (`embertools/site.py`), and `EMBER_SITE_DIR`, `EMBER_SITE_URL` and
   `EMBER_SERVICE_DIR` override it. `service/` has no personal paths.
 - `python3 -m evdtools from-nano` is now `ember convert` (`from-nano` still works).
+- The viewer's tour takes under a minute per event of the whole detector, instead of about two: 10 steps instead of
+  14, shorter captions shown for less time, and shorter visits of the leading objects.
 
 ### Fixed
 

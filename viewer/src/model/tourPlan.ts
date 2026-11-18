@@ -16,62 +16,42 @@ export interface TourStep {
   hide?: string[];
 }
 
+/** ms a step is shown: time to read its caption while the camera moves, 1 s to find it and then 30 ms a character (a
+ *  75-character caption: 3.25 s, 23 characters a second). */
+export const stepMs = (detail: string) => Math.min(4500, 1000 + 30 * detail.length);
+
 export const TOUR_STEPS: TourStep[] = [
   {
     kinds: ["beamSpot", "vertex"],
     title: "The collision point",
-    detail:
-      "Bunches of protons cross at the centre of CMS. Each marker is a primary vertex: a point where two protons collided, found from the tracks that come out of it.",
+    detail: "Each marker is a vertex, where two protons collided at the centre of CMS.",
   },
   {
-    kinds: ["trackHit"],
-    title: "Tracker hits",
-    detail:
-      "Charged particles cross the layers of the silicon tracker around the beam, each layer measuring a precise point. Shown: the hits that tracks use.",
-  },
-  {
-    kinds: ["track", "gsfTrack"],
+    kinds: ["trackHit", "track", "gsfTrack", "mtdHit"],
     title: "Tracks",
-    detail:
-      "Hits are joined into tracks: helices bent by the 3.8 T magnetic field. The bending gives each charged particle's momentum, the start where it came from.",
-  },
-  {
-    kinds: ["mtdHit"],
-    title: "Timing layer",
-    detail:
-      "Just outside the tracker, a thin timing layer (MTD) records when each charged particle passed, to a few tens of picoseconds: collisions at the same place but different times can be told apart.",
+    detail: "Hits join into tracks bent by the 3.8 T field; in Phase 2, the MTD times them.",
   },
   {
     kinds: ["caloHit", "rechit"],
     title: "Calorimeter hits",
     hide: ["trackHit", "mtdHit"],
-    detail:
-      "Electrons and photons shower and stop in the electromagnetic calorimeter (ECAL), hadrons in the hadron calorimeter (HCAL) behind it; each cell measures the energy left in it. The endcaps have the high-granularity calorimeter (HGCal).",
+    detail: "Electrons and photons stop in the ECAL, hadrons in the HCAL behind it.",
   },
   {
     kinds: ["pfCluster", "layerCluster"],
     title: "Clusters",
     hide: ["caloHit", "rechit"],
-    detail:
-      "Neighbouring cells with energy are grouped into clusters, ideally one per particle, each with an energy and a position.",
+    detail: "Neighbouring cells are grouped into clusters, ideally one per particle.",
   },
   {
     kinds: ["candidate"],
     title: "Showers in HGCal",
-    detail:
-      "In HGCal, clusters on successive layers are linked into 3D showers, which are matched with the tracks that point at them.",
+    detail: "HGCal links clusters on successive layers into 3D showers, matched to tracks.",
   },
   {
-    kinds: ["muonHit", "muonSegment"],
-    title: "Muon chambers", // not the chambers in use: big boxes over the hits
-    detail:
-      "Only muons get through the calorimeters and the magnet. Chambers in the steel outside it record their hits, combined into short segments in each chamber.",
-  },
-  {
-    kinds: ["muonTrack"],
-    title: "Muon tracks",
-    detail:
-      "Segments are joined into tracks through the muon system, and matched with tracker tracks: a muon's momentum is measured with both.",
+    kinds: ["muonHit", "muonSegment", "muonTrack"], // not the chambers in use: big boxes over the hits
+    title: "Muons",
+    detail: "Only muons get through to the chambers outside the magnet, which track them.",
   },
   {
     kinds: ["pfCandidate"],
@@ -79,36 +59,25 @@ export const TOUR_STEPS: TourStep[] = [
     frame: "all",
     fresh: true,
     keep: ["vertex"],
-    detail:
-      "Particle flow links each track to the clusters and muon hits on its path, and turns the whole event into one list of particles: charged hadrons, electrons, muons, photons, and neutral hadrons from energy no track explains.",
+    detail: "Particle flow combines tracks, clusters and muon hits into one list of particles.",
   },
   {
     kinds: ["jet"],
     title: "Jets",
-    detail:
-      "Quarks and gluons turn into sprays of particles. A jet gathers the particles within a cone into one object, after removing those likely to come from other collisions (pile-up).",
+    detail: "A jet gathers the spray of particles from a quark or gluon within a cone.",
   },
   {
-    kinds: ["met"],
-    title: "Missing momentum",
-    frame: "all",
-    detail:
-      "Across the beam, the momenta of all the particles should balance. What is missing (the arrow) was carried away unseen, e.g. by neutrinos.",
-  },
-  {
-    kinds: ["electron", "photon", "muon", "tau"],
-    title: "Leptons and photons",
+    kinds: ["electron", "photon", "muon", "tau", "met"],
+    title: "Leptons, photons, missing momentum",
     frame: "all",
     fresh: true,
-    keep: ["vertex", "jet", "met"],
-    detail:
-      "Electrons, photons, muons and taus: particles identified from the tracks, clusters and muon hits they left, most of them isolated from the rest of the event.",
+    keep: ["vertex", "jet"],
+    detail: "The arrow: transverse momentum that doesn't balance, carried off unseen (e.g. neutrinos).",
   },
   {
     kinds: ["secondaryVertex"],
     title: "b tagging",
-    detail:
-      "Hadrons with a b quark fly a few millimetres before they decay: their tracks meet at a displaced secondary vertex, which marks the jet around it as a b jet.",
+    detail: "A b hadron flies millimetres before decaying: a displaced vertex tags its jet.",
   },
 ];
 

@@ -5,6 +5,8 @@
 // 2. The event as the bundle shows it: its leading objects (else its main showers) are visited one by one, each
 //    selected so that the card describes it.
 // 3. The next event.
+// An event of the whole detector takes about 50 s at pace 1, plus the time to build its layers. Every duration below
+// is multiplied by the pace: the holds, the camera's flights, the grow-in and the replay's clock.
 // The camera follows the profile's view.tour: "beam" (collider data) starts on the whole detector and never enters it
 // (Engine.tourCamera); "orbit" (the default) frames the objects at their own scale and orbits them.
 import { batch, signal } from "@preact/signals";
@@ -32,7 +34,7 @@ import { passes } from "../model/objects";
 import { related, type Ref } from "../model/relations";
 import { isShower, type Caption } from "../render/replay";
 import { startDomain } from "../model/domains";
-import { tourPlan } from "../model/tourPlan";
+import { stepMs, tourPlan } from "../model/tourPlan";
 import { stopLive } from "./live";
 import { chooseDomain, ranked } from "./navigate";
 import { engine, growTables, replayEvent } from "./scene";
@@ -41,8 +43,6 @@ const ORBIT = 1.2; // turns per minute (orbit tours)
 const SHOWERS = 3; // visited per event
 const LEADING = 4; // physics objects visited per event (bundles that open on a shared domain)
 const GROW = 1.6; // s: a step's objects grow in
-/** ms a step is shown: time to read its caption. */
-const stepMs = (detail: string) => Math.min(8000, 3000 + 25 * detail.length);
 
 /** The tour's caption (Viewport): the step shown. */
 export const tourCaption = signal<Caption | null>(null);
@@ -90,7 +90,8 @@ async function startTour() {
   touring.value = true;
   solo.value = null; // the tour builds the whole event up, not one kind
   view.value = "3d";
-  const pace = import.meta.env.DEV ? Number((window as { emberTourPace?: number }).emberTourPace ?? 1) : 1; // e2e tests: slower
+  // Real time per unit of the durations below: 1, or in development builds window.emberTourPace (2 is half speed).
+  const pace = import.meta.env.DEV ? Number((window as { emberTourPace?: number }).emberTourPace ?? 1) : 1;
   const opened = bundle.value; // another bundle opened (the data set list, a dropped file) stops the tour
   const wait = (ms: number) =>
     new Promise<boolean>((done) =>
@@ -102,7 +103,7 @@ async function startTour() {
   const beam = bundle.value?.header.view?.tour === "beam";
   // `room` (beam tours): how much is kept in view around the target, larger is further out.
   const move = (rows: Map<string, Iterable<number>> | undefined, ms: number, swing: number, room?: number) =>
-    beam ? e.tourTo(rows, ms, room) : e.frame(rows, true, ms, swing);
+    beam ? e.tourTo(rows, ms * pace, room) : e.frame(rows, true, ms * pace, swing);
   const fly = (rows: Map<string, Iterable<number>> | undefined, ms: number, swing: number, room?: number) => {
     move(rows, ms, swing, room);
     return wait(ms);
@@ -138,7 +139,7 @@ async function startTour() {
       visible.value = Object.fromEntries(header!.display.map((d) => [layerKey(d), shown.has(layerKey(d))])); // builds the new layers only
       tourCaption.value = { title: step.title, detail: step.detail };
       const tables = new Set(now.map((d) => d.table));
-      growTables(tables, GROW);
+      growTables(tables, GROW, pace);
       move(step.frame === "all" ? undefined : everything([...tables]), 2400, 0.3, 1.6);
       if (!(await wait(stepMs(step.detail)))) return false;
     }
@@ -147,10 +148,10 @@ async function startTour() {
 
   /** The event replayed (render/replay.ts) while the camera follows it; false if the tour was stopped. */
   const replay = async () => {
-    const plan = replayEvent(),
+    const plan = replayEvent(pace),
       start = performance.now(),
       targets = showers(SHOWERS);
-    const until = (s: number) => wait(Math.max(0, start + s * 1000 - performance.now())); // s on the replay clock
+    const until = (s: number) => wait(Math.max(0, s * 1000 - (performance.now() - start) / pace)); // s on the replay clock
     if (!plan) return wait(4000);
     // Start wide (collider data: the whole detector, both endcaps) while the particles travel; orbit tours come
     // closer to the action straight away.
@@ -194,22 +195,22 @@ async function startTour() {
     }
     const lead = physics ? leading(LEADING) : [],
       targets = lead.length ? lead : showers(SHOWERS);
-    if (!(await fly(undefined, steps.length ? 4000 : 1600, 0.3))) return;
+    if (!(await fly(undefined, steps.length ? 3000 : 1600, 0.3))) return;
     tourCaption.value = null; // the inspector describes each object visited
     for (const [k, ref] of targets.entries()) {
       // the selection cross-fades while the camera glides over
       // To the next one: out towards the whole event and back in without stopping (the next goal arrives
       // mid-glide); the current one stays selected on the way out.
       if (k > 0) {
-        move(undefined, 1600, 0);
-        if (!(await wait(beam ? 800 : 1600))) return;
+        move(undefined, 1200, 0);
+        if (!(await wait(beam ? 600 : 1200))) return;
       }
       selection.value = ref;
-      if (!(await fly(highlight.value ?? undefined, 2400, 0.3, 1.35))) return; // closer on the candidate itself
-      if (!(await wait(3000))) return;
+      if (!(await fly(highlight.value ?? undefined, 1600, 0.3, 1.35))) return; // closer on the candidate itself
+      if (!(await wait(1500))) return;
     }
     selection.value = null;
-    if (!(await fly(undefined, 2600, -0.6))) return; // pull out wide, ready for the next event
+    if (!(await fly(undefined, 2000, -0.6))) return; // pull out wide, ready for the next event
     if (steps.length) visible.value = {}; // the next event starts empty: nothing built that its first step hides
     await showEvent(eventIndex.value + 1);
     if (bundle.peek() !== opened) return stopTour(); // another data set opened while the event was read

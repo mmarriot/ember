@@ -134,24 +134,24 @@ export async function checkBundle(run, file, tag, state) {
       .locator(".inspector .pairline")
       .innerText()
       .catch(() => "");
-    // A kind with no truth of its own opens no pair (src/model/match.ts truthStatus, opensPair): with a truth root in
-    // the bundle, a truthGap and neither a match to a truth layer, a fact into it nor a derived match (e.g. a stock
-    // release's TICL candidates).
+    // A bundle without truth opens no pair (src/model/store/selection.ts pairView), and neither does a kind with no
+    // truth of its own (src/model/match.ts truthStatus, opensPair): a truthGap and neither a match to a truth layer, a
+    // fact into it nor a derived match (e.g. a stock release's TICL candidates).
     const rels = Object.values(h.relations),
       truthTables = new Set(h.display.filter((d) => d.truth).map((d) => d.table));
     const truthRoot = [...truthTables].some((t) => rels.some((r) => r.association && (r.from === t || r.to === t)));
     const ownTruth =
-      !truthRoot ||
       !target.truthGap ||
       !!target.truthGap.derived ||
       rels.some(
         (r) => (r.match && r.from === target.table && truthTables.has(r.to)) || (r.fact && r.to === target.table),
       );
-    log(
-      `${tag}: pair ${pair.replace(/\s+/g, " ") || (ownTruth ? "none" : `none, as ${target.table} has no truth of its own`)}`,
-    );
-    if (!pair && ownTruth) fail("no truth <-> reco pair for the selection");
-    if (pair && !ownTruth) fail(`a truth <-> reco pair for ${target.table}, which has no truth of its own`);
+    const why = !truthRoot ? "none, as the bundle has no truth" : `none, as ${target.table} has no truth of its own`;
+    log(`${tag}: pair ${pair.replace(/\s+/g, " ") || (truthRoot && ownTruth ? "none" : why)}`);
+    if (!pair && truthRoot && ownTruth) fail("no truth <-> reco pair for the selection");
+    if (pair && !truthRoot) fail("a truth <-> reco pair in a bundle without truth");
+    if (pair && truthRoot && !ownTruth)
+      fail(`a truth <-> reco pair for ${target.table}, which has no truth of its own`);
   }
   await shot("3_selected");
   await checkReducedMotion(page, fail);

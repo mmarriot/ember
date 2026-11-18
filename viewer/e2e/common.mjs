@@ -42,6 +42,13 @@ export async function header(base, file) {
     at = Number(tail.readBigUInt64LE(0)),
     len = tail.readUInt32LE(8);
   const index = JSON.parse((await bytes(at, at + len - 1)).toString()).events,
-    rows = Math.max(0, ...index.map((e) => Object.values(e.counts ?? {}).reduce((a, c) => a + c, 0)));
+    rows = index.reduce(
+      (most, e) =>
+        Math.max(
+          most,
+          Object.values(e.counts ?? {}).reduce((a, c) => a + c, 0),
+        ),
+      0,
+    );
   return { ...JSON.parse((await bytes(12, 11 + n)).toString()), size, events: index.length, rows };
 }

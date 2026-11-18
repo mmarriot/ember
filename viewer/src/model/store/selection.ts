@@ -181,7 +181,7 @@ export const pairView = computed<Pair | null>(() => {
   )
     return null;
   if (!opensPair(b.header, f.table, colouring.truth, colouring.reco)) return null;
-  const truthLayer = roots.truth ? b.header.display.find((d) => d.table === roots.truth) : undefined;
+  const truthLayer = b.header.display.find((d) => d.table === roots.truth);
   const pair = pairFor(
     ev,
     b.header,

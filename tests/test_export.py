@@ -207,6 +207,20 @@ PHASE2 = [
     "recoVertexs_offlinePrimaryVertices__RECO.",
     "recoBeamSpot_offlineBeamSpot__RECO.",
     "recoGenParticles_genParticles__HLT.",
+    "recoPFCandidates_particleFlow__RECO.",
+    "floatedmValueMap_puppi__RECO.",
+    "floatedmValueMap_tofPID_t0_RECO.",
+    "recoGsfTracks_electronGsfTracks__RECO.",
+    "recoPFTaus_hpsPFTauProducer__RECO.",
+    "recoGsfElectrons_ecalDrivenGsfElectronsHGC__RECO.",
+    "recoPhotons_gedPhotons__RECO.",
+    "recoSuperClusters_particleFlowSuperClusterECAL_particleFlowSuperClusterECALBarrel_RECO.",
+    "recoVertexs_inclusiveSecondaryVertices__RECO.",
+    "DTChamberIdDTRecSegment4DedmIdToHitRange_dt4DSegments__RECO.",
+    "CSCDetIdCSCSegmentedmIdToHitRange_cscSegments__RECO.",
+    "GEMDetIdGEMSegmentedmIdToHitRange_gemSegments__RECO.",
+    "GEMDetIdGEMRecHitedmIdToHitRange_gemRecHits__RECO.",
+    "RPCDetIdRPCRecHitedmIdToHitRange_rpcRecHits__RECO.",
 ]
 # Run 3 data RECO: PF rechits kept only cleaned away, preshower clusters, no HGCal
 RUN3 = [
@@ -227,6 +241,9 @@ RELEASE = {
     "TICLCandidateTableProducer", "TICLCandidateExtraTableProducer", "LayerClustersCollectionTableProducer",
     "SimpleSuperclusterFlatTableProducer", "SimplePFJetFlatTableProducer", "SimpleTrackFlatTableProducer", "SimpleMETFlatTableProducer",
     "SimpleCandidateFlatTableProducer", "SimpleVertexFlatTableProducer", "SimpleBeamspotFlatTableProducer",
+    "SimplePFCandidateFlatTableProducer", "SimpleGsfTrackFlatTableProducer", "SimplePFTauCandidateFlatTableProducer",
+    "DTSegmentFlatTableProducer", "CSCSegmentFlatTableProducer", "GEMSegmentFlatTableProducer",
+    "GEMRecHitFlatTableProducer", "RPCRecHitFlatTableProducer",
 }  # fmt: skip
 
 
@@ -256,6 +273,42 @@ def test_the_phase2_configuration_has_what_the_input_and_the_release_have():
     assert notes == ["truth: the input has no truth graph (truthLogicalGraphProducer)"]
     assert 'cms.EDProducer("CaloClusterHitsTableProducer",\n    src=cms.InputTag("hgcalMergeLayerClusters")' in text
     assert 'hitsName=cms.string("PFClusterECALHits")' in text
+
+
+def test_the_whole_detector_is_written_from_what_the_release_and_the_input_have():
+    s = cmsrun.Settings(True, False, "Phase2C22I13M9", "ExtendedRun4D104", "auto:phase2_realistic_T35")
+    text, notes = configuration(s, PHASE2)
+    # PF candidates with their PUPPI weight and the rows of what they were made from (references' keys)
+    pf = text.split('name=cms.string("PFCandidates")')[1].split("table(")[0]
+    assert 'puppiWeight=ExtVar("puppi"' in pf and 'endX=Var("?positionAtECALEntrance().R() > 0' in pf
+    for column in ("trackIdx", "gsfTrackIdx", "muonIdx", "electronIdx", "photonIdx"):
+        assert f"{column}=ref(" in pf
+    assert "def ref(r, doc, lazy=False):" in text
+    # objects are uncut, so that index columns address their rows; CHS jets next to the Puppi ones; taus
+    assert 'cut=cms.string("pt' not in text
+    assert 'src=cms.InputTag("ak4PFJetsCHS"), name=cms.string("JetCHS")' in text
+    assert 'name=cms.string("Tau")' in text and "leadCandIdx=ref(" in text
+    # electrons and photons point at the barrel PF superclusters (their parents), HGCal ones at their own; tracks
+    electron = text.split('name=cms.string("Electron")')[1].split("table(")[0]
+    assert "superClusterEBIdx=" in electron and "superClusterEEIdx" not in electron  # no ECAL endcap in Phase 2
+    assert "gsfTrackIdx=ref(" in electron and "trackIdx=ref(" in electron
+    assert "superClusterIdx=" in text.split('name=cms.string("ElectronHGC")')[1].split("table(")[0]
+    assert 'trackIdx=ref("innerTrack()"' in text.split('name=cms.string("Muon")')[1]
+    # every primary vertex with its time, GSF tracks, the tracks' time, the muon system with global positions
+    assert 'name=cms.string("PV")' in text and "maxLen" not in text and 't=Var("t"' in text
+    assert 'name=cms.string("GsfTrack")' in text and 'ExtVar("tofPID:t0"' in text
+    for name in ("DTSegment", "CSCSegment", "GEMSegment", "GEMRecHit", "RPCRecHit"):
+        assert f'name="{name}"' in text
+    assert "globalDirVariables" in text and 'x=GlobGeomVar("x()"' in text
+    # an input without them, or a release without the producers: left out, with a note for the release
+    text, notes = configuration(s, [b for b in PHASE2 if "puppi" not in b and "Gsf" not in b and "tofPID" not in b])
+    assert "puppiWeight" not in text and "gsfTrackIdx" not in text and "tofPID" not in text
+    text, notes = configuration(s, PHASE2, RELEASE - {"SimplePFCandidateFlatTableProducer"})
+    assert "PFCandidates" not in text and "leadCandIdx" not in text
+    assert "this release has no SimplePFCandidateFlatTableProducer" in notes
+    # with PAT, the PF candidates point at no physics object (the PAT ones are in another order)
+    text, _ = cmsrun.config(s, ["file:/in.root"], 5, cmsrun.Inventory(cmsrun.products(PHASE2)), RELEASE, pat=True)
+    assert "PFCandidates" in text and "trackIdx=ref(" in text and "muonIdx" not in text and "electronIdx" not in text
 
 
 def test_the_run3_configuration_remakes_the_pf_rechits_and_has_no_hgcal():

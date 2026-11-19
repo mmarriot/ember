@@ -107,7 +107,7 @@ def cmssw_output(command, env, what, data=None):
     return result.stdout
 
 
-# Runs in the CMSSW python: the release's reco <-> truth association tables of particles (not vertices), and the
+# Runs in the CMSSW python: the release's reco <-> truth association tables (of particles and of vertices), and the
 # module and instance of the map each reads; {} if the release has none.
 _TRUTH_MAPS = r"""
 import json
@@ -118,7 +118,6 @@ except ImportError:
 print(json.dumps({
     label: [m.src.getModuleLabel(), m.src.getProductInstanceLabel()]
     for label, m in truthGraphAssociationTables.items()
-    if m.type_() != "TruthBranchVertexAssociationFlatTableProducer"
 }))
 """
 

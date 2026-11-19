@@ -567,6 +567,7 @@ def test_the_truth_tables_are_written_when_the_release_and_the_input_have_them()
     maps = {
         "truthGraphGeneralTracksToTruthTable": ("allTrackToTruthBranchAssociators", "generalTracksRecoToTruthAdaptiveNominal"),
         "truthGraphTiclCandidateToTruthTable": ("truthBranchTracksterAssociators", "ticlCandidateRecoToTruthAdaptiveNominal"),
+        "truthGraphOfflinePrimaryVerticesToTruthTable": ("allVertexToTruthBranchAssociators", "offlinePrimaryVerticesRecoToTruthAdaptiveNominal"),
     }  # fmt: skip
 
     def truth(branches, release=RELEASE | TRUTH, **options):
@@ -585,8 +586,9 @@ def test_the_truth_tables_are_written_when_the_release_and_the_input_have_them()
     text, notes = truth(PHASE2 + GRAPH)
     assert "process.truthGraphTable = process.truthGraphCaloBoundaryTable.clone(" in text
     assert not [n for n in notes[1:] if "git cms-merge-topic mmarriot:nanoaod-" not in n]  # only other branches
-    # no vertex associations, so no vertex associator runs
-    assert "keepVerticesMatchedBy=[], keepVerticesMatchedByTruthToReco=[]" in text
+    # with every primary vertex written, the vertex associations too, and the truth vertices they match
+    assert "process.truthGraphTable = process.truthGraphCaloBoundaryTable.clone()" in text
+    assert "'truthGraphOfflinePrimaryVerticesToTruthTable'," in text
     assert 'hitTable="recHitTable", hitIdColumn="rechit_ID", name="TruthHGCalRecHits"' in text
     assert 'hitTable="pfRecHitTable", hitIdColumn="rechit_ID", name="TruthPFRecHits"' in text
     assert "'truthGraphGeneralTracksToTruthTable'," in text and "truthGraphNanoAssociatorsTask" in text
@@ -599,7 +601,8 @@ def test_the_truth_tables_are_written_when_the_release_and_the_input_have_them()
     text, notes = truth([*PHASE2, *GRAPH, stored])
     assert "'truthGraphGeneralTracksToTruthTable'," in text and "truthGraphNanoAssociatorsTask" not in text
     assert "'truthGraphTiclCandidateToTruthTable'" not in text  # named in a note only
-    assert any("associations TiclCandidateToTruth: the input's own maps do not have them" in n for n in notes)
+    assert "keepVerticesMatchedBy=[]" in text and "Vertices" not in text.split("own: the tables read them")[1]
+    assert any("TiclCandidateToTruth: the input's own maps do not have them" in n for n in notes)
     # a stored map of a class this release cannot read is dropped on input, so not read
     text, notes = cmsrun.config(
         s, ["file:/in.root"], 5, cmsrun.Inventory(cmsrun.products([*PHASE2, *GRAPH, stored])), RELEASE | TRUTH,

@@ -1056,10 +1056,10 @@ table("jetCHSTagTable", cms.EDProducer("JetTagTableProducer", src=cms.InputTag("
         """The truth graph's tables (PhysicsTools/TruthInfo, git cms-merge-topic mmarriot:truthgraph-nano-tables),
         when the release has their producers and the input the graph: particles, vertices, children; the simulated
         energy of each particle in each hit of the hit tables written above; the reco <-> truth associations of
-        particles (`maps`: table label -> (module, instance) of its map; the vertex ones are left out, as ember writes
-        only the leading vertex). An input with maps of its own (made with the associators in its reconstruction) gives
-        them, and no associator runs (they could need collections it lacks); else the associators run, unless
-        `associators` is false. The particles: the default selection plus every particle that entered the
+        particles and of vertices (`maps`: table label -> (module, instance) of its map). An input with maps of its own
+        (made with the associators in its reconstruction) gives them, and no associator runs (they could need
+        collections it lacks; its vertex maps are not read, as the truth vertices they match would have to be kept);
+        else the associators run, unless `associators` is false. The particles: the default selection plus every particle that entered the
         calorimeter, which carry the hits' energy."""
         inv = self.inv
         if not inv.has("truthLogicalGraphProducer"):
@@ -1083,7 +1083,8 @@ table("jetCHSTagTable", cms.EDProducer("JetTagTableProducer", src=cms.InputTag("
             self.notes.append("truth of the hits: the input has no hit index (truthLogicalGraphHitIndexProducer)")
         # the maps the input holds (not those of a class this release cannot read, dropped on input)
         stored = {(p.module, p.instance) for p in inv.items if p not in drop}
-        held = sorted(label for label, key in maps.items() if key in stored)
+        vertex = lambda label: "Vertices" in label  # e.g. truthGraphOfflinePrimaryVerticesToTruthTable
+        held = sorted(label for label, key in maps.items() if key in stored and not vertex(label))
         names = lambda labels: ", ".join(sorted(re.sub(r"^truthGraph|Table$", "", label) for label in labels))
         tables = lambda labels: (
             f"for label in [{''.join(f'{chr(10)}    {k!r},' for k in sorted(labels))}\n]:\n"
@@ -1096,7 +1097,7 @@ table("jetCHSTagTable", cms.EDProducer("JetTagTableProducer", src=cms.InputTag("
             if len(held) < len(maps):
                 self.notes.append(
                     f"reco <-> truth associations {names(set(maps) - set(held))}: the input's own maps do not have "
-                    "them (with maps of its own, no associator runs)"
+                    "them, or are of vertices (with maps of its own, no associator runs)"
                 )
             assoc = (
                 "# The input holds association maps of its own: the tables read them, and no associator runs (they\n"
@@ -1112,19 +1113,22 @@ table("jetCHSTagTable", cms.EDProducer("JetTagTableProducer", src=cms.InputTag("
         else:
             self.notes.append("reco <-> truth associations: --no-truth-associators, and the input holds no maps")
             assoc = ""
+        # the truth vertices that the vertex maps match are kept, when the associators make those maps here
+        keep = (
+            ""
+            if associators and maps and not held
+            else "\n    keepVerticesMatchedBy=[], keepVerticesMatchedByTruthToReco=[]  # no vertex maps\n"
+        )
         self.add(
             f"""
 # The truth graph: its particles (the signal, the particles reco objects are matched to, every particle that entered
 # the calorimeter, and their ancestors), their vertices and children (PhysicsTools/TruthInfo,
 # SimGeneral/TruthGraphAssociatorProducers)
 process.load("SimGeneral.TruthGraphAssociatorProducers.truthGraphNanoTables_cff")
-process.truthGraphTable = process.truthGraphCaloBoundaryTable.clone(
-    keepVerticesMatchedBy=[], keepVerticesMatchedByTruthToReco=[]  # no vertex associations (below)
-)
+process.truthGraphTable = process.truthGraphCaloBoundaryTable.clone({keep})
 process.emberTables.add(process.truthGraphTable)
 # The simulated energy of each particle in each hit of the hit tables above
-{hits}# The reco <-> truth associations of particles (ember draws no vertex associations: it writes only the leading
-# primary vertex)
+{hits}# The reco <-> truth associations of particles and vertices
 {assoc}"""
         )
 

@@ -61,8 +61,11 @@ import FWCore.ParameterSet.Config as cms
 | PF clusters | `PFClusterECAL`, `PFClusterHCAL`, `PFClusterHF`, `PFClusterHO`, and `PFClusterPS` in Run 3 | `LayerClustersCollectionTableProducer` (DPGAnalysis/HGCalNanoAOD), a table of any `reco::CaloCluster` collection | both |
 | Superclusters | `SuperClusterEB`; `SuperClusterEE` (Run 3); `SuperClusterHGCal` (Phase 2) | `SimpleSuperclusterFlatTableProducer` (PhysicsTools/NanoAOD) | both |
 | The hits of each cluster | for each cluster table `X` above and `HGCalLayerClusters`: a count `nXHits` on `X`, and a table `XHits` of `detId` and `fraction`, one row per (cluster, hit) | `CaloClusterHitsTableProducer`, `PFClusterHitsTableProducer`, `SuperClusterHitsTableProducer`: the branch `nanoaod-cluster-hits` | both |
-| Tracks | `GeneralTrack`: the general tracks, with their momentum, reference point and outermost hit (and, in Phase 2 with TICL candidates, their HGCal entry point) | HGCalNanoAOD's track table (`hgcalGeneralTracks_cfi`) | both |
-| Physics objects | `Jet` (AK4 Puppi jets, or CHS jets where the file has no Puppi jets: uncorrected, pT > 10 GeV), `PuppiMET`, `PFMET`, `Electron`, `Photon`, `Muon`, `ElectronHGC` and `PhotonHGC` (the HGCal electrons and photons of Phase 2), `PV` (the leading primary vertex), `SV`, `OfflineBeamSpot` | PhysicsTools/NanoAOD's `Simple*FlatTableProducer`s on the RECO collections, with the names and columns that standard NanoAOD uses. With `--pat`: standard NanoAOD ([below](#physics-objects-and-pat)). | both |
+| Tracks | `GeneralTrack`: the general tracks, with their momentum, reference point and outermost hit (and, in Phase 2 with TICL candidates, their HGCal entry point; with MTD, their time at the beam line `t0`, from `tofPID`); `GsfTrack`: the electrons' GSF tracks | HGCalNanoAOD's track table (`hgcalGeneralTracks_cfi`); `SimpleGsfTrackFlatTableProducer` | both |
+| Vertices | `PV`: every primary vertex (row 0 the leading one), with its time in Phase 2; `SV`: the inclusive secondary vertices | `SimpleVertexFlatTableProducer` | both |
+| PF candidates | `PFCandidates` (`particleFlow`): momentum, type, vertex, ECAL entrance, energies, time, PUPPI weight (`puppi`), and the rows of their track, GSF track, muon, electron and photon (`trackIdx`, `gsfTrackIdx`, `muonIdx`, `electronIdx`, `photonIdx`) | `SimplePFCandidateFlatTableProducer`; the rows are the keys of the candidate's references (`trackRef().key()`), which point into the collections of those tables | both |
+| Muon system | `DTSegment`, `CSCSegment`, `GEMSegment` (global position and direction), `GEMRecHit`, `RPCRecHit` (global position), each with its DetId and its fields | DPGAnalysis/MuonTools's table producers, with the global position configured | both |
+| Physics objects | `Jet` (AK4 Puppi jets, or CHS jets where the file has no Puppi jets: uncorrected), `JetCHS` (the CHS jets, next to the Puppi ones), `Tau` (HPS: kinematics, decay mode, the row of the leading charged hadron in `PFCandidates`), `PuppiMET`, `PFMET`, `Electron`, `Photon`, `Muon`, `ElectronHGC` and `PhotonHGC` (the HGCal electrons and photons of Phase 2), `OfflineBeamSpot`. Uncut, so that index columns address their rows. Electrons and photons have the rows of their supercluster (`superClusterEBIdx`, `superClusterEEIdx`: the PF supercluster, `parentSuperCluster()`; `superClusterIdx` for HGCal), electrons of their track and GSF track, muons of their inner track. | PhysicsTools/NanoAOD's `Simple*FlatTableProducer`s on the RECO collections, with the names and columns that standard NanoAOD uses; the index columns from the references' keys (`lazyEval`, as the producer is that of `reco::Candidate`). With `--pat`: standard NanoAOD ([below](#physics-objects-and-pat)), without these index columns. | both |
 | Truth | the truth graph tables ([below](#truth)) | the branch `truthgraph-nano-tables` | Phase 2 |
 
 - The tables keep the order of the CMSSW collection they come from.
@@ -79,8 +82,9 @@ import FWCore.ParameterSet.Config as cms
 
 ## Physics objects, and PAT
 
-RECO has no jet energy corrections, jet IDs or b-tag tables that a NanoAOD table producer can read. So, by default,
-the physics objects come straight from the RECO collections: uncorrected jets with no IDs or b-tags, and no taus.
+RECO has no jet energy corrections, jet IDs or b-tag tables that a NanoAOD table producer of the release can read.
+So, by default, the physics objects come straight from the RECO collections: uncorrected jets with no IDs (b-tags with
+the branch `nanoaod-jet-tags`), and HPS taus with their decay mode.
 These tables cost under 1 ms per event.
 
 `--pat` takes the physics objects from PAT and standard NanoAOD instead. `ember` writes the configuration of
@@ -122,8 +126,9 @@ When your release has them and the input holds the graph, `ember_cfg.py` writes:
   left in each hit of `rechits` and `pfrechits`, from the graph's hit index;
 - `<Key>ToTruth` and `TruthTo<Key>`, with their `...Links` tables: the reco ↔ truth associations in both directions,
   for the collections that the release's label registry names: general tracks, the trackster collections, ECAL and
-  HCAL PF clusters. The release also has vertex associations: `ember_cfg.py` leaves them out, as `ember` writes only
-  the leading primary vertex.
+  HCAL PF clusters, and the primary and secondary vertices (`OfflinePrimaryVerticesToTruth`, ..., with the truth
+  vertices they match kept). The vertex associations are written when the associators run in the job, not from an
+  input's own maps.
 
 The associations come from the maps the input holds, when it has them (the TICL v6 samples were made with the
 associators), and no associator runs; the header names the tables whose maps the input lacks. Otherwise CMSSW's
@@ -146,13 +151,26 @@ Without pile-up, a job of 10 events takes 29 s with truth and 28 s without.
 
 ## The CMSSW branches
 
-Both are generic NanoAOD table producers, useful for truth-graph studies, validation and ML training without Ember.
+All are generic NanoAOD table producers, useful for truth-graph studies, validation and ML training without Ember.
 Add them to a CMSSW_20_1_X area with `git cms-merge-topic` ([How-to](how-to.md#get-the-cluster-hits-and-the-truth)).
 
 | branch | what it adds | state |
 |---|---|---|
 | `mmarriot:nanoaod-cluster-hits` | PhysicsTools/NanoAOD: `CaloClusterHitsTableProducer`, `PFClusterHitsTableProducer`, `SuperClusterHitsTableProducer`. For any `reco::CaloCluster`, `reco::PFCluster` or `reco::SuperCluster` collection, a hit count on the cluster table, and a table of `detId` and `fraction` (from `hitsAndFractions()`). At 200 pile-up, the layer-cluster hits take 0.006 s per event. | pushed; the pull request to CMSSW is not open yet |
 | `mmarriot:truthgraph-nano-tables` | PhysicsTools/TruthInfo and SimGeneral/TruthGraphAssociatorProducers: the truth graph tables above (`TruthGraphFlatTableProducer`, `TruthGraphHitFlatTableProducer`, `truthGraphNanoTables_cff`) | pushed; it builds on [cms-sw/cmssw#52451](https://github.com/cms-sw/cmssw/pull/52451) and contains its commits. Its pull request follows when #52451 is merged. |
+| `mmarriot:nanoaod-calo-rechits` | every ECAL (EB, EE, ES) and HCAL (HBHE, HF, HO) rechit with the position of its cell: `EBRecHits`, ..., `HORecHits` (`detId energy time x y z`). They replace the PF rechits, and the cluster hits are found in them. | in progress |
+| `mmarriot:nanoaod-track-hits` | the valid hits of any `reco::Track` collection: `n<T>Hits` on the track table `T`, and `<T>Hits` (`detId x y z layer`), for `GeneralTrack`, `GsfTrack`, and the standalone and global muon tracks (`StandaloneMuonTrack`, `GlobalMuonTrack`, written with their hits) | in progress |
+| `mmarriot:nanoaod-vertex-tracks` | `PVTracks`, `SVTracks`: (vertex, track) pairs with the track's weight | in progress |
+| `mmarriot:nanoaod-pfcandidate-links` | on `PFCandidates`: the rows of its track, GSF track, muon (checked against the collection each reference points into) and TICL candidate; `PFCandidateClusters<ECAL, HCAL, HF, HO, PS>`: (candidate, cluster) pairs from the PF blocks | in progress |
+| `mmarriot:nanoaod-reco-constituents` | `JetPFCands`, `JetCHSPFCands` (`jetIdx`, `pfCandIdx`), `TauPFCands` (`tauIdx`, `pfCandIdx`) | in progress |
+| `mmarriot:nanoaod-jet-tags` | the b-tags of the CHS jets as columns of `JetCHS` | in progress |
+| `mmarriot:nanoaod-mtd-rechits` | `BTLRecHits`, `ETLRecHits`: every MTD rechit with its time and position | in progress |
+| `mmarriot:muontools-rechits-chambers` | DPGAnalysis/MuonTools: `DTRecHit`, `CSCRecHit` with global positions; `MuonChamber`, the chambers that hold a rechit or a segment (centre, axes, half sizes); `Muon<DT, CSC, GEM>Segments`, each muon's segments | in progress |
+| `mmarriot:nanoaod-reco-tables-all` | all of the above together | in progress |
+
+For each branch whose producers the release lacks, the configuration's header names the branch and the branch of all
+of them. The table and column names above follow the branches as they stand today; they are checked again when the
+branches are final.
 
 ## What it costs
 
@@ -190,20 +208,12 @@ of object ([Profiles](profiles.md#display-kinds-prefer-stages-layers)).
 ## Planned: every hit and every object
 
 The goal is that the viewer shows all the hits and all the objects of an event. This is what `ember_cfg.py` does not
-write yet, and how each one is planned. Bundles made with Ember's earlier export (for example the ttbar data sets on
+write yet with the release alone, and how each one is planned. Bundles made with Ember's earlier export (for example the ttbar data sets on
 https://marriot-evd.web.cern.ch) have most of them, through tables that are no longer made.
 
 | not written yet | planned route |
 |---|---|
-| PF candidates, as objects | a table in `ember_cfg.py`: the release's `SimpleCandidateFlatTableProducer` on `particleFlow` |
-| the muon system: DT, CSC, GEM and RPC hits and segments | the release's muon DPG tables (DPGAnalysis/MuonTools, `NANO:@MUDPG`) in `ember_cfg.py`; DT segments need their global x, y, z configured |
-| PF candidate → track and clusters | a small generic CMSSW producer |
-| jet → constituents (now only their number, `nConstituents`) | a generic CMSSW producer, or the JME constituent tables with `--pat` (to check) |
-| MTD hits | a table producer of the release, if there is one, or else a small one |
-| the hits on tracks (tracker hits) | a small generic CMSSW producer |
-| vertex ↔ track | a small generic CMSSW producer |
-| tau constituents | a CMSSW producer, or `--pat` |
-| b-tags without `--pat` | a table producer for RECO's `JetTagCollection`s (the release has only PAT's) |
+| what the branches above add | the branches, as cms-sw pull requests |
 | SoA tables | the generic SoA table producer ([above](#soa-collections)) |
 | exact HGCal cell outlines | see below |
 | HGCal fine scintillator tiles (geometries other than D104) | a DetId rule, tested against every cell of such a geometry. Today these tiles get NaN as their size, so they are most likely not drawn (not checked on screen). |
@@ -220,5 +230,5 @@ Positions, energies and the hits that each object owns are exact; only the outli
 plan: the converter takes each layer's lattice angle from the cell centres (rotation only, nothing in CMSSW), and
 exact outlines come later with a CMSSW producer of the cells' corners.
 
-Each CMSSW producer above is proposed only if users ask for it. Requests are welcome in the
+Requests for what is still missing are welcome in the
 [issue tracker](https://github.com/mmarriot/ember/issues).

@@ -151,7 +151,12 @@ export interface DisplayLayer {
   context?: boolean;
   dim?: number; // 0..1: how far its colours are mixed towards the background
   /** How to name an object in lists (related objects, tree): these columns, with value names, e.g. pdgId 211 -> "π+". */
-  describe?: { columns: string[]; names?: Record<string, Record<string, string>> };
+  /** How to name an object: its columns' values, by `names` if listed, else after their `prefix` (e.g. "St 4"). */
+  describe?: {
+    columns: string[];
+    names?: Record<string, Record<string, string>>;
+    prefix?: Record<string, string>;
+  };
   /** Expression applied as the layer's filter until the user changes it (e.g. "isSignal"). */
   filter?: string;
   /** `ellipsoids`: the surface drawn on the ellipsoid: "solid" (default, translucent), "shell" (outline), "cage"

@@ -42,14 +42,14 @@
   "cuts": {"TICLCandidates": [{"defined": "x"}]},
   "stages": ["trackster", "linkedTrackster", "interpretation", "candidateTrackster", "candidate"],
   "kinds": {
-    "rechit": {"label": "Hits", "domain": "HGCal", "repr": "cells", "palette": "heat", "visible": true, "cut": {"group": "Hit energy", "unit": "GeV", "default": 0.035}},
+    "rechit": {"label": "HGCal hits", "domain": "HGCal", "repr": "cells", "palette": "heat", "visible": true, "cut": {"group": "Hit energy", "unit": "GeV", "default": 0.035}},
     "layerCluster": {"label": "Layer clusters", "domain": "HGCal", "repr": "markers", "palette": "cool", "visible": true, "cut": {"group": "Layer cluster energy", "unit": "GeV", "default": 0.0}},
     "trackster": {"label": "Tracksters", "domain": "HGCal", "repr": "ellipsoids", "colourBy": "row", "visible": true},
     "linkedTrackster": {"label": "Linked tracksters", "domain": "HGCal", "repr": "ellipsoids", "shape": "shell", "colourBy": "row", "visible": true},
     "interpretation": {"label": "Interpretations", "domain": "HGCal", "repr": "ellipsoids", "shape": "cage", "colourBy": "row", "visible": true},
     "candidateTrackster": {"label": "Candidate tracksters", "domain": "HGCal", "repr": "ellipsoids", "shape": "cage", "colourBy": "row", "visible": true},
     "mtdHit": {"label": "MTD hits", "domain": "Tracker", "repr": "markers", "visible": false, "palette": "cool", "colour": "t0", "time": "time", "size": null, "describe": {"columns": ["t0"]}, "inspect": ["t0", "time", "timeError", "energy", "detId", "row", "column"], "truthGap": {"reason": "no truth table of MTD hits", "gap": 19}},
-    "candidate": {"label": "Candidates", "domain": "HGCal", "repr": "ellipsoids", "shape": "core", "visible": true, "colourBy": {"category": "pdgID", "abs": true, "names": {"22": "photon", "11": "electron", "13": "muon", "211": "charged hadron", "130": "neutral hadron", "111": "neutral pion"}}}
+    "candidate": {"label": "TICL candidates", "domain": "HGCal", "repr": "ellipsoids", "shape": "core", "visible": true, "colourBy": {"category": "pdgID", "abs": true, "names": {"22": "photon", "11": "electron", "13": "muon", "211": "charged hadron", "130": "neutral hadron", "111": "neutral pion"}}}
   },
   "display": [
     {"table": "rechits", "kind": "rechit", "label": "HGCal", "position": ["rechit_x", "rechit_y", "rechit_z"], "time": "rechit_time", "colour": "rechit_energy", "size": "halfWidth", "cut": {"column": "rechit_energy"}, "inspect": ["rechit_energy", "rechit_time", "rechit_ID"]},

@@ -321,7 +321,7 @@ FULL = [
     "EcalRecHitsSorted_ecalRecHit_EcalRecHitsEB_RECO.",
     "HBHERecHitsSorted_hbhereco__RECO.",
     "recoPFCandidates_pfTICL__RECO.",
-    "recoTracks_standAloneMuons__RECO.",
+    "recoTracks_standAloneMuons_UpdatedAtVtx_RECO.",
     "recoTracks_globalMuons__RECO.",
     "FTLRecHitsSorted_mtdRecHits_FTLBarrel_RECO.",
     "FTLRecHitsSorted_mtdRecHits_FTLEndcap_RECO.",
@@ -345,7 +345,8 @@ def test_each_cmssw_branch_s_producers_are_used_once_the_release_has_them():
     # the hits of the general, GSF and muon tracks, and the muons' rows of their muon tracks
     for name in ("GeneralTrack", "GsfTrack", "StandaloneMuonTrack", "GlobalMuonTrack"):
         assert f'name=cms.string("{name}"), hitsName=cms.string("{name}Hits")' in text
-    assert 'standaloneTrackIdx=ref("outerTrack()"' in text and 'globalTrackIdx=ref("globalTrack()"' in text
+    assert "standaloneTrackIdx" not in text and 'globalTrackIdx=ref("globalTrack()"' in text
+    assert 'src=cms.InputTag("standAloneMuons:UpdatedAtVtx")' in text
     # vertices' tracks; the PF candidates' links come from the branch's producer (not from references' keys)
     assert 'name=cms.string("PVTracks")' in text and 'name=cms.string("SVTracks")' in text
     pf = text.split('name=cms.string("PFCandidates"), doc')[1].split("table(")[0]

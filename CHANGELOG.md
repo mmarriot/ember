@@ -59,8 +59,9 @@ with a message while an old one is set without its new name. `deploy.sh` links `
   the PF candidates' TICL candidates and PF clusters, jet and tau constituents, b-tags, the DT and CSC rechits and the
   chambers), the configuration uses its producers when the release has them, and says which branch to merge when it
   does not. Presets "All vertices", "Track time" and "What PUPPI removed".
-- **Viewer:** the PF candidates are the root of the "candidate type" colours when they hold the TICL candidates, so
-  that the whole detector, not only HGCal, takes its candidates' colours (`view.colourRoot`).
+- **Viewer:** the PF candidates are the root of the "candidate type" colours (`view.colourRoot`), so that the whole
+  detector, not only HGCal, takes its candidates' colours: always in Run 3, and in Phase 2 once they hold the TICL
+  candidates (the branch `nanoaod-pfcandidate-links`); until then the TICL candidates stay the root.
 - **Converter:** `optional` relations (left out when a file lacks their index column), a `counts` relation without a
   list (children stored in their parents' order), and presets that keep only what the bundle has.
 - **Bundles** record the CMSSW release that wrote their input (`source.cmssw`), and the version of the converter.

@@ -669,7 +669,8 @@ table("pfCandidateTable", cms.EDProducer("SimplePFCandidateFlatTableProducer", s
         """Physics objects from the RECO collections, named and laid out as in standard NanoAOD (a subset of its
         columns), so that the same profile draws a standard NanoAOD; with `pat`, standard NanoAOD has them, and only
         the beam spot's position (which its BeamSpot table lacks) is written here. No table takes a cut: index
-        columns (e.g. of the PF candidates) address their rows in collection order, and the converter cuts them.
+        columns (e.g. of the PF candidates) address their rows in collection order; the viewer's pT cuts hide the soft
+        ones (at 200 pileup, about 175 CHS jets, 118 taus and 43 muons per event).
         The rows of the objects an object was made from are index columns, from references (ref)."""
         inv, s, rows = self.inv, self.s, []
         jets = [j for j in ("ak4PFJetsPuppi", "ak4PFJetsCHS") if not pat and inv.has(j, product_type="recoPFJets")]
@@ -735,7 +736,7 @@ table("tauTable", cms.EDProducer("SimplePFTauCandidateFlatTableProducer", src=cm
             ("photon", "Photon", "gedPhotons", "recoPhotons", "barrel", []),
             ("photonHGC", "PhotonHGC", "photonsHGC", "recoPhotons", "hgcal", []),
             ("muon", "Muon", "muons", "recoMuons", None, [("trackIdx", "innerTrack()", "GeneralTrack (inner track)")]
-             + [(c, r, f"{n} ({src})") for n, src, r, c in self.muon_tracks()]),
+             + [(c, r, f"{n} ({src})") for n, src, r, c in self.muon_tracks() if r]),
         ]  # fmt: skip
         for label, name, src, type_, region, refs in [] if pat else candidates:
             if inv.has(src, product_type=type_) and self.need("SimpleCandidateFlatTableProducer"):
@@ -789,9 +790,12 @@ kinematics = cms.PSet(
         written: only with their hits (CMSSW branch nanoaod-track-hits), through which they are drawn."""
         if not BRANCHES[TRACK_HITS] <= self.release or "SimpleTrackFlatTableProducer" not in self.release:
             return []
-        tracks = [("StandaloneMuonTrack", "standAloneMuons", "outerTrack()", "standaloneTrackIdx"),
+        # A muon's outerTrack() points into standAloneMuons:UpdatedAtVtx, or into standAloneMuons where the update at
+        # the vertex failed, and the two collections stop lining up after such a track: its key does not give a row.
+        # So the standalone tracks are written without a muon's index (none, below), the global ones with it.
+        tracks = [("StandaloneMuonTrack", "standAloneMuons:UpdatedAtVtx", None, None),
                   ("GlobalMuonTrack", "globalMuons", "globalTrack()", "globalTrackIdx")]  # fmt: skip
-        return [t for t in tracks if self.inv.has(t[1], product_type="recoTracks")]
+        return [t for t in tracks if self.inv.has(*t[1].split(":"), product_type="recoTracks")]
 
     def muon_system(self, pat=False):
         """DPGAnalysis/MuonTools' tables of the muon system's segments (DT, CSC, GEM) and of the GEM and RPC rechits,
@@ -814,10 +818,12 @@ kinematics = cms.PSet(
         dy=GlobGeomVar("y()", precision=10, doc="direction, y"),
         dz=GlobGeomVar("z()", precision=10, doc="direction, z"),
     ),"""
+        strips = (
+            '\n        bx=Var("BunchX()", "int16", doc="bunch crossing"),'
+            '\n        clusterSize=Var("clusterSize()", "int16", doc="number of strips"),'
+        )
         hit = """
-    variables=cms.PSet(
-        bx=Var("BunchX()", "int16", doc="bunch crossing"),
-        clusterSize=Var("clusterSize()", "int16", doc="number of strips"),{}
+    variables=cms.PSet({}
     ),
     globalPosVariables=cms.PSet(
         x=GlobGeomVar("x()", precision=14, doc="x [cm]"),
@@ -838,9 +844,9 @@ kinematics = cms.PSet(
              segment.format('\n        nHits=Var("nRecHits", "int16", doc="number of hits"),')
              + detid("region", "station", "ring", "chamber")),
             ("gemRecHits", "GEMRecHitFlatTableProducer", "gemRecHit", "GEMRecHit", "GEM rechits",
-             hit.format("") + detid("region", "station", "ring", "chamber", "layer", "roll")),
+             hit.format(strips) + detid("region", "station", "ring", "chamber", "layer", "roll")),
             ("rpcRecHits", "RPCRecHitFlatTableProducer", "rpcRecHit", "RPCRecHit", "RPC rechits",
-             hit.format('\n        time=Var("time", "float", precision=8, doc="time [ns]"),')
+             hit.format(strips + '\n        time=Var("time", "float", precision=8, doc="time [ns]"),')
              + detid("region", "ring", "station", "sector", "layer", "roll")),
         ]  # fmt: skip
         rechits = inv.has("dt1DRecHits") or inv.has("csc2DRecHits")
@@ -849,13 +855,10 @@ kinematics = cms.PSet(
         )
         tables += [
             ("dt1DRecHits", "DTRecHitFlatTableProducer", "dtRecHit", "DTRecHit", "DT rechits (wire pairs)",
-             hit.format("").replace('\n        bx=Var("BunchX()", "int16", doc="bunch crossing"),\n        clusterSize=Var('
-                                    '"clusterSize()", "int16", doc="number of strips"),', "")
+             hit.format("")
              + detid("wheel", "station", "sector", "superlayer", "layer")),
             ("csc2DRecHits", "CSCRecHitFlatTableProducer", "cscRecHit", "CSCRecHit", "CSC 2D rechits",
-             hit.format("").replace('\n        bx=Var("BunchX()", "int16", doc="bunch crossing"),\n        clusterSize=Var('
-                                    '"clusterSize()", "int16", doc="number of strips"),', '\n        time=Var("tpeak", '
-                                    '"float", precision=8, doc="peak time [ns]"),')
+             hit.format('\n        time=Var("tpeak", "float", precision=8, doc="peak time [ns]"),')
              + detid("endcap", "station", "ring", "chamber", "layer")),
         ] * more  # fmt: skip
         for src, plugin, cfi, name, doc, columns in tables:

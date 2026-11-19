@@ -4,8 +4,8 @@
   "internal": ["MuonDTSegments", "MuonCSCSegments", "MuonGEMSegments"],
   "derive": [
     {"table": "MuonChamber", "bits": {"subdet": ["detId", 25, 3]}},
-    {"table": "StandaloneMuonTrackHits", "bits": {"subdet": ["detId", 25, 3]}},
-    {"table": "GlobalMuonTrackHits", "bits": {"subdet": ["detId", 25, 3]}}
+    {"table": "StandaloneMuonTrackHits", "bits": {"part": ["detId", 25, 7]}},
+    {"table": "GlobalMuonTrackHits", "bits": {"part": ["detId", 25, 7]}}
   ],
   "relations": [
     {"name": "muonDTSegments", "kind": "links", "from": "Muon", "to": "DTSegment", "table": "MuonDTSegments", "fromIndex": "MuonDTSegments.muonIdx", "toIndex": "MuonDTSegments.segmentIdx"},
@@ -14,7 +14,6 @@
     {"name": "cscSegmentChamber", "kind": "key", "from": "CSCSegment", "to": "MuonChamber", "fromKey": "CSCSegment.detId", "toKey": "MuonChamber.detId"},
     {"name": "muonGEMSegments", "kind": "links", "from": "Muon", "to": "GEMSegment", "table": "MuonGEMSegments", "fromIndex": "MuonGEMSegments.muonIdx", "toIndex": "MuonGEMSegments.segmentIdx"},
     {"name": "gemSegmentChamber", "kind": "key", "from": "GEMSegment", "to": "MuonChamber", "fromKey": "GEMSegment.detId", "toKey": "MuonChamber.detId"},
-    {"name": "muonStandaloneTrack", "kind": "index", "from": "Muon", "to": "StandaloneMuonTrack", "index": "Muon.standaloneTrackIdx", "optional": true},
     {"name": "standaloneTrackHits", "kind": "counts", "from": "StandaloneMuonTrack", "to": "StandaloneMuonTrackHits", "counts": "StandaloneMuonTrack.nStandaloneMuonTrackHits"},
     {"name": "muonGlobalTrack", "kind": "index", "from": "Muon", "to": "GlobalMuonTrack", "index": "Muon.globalTrackIdx", "optional": true},
     {"name": "globalTrackHits", "kind": "counts", "from": "GlobalMuonTrack", "to": "GlobalMuonTrackHits", "counts": "GlobalMuonTrack.nGlobalMuonTrackHits"}
@@ -35,8 +34,8 @@
     {"table": "CSCRecHit", "kind": "muonHit", "label": "CSC", "fixedColour": "#4f9de0", "position": ["x", "y", "z"], "time": "time", "describe": {"columns": ["station", "ring", "chamber"]}, "inspect": ["endcap", "station", "ring", "chamber", "layer", "time"]},
     {"table": "StandaloneMuonTrack", "kind": "muonTrack", "label": "Standalone", "position": ["vx", "vy", "vz"], "points": {"relation": "standaloneTrackHits"}, "describe": {"columns": ["pt", "eta"]}, "inspect": ["pt", "eta", "phi", "charge", "chi2"]},
     {"table": "GlobalMuonTrack", "kind": "muonTrack", "label": "Global", "position": ["vx", "vy", "vz"], "points": {"relation": "globalTrackHits"}, "describe": {"columns": ["pt", "eta"]}, "inspect": ["pt", "eta", "phi", "charge", "chi2"]},
-    {"table": "StandaloneMuonTrackHits", "kind": "muonHit", "label": "On standalone tracks", "position": ["x", "y", "z"], "onSelection": true, "describe": {"columns": ["subdet", "layer"], "names": {"subdet": {"1": "DT", "2": "CSC", "3": "RPC", "4": "GEM", "5": "ME0"}}}, "truthGap": {"reason": "the hits the muon track was fitted with (a DT or CSC segment counts as one); no truth table of muon hits", "gap": 18}},
-    {"table": "GlobalMuonTrackHits", "kind": "muonHit", "label": "On global tracks", "position": ["x", "y", "z"], "onSelection": true, "describe": {"columns": ["subdet", "layer"], "names": {"subdet": {"1": "DT", "2": "CSC", "3": "RPC", "4": "GEM", "5": "ME0"}}}, "truthGap": {"reason": "the hits the muon track was fitted with (a DT or CSC segment counts as one); no truth table of muon hits", "gap": 18}},
+    {"table": "StandaloneMuonTrackHits", "kind": "muonHit", "label": "On standalone tracks", "position": ["x", "y", "z"], "onSelection": true, "describe": {"columns": ["part", "layer"], "names": {"part": {"9": "PXB", "10": "PXF", "11": "TIB", "12": "TID", "13": "TOB", "14": "TEC", "17": "DT", "18": "CSC", "19": "RPC", "20": "GEM", "21": "ME0"}}}, "truthGap": {"reason": "the hits the muon track was fitted with (a DT or CSC segment counts as one); no truth table of muon hits", "gap": 18}},
+    {"table": "GlobalMuonTrackHits", "kind": "muonHit", "label": "On global tracks", "position": ["x", "y", "z"], "onSelection": true, "describe": {"columns": ["part", "layer"], "names": {"part": {"9": "PXB", "10": "PXF", "11": "TIB", "12": "TID", "13": "TOB", "14": "TEC", "17": "DT", "18": "CSC", "19": "RPC", "20": "GEM", "21": "ME0"}}}, "truthGap": {"reason": "the hits the muon track was fitted with (a DT or CSC segment counts as one); no truth table of muon hits", "gap": 18}},
     {"table": "MuonChamber", "kind": "muonChamber", "label": "Chambers in use", "position": ["x", "y", "z"], "cell": {"shape": "box", "u": ["ux", "uy", "uz"], "v": ["vx", "vy", "vz"], "size": ["halfWidthBottom", "halfWidthTop", "halfLength", "halfThickness"]}, "describe": {"columns": ["subdet"], "names": {"subdet": {"1": "DT", "2": "CSC", "3": "RPC", "4": "GEM", "5": "ME0"}}}}
   ]
 }

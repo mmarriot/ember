@@ -46,7 +46,7 @@ def test_the_release_tables_are_drawn_and_linked_under_the_phase2_profile():
     assert header["presets"] == [
         {"name": "Primary vertex", "filters": {"PV": "index == 0", "GeneralTrack": "highPurity == 1 && vertex < 1"}},
         {"name": "All vertices", "filters": {"PV": "", "GeneralTrack": "highPurity == 1"}},
-        {"name": "What PUPPI removed", "filters": {"PFCandidates": "puppiWeight == 0"}},
+        {"name": "What PUPPI removed", "filters": {"PFCandidates": "puppiWeight == 0"}, "show": ["PFCandidates"]},
         {"name": "Track time", "colour": {"GeneralTrack": "t0", "PV": "t"}},
     ]
 
@@ -91,7 +91,7 @@ BRANCHES = {
 }  # fmt: skip
 COLUMNS = {  # columns the branches add to the release's tables
     "GeneralTrack": {"nGeneralTrackHits": U2}, "GsfTrack": {"nGsfTrackHits": U2},
-    "PFCandidates": {"ticlCandidateIdx": I4}, "Muon": {"standaloneTrackIdx": I4, "globalTrackIdx": I4},
+    "PFCandidates": {"ticlCandidateIdx": I4}, "Muon": {"globalTrackIdx": I4},
     "JetCHS": {"btagDeepCSV": F4, "btagJP": F4},
 }  # fmt: skip
 
@@ -109,7 +109,7 @@ def test_the_tables_of_every_cmssw_branch_are_drawn_and_linked():
     assert {"RecHitEB", "RecHitHB", "RecHitHO", "RecHitHF", "RecHitBTL", "GeneralTrackHits", "DTRecHit",
             "CSCRecHit", "MuonChamber", "StandaloneMuonTrack", "GlobalMuonTrackHits"} <= drawn  # fmt: skip
     for name in ("trackHits", "gsfTrackHits", "vertexTracks", "trackVertex", "svTracks", "pfTicl", "pfClustersECAL",
-                 "pfClustersHF", "jetConstituents", "jetCHSConstituents", "tauConstituents", "muonStandaloneTrack",
+                 "pfClustersHF", "jetConstituents", "jetCHSConstituents", "tauConstituents", "muonGlobalTrack",
                  "standaloneTrackHits", "muonDTSegments", "dtSegmentChamber"):  # fmt: skip
         assert name in rels, name
     # the PF candidates hold the TICL candidates: they are the colour root, the whole detector takes their colours

@@ -76,9 +76,10 @@ export function describe(table: string, row: number, skip: string[] = []): strin
       const v = Number(t.columns[c][row]),
         name = hint.names?.[c]?.[String(v)];
       if (name) return name;
-      const prefix = hint.prefix?.[c] ?? columnName(c), // e.g. "St 4" for a muon segment's station, "pT 65.5 GeV"
+      // e.g. "St 4" for a muon segment's station, "pT 65.5 GeV"; an empty prefix gives the bare number
+      const prefix = hint.prefix?.[c] ?? columnName(c),
         unit = unitOf(b.header.tables[table]?.columns[c]?.doc);
-      return `${prefix} ${short(v)}${unit ? ` ${unit}` : ""}`;
+      return `${prefix ? `${prefix} ` : ""}${short(v)}${unit ? ` ${unit}` : ""}`;
     })
     .join(" · ");
 }

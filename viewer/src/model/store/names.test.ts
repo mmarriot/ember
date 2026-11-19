@@ -61,5 +61,8 @@ group("describe", () => {
     await showEvent(0);
     expect(describe("O", 0)).toBe("pT 65.5 GeV · E 177 GeV · E raw 178 GeV");
     expect(describe("O", 0, ["energy"])).toBe("pT 65.5 GeV · E raw 178 GeV");
+    const d = bundle.value!.header.display[0];
+    d.describe = { columns: ["pt"], prefix: { pt: "" } };
+    expect(describe("O", 0)).toBe("65.5 GeV"); // an empty prefix: the bare number
   });
 });

@@ -42,6 +42,11 @@ const NAMES: Record<string, string> = {
   rawEnergy: "E raw",
   rechit_energy: "E",
   mass: "m",
+  nTracks: "tracks",
+  ntracks: "tracks",
+  sumPt2: "ΣpT²",
+  time: "t",
+  wheelOrRing: "wheel/ring",
 };
 export const columnName = (c: string) => NAMES[c] ?? c;
 

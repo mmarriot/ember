@@ -137,15 +137,15 @@ describe("recoLadder", () => {
       beside: [],
     });
   });
-  it("indents each step under the step it was reached from, and names its other holders", () => {
+  it("indents each step under the last step that holds it, and names its other holders", () => {
     const l = ladder("Jet", 0);
     expect(l.below.map((r) => `${r.indent} ${r.kind}${r.via?.length ? ` via ${r.via}` : ""}`)).toEqual([
       "0 PF candidates",
       "1 Candidates",
       "2 Interpretations",
-      "2 Layer clusters via Interpretations",
-      "3 Hits",
-      "1 Tracks via Candidates",
+      "3 Layer clusters via Candidates",
+      "4 Hits",
+      "2 Tracks via PF candidates",
     ]);
   });
   it("never lists what contains the object as one of its parts (a PF candidate made of the candidate and its track)", () => {

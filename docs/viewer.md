@@ -406,9 +406,9 @@ threshold gets no dot and no green, because nothing says how good its match is.
 
 - what it is **part of**: the objects that contain it, outermost first;
 - what it is **made of**: from the largest objects down to the hits, one branch at a time. A jet's PF candidates come
-  first, then their TICL candidates down to the HGCal hits, then their tracks down to the track hits. A step is
-  indented under the step it is reached from. A kind that several steps lead to comes after all of them, under one,
-  with the others named: "also via TICL candidates" on a jet's tracks;
+  first, then their TICL candidates down to the HGCal hits, then their tracks down to the track hits. A step comes
+  right after the last step that holds it, indented under it, with its other holders named: "also via PF
+  candidates" on tracks listed under a jet's TICL candidates;
 - what is **also inside it**, listed apart: objects built only from its parts that are not parts of it. For example
   a secondary vertex whose tracks are all in the jet, or a tau made of its PF candidates.
 

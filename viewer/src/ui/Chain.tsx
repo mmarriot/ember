@@ -177,7 +177,7 @@ function RungRow({ rung, role }: { rung: Rung; role: "above" | "self" | "below" 
       {!!rung.via?.length && (
         <div
           class="rvia muted"
-          title="Relations also lead here from these steps; it is indented under the step listed above it"
+          title="Relations also lead here from these steps; it is indented under the last step that holds it"
         >
           also via {rung.via.join(", ")}
         </div>

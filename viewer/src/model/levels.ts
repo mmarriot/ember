@@ -137,29 +137,31 @@ export function focusLevels(
 }
 
 /** The levels as the card's chain lists them, so that each branch reads down to its end before the next (a jet's TICL
- *  candidates down to their hits, then its tracks down to theirs): depth first from the levels held by none, every
- *  level once all its holders are listed, ties in the order given. `indent`: how deep in that walk it was first
- *  reached; `via`: its other holders, those it is not under (a kind several kinds hold: a jet's tracks, through its
- *  PF candidates and its TICL candidates). The levels' own order (what the view steps through) is left as it is. */
+ *  candidates down to their hits, then its tracks down to theirs): depth first from the levels held by none, each
+ *  level as soon as the last of its holders is listed, ties in the order given. `indent`: one more than that last
+ *  holder's, so a step sits under the closest step holding it; `via`: its other holders (a kind several kinds hold: a
+ *  jet's tracks, through its PF candidates and its TICL candidates). The levels' own order (what the view steps
+ *  through) is left as it is. */
 export function chainOrder(levels: Level[]): { level: Level; indent: number; via: string[] }[] {
   const names = new Set(levels.map((l) => l.name)),
     holders = (l: Level) => (l.holders ?? []).filter((h) => names.has(h));
-  // Reverse post-order: a level comes after all its holders, and right after it what was first reached from it.
-  // Children are visited last first, so that they come out first first.
-  const seen = new Set<Level>(),
-    post: { level: Level; under?: Level }[] = [];
-  const visit = (l: Level, under?: Level) => {
-    seen.add(l);
-    for (const c of levels.filter((c) => holders(c).includes(l.name)).reverse()) if (!seen.has(c)) visit(c, l);
-    post.push({ level: l, under });
+  // How many of each level's holders are not listed yet; -1 once it is listed.
+  const left = new Map(levels.map((l) => [l, holders(l).length])),
+    out: { level: Level; indent: number; via: string[] }[] = [];
+  const visit = (l: Level, indent: number, under?: string) => {
+    left.set(l, -1);
+    out.push({ level: l, indent, via: holders(l).filter((h) => h !== under) });
+    const ready: Level[] = [];
+    for (const c of levels)
+      if (left.get(c)! > 0 && holders(c).includes(l.name)) {
+        left.set(c, left.get(c)! - 1);
+        if (!left.get(c)) ready.push(c);
+      }
+    for (const c of ready) if (left.get(c) === 0) visit(c, indent + 1, l.name);
   };
-  for (const l of [...levels].reverse()) if (!holders(l).length && !seen.has(l)) visit(l);
-  for (const l of [...levels].reverse()) if (!seen.has(l)) visit(l); // a cycle of holders
-  const indent = new Map<Level, number>();
-  return post.reverse().map(({ level, under }) => {
-    indent.set(level, under ? indent.get(under)! + 1 : 0);
-    return { level, indent: indent.get(level)!, via: holders(level).filter((h) => h !== under?.name) };
-  });
+  for (const l of levels) if (left.get(l) === 0) visit(l, 0);
+  for (const l of levels) if (left.get(l)! >= 0) visit(l, 0); // a cycle of holders
+  return out;
 }
 
 /** Which layers of the levels are drawn: those of the levels always drawn (the smallest objects, lines) and of the

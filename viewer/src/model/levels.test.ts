@@ -201,11 +201,11 @@ describe("chainOrder", () => {
       "PF candidates",
       "  TICL candidates",
       "    Candidate tracksters",
-      "    Linked tracksters (via Candidate tracksters)",
-      "      Layer clusters (via Candidate tracksters)",
-      "        Hits",
-      "  Tracks (via TICL candidates)",
-      "    Track hits",
+      "      Linked tracksters (via TICL candidates)",
+      "        Layer clusters (via Candidate tracksters)",
+      "          Hits",
+      "    Tracks (via PF candidates)",
+      "      Track hits",
     ]);
     // the levels the view steps through keep their order: holders first, then what is always drawn
     expect(focusLevels(jet, "Jet", all, () => true, relations).map((l) => l.depth)).toEqual([0, 1, 2, 3, 4, 5, 2, 3]);
@@ -216,8 +216,8 @@ describe("chainOrder", () => {
     expect(walk(focusLevels(jet, "Jet", hl, () => true, relations))).toEqual([
       "PF candidates",
       "  TICL candidates",
-      "  Tracks (via TICL candidates)",
-      "    Track hits",
+      "    Tracks (via PF candidates)",
+      "      Track hits",
     ]);
   });
   it("does not let kinds that only share objects hold each other (jets and taus of one PF candidate)", () => {

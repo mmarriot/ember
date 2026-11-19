@@ -91,8 +91,8 @@ BRANCHES = {
 }  # fmt: skip
 COLUMNS = {  # columns the branches add to the release's tables
     "GeneralTrack": {"nGeneralTrackHits": U2}, "GsfTrack": {"nGsfTrackHits": U2},
-    "PFCandidates": {"ticlCandidateIdx": I4}, "Muon": {"globalTrackIdx": I4},
-    "JetCHS": {"btagDeepCSV": F4, "btagJP": F4},
+    "PFCandidates": {"ticlCandidateIdx": I4}, "Muon": {"globalTrackIdx": I4, "standaloneTrackIdx": I4},
+    "JetCHS": {"btagDeepCSVB": F4, "btagJP": F4},
 }  # fmt: skip
 
 
@@ -109,7 +109,7 @@ def test_the_tables_of_every_cmssw_branch_are_drawn_and_linked():
     assert {"RecHitEB", "RecHitHB", "RecHitHO", "RecHitHF", "RecHitBTL", "GeneralTrackHits", "DTRecHit",
             "CSCRecHit", "MuonChamber", "StandaloneMuonTrack", "GlobalMuonTrackHits"} <= drawn  # fmt: skip
     for name in ("trackHits", "gsfTrackHits", "vertexTracks", "trackVertex", "svTracks", "pfTicl", "pfClustersECAL",
-                 "pfClustersHF", "jetConstituents", "jetCHSConstituents", "tauConstituents", "muonGlobalTrack",
+                 "pfClustersHF", "jetConstituents", "jetCHSConstituents", "tauConstituents", "muonGlobalTrack", "muonStandaloneTrack",
                  "standaloneTrackHits", "muonDTSegments", "dtSegmentChamber", "dtRecHitChamber", "cscRecHitChamber"):  # fmt: skip
         assert name in rels, name
     # the PF candidates hold the TICL candidates: they are the colour root, the whole detector takes their colours

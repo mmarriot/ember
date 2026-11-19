@@ -334,6 +334,7 @@ FULL = [
     "JetTagsAssociation_pfJetProbabilityBJetTags__RECO.",
     "recoPFClusters_particleFlowClusterHCAL__RECO.",
     "TrackingRecHitsOwned_standAloneMuons__RECO.",
+    "recoTracks_standAloneMuons__RECO.",
     "TrackingRecHitsOwned_globalMuons__RECO.",
     "recoPFBlocks_particleFlowBlock__RECO.",
 ]
@@ -350,7 +351,10 @@ def test_each_cmssw_branch_s_producers_are_used_once_the_release_has_them():
     # the hits of the general, GSF and muon tracks, and the muons' rows of their muon tracks
     for name in ("GeneralTrack", "GsfTrack", "StandaloneMuonTrack", "GlobalMuonTrack"):
         assert f'name=cms.string("{name}"), hitsName=cms.string("{name}Hits")' in text
-    assert "standaloneTrackIdx" not in text and 'globalTrackIdx=ref("globalTrack()"' in text
+    assert 'globalTrackIdx=ref("globalTrack()"' in text and "standaloneTrackIdx=ref(" not in text
+    # the standalone track's row comes from the branch's producer, given both collections an outer track can be in
+    assert 'cms.EDProducer("MuonTrackLinkTableProducer"' in text and 'name=cms.string("standaloneTrackIdx")' in text
+    assert 'src=cms.InputTag("standAloneMuons"),' in text
     assert 'src=cms.InputTag("standAloneMuons:UpdatedAtVtx")' in text
     # vertices' tracks; the PF candidates' links come from the branch's producer (not from references' keys)
     assert 'name=cms.string("PVTracks")' in text and 'name=cms.string("SVTracks")' in text
@@ -360,7 +364,8 @@ def test_each_cmssw_branch_s_producers_are_used_once_the_release_has_them():
     # jet and tau constituents, CHS b-tags, MTD rechits, the muon system's rechits, chambers and segment matches
     for name in ("JetPFCands", "JetCHSPFCands", "TauPFCands", "RecHitBTL", "RecHitETL", "DTRecHit", "CSCRecHit"):
         assert f'name=cms.string("{name}")' in text or f'name="{name}"' in text
-    assert "JetTagTableProducer" in text and "'pfDeepCSVJetTags:probb', 'pfDeepCSVJetTags:probbb'" in text
+    assert "JetTagTableProducer" in text
+    assert "btagDeepCSVB=cms.PSet(src=cms.VInputTag('pfDeepCSVJetTags:probb', 'pfDeepCSVJetTags:probbb')" in text
     assert 'name=cms.string("MuonChamber")' in text and 'name=cms.string("MuonDTSegments")' in text
     assert 'chamberDetId=DetIdVar("chamberId().rawId()"' in text
     # an AOD: no hits of tracks, no PF blocks for the PF candidates' clusters
@@ -370,8 +375,10 @@ def test_each_cmssw_branch_s_producers_are_used_once_the_release_has_them():
     assert any("the input does not keep them (AOD)" in n for n in notes)
     # without them: the release's tables, and a note per branch naming it and the branch of all of them
     text, notes = configuration(s, PHASE2 + FULL, RELEASE)
-    for branch in set(cmsrun.BRANCHES):
+    for branch in set(cmsrun.BRANCHES) - {cmsrun.MUON_TRACK_LINKS}:  # that one only with the muon tracks' table
         assert any(f"git cms-merge-topic mmarriot:{branch}, or every table at once" in n for n in notes), branch
+    _, notes = configuration(s, PHASE2 + FULL, RELEASE | plugins - cmsrun.BRANCHES[cmsrun.MUON_TRACK_LINKS])
+    assert any(f"mmarriot:{cmsrun.MUON_TRACK_LINKS}, or every table" in n for n in notes)
     assert "pfRecHitTable" in text and "trackIdx=ref(" in text and "StandaloneMuonTrack" not in text
 
 

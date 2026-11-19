@@ -94,6 +94,7 @@ CONSTITUENTS = "nanoaod-reco-constituents"
 JET_TAGS = "nanoaod-jet-tags"
 MTD_RECHITS = "nanoaod-mtd-rechits"
 MUON_RECHITS = "muontools-rechits-chambers"
+MUON_TRACK_LINKS = "nanoaod-muon-track-links"
 BRANCHES = {
     CALO_RECHITS: {"EcalRecHitTableProducer", "HBHERecHitTableProducer", "HFRecHitTableProducer",
                    "HORecHitTableProducer"},
@@ -105,6 +106,7 @@ BRANCHES = {
     MTD_RECHITS: {"MTDRecHitTableProducer"},
     MUON_RECHITS: {"DTRecHitFlatTableProducer", "CSCRecHitFlatTableProducer", "MuChamberTableProducer",
                    "MuDTSegmentMatchTableProducer", "MuCSCSegmentMatchTableProducer", "MuGEMSegmentMatchTableProducer"},
+    MUON_TRACK_LINKS: {"MuonTrackLinkTableProducer"},
 }  # fmt: skip
 
 
@@ -133,6 +135,8 @@ def config(
     w.physics(pat)
     w.muon_system(pat)
     w.track_hits()
+    if not pat:
+        w.muon_track_links()
     w.mtd_rechits()
     w.truth(associators, truth_maps or {}, set(drop), pat)
     w.output(output, pat)
@@ -792,10 +796,30 @@ kinematics = cms.PSet(
             return []
         # A muon's outerTrack() points into standAloneMuons:UpdatedAtVtx, or into standAloneMuons where the update at
         # the vertex failed, and the two collections stop lining up after such a track: its key does not give a row.
-        # So the standalone tracks are written without a muon's index (none, below), the global ones with it.
+        # So the standalone tracks get no expression (None, below): muon_track_links() writes their index.
         tracks = [("StandaloneMuonTrack", "standAloneMuons:UpdatedAtVtx", None, None),
                   ("GlobalMuonTrack", "globalMuons", "globalTrack()", "globalTrackIdx")]  # fmt: skip
         return [t for t in tracks if self.inv.has(*t[1].split(":"), product_type="recoTracks")]
+
+    def muon_track_links(self):
+        """The muons' rows of their standalone track (CMSSW branch nanoaod-muon-track-links), extending the muon table:
+        the producer checks which collection the reference is in, which an expression cannot."""
+        standalone = [t for t in self.muon_tracks() if t[0] == "StandaloneMuonTrack"]
+        if not standalone or not self.inv.has("standAloneMuons", "", "recoTracks"):
+            return
+        if not self.branch(MUON_TRACK_LINKS, "the muons' standalone tracks"):
+            return
+        # every collection an outer track can be in must be given (else the producer throws): standAloneMuons too,
+        # whose table is not written (outerTrackNotAtVtxIdx, unused)
+        self.add("""
+# The muons' standalone tracks (CMSSW branch nanoaod-muon-track-links): the row in the StandaloneMuonTrack table
+# (standAloneMuons:UpdatedAtVtx), -1 if none or in standAloneMuons (the update at the vertex failed)
+table("muonTrackLinkTable", cms.EDProducer("MuonTrackLinkTableProducer", src=cms.InputTag("muons"), name=cms.string("Muon"),
+    tracks=cms.VPSet(
+        cms.PSet(name=cms.string("standaloneTrackIdx"), type=cms.string("outer"), src=cms.InputTag("standAloneMuons", "UpdatedAtVtx"),
+                 doc=cms.string("row in StandaloneMuonTrack (standAloneMuons:UpdatedAtVtx), -1 if none or not there")),
+        cms.PSet(name=cms.string("outerTrackNotAtVtxIdx"), type=cms.string("outer"), src=cms.InputTag("standAloneMuons"),
+                 doc=cms.string("index in standAloneMuons (not updated at the vertex), -1 if none or not there")))))""")
 
     def muon_system(self, pat=False):
         """DPGAnalysis/MuonTools' tables of the muon system's segments (DT, CSC, GEM) and of the GEM and RPC rechits,
@@ -1035,7 +1059,7 @@ table("pfCandidateLinkTable", cms.EDProducer("PFCandidateLinkTableProducer", src
     def jet_tags(self, jets):
         """The b-tags of the CHS jets (CMSSW branch nanoaod-jet-tags), as text for physics()."""
         chs = [name for name, src in jets if src == "ak4PFJetsCHS"]
-        tags = [("btagDeepCSV", ["pfDeepCSVJetTags:probb", "pfDeepCSVJetTags:probbb"]),
+        tags = [("btagDeepCSVB", ["pfDeepCSVJetTags:probb", "pfDeepCSVJetTags:probbb"]),
                 ("btagJP", ["pfJetProbabilityBJetTags"])]  # fmt: skip
         tags = [(c, t) for c, t in tags if all(self.inv.has(*x.split(":")) for x in t)]
         if not chs or not tags or not self.branch(JET_TAGS, "the b-tags of the CHS jets"):
@@ -1043,7 +1067,7 @@ table("pfCandidateLinkTable", cms.EDProducer("PFCandidateLinkTableProducer", src
         return f"""
 # The b-tags of the CHS jets, the jets they are computed on (CMSSW branch nanoaod-jet-tags), extending their table
 table("jetCHSTagTable", cms.EDProducer("JetTagTableProducer", src=cms.InputTag("ak4PFJetsCHS"), name=cms.string("{chs[0]}"),
-    tags=cms.VPSet({"".join(f'{chr(10)}        cms.PSet(name=cms.string("{c}"), tags=cms.VInputTag({", ".join(repr(x) for x in t)})),' for c, t in tags)}
+    variables=cms.PSet({"".join(f'{chr(10)}        {c}=cms.PSet(src=cms.VInputTag({", ".join(repr(x) for x in t)}), doc=cms.string("{" + ".join(t)}"), precision=cms.int32(10)),' for c, t in tags)}
     )))"""
 
     def mtd_rechits(self):

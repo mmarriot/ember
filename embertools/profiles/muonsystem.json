@@ -15,6 +15,7 @@
     {"name": "muonGEMSegments", "kind": "links", "from": "Muon", "to": "GEMSegment", "table": "MuonGEMSegments", "fromIndex": "MuonGEMSegments.muonIdx", "toIndex": "MuonGEMSegments.segmentIdx"},
     {"name": "gemSegmentChamber", "kind": "key", "from": "GEMSegment", "to": "MuonChamber", "fromKey": "GEMSegment.detId", "toKey": "MuonChamber.detId"},
     {"name": "standaloneTrackHits", "kind": "counts", "from": "StandaloneMuonTrack", "to": "StandaloneMuonTrackHits", "counts": "StandaloneMuonTrack.nStandaloneMuonTrackHits"},
+    {"name": "muonStandaloneTrack", "kind": "index", "from": "Muon", "to": "StandaloneMuonTrack", "index": "Muon.standaloneTrackIdx", "optional": true},
     {"name": "muonGlobalTrack", "kind": "index", "from": "Muon", "to": "GlobalMuonTrack", "index": "Muon.globalTrackIdx", "optional": true},
     {"name": "dtRecHitChamber", "kind": "key", "from": "DTRecHit", "to": "MuonChamber", "fromKey": "DTRecHit.chamberDetId", "toKey": "MuonChamber.detId"},
     {"name": "cscRecHitChamber", "kind": "key", "from": "CSCRecHit", "to": "MuonChamber", "fromKey": "CSCRecHit.chamberDetId", "toKey": "MuonChamber.detId"},

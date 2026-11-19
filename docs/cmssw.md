@@ -163,10 +163,11 @@ Add them to a CMSSW_20_1_X area with `git cms-merge-topic` ([How-to](how-to.md#g
 | `mmarriot:nanoaod-vertex-tracks` | `PVTracks`, `SVTracks`: (vertex, track) pairs with the track's weight | pushed |
 | `mmarriot:nanoaod-pfcandidate-links` | on `PFCandidates`: the rows of its track, GSF track, muon (checked against the collection each reference points into) and TICL candidate; `PFCandidateClusters<ECAL, HCAL, HF, HO, PS>`: (candidate, cluster) pairs from the PF blocks | pushed |
 | `mmarriot:nanoaod-reco-constituents` | `JetPFCands`, `JetCHSPFCands` (`jetIdx`, `pfCandIdx`), `TauPFCands` (`tauIdx`, `pfCandIdx`) | pushed |
-| `mmarriot:nanoaod-jet-tags` | the b-tags of the CHS jets as columns of `JetCHS` | in progress |
+| `mmarriot:nanoaod-jet-tags` | the b-tags of the CHS jets as columns of `JetCHS` (`btagDeepCSVB`, `btagJP`; in RECO only the CHS jets have tags) | pushed |
+| `mmarriot:nanoaod-muon-track-links` | on `Muon`: the row of its standalone track (`standaloneTrackIdx`), checked against the collection the reference points into (`standAloneMuons:UpdatedAtVtx`, or `standAloneMuons` when the update at the vertex failed: then -1) | pushed |
 | `mmarriot:nanoaod-mtd-rechits` | `RecHitBTL`, `RecHitETL`: every MTD rechit with its time, time error, energy (MeV) and position, and its cell (`row`, `column`: an ETL DetId is the sensor's, so an ETL hit is its DetId with its cell) | pushed |
 | `mmarriot:muontools-rechits-chambers` | DPGAnalysis/MuonTools: `DTRecHit`, `CSCRecHit` with global positions; `MuonChamber`, the chambers that hold a rechit or a segment (centre, axes, half sizes), which the rechits and segments find by DetId; `Muon<DT, CSC, GEM>Segments`, each muon's segments | pushed |
-| `mmarriot:nanoaod-reco-tables-all` | all of the above together | in progress |
+| `mmarriot:nanoaod-reco-tables-all` | all of the above together | pushed |
 
 For each branch whose producers the release lacks, the configuration's header names the branch and the branch of all
 of them. The table and column names above follow the branches as they stand today; they are checked again when the

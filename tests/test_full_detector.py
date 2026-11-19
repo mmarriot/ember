@@ -23,7 +23,9 @@ def test_the_release_tables_are_drawn_and_linked_under_the_phase2_profile():
     header = conv.header([], "t")
     drawn, rels = {d["table"] for d in header["display"]}, header["relations"]
     # every table is drawn but the HGCal tables that feed relations
-    assert set(conv.written()) - drawn == set()
+    # every table written is drawn, but the global muon tracks' points: all their hits, tracker ones too, which only
+    # shape the track (the muon-system hits are drawn from GlobalMuonTrackMuonHits)
+    assert set(conv.written()) - drawn <= {"GlobalMuonTrackPoints"}
     for name, ends in {
         "pfTrack": ("PFCandidates", "GeneralTrack"), "pfGsfTrack": ("PFCandidates", "GsfTrack"),
         "pfMuon": ("PFCandidates", "Muon"), "pfElectron": ("PFCandidates", "Electron"),
@@ -105,11 +107,11 @@ def test_the_tables_of_every_cmssw_branch_are_drawn_and_linked():
     conv = converter({**own, **BRANCHES}, load_profile("phase2"))
     header = conv.header([], "t")
     drawn, rels = {d["table"] for d in header["display"]}, header["relations"]
-    assert set(conv.written()) - drawn == set()
+    assert set(conv.written()) - drawn <= {"GlobalMuonTrackPoints"}  # see above
     assert {"RecHitEB", "RecHitHB", "RecHitHO", "RecHitHF", "RecHitBTL", "GeneralTrackHits", "DTRecHit",
-            "CSCRecHit", "MuonChamber", "StandaloneMuonTrack", "GlobalMuonTrackHits"} <= drawn  # fmt: skip
+            "CSCRecHit", "MuonChamber", "StandaloneMuonTrack", "GlobalMuonTrackMuonHits"} <= drawn  # fmt: skip
     for name in ("trackHits", "gsfTrackHits", "vertexTracks", "trackVertex", "svTracks", "pfTicl", "pfClustersECAL",
-                 "pfClustersHF", "jetConstituents", "jetCHSConstituents", "tauConstituents", "muonGlobalTrack", "muonStandaloneTrack",
+                 "pfClustersHF", "jetConstituents", "jetCHSConstituents", "tauConstituents", "muonGlobalTrack", "muonStandaloneTrack", "globalTrackPoints", "globalTrackHits",
                  "standaloneTrackHits", "muonDTSegments", "dtSegmentChamber", "dtRecHitChamber", "cscRecHitChamber"):  # fmt: skip
         assert name in rels, name
     # the PF candidates hold the TICL candidates: they are the colour root, the whole detector takes their colours

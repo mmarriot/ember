@@ -42,11 +42,9 @@ export function modeRoots(header: Header): { truth?: string; reco?: string } {
  *
  *  `truthRoot` (the root is the truth particles; docs/truth.md "Constituents"): a reco table takes a truth colour only
  *  across its own association, or from the container it is part of (a track's hits), never from its parts or through
- *  them (a jet from its particles' tracks, a muon from its inner track): that would show a part's match, or a vote
- *  through hits, as the object's own. The vote by content (simulated energy in its hits) is Ember's stand-in for a
- *  missing associator, kept only for a kind that opts in (`truthGap.derived`, HGCal layer clusters) or in a bundle
- *  made before `truthGap` and `fact` existed. A kind
- *  with a `truthGap` and no association of its own takes no truth colour, not even its container's. */
+ *  them (a jet from its particles' tracks, a muon from its inner track, a layer cluster from the simulated energy in
+ *  its hits): that would show a part's match, or a vote through hits, as the object's own. A kind with a `truthGap`
+ *  and no association of its own takes no truth colour, not even its container's. */
 export function modeColouring(header: Header, root: string, truthRoot = false): Record<string, ColourBy> {
   const rels = Object.entries(header.relations).filter(([, r]) => r.from !== r.to);
   const out: Record<string, ColourBy> = { [root]: "identity" };
@@ -73,8 +71,6 @@ export function modeColouring(header: Header, root: string, truthRoot = false): 
   const staged = (table: string) =>
     !truthRoot && header.display.some((d) => d.table === table && d.stage !== undefined);
   const inverse = (r: RelationInfo) => rels.some(([, o]) => !o.association && o.from === r.to && o.to === r.from);
-  // Bundles made before `truthGap` and `fact` existed keep the vote wherever it applied (HGCal layer clusters).
-  const legacy = !header.display.some((d) => d.truthGap) && !Object.values(header.relations).some((r) => r.fact);
   // By truth, nearest the root first, so that a table only steps towards one that already has its colour.
   const tables = header.display.map((d) => d.table);
   if (truthRoot) tables.sort((a, b) => (dist.get(a) ?? Infinity) - (dist.get(b) ?? Infinity));
@@ -90,7 +86,7 @@ export function modeColouring(header: Header, root: string, truthRoot = false): 
     const direct = rels.filter(
       ([, r]) => usable(r) && ((r.from === table && r.to === root) || (r.to === table && r.from === root)),
     );
-    const vote = !truthRoot || gap?.derived === "content" || legacy;
+    const vote = !truthRoot;
     if (gap && !direct.length && !vote) continue;
     const content =
       vote &&

@@ -178,16 +178,14 @@ function Coverage() {
             "simulation fact",
             `simulated energy per particle in each hit${s.in ? ` (${s.in})` : ""}${s.unit ? `, recorded per ${typeof s.unit === "string" ? s.unit : Object.values(s.unit.names).join(", ")}` : ""}`,
           ]
-        : s.kind === "derived"
-          ? ["derived in Ember", `${s.reason}${gap(s.gap)}`]
-          : s.kind === "container"
-            ? ["with what contains it", "no truth of its own: drawn in the colour of the object it belongs to"]
-            : ["no truth for this kind", `${s.reason}${gap(s.gap)}`];
+        : s.kind === "container"
+          ? ["with what contains it", "no truth of its own: drawn in the colour of the object it belongs to"]
+          : ["no truth for this kind", `${s.reason}${gap(s.gap)}`];
   // Folded to one line of counts (e.g. "7 matched · 9 no truth"): the list is long, and the collections come after it.
-  const counts = (["match", "fact", "derived", "container", "none"] as const)
+  const counts = (["match", "fact", "container", "none"] as const)
     .map((k) => [k, rows.filter(([, st]) => st.kind === k).length] as const)
     .filter(([, n]) => n);
-  const SHORT = { match: "matched", fact: "fact", derived: "derived", container: "via container", none: "no truth" };
+  const SHORT = { match: "matched", fact: "fact", container: "via container", none: "no truth" };
   return (
     <section class="coverage">
       <details>
@@ -195,13 +193,13 @@ function Coverage() {
           <h3>Truth coverage</h3> <span class="count">{counts.map(([k, n]) => `${n} ${SHORT[k]}`).join(" · ")}</span>
         </summary>
         <p class="hint">
-          What the truth graph says about each kind: matched by CMSSW's associator, a simulation fact, or derived in
-          Ember. Where it has no answer, Ember builds none.
+          What the truth graph says about each kind: matched by CMSSW's associator, or a simulation fact. Where it has
+          no answer, Ember builds none: the gap is listed, with its number in the truth-graph notes.
         </p>
         <ul class="coverage">
           {rows.map(([kind, s]) => {
             const [word, detail] = what(s),
-              why = s.kind === "none" || s.kind === "derived";
+              why = s.kind === "none";
             return (
               <li class={s.kind === "none" ? "none" : undefined} title={detail}>
                 <span class="kindname">{kind}</span> {word}

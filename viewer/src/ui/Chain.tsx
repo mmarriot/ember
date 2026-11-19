@@ -1,5 +1,5 @@
 // A reco object's chain in its card (Card.tsx): what it is part of, itself, and what it is made of (model/chain.ts),
-// each step with what the truth has for it as a tag (match, fact, derived, no truth). A step names its objects when
+// each step with what the truth has for it as a tag (match, fact, no truth). A step names its objects when
 // they are few, and counts them otherwise (a click lists them). "show" draws a step in the view (↓ ↑ step through
 // them), and a step in another part of the detector has a link that looks there.
 import type { ComponentChildren } from "preact";
@@ -46,9 +46,6 @@ const CHAIN_HELP = (
       </li>
       <li>
         <b>fact</b>: from the simulation, the particles that left the energy in these hits.
-      </li>
-      <li>
-        <b>derived</b>: worked out in Ember, where CMSSW has no associator yet.
       </li>
       <li>
         <b>no truth</b>: CMSSW has no truth for this kind of object yet.
@@ -343,39 +340,6 @@ function LinkLine({
       </div>
     );
   }
-  if (link.kind === "derived")
-    return (
-      <div class="rlink derived">
-        <Tag word="derived">
-          <p>
-            Worked out in Ember, not a CMSSW match: {link.reason}
-            {GAP(link.gap)}.
-          </p>
-          {link.unranked && (
-            <p>
-              This object's kind has no truth of its own, so no particle is ranked through its parts. Select one for its
-              particle.
-            </p>
-          )}
-        </Tag>
-        {label}
-        {link.unranked ? (
-          <span class="muted">per cluster</span>
-        ) : link.partners.length ? (
-          <>
-            {link.partners.slice(0, 3).map(([p, n]) => (
-              <>
-                {chip(link.truth, p)}
-                {!single && <span class="muted">×{n}</span>}
-              </>
-            ))}
-            {link.partners.length > 3 && <span class="muted">+{link.partners.length - 3}</span>}
-          </>
-        ) : (
-          <span class="muted">no particle</span>
-        )}
-      </div>
-    );
   if (link.kind === "none")
     return (
       <div class="rlink none">

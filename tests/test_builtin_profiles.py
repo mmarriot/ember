@@ -122,7 +122,7 @@ def test_calo_layers_in_cms():
         "truthHitsHF": "HF",
         "truthHitsMuon": "Muon",
     }
-    assert p["kinds"]["layerCluster"]["truthGap"]["derived"] == "content"
+    assert "derived" not in p["kinds"]["layerCluster"]["truthGap"]  # Ember derives no truth: a gap is a gap
 
 
 def test_physics_and_pf_in_cms():

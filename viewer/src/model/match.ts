@@ -2,10 +2,10 @@
 // share of the reco object's hits or energy that came from the particle) and completeness (the share of the
 // particle's hits or energy that the object has), from an association's `match` hint. The associator's own score is
 // a ranking (0 best, squared for calorimeter objects), not a fraction, so it is shown next to these, never instead.
-import type { EventData, Fact, Header, Match } from "../io/format";
+import type { DisplayLayer, EventData, Fact, Header, Match } from "../io/format";
 import { evaluate } from "./custom";
 import { facts } from "./facts";
-import { type ColourBy, modeColouring, modeRoots, reachesRoot } from "./modes";
+import { type ColourBy, modeColouring, modeRoots } from "./modes";
 import { bestPartners, cached, type Related } from "./relations";
 
 /** What a reco kind reconstructs, in words, per `match.target`. */
@@ -110,18 +110,19 @@ export const percent = (x: number | undefined) =>
 // the inspector's truth box, the colour key, the Truth tab's coverage list.
 
 /** A drawn table's truth, in this order: `match`, its own reco -> truth association with a `match` hint (to the truth
- *  particles or vertices); `fact`, hits with the simulated energy each particle left in them; `derived`, Ember's
- *  stand-in (layer clusters by the simulated energy in their hits); `none`, its kind's `truthGap` (why, and the gap
- *  in docs/truth-graph.md); `container`, drawn in the colour of what contains it (a track's hits); else `none`. */
+ *  particles or vertices); `fact`, hits with the simulated energy each particle left in them; `none`, its kind's
+ *  `truthGap` (why, and the gap in docs/truth-graph.md); `container`, drawn in the colour of what contains it (a
+ *  track's hits); else `none`. Ember derives no truth where CMSSW has none: a gap is shown as a gap. */
 export type TruthStatus =
   | { kind: "match"; relation: string; match: Match }
   | { kind: "fact"; in: string; unit?: Fact["unit"] }
-  | { kind: "derived"; reason: string; gap?: number }
   | { kind: "none"; reason: string; gap?: number }
   | { kind: "container"; relation: string };
 
 export const NO_EXPORT = "no truth association exported for this kind";
-const DERIVED = "no associator in CMSSW; Ember shows the particle with the most simulated energy in its hits";
+/** A gap's reason, without the clause bundles made before Ember stopped deriving truth add to it (their layer
+ *  clusters' "; the colour is Ember's stand-in: ..."). */
+const gapReason = (gap: NonNullable<DisplayLayer["truthGap"]>) => (gap.derived ? gap.reason.split(";")[0] : gap.reason);
 
 /** The truth status of `table` (undefined for truth layers and for a bundle without truth). `colouring`: the truth
  *  mode's (model/modes.ts), computed when not given. */
@@ -139,32 +140,16 @@ export function truthStatus(
   if (own) return { kind: "match", relation: own[0], match: own[1].match! };
   const fact = facts(header).find((f) => f.to === table);
   if (fact) return { kind: "fact", in: fact.in, ...(fact.unit ? { unit: fact.unit } : {}) };
+  if (d.truthGap) return { kind: "none", reason: gapReason(d.truthGap), gap: d.truthGap.gap };
   const c = (colouring ?? modeColouring(header, root, true))[table];
-  if (c && typeof c === "object" && "content" in c)
-    return { kind: "derived", reason: d.truthGap?.reason ?? DERIVED, gap: d.truthGap?.gap };
-  if (d.truthGap) return { kind: "none", reason: d.truthGap.reason, gap: d.truthGap.gap };
   if (c && typeof c === "object" && "relation" in c && !header.relations[c.relation]?.association)
     return { kind: "container", relation: c.relation };
   return { kind: "none", reason: NO_EXPORT };
 }
 
-/** Whether a selection of `table` may open the truth <-> reco pair: not for a kind with no truth of its own (a jet
- *  never opens a pair; its constituents may), and, given the reco mode's colouring (`reco`), not for a reco kind
- *  outside the candidates' chain (an ECAL cluster: the pair is the HGCal candidates'). Truth particles keep their
- *  pair; a bundle without truth opens none (store/selection.ts pairView). */
-export function opensPair(
-  header: Header,
-  table: string,
-  colouring?: Record<string, ColourBy>,
-  reco?: Record<string, ColourBy>,
-) {
-  const s = truthStatus(header, table, colouring);
-  return !s || (s.kind !== "none" && (!reco || reachesRoot(header, reco, table)));
-}
-
 /** Truth -> hit relation `name` read from the hit side: per hit, its particles and their entries in the relation. Once
  *  per event (one pass over the relation: about 10 ms for the 600k HGCal entries of a PU200 event). */
-function byHit(ev: EventData, name: string, nHits: number) {
+export function byHit(ev: EventData, name: string, nHits: number) {
   return cached(ev, `byHit|${name}`, () => {
     const rel = ev.relations[name],
       offsets = new Uint32Array(nHits + 1);

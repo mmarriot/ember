@@ -18,7 +18,7 @@
    "relation": "truthHitsHGCal"
   },
   "HGCalSoALayerClusters": {
-   "content": "TruthParticles"
+   "relation": "soaTracksterLCs"
   },
   "TICLSoATracksters": {
    "relation": "clusteringTruth"

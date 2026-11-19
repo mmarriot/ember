@@ -53,7 +53,7 @@ export function HelpDialog() {
         ],
         [
           [],
-          "i next to a title, or a tag (match, fact, derived, no truth)",
+          "i next to a title, or a tag (match, fact, no truth)",
           "What something is, and how its numbers are counted",
         ],
         [
@@ -188,11 +188,12 @@ export function HelpDialog() {
         (tracksters, layer clusters, hits, tracks) in the same colour. <b>Truth</b> (T): everything by the generator
         particle it comes from, the same in every part of the detector (a conversion's electrons and an interacting
         pion's daughters take their particle's colour); a reco object takes its particle's colour only where it is a
-        clean match (e.g. 75% of a track's hits), else grey. Selecting anything shows its truth ↔ reco pair: a
-        generator particle and its best candidate, every hit coloured shared, contamination, split off or missed, with
-        the particle's completeness and the candidate's purity as bars in its card. Each step of the card's chain says
-        what the truth graph has for it: match (the CMSSW associator's, with its purity), fact (simulated energy per
-        particle in its hits), derived (worked out in Ember) or no truth for that kind yet. A dot on an object's name
+        clean match (e.g. 75% of a track's hits), else grey. Selecting a truth particle, a matched reco object or a
+        hit shows its truth ↔ reco pair: the particle's branch (it and everything below it) and, in each detector, the
+        reco objects the associator rates best for it, every hit coloured shared, contamination, split off or missed,
+        with bars in the card that name the energy they count. A detector whose reco has no association is shown, not
+        compared. Each step of the card's chain says what the truth graph has for it: match (the CMSSW associator's,
+        with its purity), fact (simulated energy per particle in its hits) or no truth for that kind yet. A dot on an object's name
         says what the associator found for it: green for a clean match, half amber for an impure one, hollow for none.
         The Truth tab counts, for each matched kind, the clean, impure and unmatched objects of the event. Truth is
         drawn dashed. ⋯ on a row colours it by any column, or by the colour of a related object, instead. With something

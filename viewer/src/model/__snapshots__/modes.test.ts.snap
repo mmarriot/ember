@@ -14,9 +14,6 @@ exports[`colour modes > all-detectors bundle: by truth, no kind with a truthGap 
   "HGCalHits": {
     "relation": "truthHitsHGCal",
   },
-  "HGCalSoALayerClusters": {
-    "content": "TruthParticles",
-  },
   "HGCalSoARecHitsEE": {
     "relation": "truthHitsSoAEE",
   },

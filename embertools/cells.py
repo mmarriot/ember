@@ -4,7 +4,7 @@ segmentation of each subdetector, and are checked against every cell of the Run 
 (tests/test_cells.py, the geometry sweep of the cluster-hits pull request's validation).
 
   hgcal       HGCal silicon and scintillator: halfWidth, the hexagon's apothem (high or low density, from the DetId's
-              type) or half the tile's width, r dphi / 2 (288 tiles in phi)
+              type) or half the tile's width, r dphi / 2 (288 tiles in phi, 432 fine ones)
   ecalEndcap  ECAL endcap crystals: dEta and dPhi of an eta-phi bin with the area of the crystal's 2.862 cm square face
   preshower   preshower strips: the unit vectors u (across, 1.9 mm) and v (along, 6.1 cm) of the strip
   hcal        HB, HE, HF, HO: dEta, dPhi and depth (cm, front to back face) from the |ieta| and depth of the DetId
@@ -31,7 +31,11 @@ COLUMNS = {
 
 # HGCal silicon wafer types (HGCSiliconDetId, bits 26-27): HD120, LD200, LD300, HD200, and the apothems of their cells
 SILICON_APOTHEM = np.array([0.4028, 0.6042, 0.6042, 0.4028], np.float32)
-TILES_IN_PHI = 288  # HGCal scintillator tiles around the ring (the D104 geometry)
+TILES_IN_PHI = 288  # HGCal scintillator tiles around the ring (every tile of D104)
+# Fine tiles (HGCScintillatorDetId bit 24): 432 around the ring in the v19 HGCal geometries (Run4D120, D122, D123,
+# D126-D128; Geometry/HGCalCommonData/data/hgcal/v19/hgcal.xml NPhiBinBHFine), not checked against a sweep; no D104
+# tile has it.
+FINE_TILES_IN_PHI = 432
 EE_CRYSTAL = 2.862  # ECAL endcap crystal front face [cm]
 DET_HCAL = 4
 HCAL_SUBDETS = {1: "HB", 2: "HE", 3: "HO", 4: "HF"}
@@ -183,8 +187,7 @@ def compute(rule, det_id, x, y, z, geometry="run3"):
     r = np.hypot(x, y)
     if rule == "hgcal":
         silicon = SILICON_APOTHEM[(det_id >> 26) & 3]
-        # tiles of the fine granularity (HGCScintillatorDetId bit 24) have another width, not checked: NaN
-        tile = np.where(((det_id >> 24) & 1) == 1, np.nan, r * np.pi / TILES_IN_PHI)
+        tile = r * np.pi / np.where(((det_id >> 24) & 1) == 1, FINE_TILES_IN_PHI, TILES_IN_PHI)
         out = {"halfWidth": np.where((det_id >> 28) == 10, tile, silicon)}
     elif rule == "ecalEndcap":
         # A square of side a at radius r on a plane |z| = const covers a/r in phi and a |z| / (R r) in eta.

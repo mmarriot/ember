@@ -89,7 +89,7 @@ def test_cells_of_other_detectors_and_unknown_rules():
         cells.compute("muon", [1], [0], [0], [0])
 
 
-def test_fine_scintillator_tiles_are_not_sized():
+def test_fine_scintillator_tiles_are_432_around_the_ring():
     coarse = (10 << 28) | (1 << 26)  # HGCal scintillator, granularity bit 24 unset
     out = cells.compute("hgcal", [coarse, coarse | (1 << 24)], [200.0, 200.0], [0.0, 0.0], [400.0, 400.0])
-    assert np.isclose(out["halfWidth"][0], 200 * np.pi / 288) and np.isnan(out["halfWidth"][1])
+    assert np.allclose(out["halfWidth"], [200 * np.pi / 288, 200 * np.pi / 432])

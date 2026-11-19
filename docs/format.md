@@ -100,7 +100,8 @@ candidates of its tracks).
 ### Display hints
 
 `display` lists the layers to draw, kinds from the top down (candidates before their tracksters, hits last), as the
-side panel lists them. `repr` is one of `cells`, `markers`, `ellipsoids`, `segments`,
+side panel lists them. Bundles converted before profiles stated this order (`order`) list kinds in no set order: a
+viewer must not read containment from display order, only from the relations and `stage`. `repr` is one of `cells`, `markers`, `ellipsoids`, `segments`,
 `helix`, `cones`, `polyline`. A viewer leaves out a layer whose `repr` it does not know (from a newer bundle), with a
 console warning, and draws the others.
 

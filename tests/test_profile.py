@@ -614,6 +614,7 @@ def test_fact_hint_is_passed_to_the_header():
         ({"display": [{"table": "A", "label": "A"}]}, "display[0] has no 'position'"),
         ({"cuts": {"Hit": ["e", ">", 0]}}, "cuts of Hit must be a list of conditions"),
         ({"derive": {"table": "A"}}, "derive must be a list"),
+        ({"order": "jet"}, "order must be a list of kinds"),
     ],
 )
 def test_a_profile_of_the_wrong_shape_says_what_is_missing_where(tmp_path, profile, message):

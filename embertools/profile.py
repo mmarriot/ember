@@ -97,6 +97,9 @@ def check_shape(profile, where):
                 f"profile {where}: cuts of {table} must be a list of conditions, each [column, operator, number]"
                 " or an object"
             )
+    order = profile.get("order", [])
+    if not isinstance(order, list) or not all(isinstance(k, str) for k in order):
+        raise Problem(f"profile {where}: order must be a list of kinds")
 
 
 def _find_file(name_or_path, within):

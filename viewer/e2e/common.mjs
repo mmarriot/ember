@@ -50,5 +50,6 @@ export async function header(base, file) {
         ),
       0,
     );
-  return { ...JSON.parse((await bytes(12, 11 + n)).toString()), size, events: index.length, rows };
+  const counts = index.map((e) => e.counts ?? {}); // rows per table, per event
+  return { ...JSON.parse((await bytes(12, 11 + n)).toString()), size, events: index.length, rows, counts };
 }

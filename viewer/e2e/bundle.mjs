@@ -121,7 +121,9 @@ export async function checkBundle(run, file, tag, state) {
     Object.values(h.relations)
       .filter((r) => !r.association && r.from === d.table)
       .reduce((s, r) => Math.max(s, (drawnTables.has(r.to) ? 100 : 1) + (d.stage ?? 0)), 0);
-  const target = h.display.filter((d) => d.visible && !d.context).sort((a, c) => score(c) - score(a))[0];
+  // ... with rows in the event opened (e=1, the second): an electron is linked to its tracks, but an event may have none
+  const inEvent = (d) => (h.counts[Math.min(1, h.counts.length - 1)]?.[d.table] ?? 0) > 0;
+  const target = h.display.filter((d) => d.visible && !d.context && inEvent(d)).sort((a, c) => score(c) - score(a))[0];
   if (!target || !score(target)) return log(`${tag}: nothing made of other objects to select`);
   const all = (h.domains?.length ?? 0) >= 2 ? "&d=All" : ""; // every level in the focus bar, as without domains
   await open(`b=${file}&e=1${all}&s=${target.table}:0`);

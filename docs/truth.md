@@ -121,7 +121,7 @@ truth card, the clean test in the truth mode, the units and the wording.
 | muon hits (DT, CSC, RPC, GEM) | — (simulation fact), per unit that the simulation records: DT wire, CSC layer, RPC roll, GEM partition (`fact.unit`) | simulated energy loss per particle, muon system | — | — | — | fact; the hit's line names the unit ("per CSC layer"), and the fact tag says that every hit there shares these particles |
 | MTD hits | — (simulation fact) with sim time | — | — | — | — | none: not exported (only 60% of the MTD cells at 200 pile-up are under particles that entered the calorimeter; gap 19) |
 | HGCal layer clusters | caloBoundary | energy, HGCal | — | — | — | derived in Ember (no associator: gap 1; `truthGap.derived`) |
-| HF, HO PF clusters | caloBoundary | energy, HCAL | raw energy | 0.5 | — | none: no associator configured in CMSSW (gap 15) |
+| HF, HO PF clusters | caloBoundary | energy, HCAL | raw energy | 0.5 | — | none: the truth graph's associator is not configured for them (gap 15) |
 | muon segments | particle crossing the chamber | hits, muon system | segment hits | 0.75 | of its hits in the chamber | none: no adapter or associator (gap 17) |
 | reco, standalone, global muons | muon with its own muon hits (no graph level yet) | hits per stub, tracker and muon | stub hits | 0.75 per stub | 0.5 per stub | none (gap 18); the inner track's own match, named as the track's |
 | MTD clusters, track times | particle with its own MTD hits | hits, MTD | cluster cells | 0.75 | — | none (gap 19) |
@@ -173,7 +173,7 @@ Every drawn kind has one truth status. The viewer works it out from the bundle (
 The same words appear in three places:
 
 - **the selection's card**, on the object's step of its chain ([Viewer](viewer.md#the-selections-card)). For example
-  the tag "no truth" on a jet, and behind it (click it): "no jet associator in CMSSW, and no generator-jet level in
+  the tag "no truth" on a jet, and behind it (click it): "the truth graph has no jet associator, and no generator-jet level in
   the truth graph (gap 21)". It adds at most one constituent's own match ([below](#constituents)). Every other step
   of the chain carries its own kind's status in the same way;
 - **the truth colour key**: "faint: no truth for that kind", with the kinds and the reason behind its **i**;
@@ -245,7 +245,7 @@ tracks show in their own particles' colours: each colour is that track's own sta
 | merges | a match above the particle level: the object holds several generator particles |
 | pile-up | particles from other collisions of the same bunch crossing |
 | no truth | energy that no exported particle left: noise, out-of-time pile-up, or not exported |
-| no truth for this kind | the truth graph has no answer for the kind (no associator in CMSSW, or none exported). Drawn faint, with the reason in the Truth tab. |
+| no truth for this kind | the truth graph has no answer for the kind (no associator for it in the truth graph, or none exported). Drawn faint, with the reason in the Truth tab. |
 | fact | a truth → hit relation of simulated energy per particle and cell, in one detector |
 
 ## Samples

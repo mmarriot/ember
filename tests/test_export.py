@@ -19,8 +19,10 @@ pytest.importorskip("awkward")  # writes the input files
 
 
 def root_file(path, branches, tree="Events"):
+    # mktree: a TTree, as CMSSW writes; recent uproot (5.7.7 in CI) writes f[tree] = {...} as an RNTuple
     with uproot.recreate(str(path)) as f:
-        f[tree] = {b: np.arange(3) for b in branches}
+        f.mktree(tree, {b: np.int64 for b in branches})
+        f[tree].extend({b: np.arange(3) for b in branches})
     return str(path)
 
 

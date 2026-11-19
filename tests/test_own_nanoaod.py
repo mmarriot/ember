@@ -100,8 +100,15 @@ def write(path, collections, singletons):
         "luminosityBlock": np.ones(n, np.uint32),
         "event": np.arange(n, dtype=np.uint64),
     }
+    # mktree: a TTree, as CMSSW writes; recent uproot (5.7.7 in CI) writes f[name] = {...} as an RNTuple
     with uproot.recreate(str(path)) as f:
-        f["Events"] = data
+        f.mktree(
+            "Events",
+            {k: v.type if hasattr(v, "layout") else v.dtype for k, v in data.items()},
+            field_name=lambda outer, inner: f"{outer}_{inner}",
+            counter_name=lambda counted: f"n{counted}",
+        )
+        f["Events"].extend(data)
     return str(path)
 
 

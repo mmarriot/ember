@@ -1,6 +1,7 @@
 // How tables, layers, objects and numbers are named in the page, from the open bundle's display hints. Plain
 // functions: they read the signals when called, so a component that calls them re-renders when those change.
 import { type DisplayLayer, kindName, type Table, unitOf } from "../../io/format";
+import { columnName } from "../objects";
 import { bundle, event } from "./data";
 
 /** The key of a display layer, unique in a bundle: "table:repr". Signals keyed per layer use it. */
@@ -61,8 +62,9 @@ export const full = (v: number | bigint) =>
         ? v.toExponential(3)
         : v.toFixed(3);
 
-/** A short name for one object, from its layer's `describe` hint (e.g. "π+ · 88.9 GeV"), or "" without one. `skip`:
- *  columns to leave out (those shown next to it anyway, e.g. in object rows). */
+/** A short name for one object, from its layer's `describe` hint (e.g. "π+ · E 88.9 GeV"), or "" without one. A
+ *  number is named after its quantity (its `prefix`, else model/objects.ts columnName: "pT", "E", "E raw"), so a pT
+ *  is never read as an energy. `skip`: columns to leave out (those shown next to it anyway, e.g. in object rows). */
 export function describe(table: string, row: number, skip: string[] = []): string {
   const b = bundle.value,
     t = event.value?.tables[table],
@@ -74,10 +76,9 @@ export function describe(table: string, row: number, skip: string[] = []): strin
       const v = Number(t.columns[c][row]),
         name = hint.names?.[c]?.[String(v)];
       if (name) return name;
-      const prefix = hint.prefix?.[c];
-      if (prefix) return `${prefix} ${short(v)}`; // e.g. "St 4" for a muon segment's station
-      const unit = unitOf(b.header.tables[table]?.columns[c]?.doc);
-      return `${short(v)}${unit ? ` ${unit}` : ""}`;
+      const prefix = hint.prefix?.[c] ?? columnName(c), // e.g. "St 4" for a muon segment's station, "pT 65.5 GeV"
+        unit = unitOf(b.header.tables[table]?.columns[c]?.doc);
+      return `${prefix} ${short(v)}${unit ? ` ${unit}` : ""}`;
     })
     .join(" · ");
 }

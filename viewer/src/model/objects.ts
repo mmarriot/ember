@@ -31,8 +31,18 @@ export function passes(d: Pick<DisplayLayer, "cut">, t: Table, min: number, keep
   return (i: number) => (!keep || !!keep[i]) && (!c || Number(c[i]) >= min);
 }
 
-/** Readable names of common physics columns in the object rows' heading; others keep their own name. */
-const NAMES: Record<string, string> = { pt: "pT", eta: "η", phi: "φ", energy: "E", mass: "m" };
+/** Readable names of common physics columns in the object rows' heading and in object names (store/names.ts
+ *  describe); others keep their own name. */
+const NAMES: Record<string, string> = {
+  pt: "pT",
+  eta: "η",
+  phi: "φ",
+  energy: "E",
+  raw_energy: "E raw",
+  rawEnergy: "E raw",
+  rechit_energy: "E",
+  mass: "m",
+};
 export const columnName = (c: string) => NAMES[c] ?? c;
 
 /** The row after (`by` 1) or before (-1) `current` in `rows`, cycling; from outside them (or none), the first (or the

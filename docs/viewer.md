@@ -120,7 +120,9 @@ kind except hits. With nothing selected, `N` selects the leading object of the f
 **Labels.** `L` shows labels on the leading objects of the layers that have a `labels` hint (for example the 4
 leading jets, and MET). These labels appear in a shared part's view (Physics). The selection is labelled in every
 view. A label sits at the far end of a line or cone (where a jet meets the calorimeter), or else at the object.
-Pointing at an object's row in the side panel rings the object in the view.
+Labels, chips and lists name the quantity of every number: "Jets · pT 49.7 GeV" (transverse momentum),
+"π⁺ · E 88.9 GeV" (a truth particle's energy), "E raw 178 GeV" (a TICL candidate's raw energy). Pointing at an
+object's row in the side panel rings the object in the view.
 
 ### Following the chain
 

@@ -312,10 +312,10 @@ compared with.
   |---|---|---|
   | charged hadron | orange | orange |
   | electron | blue | dark blue |
-  | muon | red | red |
+  | muon | red | dark red |
   | photon | pale blue | light blue |
   | neutral hadron | green | green |
-  | neutral pion (TICL) | pink | magenta |
+  | neutral pion (TICL) | pale yellow | deep violet |
   | HF hadron, HF EM | muted green, grey blue | muted green, grey blue |
 
   Jets are lavender, a colour no type has, so the tracks inside a jet's cone stay visible. Everything candidates are
@@ -393,8 +393,10 @@ The levels drawn on request are those of the matched object the pair comes from,
 ### Colour choices
 
 The colours are Okabe-Ito and Tol hues, checked for protan, deutan and tritan colour vision. The particle types have
-fixed colours of their own, chosen so that charged hadrons and electrons, which both leave tracks, are far apart.
-Choosing a colour for one layer (in its **⋯**) overrides the particle type and the pair view for that layer. The
+fixed colours of their own, chosen so that the tracks (charged hadrons, electrons, muons) are far apart, also in
+simulated colour-blind vision. Other categories, such as a hit's subdetector, take colours kept apart from the types,
+so a pixel hit never looks like a charged hadron. Electrons and photons, both electromagnetic, are two blues: less
+apart than the tracks, but still clearly different. Choosing a colour for one layer (in its **⋯**) overrides the particle type and the pair view for that layer. The
 replay keeps each candidate's colour throughout.
 
 ## The selection's card

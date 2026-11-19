@@ -38,20 +38,24 @@ export const PALETTES = {
     // between "other" and "unassigned" (no truth) in lightness, so that it differs from both by its tint too.
     pileup: "#bdb2a3",
     // One colour per particle type, by name (`typeColour`): the same in every layer, whatever the order of a
-    // category's `names`. "jet" is the jets' kind. Charged hadron and electron, both tracks, are at least 50 CIEDE2000
-    // apart in both themes, also in simulated protan/deutan/tritan vision (Machado 2009); the weakest pairs are types
-    // apart in the detector (HF ones, |η| > 3: 10).
+    // category's `names`; plus "jet", not a type but the jets' kind, kept here so that it is per theme and apart from
+    // the types. CIEDE2000, normal and simulated protan/deutan/tritan vision (Machado 2009), both themes: the tracks
+    // (charged hadron, electron, muon) at least 20 apart (charged hadron and electron 51), the TICL candidates' types
+    // at least 23. Weaker pairs (down to 3.5 in one simulation) are a jet's cone against a line, or HF types, |η| > 3.
     types: {
       "charged hadron": "#C06A00",
       electron: "#1565C0",
-      muon: "#C62828",
-      photon: "#5FA8D3",
+      muon: "#7A0010",
+      photon: "#2E9BD6", // 3.1:1 on white
       "neutral hadron": "#0B8A5E",
-      "neutral pion": "#A8327F",
+      "neutral pion": "#330055",
       "HF hadron": "#4E7F6E",
       "HF EM": "#6C8A9C",
       jet: "#A898C8", // a cone is a large translucent area: as light as on the dark theme
     },
+    // Categories that are not particle types (e.g. a hit's subdetector) take these first: at least 15 CIEDE2000 from
+    // every type colour and the greys (8 in each simulated colour vision), so a hit's colour never reads as a type.
+    others: ["#001100", "#CC7788", "#884400", "#554488", "#005544", "#776677", "#889955", "#333344"],
     // The pair view (model/pair.ts), by class: other, matched, contamination, split, missed, reco (part of a match,
     // no truth statement of its own: neutral), branch (the branch's other particles), uncompared (the branch's hits
     // where no reco kind has an association).
@@ -84,14 +88,15 @@ export const PALETTES = {
     types: {
       "charged hadron": "#E69F00",
       electron: "#3D9BF0",
-      muon: "#E8414B",
+      muon: "#D41F2C",
       photon: "#C2EBFF",
       "neutral hadron": "#22C38E",
-      "neutral pion": "#E879C8",
+      "neutral pion": "#FFFF88",
       "HF hadron": "#5E9C87",
       "HF EM": "#7FA3B8",
       jet: "#A898C8",
     },
+    others: ["#FFDDCC", "#007733", "#8855AA", "#99BB66", "#998866", "#EEAABB", "#BB6699", "#996655"],
     pair: ["#3a424d", "#009E73", "#CC79A7", "#F0E442", "#D55E00", "#d9dde2", "#7fd6b0", "#8fa3c2"],
   },
 } as const;
@@ -225,9 +230,8 @@ export function colours(
   const { range, layerFor = (table: string) => header.display.find((l) => l.table === table) } = opts;
   const out = new Float32Array(3 * t.n),
     cats = pal.categories.map(rgb);
-  // Named categories other than particle types (e.g. a hit's subdetector) take the colour-blind-checked identity set
-  // first.
-  const named = [...pal.identity, ...pal.categories];
+  // Named categories other than particle types (e.g. a hit's subdetector) take colours apart from the types first.
+  const named = [...pal.others, ...pal.categories];
   const set = (i: number, c: ArrayLike<number>, at = 0) => {
     out[3 * i] = c[at];
     out[3 * i + 1] = c[at + 1];
@@ -241,9 +245,11 @@ export function colours(
   }
   // A kind's own colour (display hint `fixedColour`), also over "none", which bundles give as old viewers' fallback; the
   // truth mode and a user's colour choice drop the hint (store/colours.ts shownLayer, custom.ts withColour). A kind
-  // named after a particle type (electrons, muons, photons; jets) takes that type's colour in this theme.
+  // named after a particle type (electrons, muons, photons; jets) takes that type's colour in this theme, and so does
+  // a layer that the profile gives the same colour (a global muon track: the muon's).
   if (d.fixedColour && (d.colourBy === undefined || d.colourBy === "none")) {
-    const colour = typeColour(pal, d.kind) ?? d.fixedColour,
+    const kin = header.display.find((l) => l.fixedColour === d.fixedColour && typeColour(pal, l.kind));
+    const colour = typeColour(pal, d.kind) ?? typeColour(pal, kin?.kind) ?? d.fixedColour,
       c = rgb(colour);
     for (let i = 0; i < t.n; i++) set(i, c);
     return {

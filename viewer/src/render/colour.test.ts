@@ -211,7 +211,7 @@ describe("particle type colours", () => {
   it("leave other names to the order of names, and the legend names each type", () => {
     const names: [string, string][] = [["13", "lepton"], ...pf.filter(([v]) => v !== "13")];
     const c = colours(layer("P", { category: "pdgId", abs: true, names }), t, ev, header, pal);
-    expect(hex(c.rgb, 2)).toBe(pal.identity[0].toLowerCase());
+    expect(hex(c.rgb, 2)).toBe(pal.others[0].toLowerCase());
     expect(c.legend.kind === "category" && c.legend.items?.find((it) => it.label === "electron")?.colour).toBe(
       pal.types.electron,
     );
@@ -220,6 +220,14 @@ describe("particle type colours", () => {
     const electrons = { ...layer("Cand", "none"), kind: "electron", fixedColour: "#3cc864" } as DisplayLayer;
     for (const p of [PALETTES.dark, PALETTES.light])
       expect(hex(colours(electrons, ev.tables.Cand, ev, header, p).rgb, 0)).toBe(p.types.electron.toLowerCase());
+  });
+  it("give a layer with the same profile colour as such a kind (global muon tracks) that type's colour too", () => {
+    const muons = { ...layer("Mu", "none"), kind: "muon", fixedColour: "#e04040" } as DisplayLayer;
+    const tracks = { ...layer("Cand", "none"), kind: "muonTrack", fixedColour: "#e04040" } as DisplayLayer;
+    const other = { ...tracks, fixedColour: "#3fb8b0" } as DisplayLayer; // standalone tracks keep their own
+    const h = { ...header, display: [...header.display, muons, tracks] } as Header;
+    expect(hex(colours(tracks, ev.tables.Cand, ev, h, pal).rgb, 0)).toBe(pal.types.muon.toLowerCase());
+    expect(hex(colours(other, ev.tables.Cand, ev, h, pal).rgb, 0)).toBe("#3fb8b0");
   });
 });
 

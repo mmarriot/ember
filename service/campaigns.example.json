@@ -19,7 +19,7 @@
       "title": "RelVal CMSSW_20_1_0_pre6",
       "inputs": "/eos/cms/store/relval/CMSSW_20_1_0_pre6/RelVal*/GEN-SIM-RECO/*_D121_*/*/*.root",
       "xrootd": "root://eoscms.cern.ch/",
-      "profile": "cms",
+      "profile": "auto",
       "max_events": 10,
       "stem": "wildcards",
       "stem_parts": [0, 1, 2],

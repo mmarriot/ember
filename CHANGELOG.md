@@ -5,7 +5,8 @@ What changed for people who use Ember (called evd before 0.2.0). The bundle form
 
 ## 0.2.0 (unreleased)
 
-The first version for CMS users other than its authors. One command takes you from a CMSSW job to a link.
+The first version for CMS users other than its authors. One command turns a CMS file into a bundle that you open in
+the viewer.
 
 ### Renamed
 
@@ -29,17 +30,15 @@ What still reads the old names:
   that exists as `.evdb` replaces it with `.ember`, and a link to the `.evdb` file then opens the `.ember` one.
 - The format is unchanged. Its magic bytes (`EVDB`) and the header's `schema` (`evd/1`) keep the old name.
 - The viewer keeps its browser-storage keys (`evd.theme`, `evd.recent`, ...), so your settings and Recent list stay.
-- The CMSSW side keeps its own names: `NANO:@EVD`, `DPGAnalysis/EventDisplayNanoAOD`.
 
 The old environment variables are not read any more: set the `EMBER_*` ones instead. A command, or `deploy.sh`, stops
 with a message while an old one is set without its new name. `deploy.sh` links `bin/evd` to the new `bin/ember`.
 
 ### Added
 
-- **The `ember` command.** `ember FILE.root` converts event-display NanoAOD, publishes the bundle to your user area on
-  the site, and prints the link. It also takes a CMSSW reconstruction file: it then runs
-  `cmsDriver.py -s NANO:@EVD` first. `ember list` and `ember rm` manage what you published. `-o FILE.ember` writes a
-  file and publishes nothing.
+- **The `ember` command.** `ember FILE.root` turns a NanoAOD file, or a CMSSW reconstruction file or MiniAOD, into a
+  bundle (see below for how). `ember list` and `ember rm` manage what you published to a site. `-o FILE.ember` writes
+  the bundle to a file of that name.
 - **User areas** on the site (`data/u/<login>/`). A bundle expires 30 days after it was last published; the site's
   cron job runs `ember clean` to remove it.
 - **RelVal campaigns** for `ember sync`, for shared samples: `ember sync` makes the NanoAOD of reconstruction files
@@ -53,14 +52,17 @@ with a message while an old one is set without its new name. `deploy.sh` links `
   - a panel that says why a link did not open;
   - a share pop-up that shows the link and what it opens.
 - **Bundles** record the CMSSW release that wrote their input (`source.cmssw`), and the version of the converter.
-- **Documentation:** a tutorial, how-to guides, the command reference, the CMSSW side, hosting, and a page of
-  questions.
+- **Documentation:** a tutorial, how-to guides, the command reference, the CMSSW side, hosting, a page of
+  questions, and the planned work (every hit and every object, the CMS site, a CMSSW external, example events).
 
 ### Changed
 
-- The CMSSW side is now the NanoAOD flavour `NANO:@EVD` (package `DPGAnalysis/EventDisplayNanoAOD`). It replaces
-  the development package `Fireworks/EventExport` and its presets. The `cms` profile converts the tables of a stock
-  release.
+- **A viewer of CMS events and their truth graph.** The README, the documentation and the command describe Ember as
+  a viewer for reconstruction and truth studies, of the event and of CMSSW's truth graph. The name and the
+  `embertools` package stay.
+- **Ember has no CMSSW package of its own.** The development package `Fireworks/EventExport` and its presets, and
+  the `NANO:@EVD` flavour that was to replace them (never merged), are dropped: `ember` writes its own cmsRun
+  configuration (below). The `cms` and `hgcal` profiles still convert the files they made.
 - The converter is three to four times faster. It compresses the records on several threads, at level 4, and
   decompresses the input on the same threads. The content of a bundle, once decompressed, is unchanged.
 - The site's location is set in one place (`embertools/site.py`), and `EMBER_SITE_DIR`, `EMBER_SITE_URL` and
@@ -87,9 +89,9 @@ with a message while an old one is set without its new name. `deploy.sh` links `
 - **`ember FILE.root` writes `NAME.ember` here**, to drop on the viewer at https://marriot-evd.web.cern.ch (nothing is
   uploaded). It publishes to a site only when one is set (`--site` or `EMBER_SITE_DIR`).
 - **Standard NanoAOD and NANO:@HGCAL open directly**, and `--profile auto` (now the default) picks the profile that
-  draws the most of a file. New profiles `phase2`, `run3`, `reco` and `nano`; the converter derives calorimeter cell
-  sizes from the DetId, splits tables by DetId bits, finds a cluster's hits by DetId (which gives HGCal superclusters
-  their hits back in these files), and reads NanoAOD singleton tables.
+  draws the most of a file. New profiles `phase2`, `run3`, `reco`, `nano` and `truth`; the converter derives calorimeter
+  cell sizes from the DetId, splits tables by DetId bits, finds a cluster's hits by DetId (which gives HGCal
+  superclusters their hits back in these files), and reads NanoAOD singleton tables.
 - A bundle without truth (data, standard NanoAOD) no longer opens a truth and reco pair.
 
 ### Fixed

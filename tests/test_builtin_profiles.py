@@ -435,7 +435,7 @@ def test_tracker_profile_alone_and_tracker_only():
 
 
 STOCK = {
-    t: {c: np.dtype(d) for c, d in cols.items()}  # the tables NANO:@EVD writes on an unmodified release
+    t: {c: np.dtype(d) for c, d in cols.items()}  # the tables of the earlier export on an unmodified release
     for t, cols in json.loads(Path(__file__).with_name("stock_tables.json").read_text()).items()
 }
 

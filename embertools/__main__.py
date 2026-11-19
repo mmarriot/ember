@@ -50,7 +50,8 @@ def parser():
     """(the argument parser, the names of its commands)."""
     top = argparse.ArgumentParser(
         prog="ember",
-        description="Turn CMS events into Ember bundles. `ember FILE.root` is `ember view FILE.root`: it writes "
+        description="Turn CMS events and their truth graph into bundles for the Ember viewer. `ember FILE.root` is "
+        "`ember view FILE.root`: it writes "
         f"NAME.ember here, to open in the viewer ({VIEWER}: the browser reads the file, nothing is uploaded); with "
         "a site configured (--site or EMBER_SITE_DIR) it publishes the bundle there instead and prints its link.",
     )

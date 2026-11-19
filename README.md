@@ -2,8 +2,11 @@
 
 # Ember
 
-A web event display for CMS. It shows the hits, clusters, tracks and physics objects of an event in your browser,
-and next to them what the simulation says was really there.
+A viewer of CMS events and their truth graph, for reconstruction and truth studies (TICL, HGCal, calorimeters,
+tracking). In your browser, it shows the hits, clusters, tracks and physics objects of an event, and next to them the
+simulated particles that made them: CMSSW's truth graph (`truth::Graph`), with its particles, vertices and parent →
+child links, the simulated energy that each particle left in each hit, and the links between reconstructed objects and
+particles.
 
 You run one command on a CMS file, and it writes a bundle that you open in the viewer in your browser.
 
@@ -34,27 +37,30 @@ including how to get the `ember` command.
 
 The documentation is at **https://mmarriot.github.io/ember/**. It is built from [`docs/`](docs/):
 
-- [Getting started](docs/getting-started.md): a tutorial, from a CMSSW job to a link.
+- [Getting started](docs/getting-started.md): a tutorial, from a CMS file to an event on screen.
 - [How-to guides](docs/how-to.md) and [Questions and problems](docs/faq.md): recipes and answers.
 - Reference: [the `ember` command](docs/cli.md), [the viewer](docs/viewer.md), [the CMSSW side](docs/cmssw.md),
   [profiles](docs/profiles.md) and [the bundle format](docs/format.md).
 - Background: [how truth is shown](docs/truth.md) and [the truth graph](docs/truth-graph.md).
-- [Hosting](docs/hosting.md): for the people who run the site.
+- [Hosting](docs/hosting.md): the CMS site and its service, planned and not available yet.
 
 ## How it works
 
 ```
-CMSSW ── NANO:@EVD ──► NanoAOD ── ember ──► .ember bundle ──► viewer (a static web page)
+CMS file ── ember ──► .ember bundle ──► viewer in your browser
+             │
+             └─ a RECO, FEVT, AOD or MiniAOD file: ember writes ember_cfg.py and runs it with cmsRun to make NanoAOD
+                a NanoAOD file: read directly
 ```
 
 | part | where | what it does |
 | --- | --- | --- |
-| `NANO:@EVD` | CMSSW package `DPGAnalysis/EventDisplayNanoAOD` (not in this repository) | writes the reconstructed event as flat tables, from hits to physics objects, with the links between them and the truth graph |
-| `ember` command | `embertools/` (Python, numpy, uproot) | turns the tables into a bundle, following a profile; publishes bundles to the site; runs the site's cron jobs |
-| profiles | `embertools/profiles/*.json` | say which tables to keep, how they relate, how to cut them and how to draw them. `cms` covers the whole detector; `mct` and `testbeam` cover HGCal cassette tests and test beam. A new kind of data normally needs only a new profile. |
+| `ember_cfg.py` | written by `ember`, run by cmsRun in your CMSSW release | writes the event as NanoAOD flat tables with modules that your release already has: hits, clusters, tracksters, tracks, physics objects, and, with two optional CMSSW branches, the hits of each cluster and the truth graph ([CMSSW side](docs/cmssw.md)). Nothing in CMSSW has to be merged for it to work. |
+| `ember` command | `embertools/` (Python, numpy, uproot) | turns the tables into a bundle, following a profile, and writes it in the current folder (or publishes it to a site, when one is configured) |
+| profiles | `embertools/profiles/*.json` | say which tables to keep, how they relate, how to cut them and how to draw them. `phase2`, `run3`, `nano` and `truth` cover what `ember` and standard NanoAOD write; `hgcal` covers `NANO:@HGCAL`; `cms` and `hgcal` also convert the NanoAOD of Ember's earlier export; `mct` and `testbeam` cover HGCal cassette tests and test beam. `ember` picks the profile that draws the most of a file. A new kind of data normally needs only a new profile. |
 | bundle | one `.ember` file | a JSON header and index, then one compressed record per event. The viewer reads one event with one request. |
-| viewer | `viewer/` (TypeScript, Preact, three.js) | a static web page that draws what the bundle describes. It has no detector-specific code. |
-| site | `service/` | a static website on EOS, with no server process. It holds each user's bundles and shared samples that cron keeps up to date. |
+| viewer | `viewer/` (TypeScript, Preact, three.js) | a static web page that draws what the bundle describes. It has no detector-specific code. A copy runs at https://marriot-evd.web.cern.ch: drop a bundle on it, and your browser reads the file from your disk. |
+| site | `service/` | planned: a CMS website on EOS, with no server process, for each user's bundles and shared samples that cron keeps up to date ([Hosting](docs/hosting.md)) |
 
 ## Repository layout
 

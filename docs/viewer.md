@@ -12,9 +12,9 @@ This page describes every part of the viewer. For a short first tour, see
 The button at the left of the top bar shows the name of the data set that is open. Click it to open the **data set
 chooser**. It has a filter and three kinds of list:
 
-- **My files**: the bundles you published with `ember FILE.root` ([The `ember` command](cli.md)). The newest come first.
-  Each shows its number of events and when it expires. This list is your user area on the site,
-  `data/u/<login>/index.json`.
+- **My files**: the bundles you published to this site with `ember FILE.root`
+  ([Publish to a site](how-to.md#publish-to-a-site)). The newest come first. Each shows its number of events and when
+  it expires. This list is your user area on the site, `data/u/<login>/index.json`.
 - **Recent**: data sets you opened from someone's link, and local files by name. The list holds up to 12 and is
   remembered in this browser. You cannot open a local file again from this list: drop it on the page again.
 - **The site's shared groups**: samples and test-stand data that the site keeps. They come from the site's
@@ -37,7 +37,8 @@ and remembers it in this browser. Click "not you?" to make it forget.
 
 - An address with no data set in it opens the newest shared data set. If there is none, it opens your newest file.
 - A site with no data set at all shows a start panel. It says what the page is and gives the three ways to get
-  events in: publish a file, open a local file, or follow a link.
+  events in: convert a file with `ember` (published to the site only where the site is set up for it), open a local
+  file, or follow a link.
 - A link to a file that cannot be opened shows a panel. It says why: the file is gone (expired or removed), access
   was refused, the file could not be reached, or it is not a bundle. It also says whose file it was and what to do.
   If a data set is already on screen, it stays, and the reason appears as a message.
@@ -198,6 +199,8 @@ leptons with photons and missing momentum, b tagging. An event of the whole dete
 - A bundle with fewer than two such steps (test beam, cosmics) replays each event instead, then visits its main
   showers.
 - Any key or touch stops the tour and brings back your layers.
+- Planned: a speed control in the tour bar (1×, 1.5×, 2×, remembered in this browser), and → to go to the next
+  step.
 
 **Live** (the Live button) plays new files as they appear in the site's index.
 

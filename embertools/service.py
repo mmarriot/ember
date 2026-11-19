@@ -1,4 +1,4 @@
-"""Keep an event-display site in sync with campaigns of NanoAOD files (run from cron, e.g. every 15 minutes).
+"""Keep an Ember site in sync with campaigns of NanoAOD files (run from cron, e.g. every 15 minutes).
 
 Each input file becomes one bundle, <site>/data/<campaign>/<file stem>.ember, written once and skipped afterwards
 (a <file stem>.evdb, written before the project was called Ember, counts as written);
@@ -17,8 +17,8 @@ Config (JSON; service/campaigns.example.json shows every key):
   first of them is converted (one bundle per RelVal sample, whatever its files are called);
   "runInfo": where to find information about the runs (see embertools/runinfo.py), e.g. "registry:RunRegistryP5.RunTable";
   "export": {"cmssw": area, "geometry": "D110", ...}: the inputs are CMSSW reconstruction files (e.g. RelVals), and
-  the event-display NanoAOD of their first `max_events` events is made first, in that CMSSW area (embertools/export.py;
-  optional "era", "conditions", "threads").
+  the NanoAOD of their first `max_events` events is made first, by ember's own cmsRun configuration run in that CMSSW
+  area (embertools/export.py; optional "era", "conditions", "threads").
 """
 
 import contextlib

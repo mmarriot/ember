@@ -1,4 +1,4 @@
-"""NanoAOD -> .ember: read the event-display tables of NanoAOD files and write their events to a bundle.
+"""NanoAOD -> .ember: read the tables of NanoAOD files and write their events to a bundle.
 
 convert() is the whole conversion. It loads the profile (profile.py), builds a Converter (converter.py) from the
 tables the file describes, then reads the events chunk by chunk (or one by one), converts each and hands the records

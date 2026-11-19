@@ -5,9 +5,21 @@ In Ember, "truth" means the CMSSW **truth graph** and nothing else:
 - `truth::Graph` and its hit index (`truth::LogicalGraphHitIndex`, PhysicsTools/TruthInfo);
 - the reco ↔ truth associations of SimGeneral/TruthGraphAssociatorProducers;
 
-as the `NANO:@EVD` flavour writes them to NanoAOD. The flavour is the package DPGAnalysis/EventDisplayNanoAOD, called
-"the exporter" below ([CMSSW side](cmssw.md)). CaloParticle, SimCluster and SimTrackster are not used (the `hgcal`
-profile excludes their tables), and should not be.
+as NanoAOD tables. CaloParticle, SimCluster and SimTrackster are not used (the `hgcal` profile excludes their tables),
+and should not be.
+
+The tables come from one of two places:
+
+- **the truth tables:** the CMSSW branch `truthgraph-nano-tables` (`TruthGraphFlatTableProducer` and
+  `TruthGraphHitFlatTableProducer` in PhysicsTools/TruthInfo, and the association tables of
+  [cms-sw/cmssw#52451](https://github.com/cms-sw/cmssw/pull/52451), in `truthGraphNanoTables_cff`). `ember_cfg.py`
+  uses them when your release has them ([CMSSW side](cmssw.md#truth)). Their association tables are named
+  `<Key>ToTruth` and `TruthTo<Key>`, each with a `...Links` table;
+- **the earlier export:** Ember's earlier whole-detector export, an unmerged CMSSW package that is no longer made. It
+  wrote the truth of the bundles made so far, such as the ttbar data sets of https://marriot-evd.web.cern.ch, and
+  every measurement on this page. Its association tables were named `<collection>ToTruth` and
+  `<collection>FromTruth`. The truth tables are its generic successor, with the same particle selection
+  (`keepLevelMask`, `keepMatchedBy`, `keepAncestors`) and the same per-particle hit energies.
 
 This page says:
 
@@ -22,11 +34,11 @@ What a reco object is compared with, the measures (purity, completeness) and the
 | in the viewer | from |
 |---|---|
 | Truth graph · Particles, Vertices; the Truth tab (parent → children) | `TruthParticles`, `TruthVertices`, `TruthParticleChildren` |
-| a reco object's "best match"; the pair view's choice of particle for a candidate | `<collection>ToTruth`: the AdaptiveNominal working point, one particle per reco object, with `sharedEnergy` and `score` (0 is best) |
+| a reco object's "best match"; the pair view's choice of particle for a candidate | `<Key>ToTruth` (earlier export: `<collection>ToTruth`): the AdaptiveNominal working point, one particle per reco object, with `sharedEnergy` and `score` (0 is best) |
 | a reco object's purity, and whether its match is clean (inspector, truth mode) | `ToTruth.sharedEnergy` over the object's own amount, as the relation's `match` hint says ([Truth](truth.md#measures)) |
-| a truth particle's matched reco objects (its card's "Reconstructed as"), a match's completeness | `<collection>FromTruth` (TruthToReco), with `sharedFraction` and `score` |
+| a truth particle's matched reco objects (its card's "Reconstructed as"), a match's completeness | `TruthTo<Key>` (earlier export: `<collection>FromTruth`), with `sharedEnergyFraction` (earlier export: `sharedFraction`) and `score` |
 | "the particle" that colours and groups everything below it; the levels in the lineage | `TruthParticles.levelFlags` (truth::LevelFlag; bit 2 StableDecayProducts, bit 3 CaloBoundary) |
-| a hit's particle; "simulated energy in its hits, by particle" | `TruthHGCalHits`, `TruthSoAHits{EE,HSi,HSci}`: per (particle, hit), the simulated energy of the particle's subgraph |
+| a hit's particle; "simulated energy in its hits, by particle" | `TruthHGCalRecHits`, `TruthPFRecHits` (earlier export: `TruthHGCalHits`, `TruthSoAHits{EE,HSi,HSci}`, and the barrel and forward ones of gap 12): per (particle, hit), the simulated energy of the particle's subgraph |
 
 **Worked out in Ember.** These are stand-ins, to be replaced when CMSSW provides the information:
 
@@ -44,7 +56,7 @@ What a reco object is compared with, the measures (purity, completeness) and the
 
 ## How truth reaches Ember
 
-Sources: CMSSW_20_1_0_pre5 with the truth-graph and exporter developments. CMSSW paths are relative to `src/`
+Sources: CMSSW_20_1_0_pre5 with the truth-graph developments and the earlier export. CMSSW paths are relative to `src/`
 (SimDataFormats/TruthInfo as in the release). Numbers marked *measured* come from the bundles `gun3_0PU.evdb` (events
 0 to 2) and `ttbar_pu200.evdb` (events 0 and 1), read with `embertools.bundle`. Checked on 2026-11-10.
 
@@ -60,12 +72,13 @@ Sources: CMSSW_20_1_0_pre5 with the truth-graph and exporter developments. CMSSW
    AdaptiveTight, AdaptiveNominal) and one `TruthToReco` map. The `TruthAssociationTraits` specialisations list the
    reco types covered (`plugins/AllRecoToTruthBranchAssociatorsProducer.cc:137-227`): `reco::Track`, `reco::Vertex`,
    `reco::PFCluster`, `ticl::Trackster`, `TICLCandidate`. **Not `reco::CaloCluster`.**
-3. **The exporter** (`DPGAnalysis/EventDisplayNanoAOD/plugins/TruthTableProducers.cc`, `python/eventDisplayNano_cff.py`)
-   writes `TruthParticles`, `TruthVertices`, `TruthParticleChildren`, `<coll>ToTruth` (AdaptiveNominal),
-   `<coll>FromTruth` (TruthToReco), and `TruthHGCalHits` / `TruthSoAHits{EE,HSi,HSci}` (particle → hit, simulated
-   energy). The SoA ones are written only where SoA hit tables are written, which a stock release does not do
-   ([CMSSW side](cmssw.md#soa-collections)).
-4. **The Ember profile** `embertools/profiles/hgcal.json:64-114` reads all of these as relations. `sameRows`
+3. **The tables.** The earlier export wrote `TruthParticles`, `TruthVertices`, `TruthParticleChildren`, `<coll>ToTruth`
+   (AdaptiveNominal), `<coll>FromTruth` (TruthToReco), and `TruthHGCalHits` / `TruthSoAHits{EE,HSi,HSci}` (particle →
+   hit, simulated energy). The SoA ones are written only where SoA hit tables are written, which a stock release does
+   not do ([CMSSW side](cmssw.md#soa-collections)). The truth tables write the same particles, vertices and links,
+   the association tables in both directions, and a hit table for any hit table with a DetId column.
+4. **The Ember profiles** read all of these as relations: `truth.json` for the truth tables, and
+   `embertools/profiles/hgcal.json:64-114` for the earlier export. `sameRows`
    redirects the legacy CLUEstering relations to the SoA tracksters (`hgcal.json:12`, `_resolve_relations` in `embertools/converter.py`).
 
 ### Definitions the display inherits (shared energy, scores)
@@ -93,32 +106,32 @@ Where each gap is:
 
 - **G**: not in the graph or the hit index;
 - **A**: in the graph, but with no associator;
-- **X**: an associator exists, but the exporter does not write it;
+- **X**: an associator exists, but it is not exported;
 - **E**: exported, but Ember does not read it, or reads it in a way that loses information.
 
-The priority is for the event display.
+"Exported" means written to NanoAOD by the truth tables or by the earlier export. The priority is for the viewer.
 
 | # | What is missing | Class | Where | Priority |
 |---|---|---|---|---|
 | 1 | **Layer cluster ↔ truth association** | A | no `TruthAssociationTraits<reco::CaloCluster>`, no `layerClusters` domain in `truthGraphRecoLabelsPSet` (`truthGraphAssociationLabels_cff.py:37-54`), nothing in `truthGraphAssociatorsSequence` (cff `:190-199`), no layer-cluster validator in `Validation/TruthInfo` | high |
-| 2 | Hits of the particle that a reco object is matched to, when that particle is not the one entering the calorimeter | X | `TruthHitTableProducer` exports subgraph hits only for particles with `LevelFlag::CaloBoundary` (`TruthTableProducers.cc`, the default of its `levelMask`) | high |
-| 3 | Total simulated energy per hit (all particles), to tell a grey hit apart as noise or as a particle that was not exported | X (the data is in the index, but not exported) | `TruthTableProducers.cc` writes only (exported particle, hit) rows | high |
-| 4 | Particles that deposit energy, but are neither signal nor matched by a calorimeter object, are not exported, so their hits have no particle. **Fixed in Ember's exporter**: `keepLevelMask`, see [3–5. Unattributed energy](#35-unattributed-energy). | X | the selection in `TruthTableProducers.cc`; `keepMatchedBy` excludes tracks (`eventDisplayNano_cff.py`); pairs with particles that are not exported are dropped (`TruthTableProducers.cc`) | high at pile-up |
+| 2 | Hits of the particle that a reco object is matched to, when that particle is not the one entering the calorimeter | X | `TruthGraphHitFlatTableProducer` (as the earlier export's hit table) exports subgraph hits only for particles with `LevelFlag::CaloBoundary` (the default of its `levelMask`, 8) | high |
+| 3 | Total simulated energy per hit (all particles), to tell a grey hit apart as noise or as a particle that was not exported | X (the data is in the index, but not exported) | the hit tables have only (exported particle, hit) rows | high |
+| 4 | Particles that deposit energy, but are neither signal nor matched by a calorimeter object, are not exported, so their hits have no particle. **Fixed in the truth tables** (and in the earlier export): `keepLevelMask`, opt-in, see [3–5. Unattributed energy](#35-unattributed-energy). | X | the selection of `TruthGraphFlatTableProducer`; with the default selection, particles that only deposit energy are not kept; pairs with particles that are not exported are dropped | high at pile-up |
 | 5 | Out-of-time pile-up has no particles at all (in the default configuration; where a sample has them, the `hgcal` profile drops them) | G | `truthGraphMixedDigi_cff.py:49` (`pileupBunchCrossings=[0]`) | medium |
-| 6 | First-stage tracksters of a non-v6 (CLUE3D) reconstruction. **Fixed**: the associator follows the scheduled labels (`truthGraphAssociationLabels_cff.py:170-189`), and so does the exporter now (it reads `truthGraphAssociationLabels_cff`, so a stock release writes `ticlTrackstersCLUE3DHigh{To,From}Truth`). The profile reads them (`clue3dTruth`, `truthClue3d` in `hgcal.json`), with the same `match` contract as the CLUEstering tracksters. | X | | done |
+| 6 | First-stage tracksters of a non-v6 (CLUE3D) reconstruction. **Fixed**: the associator follows the scheduled labels (`truthGraphAssociationLabels_cff.py:170-189`), and so do the truth tables (they read `truthGraphAssociationLabels_cff`, so a stock release writes the association tables of `ticlTrackstersCLUE3DHigh`). The profile reads them (`clue3dTruth`, `truthClue3d` in `hgcal.json`), with the same `match` contract as the CLUEstering tracksters. | X | | done |
 | 7 | Candidate truth is calorimeter-only: a track-only candidate has no candidate match | A (by design) | `RecoHitAdapters.h:148-161`, traits `AllRecoToTruthBranchAssociatorsProducer.cc:217-224` | medium |
-| 8 | Runner-up matches per reco object (Fixed working point: every branch that shares energy) | X | only `RecoToTruthAdaptiveNominal` is exported (`eventDisplayNano_cff.py`) | low |
+| 8 | Runner-up matches per reco object (Fixed working point: every branch that shares energy) | X | only `RecoToTruthAdaptiveNominal` was exported by the earlier export | low |
 | 9 | HLT tracksters, tracks and vertices (for offline vertices, see 14: exported) | X | `allVertexToTruthBranchAssociators` and `hlt*Associators` exist (cff `:89-114`, `:167-184`); the HLT ones are not exported | low |
 | 10 | SoA objects are never associated directly | A | covered only through legacy copies (`HGCalTrackstersFromSoAProducer` in `tracksterProducerTypes`, labels cff `:26-33`) and Ember's `sameRows` | low (works while SoA == legacy) |
 | 11 | Times of the simulated hits | X | `LogicalGraphHitIndex::directHitTimes` (`LogicalGraphHitIndex.h:77-79,160-171`), not exported | low |
-| 12 | Hit truth for the barrel and forward calorimeters (EB, HB, HF, HO). **Fixed in Ember's exporter.** | X | `TruthEcalHits`, `TruthHBHEHits`, `TruthHFHits`, `TruthHOHits` (`truthCaloHitTables` in `eventDisplayNano_cff.py`), drawn as facts (`fact` hint, `pf.json`). At 200 pile-up, before the in-time cut: 253k EB, 13k HB and 103k HF links per event (1.7, 0.09 and 0.34 MB in the NanoAOD) | high |
-| 13 | ECAL and HCAL PF-cluster associations. **Fixed in Ember's exporter.** | X | `particleFlowCluster{ECAL,HCAL}{To,From}Truth` (`_truthMatched` in `eventDisplayNano_cff.py`), with the `PFClusters{ECAL,HCAL}` tables in collection order; `match` hints in `pf.json` | high |
-| 14 | Primary and secondary vertex associations (part of gap 9). **Fixed in Ember's exporter.** Still to check: the table producer drops pairs whose truth vertex is not an exported `TruthVertices` row, without counting them. | X | `offlinePrimaryVertices{To,From}Truth`, `inclusiveSecondaryVertices{To,From}Truth` (`truthVertexTables` in `eventDisplayNano_cff.py`), joined to `TruthVertices.graphIndex`; `match` hints with `target` interaction / decayVertex, `measure` pt2, and `purity` in `physics.json` | medium |
+| 12 | Hit truth for the barrel and forward calorimeters (EB, HB, HF, HO). **Fixed in the earlier export**; the truth tables give it with one `TruthGraphHitFlatTableProducer` per hit table. | X | earlier export: `TruthEcalHits`, `TruthHBHEHits`, `TruthHFHits`, `TruthHOHits`, drawn as facts (`fact` hint, `pf.json`). At 200 pile-up, before the in-time cut: 253k EB, 13k HB and 103k HF links per event (1.7, 0.09 and 0.34 MB in the NanoAOD) | high |
+| 13 | ECAL and HCAL PF-cluster associations. **Fixed** in the earlier export and in the truth tables. | X | earlier export: `particleFlowCluster{ECAL,HCAL}{To,From}Truth`, with the `PFClusters{ECAL,HCAL}` tables in collection order; `match` hints in `pf.json`. Truth tables: `ParticleFlowCluster{ECAL,HCAL}ToTruth`, `TruthToParticleFlowCluster{ECAL,HCAL}` | high |
+| 14 | Primary and secondary vertex associations (part of gap 9). **Fixed** in the earlier export and in the truth tables. The earlier export dropped pairs whose truth vertex was not an exported `TruthVertices` row, without counting them; the truth tables also keep every truth vertex that a vertex map matches (`keepVerticesMatchedBy`), so no vertex link is dropped. | X | earlier export: `offlinePrimaryVertices{To,From}Truth`, `inclusiveSecondaryVertices{To,From}Truth`, joined to `TruthVertices.graphIndex`; truth tables: `OfflinePrimaryVerticesToTruth`, `TruthToOfflinePrimaryVertices`, and the same for `InclusiveSecondaryVertices` (left out by `ember_cfg.py`, which writes only the leading primary vertex); `match` hints with `target` interaction / decayVertex, `measure` pt2, and `purity` in `physics.json` | medium |
 | 15 | PF-cluster associator for HF and HO | A (CMSSW configuration) | `truthGraphRecoLabelsPSet` (`truthGraphAssociationLabels_cff.py:37-54`) has only `pfClustersEcal/Hcal`. Add `pfClustersHF = particleFlowClusterHF`, `pfClustersHO = particleFlowClusterHO`, and two module clones with `denominatorDetectors=["Hcal"]` **and** `pfRecHits` including `particleFlowRecHitHF` and `particleFlowRecHitHO`. The default list is ECAL + HBHE (`AllRecoToTruthBranchAssociatorsProducer.cc:966`); without the change, HF cells are weighted by simulated photoelectrons. | medium |
-| 16 | The muon channel is not keyed by cell | G | PSimHits are keyed by `detUnitId` only (`LogicalGraphHitIndexProducer.cc:430-433`): CSC layer, RPC roll, GEM partition (DT is per wire). Two particles in one CSC layer cannot be told apart per rechit. Ask for a cell key (strip or wire group, from the PSimHit entry and exit points), as the tracker channel has. Ember exports muon-hit truth at the coarser unit (`TruthMuonHits`: every rechit of a unit gets the unit's energy; `fact.unit` names it). | medium |
+| 16 | The muon channel is not keyed by cell | G | PSimHits are keyed by `detUnitId` only (`LogicalGraphHitIndexProducer.cc:430-433`): CSC layer, RPC roll, GEM partition (DT is per wire). Two particles in one CSC layer cannot be told apart per rechit. Ask for a cell key (strip or wire group, from the PSimHit entry and exit points), as the tracker channel has. The earlier export wrote muon-hit truth at the coarser unit (`TruthMuonHits`: every rechit of a unit gets the unit's energy; `fact.unit` names it). | medium |
 | 17 | Muon-segment association | A | no `truth::recoHits` for `DTRecSegment4D`, `CSCSegment`, `GEMSegment` (the sim-unit DetIds of their rechits), no traits, no `muonSegments` domain; metric SharedHits on the Muon channel; thresholds from MuonAssociatorByHits (purity 0.75, efficiency 0.5, `Validation/RecoMuon/python/associators_cff.py:23-42`) | medium |
 | 18 | Muon association (reco::Muon, standaloneMuons, globalMuons) | A + G | `recoHits(reco::Track)` keeps only `TrackerSingleRecHit` (`PhysicsTools/TruthInfo/interface/RecoHitAdapters.h:46-90`). So listing `globalMuons` in the `tracks` domain would match only its tracker stub (do not do this in Ember). Ask for a muon-hit adapter, a reco::Muon trait judged per stub (the tracker through the track map, the muon system through 17), and a graph level for "muon reaching the muon system" (the graph has only checkpoint 0, tracker → calorimeter; `ParticleData.h:130-131`). | medium |
-| 19 | MTD-cluster and track-time association; MTD truth for particles outside CaloBoundary subgraphs | A + X | The MTD channel is filled with cells and times (`LogicalGraphHitIndexProducer.cc:436-471`), but nothing in CMSSW uses it. Ask for `recoHits(FTLCluster)` → (module, cell), an `mtdClusters` domain, and the matched particle's simulated time at MTD for track-time validation. Ember exporter: a direct-hit mode and `keepWithHits` (40% of the MTD cells at 200 pile-up are outside CaloBoundary subgraphs, *measured*). Ember exports the MTD rechits, `MTDHits`, keyed by rechit DetId with row and column, without truth. The join on module and cell and a direct-hit mode are exporter work. They would add about 0.4 MB and up to 17.5k particles per event at 200 pile-up. | low |
+| 19 | MTD-cluster and track-time association; MTD truth for particles outside CaloBoundary subgraphs | A + X | The MTD channel is filled with cells and times (`LogicalGraphHitIndexProducer.cc:436-471`), but nothing in CMSSW uses it. Ask for `recoHits(FTLCluster)` → (module, cell), an `mtdClusters` domain, and the matched particle's simulated time at MTD for track-time validation. The truth tables would need a direct-hit mode and `keepWithHits` (40% of the MTD cells at 200 pile-up are outside CaloBoundary subgraphs, *measured*). The earlier export wrote the MTD rechits, `MTDHits`, keyed by rechit DetId with row and column, without truth; `ember_cfg.py` does not write MTD hits yet ([planned](cmssw.md#planned-every-hit-and-every-object)). The join on module and cell and a direct-hit mode are table-producer work. They would add about 0.4 MB and up to 17.5k particles per event at 200 pile-up. | low |
 | 20 | PF-candidate association | A | the producer's `ConstituentBased` strategy names it (`AllRecoToTruthBranchAssociatorsProducer.cc:118-128`); needs a `reco::PFCandidate` trait over the track map and the PF-cluster and TICL-candidate maps (target ReconstructableFinalState, bit 10) | medium |
 | 21 | Jet association and generator jets | G + A | no clustering of graph particles (StableDecayProducts ∩ isSignal ∩ visible) into a level or a product; then a constituent-based `reco::PFJet` trait over 20. Never GenJet. | low |
 | 22 | Truth MET | G | −ΣpT of the visible signal generator particles, as a graph product (neutrinos are in the graph, GEN-only status 1). Never GenMET. | low |
@@ -135,7 +148,8 @@ The priority is for the event display.
   What is missing: the traits specialisation for `reco::CaloCluster`, a `DEFINE_FWK_MODULE` alias, a
   `layerClusters=cms.vstring("hgcalMergeLayerClusters")` domain, and a module in the sequence. Checked both in the
   local area and in the release: there is no `LayerCluster` domain anywhere in
-  `SimGeneral/TruthGraphAssociatorProducers` or `Validation/TruthInfo`.
+  `SimGeneral/TruthGraphAssociatorProducers` or `Validation/TruthInfo` of the release.
+  [cms-sw/cmssw#52451](https://github.com/cms-sw/cmssw/pull/52451) adds the layer-cluster associator.
 - **In Ember today:** layer clusters reach the truth only through their hits.
   - The colour (`contentPartners`, `viewer/src/model/relations.ts`) takes the particle with the largest sum of hit
     fraction × `simEnergy`.
@@ -143,9 +157,9 @@ The priority is for the event display.
     over the object's hits, without fractions.
 
   Neither knows the cell's total simulated energy, and both inherit gaps 2 to 4.
-- **Check:** a producer alias such as `TruthBranchLayerClusterAssociatorsProducer` appears (or a `layerClusters` key
-  in `truthGraphRecoLabelsPSet`), and the step3 file has `*_truthBranchLayerClusterAssociators_*`. The exporter then
-  needs one `_truthMatched` entry (`hgcalMergeLayerClusters`), and Ember needs one `ToTruth`/`FromTruth` relation pair
+- **Check:** a producer alias such as `TruthBranchLayerClusterAssociatorsProducer` appears (or a `layerClusters` key in
+  `truthGraphRecoLabelsPSet`), and the step3 file has `*_truthBranchLayerClusterAssociators_*`. The truth tables then
+  need the layer-cluster maps in their configuration, and Ember needs one reco → truth and truth → reco relation pair
   from `HGCalLayerClusters`. The existing `sameRows` redirect moves it onto `HGCalSoALayerClusters`.
 
 ### 2. Hits are exported at a different level from the matches
@@ -166,7 +180,7 @@ matches *below* CaloBoundary: a particle takes the colour of its generator parti
 (for example a π⁰, whose photons own the hits) is shown as an object that merges the generator particles below it
 ([Truth](truth.md#two-levels-the-particle-and-each-kinds-target)).
 
-**Check:** `TruthHitTableProducer` gets a mode that exports hits for every exported particle with its own
+**Check:** `TruthGraphHitFlatTableProducer` gets a mode that exports hits for every exported particle with its own
 (non-inclusive) direct hits, or for the association targets themselves. Today the only setting is `levelMask`.
 
 ### 3–5. Unattributed energy
@@ -192,9 +206,10 @@ in-time pile-up, and the loss came from the export's selection (gap 4). The rest
 about 250 CE-H silicon hits per event at E/σ ≈ 3, with no time), and, most likely, out-of-time pile-up (gap 5; about
 7k such hits per event at 200 pile-up, far above the noise).
 
-**Gap 4 is addressed in the exporter** (branch `evd-export` of the CMSSW developments area).
-`TruthGraphTableProducer` has `keepLevelMask`, set to CaloBoundary, so every particle that enters the calorimeter is
-exported with its hits, pile-up included. For ttbar at 200 pile-up:
+**Gap 4 is addressed in the truth tables**, as it was in the earlier export. `TruthGraphFlatTableProducer` has
+`keepLevelMask`; the configuration's `truthGraphCaloBoundaryTable` sets it to CaloBoundary, so every particle that
+enters the calorimeter is exported with its hits, pile-up included. For ttbar at 200 pile-up, measured with the
+earlier export:
 
 - 82–136k particles per event (ancestors included), instead of 7.7k;
 - hit energy with a particle: 95–98% (CE-E) and 85–91% (CE-H silicon), as much as the full graph allows;
@@ -208,8 +223,8 @@ particles".
 
 ### Per-hit simulated energy: what it is, exactly
 
-- It is per (exported CaloBoundary particle, hit), summed over the particle's subgraph (`TruthTableProducers.cc`,
-  doc string `:422`). It is the `PCaloHit` deposited energy: sampling energy, not calibrated. Only ratios between
+- It is per (exported CaloBoundary particle, hit), summed over the particle's subgraph (the hit table's
+  `simEnergy`). It is the `PCaloHit` deposited energy: sampling energy, not calibrated. Only ratios between
   particles are meaningful, not a comparison with the rechit energy.
 - It is **not** for all particles: only for exported particles (signal, matched, and their ancestors) that also have
   CaloBoundary.
@@ -223,7 +238,7 @@ particles".
 
 ### 6–11. Smaller gaps, briefly
 
-- **6:** fixed. The exporter reads `truthGraphRecoLabelsPSet.tracksters` instead of a hard-coded list of v6 labels,
+- **6:** fixed. The truth tables read the label registry instead of a hard-coded list of v6 labels,
   so a TICL v5 / CLUE3D sample gets its `ticlTrackstersCLUE3DHigh*Truth` tables.
 - **7:** *measured* at 200 pile-up: 1307 of 1910 candidates have a match. The others include track-only candidates.
   Their tracks carry a `generalTracksToTruth` match, which the card shows as the track's (no CMSSW change needed).
@@ -248,21 +263,21 @@ The track associator (`AllRecoToTruthBranchAssociatorsProducer.cc:858-877`) work
 of shared hits, and its score is 1 − shared hits / track hits (*measured*: exact for every track of the sample
 without pile-up).
 
-The exporter writes the count under the calorimeter names (`generalTracksToTruth.sharedEnergy`,
+The earlier export wrote the count under the calorimeter names (`generalTracksToTruth.sharedEnergy`,
 `generalTracksFromTruth.sharedFraction`, integers from 1 to 33). The viewer calls them "shared hits", from the
-relations' `match.measure`.
+relations' `match.measure`. The truth tables name the column after the metric: `nSharedHits`.
 
 The maps have no threshold. CMS tracking validation calls a track with less than 75% shared hits a fake (*measured*
 at 200 pile-up: 11% of the matched tracks are below 75%). This is why the truth mode colours a track by its particle
 only from 75%.
 
-**Check:** the exporter names the column after the associator's metric.
+**Check:** done in the truth tables (`nSharedHits`).
 
 ## What the bundles carry for truth, and what the viewer does not use
 
-*Measured* (zlib, per event; 50 events without pile-up, events 0–2 at 200 pile-up, in-time cut applied): truth is
-0.41 of 1.58 MB without pile-up (26%), and 13.6 of 31.0 MB at 200 pile-up (44%). At 200 pile-up: particles 5.2 MB
-(102k rows), truth hit relations 4.3 MB, TruthToReco 2.6 MB, vertices 1.0 MB.
+*Measured* on bundles of the earlier export (zlib, per event; 50 events without pile-up, events 0–2 at 200 pile-up,
+in-time cut applied): truth is 0.41 of 1.58 MB without pile-up (26%), and 13.6 of 31.0 MB at 200 pile-up (44%). At
+200 pile-up: particles 5.2 MB (102k rows), truth hit relations 4.3 MB, TruthToReco 2.6 MB, vertices 1.0 MB.
 
 What no profile, converter or viewer code uses, at 200 pile-up (the inspector lists every column, so nothing is
 invisible):
@@ -283,8 +298,8 @@ total simulated energy per hit, barrel hits), and to drop what it does not need.
 
 1. `grep -n "reco::CaloCluster>" SimGeneral/TruthGraphAssociatorProducers/plugins/*.cc` finds a traits
    specialisation, and `truthGraphRecoLabelsPSet` has a layer-cluster domain (gap 1).
-2. `TruthHitTableProducer` has a mode that is not limited to CaloBoundary, or a column with the total simulated
+2. `TruthGraphHitFlatTableProducer` has a mode that is not limited to CaloBoundary, or a column with the total simulated
    energy per hit (gaps 2, 3).
 3. `keepMatchedBy` includes tracks, or there is an option "keep every particle with HGCal hits above E" (gap 4).
 4. `pileupBunchCrossings` is widened, or there is an out-of-time summary per hit (gap 5).
-5. Done: the exporter reads its list of labels from `truthGraphAssociationLabels_cff` (gap 6).
+5. Done: the truth tables read their list of labels from `truthGraphAssociationLabels_cff` (gap 6).

@@ -1,6 +1,6 @@
 cff-version: 1.2.0
 message: "If you use Ember, please cite it as below."
-title: "Ember: a web event display for CMS"
+title: "Ember: a viewer of CMS events and their truth graph"
 type: software
 authors:
   - family-names: "Marriott-Clarke"

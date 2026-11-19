@@ -116,6 +116,15 @@ with a message while an old one is set without its new name. `deploy.sh` links `
 - **Ember derives no truth.** HGCal layer clusters no longer take the particle with the most simulated energy in
   their hits: like every kind without a CMSSW associator, they show their gap. The Truth tab compares each particle
   per detector (a barrel electron with its ECAL cluster, not as "not reconstructed").
+- **The card's chain reads one branch at a time.** What an object is made of goes down each branch to its hits before
+  the next (a jet: PF candidates, TICL candidates down to the HGCal hits, then tracks down to the track hits), each
+  step indented under the last step that holds it, and a kind held by several steps says "also via" the others.
+  Before, the branches were interleaved by depth. Jets and taus, which share PF candidates, no longer hold each other.
+- **The side panel lists each part's kinds from the top down**, in an order the profile states (`order`): candidates,
+  their tracksters, layer clusters, hits. Bundles converted before keep their order until converted again.
+- The TICL kinds say what they are (display hint `doc`, behind the kind's **i** and on the chain's steps): tracksters,
+  linked tracksters, and the candidate tracksters, one per TICL candidate (layer "One per candidate", was "Of the
+  candidates").
 
 ### Fixed
 

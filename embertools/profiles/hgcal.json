@@ -142,6 +142,7 @@
   "cuts": {"TICLCandidates": [{"defined": "x"}], "GeneralTrack": [{"reachedBy": "candidateTrack"}],
            "TruthParticles": [["bunchCrossing", "==", 0]], "TruthVertices": [{"reachedBy": ["truthProdVertex", "truthDecayVertex"]}]},
   "prefer": ["SoA", "legacy"],
+  "order": ["candidate", "candidateTrackster", "interpretation", "linkedTrackster", "trackster", "layerCluster", "rechit", "track"],
   "stages": ["trackster", "linkedTrackster", "interpretation", "candidateTrackster", "candidate"],
   "kinds": {
     "rechit": {"label": "Hits", "domain": "HGCal", "repr": "cells", "palette": "heat", "visible": true,
@@ -149,11 +150,11 @@
     "layerCluster": {"label": "Layer clusters", "domain": "HGCal", "repr": "markers", "palette": "cool", "visible": true,
                      "truthGap": {"reason": "the truth graph has no layer-cluster associator (its hits carry the simulated energy)", "gap": 1},
                      "cut": {"group": "Layer cluster energy", "unit": "GeV", "default": 0.0}},
-    "trackster": {"label": "Tracksters", "domain": "HGCal", "repr": "ellipsoids", "colourBy": "row", "visible": true},
-    "linkedTrackster": {"label": "Linked tracksters", "domain": "HGCal", "repr": "ellipsoids", "shape": "shell", "colourBy": "row", "visible": true},
-    "interpretation": {"label": "Interpretations", "domain": "HGCal", "repr": "ellipsoids", "shape": "cage", "colourBy": "row", "visible": true},
-    "candidateTrackster": {"label": "Candidate tracksters", "domain": "HGCal", "repr": "ellipsoids", "shape": "cage", "colourBy": "row", "visible": true},
-    "candidate": {"label": "Candidates", "domain": "HGCal", "repr": "ellipsoids", "shape": "core", "visible": true,
+    "trackster": {"label": "Tracksters", "doc": "Showers as TICL's pattern recognition first builds them: layer clusters connected across layers (CLUE3D, ticlTrackstersCLUE3DHigh; CLUEstering in a TICL v6 export). The linking step then joins them, with the recovery step's tracksters (not drawn), into linked tracksters.", "domain": "HGCal", "repr": "ellipsoids", "colourBy": "row", "visible": true},
+    "linkedTrackster": {"label": "Linked tracksters", "doc": "Tracksters joined by TICL's linking step: the pieces of one shower made one (TracksterLinksProducer, ticlTracksterLinks, from the CLUE3D tracksters and the recovery step's, which are not drawn: a linked trackster can hold layer clusters of no trackster drawn here), or an electron or photon seed with the tracksters around it (superclustering DNN). No relation says which tracksters each one joined: the viewer relates them by their shared layer clusters.", "domain": "HGCal", "repr": "ellipsoids", "shape": "shell", "colourBy": "row", "visible": true},
+    "interpretation": {"label": "Interpretations", "doc": "In a TICL v6 development export, the tracksters of TICL's interpretation step, one per TICL candidate (ticlTracksterInterpretations). A stock release writes the candidate tracksters instead.", "domain": "HGCal", "repr": "ellipsoids", "shape": "cage", "colourBy": "row", "visible": true},
+    "candidateTrackster": {"label": "Candidate tracksters", "doc": "Each TICL candidate's own trackster, written by the candidates' producer (TICLCandidateProducer, ticlCandidate) next to them. A charged candidate's is the linked tracksters that match its track in position, time and energy, merged into one; a muon's, the minimum-ionising trackster the muon pass found on its track, if any; each linked trackster left over is copied as a neutral candidate's. Their axes, energy and particle type are then worked out again. One per candidate, except a muon with no such trackster.", "domain": "HGCal", "repr": "ellipsoids", "shape": "cage", "colourBy": "row", "visible": true},
+    "candidate": {"label": "Candidates", "doc": "TICL's particles (TICLCandidateProducer): a track with its candidate trackster (charged), a candidate trackster alone (neutral), or a muon from its track (with the minimum-ionising trackster on it, if found). Particle flow's HGCal candidates are made from them.", "domain": "HGCal", "repr": "ellipsoids", "shape": "core", "visible": true,
                   "truthGap": {"reason": "the truth graph has no TICL-candidate associator: the trackster each candidate is built on (a candidate trackster) has its own match, and a charged candidate's track has its own"},
                   "colourBy": {"category": "pdgID", "abs": true,
                                "names": {"22": "photon", "11": "electron", "13": "muon", "211": "charged hadron", "130": "neutral hadron", "111": "neutral pion"}}},
@@ -199,7 +200,7 @@
     {"table": "ticlTracksterInterpretations", "kind": "interpretation", "source": "legacy", "describe": {"columns": ["raw_energy"]}, "label": "Interpretations",
      "position": ["barycenter_x", "barycenter_y", "barycenter_z"], "time": "time", "axis": ["eVector0_x", "eVector0_z", "eVector0_y"], "extent": ["EV1", "EV2", "EV3"], "colour": "raw_energy", "size": null},
 
-    {"table": "ticlCandidate", "kind": "candidateTrackster", "source": "legacy", "describe": {"columns": ["raw_energy"]}, "label": "Of the candidates",
+    {"table": "ticlCandidate", "kind": "candidateTrackster", "source": "legacy", "describe": {"columns": ["raw_energy"]}, "label": "One per candidate",
      "position": ["barycenter_x", "barycenter_y", "barycenter_z"], "time": "time", "axis": ["eVector0_x", "eVector0_z", "eVector0_y"], "extent": ["EV1", "EV2", "EV3"], "colour": "raw_energy", "size": null},
 
     {"table": "TICLCandidates", "kind": "candidate", "source": "legacy", "describe": {"columns": ["pdgID", "raw_energy"], "names": {"pdgID": {"11": "e⁻", "-11": "e⁺", "13": "μ⁻", "-13": "μ⁺", "22": "γ", "111": "π⁰", "211": "π⁺", "-211": "π⁻", "130": "K⁰L"}}}, "label": "TICL candidates",

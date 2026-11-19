@@ -140,8 +140,8 @@ object. ← at the top of the card (or `B`) goes back.
 
 **Draw one step of what the object is made of.** Press `↓` / `↑`, or click **show** on a step of the chain. This
 draws one step at a time, from the object down to its smallest parts. For a TICL candidate, the steps are its
-interpretations, linked tracksters, tracksters and layer clusters. The object itself is drawn as an outline around
-the step.
+candidate trackster, linked tracksters, tracksters and layer clusters (in a TICL v6 export, its interpretation in place
+of the candidate trackster). The object itself is drawn as an outline around the step.
 
 - A step with several layers (for example two linking algorithms) draws the layers ticked in the side panel, or all
   of them if none is ticked.
@@ -405,12 +405,19 @@ threshold gets no dot and no green, because nothing says how good its match is.
 **The chain** (`viewer/src/model/chain.ts`). A reco object is shown between:
 
 - what it is **part of**: the objects that contain it, outermost first;
-- what it is **made of**: from the largest objects down to the hits;
+- what it is **made of**: from the largest objects down to the hits, one branch at a time. A jet's PF candidates come
+  first, then their TICL candidates down to the HGCal hits, then their tracks down to the track hits. A step comes
+  right after the last step that holds it, indented under it, with its other holders named: "also via PF
+  candidates" on tracks listed under a jet's TICL candidates;
 - what is **also inside it**, listed apart: objects built only from its parts that are not parts of it. For example
   a secondary vertex whose tracks are all in the jet, or a tau made of its PF candidates.
 
 A step names its objects when there are three or fewer. Otherwise it counts them and unfolds to a list, largest
 first. Every object is a button that moves the selection there.
+
+Each kind's name says, on hover, what that kind of object is, where the bundle's profile explains it (the same text
+is behind the kind's **i** in the side panel). For example, the TICL kinds: tracksters (CLUE3D), linked tracksters
+(TICL's linking), and candidate tracksters (one per TICL candidate, written with the candidates).
 
 For some objects, no relation in the bundle says what contains them. For example, nothing says which linked
 trackster, interpretation and candidate contain a trackster. Then Ember works it out: the card shows the object that

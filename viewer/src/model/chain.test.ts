@@ -103,16 +103,16 @@ const header = {
     },
   },
   display: [
-    layer("Hit", "Hits", { repr: "cells" }),
-    layer("LC", "Layer clusters", { truthGap: { reason: "no associator", gap: 1 } }),
-    layer("T", "Tracksters", { stage: 0 }),
-    layer("Inter", "Interpretations", { stage: 2 }),
-    layer("Cand", "Candidates", { stage: 3 }),
-    layer("Trk", "Tracks", { repr: "helix" }),
-    layer("P", "Particles", { truth: true }),
-    layer("PF", "PF candidates", { truthGap: { reason: "no PF associator", gap: 20 } }),
     layer("Jet", "Jets", { truthGap: { reason: "no jet associator", gap: 21 } }),
     layer("SV", "Secondary vertices"),
+    layer("PF", "PF candidates", { truthGap: { reason: "no PF associator", gap: 20 } }),
+    layer("Cand", "Candidates", { stage: 3 }),
+    layer("Inter", "Interpretations", { stage: 2 }),
+    layer("T", "Tracksters", { stage: 0 }),
+    layer("LC", "Layer clusters", { truthGap: { reason: "no associator", gap: 1 } }),
+    layer("Hit", "Hits", { repr: "cells" }),
+    layer("Trk", "Tracks", { repr: "helix" }),
+    layer("P", "Particles", { truth: true }),
   ],
 } as unknown as Header;
 const statuses = new Map(
@@ -133,9 +133,20 @@ describe("recoLadder", () => {
   it("reads down the chain: what holds the object above it, what it is made of below, holders first", () => {
     expect(kinds(ladder("Cand", 0))).toEqual({
       above: ["Jets", "PF candidates"],
-      below: ["Interpretations 1", "Tracks 1", "Tracksters 1", "Layer clusters 2", "Hits 3"],
+      below: ["Interpretations 1", "Tracksters 1", "Layer clusters 2", "Hits 3", "Tracks 1"],
       beside: [],
     });
+  });
+  it("indents each step under the last step that holds it, and names its other holders", () => {
+    const l = ladder("Jet", 0);
+    expect(l.below.map((r) => `${r.indent} ${r.kind}${r.via?.length ? ` via ${r.via}` : ""}`)).toEqual([
+      "0 PF candidates",
+      "1 Candidates",
+      "2 Interpretations",
+      "3 Layer clusters via Candidates",
+      "4 Hits",
+      "2 Tracks via PF candidates",
+    ]);
   });
   it("never lists what contains the object as one of its parts (a PF candidate made of the candidate and its track)", () => {
     expect(ladder("Cand", 0).below.some((r) => r.kind === "PF candidates")).toBe(false);

@@ -128,9 +128,11 @@ function RungRow({ rung, role }: { rung: Rung; role: "above" | "self" | "below" 
     ];
   const elsewhere = role !== "self" && cur && parts.length && !parts.includes(cur) ? parts[0] : undefined;
   return (
-    <li class={`rung ${role}${on ? " shown" : ""}`}>
+    <li class={`rung ${role}${on ? " shown" : ""}`} style={rung.indent ? { "--indent": rung.indent } : undefined}>
       <div class="rhead">
-        <span class="rkind">{rung.kind}</span>
+        <span class="rkind" title={layerOf(rung.groups[0]?.table)?.doc}>
+          {rung.kind}
+        </span>
         {role === "self" ? null : few ? (
           rung.groups.map((g) => (
             <>
@@ -172,6 +174,14 @@ function RungRow({ rung, role }: { rung: Rung; role: "above" | "self" | "below" 
           )}
         </span>
       </div>
+      {!!rung.via?.length && (
+        <div
+          class="rvia muted"
+          title="Relations also lead here from these steps; it is indented under the last step that holds it"
+        >
+          also via {rung.via.join(", ")}
+        </div>
+      )}
       {rung.links.map((link) => (
         <LinkLine
           link={link}

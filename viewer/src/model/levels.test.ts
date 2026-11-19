@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { DisplayLayer } from "../io/format";
-import { focusLevels, levelLayers, mergeAcrossDomains, scopeLevels, stepLevel } from "./levels";
+import { chainOrder, focusLevels, levelLayers, mergeAcrossDomains, scopeLevels, stepLevel } from "./levels";
 
-// Display layers as a profile orders them, from the bottom up (hits first, candidates last), then truth.
+// Display layers as a profile orders them, from the top down (candidates first, hits last), then truth.
 const layer = (table: string, group: string, extra: Partial<DisplayLayer> = {}) =>
   ({
     table,
@@ -15,15 +15,15 @@ const layer = (table: string, group: string, extra: Partial<DisplayLayer> = {}) 
     ...extra,
   }) as DisplayLayer;
 const display = [
-  layer("Hit", "Hits", { repr: "cells", visible: true }),
-  layer("Readout", "Detector", { repr: "cells", context: true, visible: true }),
-  layer("LC", "Layer clusters", { repr: "markers", visible: true }),
-  layer("T", "Tracksters", { stage: 0 }),
-  layer("Link", "Linked tracksters", { stage: 1 }),
-  layer("DNN", "Linked tracksters", { stage: 1 }),
-  layer("I", "Interpretations", { stage: 2 }),
   layer("Cand", "Candidates", { stage: 3, visible: true }),
   layer("Track", "Tracks", { repr: "segments", stage: 3, visible: true }),
+  layer("I", "Interpretations", { stage: 2 }),
+  layer("Link", "Linked tracksters", { stage: 1 }),
+  layer("DNN", "Linked tracksters", { stage: 1 }),
+  layer("T", "Tracksters", { stage: 0 }),
+  layer("LC", "Layer clusters", { repr: "markers", visible: true }),
+  layer("Readout", "Detector", { repr: "cells", context: true, visible: true }),
+  layer("Hit", "Hits", { repr: "cells", visible: true }),
   layer("P", "Truth", { repr: "segments", truth: true, visible: true }),
 ];
 const rows = (r: Record<string, number[]>) => new Map(Object.entries(r).map(([t, v]) => [t, new Set(v)]));
@@ -55,7 +55,7 @@ describe("focusLevels", () => {
       "Layer clusters 3",
       "Hits 4",
     ]);
-    expect(lv[1].layers.map((d) => d.table)).toEqual(["DNN", "Link"]); // one level per kind, all its layers
+    expect(lv[1].layers.map((d) => d.table)).toEqual(["Link", "DNN"]); // one level per kind, all its layers
   });
   it("leaves out the focus's stage (its track), truth and background layers", () => {
     const tables = focusLevels(display, "Cand", candidate, own).flatMap((l) => l.layers.map((d) => d.table));
@@ -101,9 +101,9 @@ describe("focusLevels with relations", () => {
       "Linked tracksters",
       "Tracksters",
       "Layer clusters",
+      "Hits (leaf) (always)",
       "Tracks (always)",
       "Track hits (leaf) (always)",
-      "Hits (leaf) (always)",
     ]);
     expect(
       levelLayers(lv, null, () => false)
@@ -145,9 +145,9 @@ describe("focusLevels with relations", () => {
   });
   it("draws a vertex's tracks with their hits: lines do not hide them", () => {
     const vtx = [
-      layer("TH", "Track hits", { repr: "markers" }),
-      layer("Trk", "Tracks", { repr: "helix" }),
       layer("V", "Vertices", { repr: "markers" }),
+      layer("Trk", "Tracks", { repr: "helix" }),
+      layer("TH", "Track hits", { repr: "markers" }),
     ];
     const lv = focusLevels(vtx, "V", rows({ V: [0], Trk: [1, 2], TH: [3, 4, 5] }), () => true, {
       vTrk: rel("V", "Trk"),
@@ -158,6 +158,84 @@ describe("focusLevels with relations", () => {
       "Track hits 3 (always)",
     ]);
     expect(stepLevel(lv, null, 1)).toBeNull();
+  });
+});
+
+describe("chainOrder", () => {
+  const rel = (from: string, to: string) => ({ from, to, weights: [] });
+  const walk = (lv: ReturnType<typeof focusLevels>) =>
+    chainOrder(lv).map(
+      ({ level, indent, via }) => `${"  ".repeat(indent)}${level.name}${via.length ? ` (via ${via})` : ""}`,
+    );
+  // A jet: PF candidates hold TICL candidates and tracks; a TICL candidate holds its track, its candidate trackster and
+  // linked tracksters (no relation between those: their stages and shared layer clusters order them), each down to
+  // layer clusters and hits.
+  const jet = [
+    layer("Jet", "Jets"),
+    layer("Tau", "Taus"),
+    layer("PF", "PF candidates"),
+    layer("Cand", "TICL candidates", { stage: 2 }),
+    layer("Own", "Candidate tracksters", { stage: 1 }),
+    layer("Link", "Linked tracksters", { stage: 0 }),
+    layer("LC", "Layer clusters", { repr: "markers" }),
+    layer("Hit", "Hits", { repr: "cells" }),
+    layer("Trk", "Tracks", { repr: "helix" }),
+    layer("TH", "Track hits", { repr: "markers" }),
+  ];
+  const relations = {
+    jetPF: rel("Jet", "PF"),
+    tauPF: rel("Tau", "PF"),
+    pfCand: rel("PF", "Cand"),
+    pfTrk: rel("PF", "Trk"),
+    candTrk: rel("Cand", "Trk"),
+    candOwn: rel("Cand", "Own"),
+    candLink: rel("Cand", "Link"),
+    ownLCs: rel("Own", "LC"),
+    linkLCs: rel("Link", "LC"),
+    lcHits: rel("LC", "Hit"),
+    trkHits: rel("Trk", "TH"),
+  };
+  const all = rows({ PF: [0], Cand: [0], Own: [0], Link: [0], LC: [0], Hit: [0], Trk: [0], TH: [0] });
+  it("reads each branch down to its end before the next, and a kind held twice after both holders", () => {
+    expect(walk(focusLevels(jet, "Jet", all, () => true, relations))).toEqual([
+      "PF candidates",
+      "  TICL candidates",
+      "    Candidate tracksters",
+      "      Linked tracksters (via TICL candidates)",
+      "        Layer clusters (via Candidate tracksters)",
+      "          Hits",
+      "    Tracks (via PF candidates)",
+      "      Track hits",
+    ]);
+    // the levels the view steps through keep their order: holders first, then what is always drawn
+    expect(focusLevels(jet, "Jet", all, () => true, relations).map((l) => l.depth)).toEqual([0, 1, 2, 3, 4, 5, 2, 3]);
+  });
+  it("holds directly through relations that pass no table of another kind (PF candidates and their tracks)", () => {
+    const hl = rows({ PF: [0], Cand: [0], Trk: [0], TH: [0] });
+    // PF candidates lead to tracks directly; to track hits only through tracks
+    expect(walk(focusLevels(jet, "Jet", hl, () => true, relations))).toEqual([
+      "PF candidates",
+      "  TICL candidates",
+      "    Tracks (via PF candidates)",
+      "      Track hits",
+    ]);
+  });
+  it("does not let kinds that only share objects hold each other (jets and taus of one PF candidate)", () => {
+    const up = rows({ Jet: [0], Tau: [0], PF: [0] });
+    expect(walk(focusLevels(jet, "Trk", up, () => true, relations))).toEqual([
+      "Jets",
+      "Taus",
+      "  PF candidates (via Jets)",
+    ]);
+  });
+  it("without relations, is the levels in order, each under the one before", () => {
+    expect(walk(focusLevels(display, "Cand", candidate, own))).toEqual([
+      "Interpretations",
+      "  Linked tracksters",
+      "    Tracksters",
+      "      Layer clusters",
+      "        Hits",
+    ]);
   });
 });
 

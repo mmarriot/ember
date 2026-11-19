@@ -76,9 +76,10 @@ export function Card() {
           <div class={truth ? "kind truth" : "kind"}>
             {labelOf(sel.table)}
             {truth && " (simulation)"}{" "}
-            {info.doc && (
+            {(info.doc || d?.doc) && (
               <Info title={labelOf(sel.table)}>
-                <p>{info.doc}</p>
+                {d?.doc && <p>{d.doc}</p>}
+                {info.doc && <p>{info.doc}</p>}
               </Info>
             )}
           </div>

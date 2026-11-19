@@ -120,7 +120,9 @@ kind except hits. With nothing selected, `N` selects the leading object of the f
 **Labels.** `L` shows labels on the leading objects of the layers that have a `labels` hint (for example the 4
 leading jets, and MET). These labels appear in a shared part's view (Physics). The selection is labelled in every
 view. A label sits at the far end of a line or cone (where a jet meets the calorimeter), or else at the object.
-Pointing at an object's row in the side panel rings the object in the view.
+Labels, chips and lists name the quantity of every number: "Jets · pT 49.7 GeV" (transverse momentum),
+"π⁺ · E 88.9 GeV" (a truth particle's energy), "E raw 178 GeV" (a TICL candidate's raw energy). Pointing at an
+object's row in the side panel rings the object in the view.
 
 ### Following the chain
 
@@ -303,7 +305,21 @@ explains it. [Truth](truth.md) gives the rules behind the truth colours and numb
 compared with.
 
 - **Reco** (the default for a bundle with candidates). Candidates are coloured by the particle type that the
-  reconstruction gave them. Everything they are made of takes the same colour: interpretations and tracks (their
+  reconstruction gave them, one colour per type in every layer: PF and TICL candidates of a type look the same, and
+  the physics objects (electrons, muons, photons) take their type's colour.
+
+  | type | dark theme | light theme |
+  |---|---|---|
+  | charged hadron | orange | orange |
+  | electron | blue | dark blue |
+  | muon | red | dark red |
+  | photon | pale blue | light blue |
+  | neutral hadron | green | green |
+  | neutral pion (TICL) | pale yellow | deep violet |
+  | HF hadron, HF EM | muted green, grey blue | muted green, grey blue |
+
+  Jets are lavender, a colour no type has, so the tracks inside a jet's cone stay visible. Everything candidates are
+  made of takes the same colour: interpretations and tracks (their
   candidate), tracksters and linked tracksters (the candidate that holds most of their layer clusters), layer
   clusters, and hits (their layer cluster's candidate). Objects in no candidate are small and grey. A layer that
   cannot reach a candidate (for example the vertices) is coloured by its colour column, or keeps its own categorical
@@ -320,7 +336,7 @@ compared with.
     neutral: Ember does not work out a particle for it from its hits;
   - layers with no link to the truth (vertices) are the "no truth" grey;
   - only signal generator particles get colours, by energy. The other signal particles are mid grey. Pile-up has its
-    own grey and is drawn small;
+    own warm grey and is drawn small;
   - hits in which no exported particle left energy are small and faint: noise, out-of-time pile-up, or a particle
     that was not exported.
 
@@ -376,9 +392,12 @@ The levels drawn on request are those of the matched object the pair comes from,
 
 ### Colour choices
 
-The colours are Okabe-Ito and Tol hues, checked for protan, deutan and tritan colour vision. Choosing a colour for one
-layer (in its **⋯**) overrides the particle type and the pair view for that layer. The replay keeps each candidate's
-colour throughout.
+The colours are Okabe-Ito and Tol hues, checked for protan, deutan and tritan colour vision. The particle types have
+fixed colours of their own, chosen so that the tracks (charged hadrons, electrons, muons) are far apart, also in
+simulated colour-blind vision. Other categories, such as a hit's subdetector, take colours kept apart from the types,
+so a pixel hit never looks like a charged hadron. Electrons and photons, both electromagnetic, are two blues: less
+apart than the tracks, but still clearly different. Choosing a colour for one layer (in its **⋯**) overrides the particle type and the pair view for that layer. The
+replay keeps each candidate's colour throughout.
 
 ## The selection's card
 

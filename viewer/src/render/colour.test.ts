@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { DisplayLayer, EventData, Header, Table } from "../io/format";
-import { colours, PALETTES } from "./colour";
+import { colours, PALETTES, typeColour } from "./colour";
 
 // candidate 0 -> clusters 0, 2; cluster 1 in no candidate; clusters -> hits: 0 -> [0, 1], 1 -> [2], 2 -> [3]; hit 4 in none
 const csr = (rows: number[][]) => ({
@@ -170,6 +170,64 @@ describe("category colouring", () => {
       "outer endcap",
       "outer barrel",
     ]);
+  });
+});
+
+describe("particle type colours", () => {
+  // PF candidates list their types as [value, name] pairs; TICL candidates as an object, whose integer keys JavaScript
+  // reorders (11 electron first).
+  const pf: [string, string][] = [
+    ["211", "charged hadron"],
+    ["22", "photon"],
+    ["130", "neutral hadron"],
+    ["11", "electron"],
+    ["13", "muon"],
+    ["1", "HF hadron"],
+    ["2", "HF EM"],
+  ];
+  const ticl = { "22": "photon", "11": "electron", "13": "muon", "211": "charged hadron", "130": "neutral hadron" };
+  const t = table(4, { pdgId: Int32Array.from([211, -11, 13, 22]) });
+  const of = (names: DisplayLayer["colourBy"] & object, theme: keyof typeof PALETTES = "dark") => {
+    const c = colours(layer("P", names), t, ev, header, PALETTES[theme]);
+    return [0, 1, 2, 3].map((i) => hex(c.rgb, i));
+  };
+  const expected = (theme: keyof typeof PALETTES) =>
+    ["charged hadron", "electron", "muon", "photon"].map((n) => typeColour(PALETTES[theme], n)!.toLowerCase());
+  it("are keyed by the type's name, not by its place in names", () => {
+    expect(of({ category: "pdgId", abs: true, names: pf })).toEqual(expected("dark"));
+    expect(of({ category: "pdgId", abs: true, names: [...pf].reverse() })).toEqual(expected("dark"));
+  });
+  it("are the same for PF and TICL candidates of a type, in both themes", () => {
+    for (const theme of ["dark", "light"] as const) {
+      expect(of({ category: "pdgId", abs: true, names: ticl }, theme)).toEqual(expected(theme));
+      expect(of({ category: "pdgId", abs: true, names: pf }, theme)).toEqual(expected(theme));
+    }
+  });
+  it("are all different in each theme, and named only by the table's own keys", () => {
+    for (const p of [PALETTES.dark, PALETTES.light])
+      expect(new Set(Object.values(p.types)).size).toBe(Object.keys(p.types).length);
+    expect(typeColour(pal, "constructor")).toBeUndefined();
+  });
+  it("leave other names to the order of names, and the legend names each type", () => {
+    const names: [string, string][] = [["13", "lepton"], ...pf.filter(([v]) => v !== "13")];
+    const c = colours(layer("P", { category: "pdgId", abs: true, names }), t, ev, header, pal);
+    expect(hex(c.rgb, 2)).toBe(pal.others[0].toLowerCase());
+    expect(c.legend.kind === "category" && c.legend.items?.find((it) => it.label === "electron")?.colour).toBe(
+      pal.types.electron,
+    );
+  });
+  it("give a kind named after a type (electrons, jets) the type's colour in each theme", () => {
+    const electrons = { ...layer("Cand", "none"), kind: "electron", fixedColour: "#3cc864" } as DisplayLayer;
+    for (const p of [PALETTES.dark, PALETTES.light])
+      expect(hex(colours(electrons, ev.tables.Cand, ev, header, p).rgb, 0)).toBe(p.types.electron.toLowerCase());
+  });
+  it("give a layer with the same profile colour as such a kind (global muon tracks) that type's colour too", () => {
+    const muons = { ...layer("Mu", "none"), kind: "muon", fixedColour: "#e04040" } as DisplayLayer;
+    const tracks = { ...layer("Cand", "none"), kind: "muonTrack", fixedColour: "#e04040" } as DisplayLayer;
+    const other = { ...tracks, fixedColour: "#3fb8b0" } as DisplayLayer; // standalone tracks keep their own
+    const h = { ...header, display: [...header.display, muons, tracks] } as Header;
+    expect(hex(colours(tracks, ev.tables.Cand, ev, h, pal).rgb, 0)).toBe(pal.types.muon.toLowerCase());
+    expect(hex(colours(other, ev.tables.Cand, ev, h, pal).rgb, 0)).toBe("#3fb8b0");
   });
 });
 

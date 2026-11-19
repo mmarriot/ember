@@ -33,7 +33,7 @@ interface Item {
   kind: "lead" | "focus" | "selected" | "hover";
 }
 
-/** A label's text: its kind and the first value of its `describe` ("Jets · 49.7 GeV"); `full`: all of it. */
+/** A label's text: its kind and the first value of its `describe` ("Jets · pT 49.7 GeV"); `full`: all of it. */
 function text(d: DisplayLayer, row: number, full = false) {
   const skip = full ? [] : (d.describe?.columns.slice(1) ?? []);
   const name = describe(d.table, row, skip);

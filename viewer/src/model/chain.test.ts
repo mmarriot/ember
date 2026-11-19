@@ -231,6 +231,20 @@ describe("recoLadder without display layers", () => {
     );
     expect([up.self.kind, up.above.map((r) => r.kind)]).toEqual(["Digi", ["Hits"]]);
   });
+
+  it("does not list a table read only as a polyline's points (a muon track's hits): it is the track's shape", () => {
+    const tev = {
+      id: [1, 1, 1],
+      tables: { Track: table(1), Points: table(3) },
+      relations: { trackPoints: csr([[0, 1, 2]]) },
+    } as unknown as EventData;
+    const th = {
+      relations: { trackPoints: plain("Track", "Points") },
+      display: [layer("Track", "Muon tracks", { repr: "polyline", points: { relation: "trackPoints" } })],
+    } as unknown as Header;
+    const sel = { table: "Track", row: 0 };
+    expect(recoLadder(tev, th, sel, relatedParts(tev, th, sel), new Map()).other).toEqual([]);
+  });
 });
 
 describe("recoOfTruth", () => {

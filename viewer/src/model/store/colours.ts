@@ -2,8 +2,8 @@
 // hint as drawn in that mode; and what the truth graph says of each kind of object (docs/truth.md), in the words the
 // colour key and the cards use. The rules are in model/modes.ts and model/match.ts; this file holds the signals.
 import { computed, signal } from "@preact/signals";
-import type { DisplayLayer } from "../../io/format";
-import { describeNoLink } from "../../render/colour";
+import type { DisplayLayer, EventData, Header } from "../../io/format";
+import { colours, describeNoLink, type Legend, type Pal } from "../../render/colour";
 import { colourBy, type ColourMode, withColour } from "../custom";
 import { truthStatus, type TruthStatus } from "../match";
 import { modeColouring, modeRoots, recoColourOf } from "../modes";
@@ -112,3 +112,13 @@ describeNoLink((d) => {
   if (s?.kind === "match") return "matched to truth, not to a particle: no particle colour (its card)";
   return "one colour: no link to the colour's source";
 });
+
+/** Adds to the legends `drawn` (layer key -> legend) the colour root's (the candidate types the key lists), also when
+ *  that layer is not drawn: the PF candidates start unticked, and a preset can untick them again. One pass over its
+ *  rows, under a millisecond for 10k PF candidates. */
+export function withRootLegend(header: Header, ev: EventData, drawn: Record<string, Legend>, pal: Pal) {
+  const root = modes.peek().roots.reco,
+    d = root === undefined ? undefined : layerOf(root),
+    t = root === undefined ? undefined : ev.tables[root];
+  if (d && t && !(layerKey(d) in drawn)) drawn[layerKey(d)] = colours(d, t, ev, header, pal).legend;
+}

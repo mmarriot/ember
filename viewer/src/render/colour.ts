@@ -37,9 +37,10 @@ export const PALETTES = {
     // Identity colouring with a `first` column (truth particles: signal first): keys without it (pile-up), lighter
     // than "other" and darker than "unassigned" (no truth).
     pileup: "#b3bbc4",
-    // The pair view (model/pair.ts), by class: other, matched, contamination, split, missed, and a candidate's objects
-    // when it has no truth particle (neutral: nothing is confirmed). From the identity set.
-    pair: ["#cdd2d8", "#117733", "#AA4499", "#2E8FCB", "#D55E00", "#4d5560"],
+    // The pair view (model/pair.ts), by class: other, matched, contamination, split, missed, reco (part of a match,
+    // no truth statement of its own: neutral), branch (the branch's other particles), uncompared (the branch's hits
+    // where no reco kind has an association).
+    pair: ["#cdd2d8", "#117733", "#AA4499", "#B8860B", "#D55E00", "#4d5560", "#44AA99", "#6a7fa0"],
   },
   dark: {
     background: 0x0f1419,
@@ -65,7 +66,7 @@ export const PALETTES = {
     identity: ["#E69F00", "#56B4E9", "#009E73", "#D55E00", "#CC79A7", "#0072B2", "#F0E442"],
     other: "#68717c",
     pileup: "#4b535d",
-    pair: ["#3a424d", "#009E73", "#CC79A7", "#56B4E9", "#D55E00", "#d9dde2"],
+    pair: ["#3a424d", "#009E73", "#CC79A7", "#F0E442", "#D55E00", "#d9dde2", "#7fd6b0", "#8fa3c2"],
   },
 } as const;
 export type ThemeName = keyof typeof PALETTES;

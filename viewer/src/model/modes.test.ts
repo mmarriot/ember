@@ -64,11 +64,11 @@ describe("colour modes", () => {
     // without stages (Run 3: no HGCal), the PF candidates
     expect(modeRoots({ ...pf, display: pf.display.map((d) => ({ ...d, stage: undefined })) }).reco).toBe("PF");
   });
-  it("truth mode: reco objects by their own best match, hits by particle, layer clusters from their hits", () => {
+  it("truth mode: reco objects by their own best match, hits by particle, parts by their container", () => {
     expect(modeColouring(header, "P", true)).toEqual({
       P: "identity",
       Hit: { relation: "truthHits" },
-      LC: { content: "P" },
+      LC: { relation: "candLCs" }, // its candidate's match, never a vote through its hits
       T: { relation: "tTruth" },
       Cand: { relation: "candTruth" },
       Interp: { relation: "candInterp" },
@@ -185,8 +185,8 @@ describe("colour modes", () => {
     expect(c.THit).toEqual({ relation: "trackHits" });
     expect(c.CHit).toBeUndefined();
   });
-  it("truth mode: the vote by content only for a kind that opts in, or in a bundle made before truthGap", () => {
-    expect(modeColouring(header, "P", true).LC).toEqual({ content: "P" }); // no truthGap anywhere: as before
+  it("truth mode: never a vote by content (Ember derives no truth), even where a bundle's truthGap asked for one", () => {
+    expect(modeColouring(header, "P", true).LC).toEqual({ relation: "candLCs" }); // no truthGap: its container's
     const gap = (derived?: "content") =>
       ({
         ...header,
@@ -194,7 +194,7 @@ describe("colour modes", () => {
           d.table === "LC" ? { ...d, truthGap: { reason: "no layer-cluster associator", gap: 1, derived } } : d,
         ),
       }) as unknown as Header;
-    expect(modeColouring(gap("content"), "P", true).LC).toEqual({ content: "P" });
+    expect(modeColouring(gap("content"), "P", true).LC).toBeUndefined();
     expect(modeColouring(gap(), "P", true).LC).toBeUndefined();
   });
   it("leaves the colourings of today's cms bundle unchanged", () => {

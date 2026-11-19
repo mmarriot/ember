@@ -212,7 +212,8 @@ each of layers 25 and 26:
 - They are copied to the bundle for the layers whose table is written.
 - Every column that a layer names must exist. This includes columns named inside `cell`, `list`, `inspect` and
   `fractions`, and a `length` or `radius` given as a column.
-- `truthGap: {"reason", "gap", "derived"?}` on a kind says why the kind has no truth association. `gap` is the gap
+- `truthGap: {"reason", "gap"}` on a kind says why the kind has no truth association; the display says so, and Ember
+  builds no association in its place. `gap` is the gap
   number in [Truth graph](truth-graph.md). A relation from the kind with a `match` hint supersedes it.
 
 The converter also reads:

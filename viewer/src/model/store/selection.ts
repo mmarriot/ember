@@ -14,7 +14,6 @@ import { batch, computed, effect, signal } from "@preact/signals";
 import type { DisplayLayer } from "../../io/format";
 import { matchClass, recoLadder, recoOfTruth } from "../chain";
 import { focusLevels, levelLayers, mergeAcrossDomains, scopeLevels, stepLevel } from "../levels";
-import { opensPair } from "../match";
 import { PAIR, type Pair, pairFor, pairShows } from "../pair";
 import { levelsOf, type Related, relatedParts, sameRef, type Ref } from "../relations";
 import { activeMode, modes, truthStatuses } from "./colours";
@@ -136,7 +135,7 @@ export const ladder = computed(() => {
     sel = subject.value,
     parts = subjectParts.value;
   if (!b || !ev || !sel || !parts || layerOf(sel.table)?.truth) return null;
-  return recoLadder(ev, b.header, sel, parts, truthStatuses.value, modes.value.roots.truth);
+  return recoLadder(ev, b.header, sel, parts, truthStatuses.value);
 });
 
 /** For a truth object on the card: what was reconstructed from it, per reco kind, and the hits it left
@@ -161,36 +160,17 @@ export function matchOf(table: string, row: number) {
 // ---- What the view highlights
 
 /** In the "pid" and "truth" modes with something focused: its truth <-> reco pair (model/pair.ts), which colours every
- *  layer. Null when the pair has nothing to show (no candidate, and no hits of its particle), for a kind with no
- *  truth of its own (a jet never opens a pair; its constituents may), and in a bundle with no truth at all (data, a
- *  standard NanoAOD): a pair without its truth side says nothing the selection does not. */
+ *  layer. Null when the pair has nothing to show, for a kind with no association of its own (a jet, a PF candidate, a
+ *  TICL candidate: their parts may open one), and in a bundle with no truth at all (data, a standard NanoAOD). */
 export const pairView = computed<Pair | null>(() => {
   const f = focus.value,
     b = bundle.value,
     ev = event.value,
-    { roots, colouring } = modes.value;
-  if (
-    activeMode.value === "layers" ||
-    !f ||
-    !b ||
-    !ev ||
-    !roots.reco ||
-    !roots.truth ||
-    !colouring.reco ||
-    f.row >= (ev.tables[f.table]?.n ?? 0)
-  )
+    { roots } = modes.value;
+  if (activeMode.value === "layers" || !f || !b || !ev || !roots.truth || f.row >= (ev.tables[f.table]?.n ?? 0))
     return null;
-  if (!opensPair(b.header, f.table, colouring.truth, colouring.reco)) return null;
-  const truthLayer = b.header.display.find((d) => d.table === roots.truth);
-  const pair = pairFor(
-    ev,
-    b.header,
-    f,
-    { truth: roots.truth, reco: roots.reco },
-    { truth: colouring.truth, reco: colouring.reco },
-    truthLayer,
-  );
-  return pairShows(pair) ? pair : null;
+  const pair = pairFor(ev, b.header, f, roots.truth);
+  return pair && pairShows(pair) ? pair : null;
 });
 
 /** What is drawn highlighted, per table: the focus, its levels and what is linked to it (e.g. its truth particle);
@@ -214,9 +194,12 @@ export const highlight = computed(() => {
       for (let i = 0; i < cls.length; i++) if (cls[i] !== PAIR.other && cls[i] !== skip) rows.add(i);
       if (rows.size) hl.set(t, rows);
     }
-    // ... and the reco objects linked to the focus (e.g. a track's vertex), which the pair may not classify.
-    for (const [t, rows] of parts?.linked ?? [])
-      if (!layerOf(t)?.truth) hl.set(t, new Set([...(hl.get(t) ?? []), ...rows]));
+    // ... and, for a reco focus, the reco objects linked to it (e.g. a track's vertex), which the pair may not
+    // classify. Not a truth particle's associations: the pair already shows its matches, and every other object an
+    // association names (at any score) would look like part of it.
+    if (!layerOf(f.table)?.truth)
+      for (const [t, rows] of parts?.linked ?? [])
+        if (!layerOf(t)?.truth) hl.set(t, new Set([...(hl.get(t) ?? []), ...rows]));
     return hl;
   }
   return b && ev && f && parts ? levelsOf(ev, b.header, f, parts) : null;
@@ -262,12 +245,9 @@ effect(() => {
 
 // ---- The focus's levels
 
-/** The object whose levels are shown: in the pair view, the pair's candidate, so that its particle, the candidate and
- *  anything inside them give the same picture; else the focus. */
-export const levelTop = computed<Ref | null>(() => {
-  const pair = pairView.value;
-  return pair && pair.candidate >= 0 ? { table: pair.reco, row: pair.candidate } : focus.value;
-});
+/** The object whose levels are shown: in the pair view, the matched object it comes from (a track for its hits);
+ *  else the focus. */
+export const levelTop = computed<Ref | null>(() => pairView.value?.from ?? focus.value);
 const topParts = computed(() => (sameRef(levelTop.value, focus.value) ? focusParts.value : partsOf(levelTop.value)));
 
 /** The kinds of object the focus is made of, top first (model/levels.ts); its own kind and truth are not levels. */

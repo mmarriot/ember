@@ -65,7 +65,6 @@ export function cross() {
     for (const x of l.self.links) {
       if (x.kind === "match" && x.partners.length) return jump({ table: x.truth, row: x.partners[0][0] });
       if (x.kind === "fact" && x.particles.length) return jump({ table: x.truth, row: x.particles[0][0] });
-      if (x.kind === "derived" && x.partners.length) return jump({ table: x.truth, row: x.partners[0][0] });
     }
     return toast(
       l.self.links.some((x) => x.kind === "none" || x.kind === "container")

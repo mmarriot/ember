@@ -171,8 +171,8 @@ export interface DisplayLayer {
   particle?: { flags: string; bit: number; first?: string };
   /** A reco kind the truth graph says nothing about (docs/truth.md): why (`reason`, for the UI) and the number of the
    *  gap in docs/truth-graph.md. Ignored once the kind has its own reco -> truth relation with a `match` hint.
-   *  `derived: "content"`: Ember's stand-in may colour it by the particle with the most simulated energy in its parts
-   *  (only HGCal layer clusters). */
+   *  `derived`: written by profiles before Ember stopped deriving truth (HGCal layer clusters); ignored, and the
+   *  stand-in clause of their `reason` is not shown. */
   truthGap?: { reason: string; gap?: number; derived?: "content" };
   /** Draw only the objects related to the current selection (none without one), until the user chooses all. */
   onSelection?: boolean;

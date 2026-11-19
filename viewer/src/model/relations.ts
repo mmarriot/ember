@@ -316,9 +316,9 @@ export function cached<T>(ev: EventData, what: string, make: () => T): T {
 /** For each object of `table`, the object of `root` with the most weight in its parts (-1 for none): over each
  *  relation from `table` into a parts table (weighted by its first weight, e.g. a layer cluster's hit fraction, else
  *  1) and each relation from `root` into the same parts table (by its `best` weight, e.g. the simulated energy a
- *  particle left in a hit, else 1), the root object with the largest sum of products. Two uses:
- *  - through an association (`derived`): a stand-in for one the data lack, e.g. the truth particle of a layer cluster;
- *  - through containment: a vote, e.g. the candidate holding most of a trackster's layer clusters.
+ *  particle left in a hit, else 1), the root object with the largest sum of products: a vote through containment,
+ *  e.g. the candidate holding most of a trackster's layer clusters. `derived`: the weights came through an association
+ *  (a colouring a person chose; the truth colours never vote through hits: docs/truth.md).
  *  `weight`: the root -> parts weight summed ("" for counts); `parts`: the parts table; `share`: per object, the
  *  partner's part of the total weight (0..1). Computed once per event. */
 export function contentPartners(table: string, root: string, n: number, ev: EventData, header: Header) {

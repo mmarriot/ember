@@ -25,12 +25,16 @@ import {
 import { Info } from "./Info";
 import { jump } from "../control/navigate";
 
-/** The pair view's classes, as the regions of the particle and the candidate: colour, name, meaning. */
-const CLASSES: [Exclude<PairClass, 0 | 5>, string, string][] = [
-  [PAIR.matched, "shared", "the particle's, in its candidate"],
-  [PAIR.contamination, "contamination", "in the candidate, from other particles or none"],
-  [PAIR.split, "split off", "the particle's, in other candidates"],
-  [PAIR.missed, "missed", "the particle's, in no candidate"],
+/** The pair view's classes (model/pair.ts): colour, name, meaning. "Its match": the objects the associator rates
+ *  best for the branch, in each detector's compared kind (named in the card). */
+const CLASSES: [Exclude<PairClass, 0>, string, string][] = [
+  [PAIR.matched, "shared", "the branch's, in its match"],
+  [PAIR.contamination, "contamination", "in its match, from other particles or none"],
+  [PAIR.split, "split off", "the branch's, in another object of the kind compared"],
+  [PAIR.missed, "missed", "the branch's, in no object of the kind compared"],
+  [PAIR.reco, "in its match", "part of a matched object, no truth of its own (e.g. layer clusters)"],
+  [PAIR.branch, "branch", "other particles of the branch that left hits"],
+  [PAIR.uncompared, "not compared", "the branch's hits where no reco kind has an association"],
 ];
 
 export function ColourKey() {
@@ -39,6 +43,8 @@ export function ColourKey() {
     mode = activeMode.value,
     b = bundle.value;
   if (!b || (!truthColours.value && mode !== "pid")) return null;
+  const shown = new Set<number>();
+  for (const cls of pair?.classes.values() ?? []) for (const c of cls) shown.add(c);
   const title = pair
     ? "Colour = truth ↔ reco pair"
     : mode === "truth"
@@ -71,19 +77,19 @@ export function ColourKey() {
       {!pair && mode === "truth" && <TruthKey />}
       {pair && ( // the pair itself and its numbers are in the selection's card; here only what each colour means
         <ul class="key">
-          {pair.particle < 0 ? (
+          {CLASSES.filter(([c]) => shown.has(c)).map(([c, name, what]) => (
             <li>
-              <i style={{ background: pal.pair[PAIR.reco] }} />
-              <b>in the candidate</b>: <span>nothing confirmed by truth</span>
+              <i style={{ background: pal.pair[c] }} />
+              <b>{name}</b>:{" "}
+              <span>
+                {c === PAIR.reco && pair.particle < 0
+                  ? "no truth particle: nothing confirmed"
+                  : pair.hitsOf >= 0 && pair.hitsOf !== pair.particle
+                    ? what.replace("the branch's", "the shower's")
+                    : what}
+              </span>
             </li>
-          ) : (
-            CLASSES.map(([c, name, what]) => (
-              <li>
-                <i style={{ background: pal.pair[c] }} />
-                <b>{name}</b>: <span>{what}</span>
-              </li>
-            ))
-          )}
+          ))}
           <li>
             <i class="small" style={{ background: pal.unassigned }} />
             everything else

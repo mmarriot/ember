@@ -122,7 +122,7 @@ const statuses = new Map(
   }),
 );
 const ladder = (table: string, row: number) =>
-  recoLadder(ev, header, { table, row }, relatedParts(ev, header, { table, row }), statuses, "P");
+  recoLadder(ev, header, { table, row }, relatedParts(ev, header, { table, row }), statuses);
 const kinds = (l: Ladder) => ({
   above: l.above.map((r) => r.kind),
   below: l.below.map((r) => `${r.kind} ${r.count}`),

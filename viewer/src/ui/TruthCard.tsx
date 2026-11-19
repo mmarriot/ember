@@ -5,6 +5,7 @@
 // - for a truth particle (and for a reco object's match), its lineage: where it sits in the truth graph, from the
 //   collision down to its daughters, with the levels it belongs to and the reco objects matched to it.
 // Every line says where it comes from: the simulation (a fact), the CMSSW associator (a match, never "is"), or Ember.
+import { signal } from "@preact/signals";
 import type { Header } from "../io/format";
 import { completeness, percent, quality, TARGETS } from "../model/match";
 import { bestPartners, identities } from "../model/relations";
@@ -19,7 +20,9 @@ const LEVELS: [number, string, string][] = [
   [8, "b hadron", "weakly decaying hadron with a b quark"],
   [9, "c hadron", "weakly decaying hadron with a c quark"],
 ];
-const ANCESTORS = 4; // ancestors listed above the particle; higher ones are folded into one line
+const ANCESTORS = 4; // ancestors listed above the particle; higher ones are folded into one line, unfolded on a click
+/** The lineage's folded ancestors are shown (kept from one particle to the next). */
+const unfolded = signal(false);
 
 const chip = (t: string, r: number) => <ObjChip table={t} row={r} text={describe(t, r) || named(t, r) || undefined} />;
 /** An object's name from its layer's categorical colouring (e.g. a truth vertex's reason: "decay"), for layers without
@@ -90,7 +93,11 @@ export function TruthCard({ table, row }: { table: string; row: number }) {
   const particles = target === truth,
     generator = p >= 0 && particles ? generatorOf(truth, p) : -1;
   const what =
-    m.measure === "hits" ? "hits" : m.measure === "pt2" ? "tracks (weighted by pT²)" : `rechit energy in ${m.in}`;
+    m.measure === "hits"
+      ? "hits"
+      : m.measure === "pt2"
+        ? "tracks (weighted by pT²)"
+        : `reconstructed energy in ${m.in} (its raw energy: the rechits', each by its fraction; the shared part is the rechit energy of the match's share of each hit)`;
   const help = (
     <>
       {m.target && (
@@ -113,7 +120,7 @@ export function TruthCard({ table, row }: { table: string; row: number }) {
             ? "tracker hits, its secondaries' included,"
             : c.match.measure === "pt2"
               ? "findable tracks (pT²)"
-              : `energy in ${c.match.in}`}{" "}
+              : `energy in ${c.match.in} (each cell's rechit energy, split between the particles by the simulated energy they left in it)`}{" "}
           that this object has.
         </p>
       )}
@@ -160,7 +167,11 @@ export function TruthCard({ table, row }: { table: string; row: number }) {
                 name="purity"
                 value={q.purity}
                 good={m.good}
-                note={m.purity ? "of its tracks' pT²" : `${amount(q.shared)} of ${amount(q.over!)} ${unit}`}
+                note={
+                  m.purity
+                    ? "of its tracks' pT²"
+                    : `${amount(q.shared)} of ${amount(q.over!)} ${unit}${m.measure === "energy" ? " reconstructed" : ""}`
+                }
               />
             )}
             {c && (
@@ -298,7 +309,7 @@ export function Lineage({ row, compact = false }: { row: number; compact?: boole
     };
   const lastParton = pdg ? chain.slice(0, -1).map(parton).lastIndexOf(true) : -1;
   const physical = chain.slice(lastParton + 1),
-    shown = physical.slice(-1 - ANCESTORS),
+    shown = unfolded.value && !compact ? chain : physical.slice(-1 - ANCESTORS),
     folded = chain.length - shown.length;
   const children: number[] = [];
   for (let i = 0; i < t.n; i++) if (parent[i] === row) children.push(i);
@@ -380,11 +391,21 @@ export function Lineage({ row, compact = false }: { row: number; compact?: boole
       </p>
       <ul class="matches">
         {folded > 0 && (
-          <li
-            class="muted"
-            title={`Up to the collision${lastParton >= 0 ? ": the generator's quarks and gluons" : ""}`}
-          >
-            … {folded} earlier step{folded > 1 ? "s" : ""}
+          <li class="muted">
+            <button
+              class="link"
+              title={`Show them, up to the collision${lastParton >= 0 ? " (with the generator's quarks and gluons)" : ""}`}
+              onClick={() => (unfolded.value = true)}
+            >
+              … {folded} earlier step{folded > 1 ? "s" : ""}
+            </button>
+          </li>
+        )}
+        {unfolded.value && chain.length > physical.slice(-1 - ANCESTORS).length && (
+          <li class="muted">
+            <button class="link" onClick={() => (unfolded.value = false)}>
+              fold the earlier steps
+            </button>
           </li>
         )}
         {shown.map((r, k) => line(r, k))}

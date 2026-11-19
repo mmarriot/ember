@@ -111,7 +111,6 @@ export function Collections({ layers }: { layers: DisplayLayer[] }) {
 const WORDS = {
   match: ["match", "matched by CMSSW's associator"],
   fact: ["fact", "a simulation fact: simulated energy per particle in each hit"],
-  derived: ["derived", ""],
   none: ["no truth", ""],
 } as const;
 function TruthWord({ table }: { table: string }) {

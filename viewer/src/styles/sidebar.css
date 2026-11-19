@@ -626,6 +626,14 @@ table.outcome td:nth-child(3) {
   color: var(--muted);
   text-align: right;
 }
+table.outcome .outcell {
+  display: inline-block;
+  margin-right: 6px;
+  white-space: nowrap;
+}
+.outcome td:has(.outcell) {
+  white-space: normal;
+}
 .outcome .missed .chip {
   border-color: #e5534b;
 }

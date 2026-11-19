@@ -11,7 +11,7 @@ import { Color, LinearSRGBColorSpace } from "three";
 import type { DisplayLayer, EventData, Header, Table } from "../io/format";
 import { colourBy, filterMask, filters } from "../model/custom";
 import { cutMin, cutValues, HIDDEN, rescued } from "../model/cuts";
-import { PAIR } from "../model/pair";
+import { PAIR, type Pair, pairKey } from "../model/pair";
 import {
   activeMode,
   bundle,
@@ -302,7 +302,7 @@ export function startScene(canvas: HTMLCanvasElement): () => void {
 
   let builtFor: EventData | null = null; // the event the layers were built for
   let outlinesFor: unknown[] = []; // the bundle and palette the detector outlines were drawn for
-  let lastPair = pairView.peek(); // the pair whose colours the layers have (recoloured when it changes)
+  let lastPair = pairKeyOf(pairView.peek()); // the pair whose colours the layers have (recoloured when it changes)
   // What every layer was built with: a change rebuilds them all. Which layers are drawn (ticks, domain, focus) is not
   // in it: those changes only build or free the layers concerned (stopForced).
   const settings = () => [
@@ -339,7 +339,7 @@ export function startScene(canvas: HTMLCanvasElement): () => void {
     entries = build(wanted(b.header, ev), b.header, ev, drawn);
     withRootLegend(b.header, ev, drawn, pal);
     builtFor = ev;
-    lastPair = pairView.peek(); // built with its colours
+    lastPair = pairKeyOf(pairView.peek()); // built with its colours
     legends.value = drawn;
     eng.setLayers(entries.map((e) => e.layer));
     applyCuts(false);
@@ -402,8 +402,9 @@ export function startScene(canvas: HTMLCanvasElement): () => void {
     // A new truth <-> reco pair (or none any more): every layer is recoloured in place (a buffer upload each, no
     // rebuild).
     const pair = pairView.peek(),
-      changed = pair?.particle !== lastPair?.particle || pair?.candidate !== lastPair?.candidate;
-    lastPair = pair;
+      key = pairKeyOf(pair),
+      changed = key !== lastPair;
+    lastPair = key;
     if (changed && b && ev && ev === builtFor) {
       const recolour = entries.filter((e) => !e.d.context),
         drawn = { ...legends.peek() };
@@ -561,6 +562,8 @@ function colourEntries(
     return out;
   });
 }
+
+const pairKeyOf = (p: Pair | null) => (p ? pairKey(p) : null);
 
 /** The pair view's colours: one per class (model/pair.ts); objects outside the pair drawn small. */
 function pairColours(cls: Uint8Array, classRgb: number[][]) {

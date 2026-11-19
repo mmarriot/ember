@@ -209,7 +209,9 @@ function TruthSide({ table, row }: { table: string; row: number }) {
         complete first.
       </p>
       <p>
-        <b>%</b>: the share of it that the object holds. <span class="ok">★</span>: it is that object's own best match.
+        <b>%</b>: the share of this particle that the object holds, by the associator: of its energy in that detector
+        (calorimeters: each cell's rechit energy, split between the particles by the simulated energy they left in it),
+        or of its tracker hits (tracks). <span class="ok">★</span>: it is that object's own best match.
       </p>
       <p>
         <b>Click</b> an object to look at it in the view; <b>double click</b> to open its card.
@@ -218,7 +220,11 @@ function TruthSide({ table, row }: { table: string; row: number }) {
         <p>"None" is not by itself an inefficiency: the particle may never have reached that detector.</p>
       )}
       {rec && !rec.hits.length && (
-        <p>No hits are recorded on this particle itself; the simulation may record them on the particles it made.</p>
+        <p>
+          No hits are recorded on this particle itself: the file gives hits to the particles that entered the
+          calorimeter (each with its own shower). If this one did not, the particles it made carry them: its pair
+          (below) shows them.
+        </p>
       )}
       {gaps.length > 0 && <p>No truth link yet for: {gaps.join(", ")}.</p>}
     </>

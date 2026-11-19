@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { EventData, Header } from "../io/format";
-import { bestPurities, completeness, NO_EXPORT, opensPair, quality, simEnergyByParticle, truthStatus } from "./match";
+import { bestPurities, completeness, NO_EXPORT, quality, simEnergyByParticle, truthStatus } from "./match";
 import cms from "./fixtures/cms_header.json";
 import { factUnit, facts } from "./facts";
 
@@ -133,7 +133,11 @@ const kinds = {
     {
       table: "LC",
       repr: "markers",
-      truthGap: { reason: "no layer-cluster associator in CMSSW", gap: 1, derived: "content" },
+      truthGap: {
+        reason: "no layer-cluster associator in CMSSW; the colour is Ember's stand-in: the particle with the most",
+        gap: 1,
+        derived: "content",
+      },
     },
     { table: "Vtx", repr: "markers" },
     { table: "P", repr: "helix", truth: true },
@@ -142,12 +146,13 @@ const kinds = {
 } as unknown as Header;
 
 describe("truth status", () => {
-  it("says for each kind whether CMSSW matches it, the simulation gives facts, Ember derives it, or truth stops", () => {
+  it("says for each kind whether CMSSW matches it, the simulation gives facts, or truth stops (Ember derives none)", () => {
     const kind = (t: string) => truthStatus(kinds, t)?.kind;
     expect(truthStatus(kinds, "Track")).toMatchObject({ kind: "match", relation: "trackTruth" });
     expect(truthStatus(kinds, "Vtx")).toMatchObject({ kind: "match", relation: "vtxTruth" }); // to the truth vertices
     expect(truthStatus(kinds, "MHit")).toEqual({ kind: "fact", in: "Muons" }); // from the hint, not from the layer's repr
-    expect(truthStatus(kinds, "LC")).toMatchObject({ kind: "derived", gap: 1 });
+    // an older bundle's layer clusters: a gap, without the clause about the stand-in Ember no longer draws
+    expect(truthStatus(kinds, "LC")).toEqual({ kind: "none", reason: "no layer-cluster associator in CMSSW", gap: 1 });
     expect(truthStatus(kinds, "Jet")).toEqual({ kind: "none", reason: "no jet associator in CMSSW", gap: 21 });
     expect(truthStatus(kinds, "PFCand")).toEqual({ kind: "none", reason: NO_EXPORT });
     expect(truthStatus(kinds, "THit")).toEqual({ kind: "container", relation: "trackHits" });
@@ -163,38 +168,16 @@ describe("truth status", () => {
     } as unknown as Header;
     expect(truthStatus(h, "Jet")?.kind).toBe("match");
   });
-  it("reads today's cms bundle as before: facts from cells layers, layer clusters derived, vertices without truth", () => {
+  it("reads today's cms bundle: facts from cells layers, layer clusters with their trackster, vertices without truth", () => {
     const h = cms as unknown as Header,
       kind = (t: string) => truthStatus(h, t)?.kind;
     expect(truthStatus(h, "HGCalSoARecHitsEE")).toEqual({ kind: "fact", in: "HGCal" });
     expect(["TICLCandidates", "Tracks", "TICLSoATracksters"].map(kind)).toEqual(["match", "match", "match"]);
     expect([kind("HGCalSoALayerClusters"), kind("TrackHits"), kind("Vertices")]).toEqual([
-      "derived",
+      "container",
       "container",
       "none",
     ]);
-  });
-  it("never opens a pair for a kind with no truth of its own; bundles without truth keep theirs", () => {
-    expect(opensPair(kinds, "Jet")).toBe(false);
-    expect(opensPair(kinds, "Track")).toBe(true);
-    expect(opensPair(kinds, "THit")).toBe(true);
-    const noTruth = { ...kinds, display: kinds.display.filter((d) => !d.truth) } as unknown as Header;
-    expect(opensPair(noTruth, "Jet")).toBe(true);
-    // the pair is the candidates': a matched kind outside their chain (an ECAL cluster) does not open it
-    const h = {
-      ...kinds,
-      relations: {
-        ...kinds.relations,
-        candTrack: rel("Cand", "Track"),
-        candPF: rel("PFCand", "Cl"),
-        clTruth: rel("Cl", "P", { association: true, match: { measure: "energy", in: "ECAL", shared: "e" } }),
-      },
-      display: [...kinds.display, { table: "Cl", repr: "markers" }],
-    } as unknown as Header;
-    const reco = { Cand: "identity", Track: { relation: "candTrack" }, Cl: { relation: "candPF" } } as const; // Cl's step leads nowhere
-    expect(opensPair(h, "Track", undefined, reco)).toBe(true);
-    expect(opensPair(h, "Cl", undefined, reco)).toBe(false);
-    expect(opensPair(h, "Vtx", undefined, reco)).toBe(false);
   });
   it("takes a vertex's purity from its weight", () => {
     const vev = {

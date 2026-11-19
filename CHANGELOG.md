@@ -106,6 +106,16 @@ with a message while an old one is set without its new name. `deploy.sh` links `
   cell sizes from the DetId, splits tables by DetId bits, finds a cluster's hits by DetId (which gives HGCal
   superclusters their hits back in these files), and reads NanoAOD singleton tables.
 - A bundle without truth (data, standard NanoAOD) no longer opens a truth and reco pair.
+- **The truth and reco pair compares one branch, per detector.** Selecting a truth particle shows that particle and
+  everything below it (not its siblings or the generator particle above it; a particle inside another's shower, which
+  has no hits of its own in the file, shows that shower's, and says so), and in each detector the reco kind
+  the associator matches there (HGCal tracksters, ECAL and HCAL PF clusters, tracks) with its best matches. A detector
+  without an association (HF, HO) is shown, not compared; PF candidates, jets and TICL candidates open no pair. The
+  card names each energy: simulated (not calibrated) or rechit. Before, with PF candidates as the colour root, no
+  candidate was ever found and every hit showed as "split off".
+- **Ember derives no truth.** HGCal layer clusters no longer take the particle with the most simulated energy in
+  their hits: like every kind without a CMSSW associator, they show their gap. The Truth tab compares each particle
+  per detector (a barrel electron with its ECAL cluster, not as "not reconstructed").
 
 ### Fixed
 

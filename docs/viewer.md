@@ -152,8 +152,9 @@ the step.
 
 **Cross to the truth, and back.** Press `X`, or click the particle on a step's match line.
 
-- From a reco object, `X` goes to the associator's best match. For a hit or a layer cluster, it goes to the particle
-  that left the most simulated energy in it.
+- From a reco object, `X` goes to the associator's best match. For a hit, it goes to the particle that left the most
+  simulated energy in it. A kind with no truth of its own (a layer cluster, a TICL candidate) has none to go to: step
+  to one of its parts.
 - From a truth object, `X` goes to a reco object of the latest reconstruction step. It picks the object whose best
   match is this truth object. If there is none, it picks the object that holds most of the truth object.
 
@@ -270,7 +271,7 @@ The tab opens with a headline: how many objects of each such layer pass, or the 
 example MET).
 
 **In the truth colours**, each kind's heading gets one word for what the truth graph says about it: match, fact,
-derived, or no truth. Hover for the reason. Where a kind's layers differ, each row gets its own word. The rows of
+or no truth. Hover for the reason. Where a kind's layers differ, each row gets its own word. The rows of
 kinds without truth are faint.
 
 On a phone, the panel is a sheet under the view. It is folded to its tabs until you choose one.
@@ -314,8 +315,9 @@ compared with.
   - a truth line takes its generator particle's colour. A conversion's electrons and an interacting pion's
     daughters take their particle's colour;
   - a reco object takes its matched particle's colour only for a clean match. Clean means a purity of at least its
-    kind's `match.good`: 75% of a track's hits, or 50% of a trackster's energy. For layer clusters it is at least
-    half of their simulated energy. Otherwise the object is grey;
+    kind's `match.good`: 75% of a track's hits, or 50% of a trackster's energy. Otherwise the object is grey;
+  - a kind with no association of its own (layer clusters, TICL candidates, PF candidates, jets) is drawn faint and
+    neutral: Ember does not work out a particle for it from its hits;
   - layers with no link to the truth (vertices) are the "no truth" grey;
   - only signal generator particles get colours, by energy. The other signal particles are mid grey. Pile-up has its
     own grey and is drawn small;
@@ -329,51 +331,48 @@ compared with.
 
 ### The pair view
 
-In a bundle with candidates, selecting anything shows its truth ↔ reco pair (`viewer/src/model/pair.ts`), in either
-mode:
+With truth in the file, selecting a truth particle, a reco object of a kind with an association (a track, a PF
+cluster, a trackster), or a hit shows its truth ↔ reco pair (`viewer/src/model/pair.ts`), in either mode.
+[Truth](truth.md#the-pair-view) has the rules; in short:
 
-1. first the selection's particle: the whole of its generator particle. A reco object takes its best truth match; a
-   hit takes the particle that left the most simulated energy in it;
-2. then that particle's best candidate.
+- **Truth: one branch.** The selected particle and everything below it. A reco object takes its best match (the
+  associator's), a hit the particle that left the most simulated energy in it. Not its siblings, not the generator
+  particle above it: to see a larger branch (a W's, a B hadron's), select the parent in the card's lineage. A particle
+  inside another's shower (a brem photon) has no hits of its own in the file: the pair shows that shower's, and says
+  so; its matches stay its own.
+- **Reco: per detector.** In each detector the branch left hits in, the kind the associator matches there (HGCal: the
+  candidates' tracksters; ECAL, HCAL: PF clusters; the tracker: tracks) and the branch's best matches among them. A
+  detector whose reco has no association (HF, HO) is drawn, but not compared.
+- Kinds without an association of their own (PF candidates, jets, TICL candidates, layer clusters, muons) open no
+  pair: they show their own levels and links, and their card names their parts' matches as the parts'.
 
-So the particle, its candidate, and anything inside them all give the same pair and the same picture. A selected
-candidate that is not its particle's best (a fragment) shows as split off.
-
-A match above the generator level stands for all the generator particles below it. For example, a candidate matched
-to a π⁰ as a whole, whose photons are generator particles of their own. The key then says that the candidate merges
-them.
-
-Without a particle (no truth in the file, or nothing matched), the pair is the selection's candidate alone, in a
-neutral colour: "in the candidate". Nothing is confirmed.
-
-The levels drawn on request are then the kinds of the pair's candidate, whichever of its objects is selected. They
-count the pair's objects, including the particle's objects in other candidates or in none. The selected object itself
-is always drawn. A selection with neither a candidate nor a particle that left hits (for example a central track, or
-a vertex) has no pair: it is shown with its own levels and links. The levels drawn are those that the card offers:
-**show** on the steps of the chain, or its "In the view" line.
-
-In the pair view, every layer is coloured by where its objects ended up:
+Every layer is coloured by where its objects ended up:
 
 | class | meaning |
 |---|---|
-| shared | the particle's hits (and clusters, tracksters...) in its candidate: what the candidate is made of, even if it shares it with another candidate; also the particle and the candidate themselves |
-| contamination | in the candidate, but from other particles or from none |
-| split off | the particle's hits in other candidates, and those candidates (also candidates matched to the particle that are not its best) |
-| missed | the particle's hits, and reco objects matched to it, that are in no candidate |
+| shared | the branch's, in its match: hits where the branch left the most simulated energy, and the matched objects |
+| contamination | in its match, from other particles or from none |
+| split off | the branch's, in another object of the kind compared, and that object (also an object matched to the branch that is not its best: a fragment) |
+| missed | the branch's, in no object of the kind compared |
+| in its match | parts of a matched object that have no truth of their own (a trackster's layer clusters, a track's hits) |
+| branch | other particles of the branch that entered the calorimeter on their own (a conversion's electrons, an interaction's products) |
+| not compared | the branch's hits in a detector whose reco has no association |
 
-Everything else fades.
+Everything else fades. The colour key lists only the classes in view.
 
-- A hit belongs to the particle that left the most simulated energy in it. A layer cluster belongs to the particle
-  with the most simulated energy in its hits.
-- Missed layer clusters stay in the background. Their hits already show the same thing, and a shower's many one-hit
-  halo clusters would cover the used ones.
-- The selection's card names the pair. It gives two bars in the view's colours:
-  - **completeness**: the particle's simulated energy in HGCal, with its amount in the sensors: in its candidate, in
-    other candidates, and in none;
-  - **purity**: the share of the candidate's hit energy that comes from the particle.
-- Completeness counts each hit once per shower, and any share of it. The colours use each hit's main particle.
-- The colour key says what each colour means, and stays in sight from every tab.
-- Truth layers show the pair's particle and the particle that the selection points at.
+The selection's card names the branch (and, when the selected particle is inside another particle's shower, which
+shower's hits stand for it), then gives one block per detector:
+
+- what it is compared with, and the matches, as chips;
+- **simulated energy of the branch**, not calibrated: in its match, in other objects of the kind, in none; and how
+  much of it is the particle's own shower and how much its descendants';
+- **its match's rechit energy**: from the branch, from other particles, and with no simulated energy, each hit split
+  by the simulated energy each particle left in it.
+
+Simulated energy is never added across detectors. These bars are not the associator's purity and completeness of the
+selected object: those are on its truth card.
+
+The levels drawn on request are those of the matched object the pair comes from, whichever of its parts is selected.
 
 ### Colour choices
 
@@ -388,7 +387,7 @@ More is behind small buttons:
 
 - the table's description is behind the **i** next to its title;
 - what the chain's words mean is behind the chain's **i**;
-- what a step's tag means on that step is behind the tag itself: click "match", "fact", "derived" or "no truth".
+- what a step's tag means on that step is behind the tag itself: click "match", "fact" or "no truth".
 
 The card holds these parts, in this order.
 
@@ -428,7 +427,6 @@ tables**.
 |---|---|
 | match | For one object: the associator's best match and its purity (green from the kind's clean threshold, amber below), or "no match" (a fake, or an object that the associator does not consider, such as a candidate without calorimeter energy). For several objects: their counts, in the colours of their dots, for example "11 clean · 4 impure · 1 no match". |
 | fact | The particles that left the simulated energy in the step's hits, with their shares, one line per detector (never summed across detectors). "per CSC layer" where the simulation records a coarser unit than the hit. "no exported particle" where none left energy (noise, out-of-time pile-up, or a particle the export left out): the tag says so. |
-| derived | Ember's stand-in (layer clusters): the particles with the most simulated energy in their hits |
 | no truth | The tag alone. Behind it: why CMSSW has no truth for the kind, with the gap number of [Truth graph](truth-graph.md). A part with no truth of its own that goes with its container (the hits of a track) has no line. |
 
 Each line is the step's own statement. No match is built through the parts ([Truth](truth.md#constituents)):
@@ -438,7 +436,7 @@ Each line is the step's own statement. No match is built through the parts ([Tru
   statement is on each of them ("on each hit: select one for its particles"). A ranking of the particles in a jet's
   hits would be a match through hits.
 - One part alone speaks for itself (for example a candidate's track).
-- Under a kind with truth of its own (a trackster, a candidate, a PF cluster), the particles are listed.
+- Under a kind with truth of its own (a trackster, a PF cluster, a track), the particles are listed.
 - Where a step's collections differ in truth (muon rechits: fact; hits on muon tracks: none), each line names its
   collection.
 
@@ -477,14 +475,10 @@ match as the part's.
 relation's weights as stored (shared energy, score, a hit's simulated energy), best first. These are the associator's
 other partners behind the best match, for example every particle that shares an impure trackster.
 
-**The pair** that the view is coloured by ([above](#the-pair-view)), as two bars under the chain:
-
-- the particle's energy: where its simulated energy went, naming the detector and the amount in the sensors ("in
-  HGCal · 0.2 GeV in the sensors");
-- the candidate's energy: where its hit energy comes from.
-
-These bars compare the whole generator particle with its candidate, hit by hit. The match's purity and completeness
-are the associator's, for the selected object.
+**The pair** that the view is coloured by ([above](#the-pair-view)): the branch, then one block per detector with
+what it is compared with, its matches, the branch's simulated energy (in its match, in others, in none; own shower and
+descendants') and the match's rechit energy (from the branch, from other particles, with no simulated energy). Each
+bar names its energy. The match's purity and completeness are the associator's, for the selected object.
 
 **The columns**: the layer's `inspect` columns (for example a jet's pT, η and φ). For a layer with `fractions`, its
 reconstructed energy fractions, as one bar in a neutral grey ramp (a reconstruction quantity, not one of the view's

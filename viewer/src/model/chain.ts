@@ -2,9 +2,9 @@
 // for every kind (drawn by ui/Chain.tsx):
 // - a reco object: what it is part of (above), itself, what it is made of (below, top first) and what else is built
 //   only from its parts (beside: a secondary vertex whose tracks are all in the jet); each step with its link to the
-//   truth, in the words of docs/truth.md: matched by CMSSW, a simulation fact, derived in Ember, or no truth for the kind;
+//   truth, in the words of docs/truth.md: matched by CMSSW, a simulation fact, or no truth for the kind;
 // - a truth object: per reco kind with an association, what was reconstructed from it (and where nothing was).
-// Nothing here is a new truth statement: the links are the associations, facts and stand-ins the bundle already has,
+// Nothing here is a new truth statement: the links are the associations and facts the bundle already has,
 // counted per step. A kind that gains an associator in CMSSW gets a relation with a `match` hint in its profile, and
 // its steps then show that match instead of "no truth" with no change here.
 import { type DisplayLayer, type EventData, type Header, kindName } from "../io/format";
@@ -19,8 +19,6 @@ import { bestPartners, contentPartners, levelsOf, type Ref, type Related } from 
  *    `purity`: the purity of the match, for a step of one object;
  *  - `fact`: the simulated energy left in the hits in detector `in`, `total` in all; `particles`: [truth row, share
  *    0..1], largest first;
- *  - `derived`: Ember's stand-in (the particle with the most simulated energy in an object's hits), for a kind without
- *    an associator (`reason`, and the gap's number in docs/truth-graph.md);
  *  - `none`: no truth for the kind, and why;
  *  - `container`: drawn in the colour of what contains it.
  *  `label`: the collections the line is about, where those of the step differ in truth (muon rechits: fact; hits on
@@ -40,15 +38,6 @@ export type Link = { label?: string } & (
       purity?: number;
     }
   | { kind: "fact"; in: string; truth: string; total: number; particles: [number, number][]; unranked?: boolean }
-  | {
-      kind: "derived";
-      truth: string;
-      reason: string;
-      gap?: number;
-      of: number;
-      partners: [number, number][];
-      unranked?: boolean;
-    }
   | { kind: "none"; reason: string; gap?: number }
   | { kind: "container" }
 );
@@ -82,15 +71,13 @@ const stageOf = (header: Header, table: string) =>
   header.display.find((l) => l.table === table && l.stage !== undefined)?.stage;
 const sorted = (rows: Iterable<number>) => [...rows].sort((a, b) => a - b);
 
-/** The ladder of reco object `sel`. `parts`: its relatedParts; `statuses`: each table's truth status (model/match.ts);
- *  `truth`: the truth particles' table, for Ember's stand-in (layer clusters). */
+/** The ladder of reco object `sel`. `parts`: its relatedParts; `statuses`: each table's truth status (model/match.ts). */
 export function recoLadder(
   ev: EventData,
   header: Header,
   sel: Ref,
   parts: { madeOf: Related; partOf: Related; linked: Related },
   statuses: Map<string, TruthStatus>,
-  truth?: string,
 ): Ladder {
   // What is inside it: what it is made of, and what is built only from that (model/relations.ts levelsOf).
   const inside = levelsOf(ev, header, sel, { ...parts, linked: new Map() });
@@ -104,14 +91,14 @@ export function recoLadder(
   }
   // A kind with truth of its own may list the particles in its parts; for any other that would be a match through them.
   const kind = statuses.get(sel.table)?.kind,
-    ranked = kind === "match" || kind === "fact" || kind === "derived";
+    ranked = kind === "match" || kind === "fact";
   const rung = (name: string, tables: string[], from: Related, rank: boolean): Rung => {
     const groups = tables.map((table) => ({ table, rows: sorted(from.get(table) ?? []) })).filter((g) => g.rows.length);
     return {
       kind: name,
       groups,
       count: groups.reduce((s, g) => s + g.rows.length, 0),
-      links: linksOf(ev, header, groups, statuses, truth, rank),
+      links: linksOf(ev, header, groups, statuses, rank),
     };
   };
   // Holders before what they hold (model/levels.ts gives each kind its depth), so each list reads down the chain.
@@ -131,7 +118,7 @@ export function recoLadder(
     .filter(([t, rows]) => rows.size && t !== sel.table && !layerOf(header, t) && !points.has(t))
     .map(([t, rows]) => ({ kind: t, groups: [{ table: t, rows: sorted(rows) }], count: rows.size, links: [] }));
   return {
-    above: [...voted(ev, header, sel, parts, statuses, truth), ...rungs(parts.partOf, true)],
+    above: [...voted(ev, header, sel, parts, statuses), ...rungs(parts.partOf, true)],
     self,
     below: rungs(below, ranked),
     beside: rungs(beside, ranked),
@@ -149,7 +136,6 @@ function voted(
   sel: Ref,
   parts: { madeOf: Related; partOf: Related },
   statuses: Map<string, TruthStatus>,
-  truth?: string,
 ): Rung[] {
   const own = stageOf(header, sel.table),
     n = ev.tables[sel.table]?.n ?? 0,
@@ -186,18 +172,17 @@ function voted(
   }
   return out
     .sort((a, b) => b.stage - a.stage)
-    .map(({ stage: _, ...r }) => ({ ...r, links: linksOf(ev, header, r.groups, statuses, truth, true) }));
+    .map(({ stage: _, ...r }) => ({ ...r, links: linksOf(ev, header, r.groups, statuses, true) }));
 }
 
 /** The truth links of the objects in `groups` (one kind): matches counted per truth table, facts per detector (never
- *  summed across detectors), Ember's stand-in, or why there is none. `rank`: whether the particles behind a fact or a
- *  stand-in of several objects may be listed (see Link `unranked`); without it they are not worked out at all. */
+ *  summed across detectors), or why there is none. `rank`: whether the particles behind a fact of several objects may
+ *  be listed (see Link `unranked`); without it they are not worked out at all. */
 function linksOf(
   ev: EventData,
   header: Header,
   groups: Group[],
   statuses: Map<string, TruthStatus>,
-  truth: string | undefined,
   rank: boolean,
 ): Link[] {
   const out: (Link & { tables: string[] })[] = [],
@@ -253,23 +238,7 @@ function linksOf(
       }
       matches.set(info.to, m);
     } else if (s.kind === "fact") factRows.set(g.table, new Set(g.rows));
-    else if (s.kind === "derived" && truth) {
-      const counts = new Map<number, number>();
-      if (listed) {
-        const c = contentPartners(g.table, truth, n, ev, header);
-        for (const r of g.rows) if (c.partner[r] >= 0) counts.set(c.partner[r], (counts.get(c.partner[r]) ?? 0) + 1);
-      }
-      out.push({
-        kind: "derived",
-        truth,
-        reason: s.reason,
-        gap: s.gap,
-        of: g.rows.length,
-        partners: tally(counts),
-        ...(listed ? {} : { unranked: true }),
-        tables: [g.table],
-      });
-    } else if (s.kind === "none") none(g.table, s.reason, s.gap);
+    else if (s.kind === "none") none(g.table, s.reason, s.gap);
     else if (s.kind === "container") {
       const same = out.find((l) => l.kind === "container");
       if (same) same.tables.push(g.table);

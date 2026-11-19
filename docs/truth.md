@@ -14,10 +14,13 @@ study.
 1. **One source.** Truth is the CMSSW truth graph: particles and vertices with their level flags, the hit index
    (simulated energy per particle and detector cell), and the branch associators. Ember never uses CaloParticle,
    SimCluster, TrackingParticle, genParticles or GenJets.
-2. **Three kinds of statement, always labelled:**
+2. **Two kinds of statement, always labelled:**
    - *simulation*: a fact. For example, "this hit has 60% of its simulated energy from this particle";
-   - *association*: the CMSSW associator's answer. It is called the "best match", with its score; never "is";
-   - *derived in Ember*: a stand-in where CMSSW has no answer, for example the particle of a layer cluster.
+   - *association*: the CMSSW associator's answer. It is called the "best match", with its score; never "is".
+
+   Ember derives no truth of its own. Where CMSSW has no associator for a kind (layer clusters, TICL candidates, PF
+   candidates, jets, ...), the display says so, with the gap's number: what the truth is missing is shown as plainly
+   as what it has.
 3. **Colour means one thing at a time.** The colour key's title says which: `Colour = candidate type (reco)`,
    `Colour = generator particle (truth)` or `Colour = truth ↔ reco pair`. Truth is drawn dashed, reco solid.
 4. **A reco object is never painted as truth.** It takes a particle's colour only when its match is clean: its
@@ -41,7 +44,7 @@ particles with pT > 1 GeV and |η| < 3):
 The particles that enter the calorimeter (truth level CaloBoundary) carry 99.8–100% of the calorimeter's simulated
 energy, but only 57–62% of the tracker hits. So Ember uses two levels:
 
-- **The particle** colours and groups everything. It is the profile's `particle` level on the truth layer. In
+- **The particle** colours everything in the truth colours. It is the profile's `particle` level on the truth layer. In
   `hgcal` (and so in `cms`) it is truth::LevelFlag bit 2, StableDecayProducts: the **generator particle**, stable at
   generator level (`hasGen && status == 1`). This is what came out of the collision, before the detector. Every truth
   particle below it belongs to it and takes its colour, in every subdetector: Geant4 secondaries, conversion
@@ -57,8 +60,10 @@ energy, but only 57–62% of the tracker hits. So Ember uses two levels:
 
 A match **below** the particle (a shower secondary, a conversion electron) is part of it. The inspector says "the
 match is part of the generator particle X". A match **above** the particle means that the object merges several
-generator particles: for example a π⁰ or an ω that the generator decayed. The pair view then stands for all the
-generator particles below the match, and the key says so.
+generator particles: for example a π⁰ or an ω that the generator decayed.
+
+The particle level is for the colours only. A selection is never widened to it: the pair view
+([below](#the-pair-view)) stands for the branch of the particle selected (or matched), exactly.
 
 **Why the generator level.** Compared on ttbar without pile-up (5 events):
 
@@ -81,27 +86,76 @@ For a reco object R and its matched truth branch B (a particle and everything be
 | | definition | tracks (`measure: "hits"`) | calorimeter objects (`measure: "energy"`) |
 |---|---|---|---|
 | **purity** | the share of R that comes from B | shared hits / track hits (nPixel + nOT, or nhits); equals 1 − score (for all but 1 of 7744 tracks at 200 pile-up) | shared energy / raw energy, both on the rechit scale (measured ≤ 1) |
-| **completeness** | the share of B that is in R | 1 − TruthToReco score = shared cells / all tracker cells of B's branch (its secondaries' cells included, so it dilutes) | TruthToReco `sharedFraction`: of B's energy in HGCal only |
+| **completeness** | the share of B that is in R | 1 − TruthToReco score = shared cells / all tracker cells of B's branch (its secondaries' cells included, so it dilutes) | TruthToReco `sharedEnergyFraction`: of B's energy in R's detector only, on the rechit scale: each cell's rechit energy split between the branches by the simulated energy they left in it (cells with simulated energy but no rechit count 0; `BranchHitAssociator.cc`) |
 | **score** | the associator's ranking, 0 is best | linear (1 − purity) | squared and energy weighted: not 1 − purity |
-| **clean** | purity ≥ `good` | 0.75 (CMS tracking validation: MultiTrackValidator) | 0.5 (the dominant particle). Layer clusters, whose particle Ember derives, use the same 0.5 of their simulated energy. |
+| **clean** | purity ≥ `good` | 0.75 (CMS tracking validation: MultiTrackValidator) | 0.5 (the dominant particle) |
 
 These numbers appear in three places: the inspector's truth card (per object), the truth mode (the clean test decides
-the colour), and the pair view (the purity and completeness of the pair, from the hits).
+the colour), and the pair view (its own bars, from the hits: below).
 
-**The pair view's regions.** With something selected, the viewer compares the particle (the whole of its generator
-particle) with its best candidate (the candidate that the TruthToReco association rates highest for it), hit by hit.
-Each hit counts for the particle that left the most simulated energy in it:
+**Which energy.** Every number says which of these it counts:
+
+| energy | what it is | where |
+|---|---|---|
+| simulated | what the particles deposited in the sensors (Geant4), not calibrated: a 67 GeV pion leaves about 0.2 GeV in HGCal. A share within one detector only. | facts on hits; the pair's first bar |
+| rechit (reconstructed) | the reconstructed energy of hits; for a cluster or trackster its raw energy (the rechits', each by its fraction); a particle's rechit energy is each cell's, split by the simulated energy shares in it | purity; completeness; the pair's second bar |
+| generator | the particle's energy at generation | a truth particle's name ("e⁻ · 71.2 GeV") |
+
+### The pair view
+
+With a truth particle, a matched reco object or a hit selected, the view shows one **pair**
+(`viewer/src/model/pair.ts`):
+
+- **The truth side is one branch, exactly**: the particle selected; for a reco object, its best match (the
+  associator's, at the kind's target); for a hit, the particle that left the most simulated energy in it; for a part
+  drawn with its container (a track's hits), the container's best match. The branch is
+  that particle and everything below it: never its siblings, its parent's other descendants, or the generator particle
+  above it. Its lineage in the card goes up: select a parent there for a larger branch (a W, a B hadron, a top).
+- **The hits are the simulation's.** The file gives hits to the particles that entered the calorimeter (truth level
+  CaloBoundary), each with its whole shower inside the calorimeter. So the branch's hits are those of its particles
+  that entered the calorimeter, each hit counted once:
+  - *its own shower*, when the selected particle entered the calorimeter itself;
+  - *its descendants'*, from particles made before the calorimeter: conversion electrons, the products of an
+    interaction or of a decay in the tracker. A π⁺ that interacted in the tracker has none of its own;
+  - when the selected particle is itself inside a shower (a brem photon, a shower secondary), the file has no hits of
+    its own for it: the pair shows the hits and energies of the shower it is in, says so, and the key says "the
+    shower's". Its matches are still its own first (the associator does match such particles, e.g. a brem photon to
+    its own ECAL cluster);
+  - a particle with no hits in the file at all (it never entered the calorimeter, and none of its descendants did)
+    still shows its matches, with no bars.
+
+  Separating a brem photon's deposits from its electron's needs a direct-hits table from CMSSW
+  ([Truth graph](truth-graph.md), gap 2).
+- **The reco side is per detector**: in each detector the branch left hits in, the kind the associator matches there
+  (HGCal: the last trackster stage with a match, the candidates' tracksters; ECAL and HCAL: PF clusters; the
+  tracker: tracks), and its **matches**: the object that the TruthToReco association rates best for the selected
+  particle, and those it rates best for the branch's particles that entered the calorimeter. A selected object that is
+  not one of them (a fragment) shows as split off. A vertex, which only points at its tracks, opens no pair.
+- **A detector without an association is shown, not compared** (HF and HO hits: no PF-cluster associator, gap 15).
+  Kinds made of matched objects (PF candidates, jets, TICL candidates, muons) have no association of their own and are
+  not part of the pair; their parts are.
+
+Each object is coloured by where it ended up:
 
 | class | meaning |
 |---|---|
-| shared | the particle's, in its candidate |
-| contamination | in the candidate, from other particles or from none |
-| split off | the particle's, in other candidates |
-| missed | the particle's, in no candidate |
-| in the candidate (neutral) | a candidate with no truth match: nothing is confirmed |
+| shared | the branch's, in its match (a hit: the branch left the most simulated energy in it) |
+| contamination | in its match, from other particles or none |
+| split off | the branch's, in another object of the kind compared (and that object) |
+| missed | the branch's, in no object of the kind compared |
+| in its match | part of a matched object with no truth of its own (a trackster's layer clusters, a track's hits) |
+| branch | the branch's other particles that entered the calorimeter on their own |
+| not compared | the branch's hits in a detector whose reco has no association |
 
-The key gives completeness and purity. Completeness is a share of the particle's simulated energy in HGCal, deposited
-in the sensors and not calibrated: compare it only with itself. Purity is a share of the candidate's rechit energy.
+The card gives, per detector, two bars that name their energy:
+
+- **the branch's simulated energy** there: in its match, in other objects of the kind, in none; and how much is its
+  own shower and how much its descendants';
+- **the match's rechit energy**: from the branch, from other particles, or with no simulated energy at all (noise,
+  out-of-time pile-up, or a particle the export left out). Each hit's rechit energy is split by the simulated energy
+  each particle left in it.
+
+These are not the associator's purity and completeness of one object: those are on its truth card.
 
 ## Each kind's contract
 
@@ -112,15 +166,15 @@ truth card, the clean test in the truth mode, the units and the wording.
 | kind | target | measure, where | purity over | clean | completeness | status |
 |---|---|---|---|---|---|---|
 | tracks (generalTracks) | trackerHits | hits, tracker | nPixelHits + nOTHits | 0.75 | 1 − score (branch hits) | match |
-| tracksters, linked tracksters, superclusters, interpretations | caloBoundary | energy, HGCal | raw energy | 0.5 | sharedFraction | match |
-| TICL candidates | caloBoundary | energy, HGCal | raw energy | 0.5 | sharedFraction | match (calorimeter only: a track-only candidate has no match; the card shows its track's) |
+| tracksters, linked tracksters, superclusters, the candidates' tracksters (interpretations in TICL v6) | caloBoundary | energy, HGCal | raw energy | 0.5 | sharedEnergyFraction | match, for each trackster collection whose maps the input has (the TICL v6 bundle has none for CLUEstering tracksters and interpretations) |
+| TICL candidates | — | — | — | — | — | none: the truth graph has no TICL-candidate associator. The trackster each candidate is built on (one per candidate: its candidate trackster) has its own match, and a charged candidate's track has its own; the card names them as theirs ([Constituents](#constituents)) |
 | ECAL / HCAL (HB) PF clusters | caloBoundary | energy, ECAL or HCAL | raw `energy` (never HCAL `correctedEnergy`: it is unset or negative) | 0.5 | sharedFraction (of the branch's ECAL or HCAL energy) | match |
 | primary / secondary vertices | the collision their tracks come from / their immediate production vertex, aiming at b and c hadron decays (a truth **vertex**) | pT² of tracks (tracks with score ≤ 0.25 vote) | the weight is the purity (`match.purity`) | 0.5 | TruthToReco fraction (of the truth vertex's findable tracks' pT²) | match; drawn neutral in the truth colours (a vertex has no particle colour); the card names the collision (signal or pile-up) or the vertex, and its distance |
 | HGCal hits | — (simulation fact) | simulated energy per particle, HGCal | — | — | — | fact |
 | ECAL barrel, HCAL HB / HO, HF hits | — (simulation fact) | simulated energy per particle, ECAL / HCAL / HF (HF: photoelectrons) | — | — | — | fact |
-| muon hits (DT, CSC, RPC, GEM) | — (simulation fact), per unit that the simulation records: DT wire, CSC layer, RPC roll, GEM partition (`fact.unit`) | simulated energy loss per particle, muon system | — | — | — | fact; the hit's line names the unit ("per CSC layer"), and the fact tag says that every hit there shares these particles |
-| MTD hits | — (simulation fact) with sim time | — | — | — | — | none: not exported (only 60% of the MTD cells at 200 pile-up are under particles that entered the calorimeter; gap 19) |
-| HGCal layer clusters | caloBoundary | energy, HGCal | — | — | — | derived in Ember (no associator: gap 1; `truthGap.derived`) |
+| muon hits (DT, CSC, RPC, GEM) | — (simulation fact), per unit that the simulation records: DT wire, CSC layer, RPC roll, GEM partition (`fact.unit`) | simulated energy loss per particle, muon system | — | — | — | fact in Ember's earlier export (`muon` profile); none in `ember`'s own NanoAOD (`muonsystem`, gap 16): it does not write the muon hit table yet, although the table producer can |
+| MTD hits | — (simulation fact) with sim time | — | — | — | — | none: the hit index fills an MTD channel, but the hit table producer reads only the calorimeter and muon channels, and only particles that entered the calorimeter (60% of the MTD cells at 200 pile-up; gap 19) |
+| HGCal layer clusters | caloBoundary | energy, HGCal | — | — | — | none: the truth graph has no layer-cluster associator (gap 1). Their hits carry the facts. |
 | HF, HO PF clusters | caloBoundary | energy, HCAL | raw energy | 0.5 | — | none: the truth graph's associator is not configured for them (gap 15) |
 | muon segments | particle crossing the chamber | hits, muon system | segment hits | 0.75 | of its hits in the chamber | none: no adapter or associator (gap 17) |
 | reco, standalone, global muons | muon with its own muon hits (no graph level yet) | hits per stub, tracker and muon | stub hits | 0.75 per stub | 0.5 per stub | none (gap 18); the inner track's own match, named as the track's |
@@ -135,7 +189,6 @@ The status words are the viewer's (`truthStatus`, below):
 
 - *match*: matched by CMSSW;
 - *fact*: a simulation fact;
-- *derived*: derived in Ember;
 - *none*: no truth for this kind, with the reason and gap number from the kind's `truthGap`.
 
 The thresholds follow each domain's reference validation, so Ember agrees with DQM.
@@ -166,9 +219,8 @@ Every drawn kind has one truth status. The viewer works it out from the bundle (
 
 1. **match**: the kind has its own reco → truth relation with a `match` hint;
 2. **fact**: hits with a `fact` relation;
-3. **derived**: `truthGap.derived` (HGCal layer clusters only);
-4. **none**: the kind's `truthGap`, or else "no truth association exported for this kind";
-5. for a part drawn with what contains it (the hits of a track): its container's status.
+3. **none**: the kind's `truthGap`, or else "no truth association exported for this kind";
+4. for a part drawn with what contains it (the hits of a track): its container's status.
 
 The same words appear in three places:
 
@@ -183,15 +235,15 @@ The same words appear in three places:
 In the truth mode, a kind with status none is drawn neutral and faint (cones as outlines), never in a particle's
 colour. An object of a matched kind without a clean match stays small and grey.
 
-Such a kind never opens the truth ↔ reco pair. Neither does a matched kind outside the candidates' chain: the pair
-belongs to HGCal, and an ECAL cluster's card gives its own purity and completeness.
+Such a kind never opens the truth ↔ reco pair; its parts may.
 
-Simulated energy is never added across detectors. The pair counts only the candidates' detector. The inspector gives
-one list per detector, and only for kinds with a match or with Ember's stand-in. For any other kind, a ranking of the
-particles in its hits would be a match through hits, so the facts stay on the hits.
+Simulated energy is never added across detectors. The pair has one block per detector. The inspector gives one list
+per detector, and only for kinds with a match. For any other kind, a ranking of the particles in its hits would be a
+match through hits, so the facts stay on the hits.
 
-Bundles made before these hints still look as before: a truth association into a layer drawn as cells is read as a
-fact in that layer's part of the detector, and the layer-cluster stand-in applies where it did.
+Bundles made before these hints read as before where they can: a truth association into a layer drawn as cells is a
+fact in that layer's part of the detector. Bundles whose layer clusters still carry Ember's former stand-in
+(`truthGap.derived`) show them as a gap, without the stand-in.
 
 ### Constituents
 
@@ -241,11 +293,13 @@ tracks show in their own particles' colours: each colour is that track's own sta
 | completeness | the share of the match's hits or energy (in that detector) that is in the reco object |
 | score | the associator's ranking value, 0 is best; not a fraction |
 | clean match | purity at or above the kind's threshold |
-| shared / contamination / split off / missed | the pair view's regions ([above](#measures)) |
+| shared / contamination / split off / missed / not compared | the pair view's classes ([above](#the-pair-view)) |
 | merges | a match above the particle level: the object holds several generator particles |
 | pile-up | particles from other collisions of the same bunch crossing |
 | no truth | energy that no exported particle left: noise, out-of-time pile-up, or not exported |
-| no truth for this kind | the truth graph has no answer for the kind (no associator for it in the truth graph, or none exported). Drawn faint, with the reason in the Truth tab. |
+| no truth for this kind | the truth graph has no answer for the kind (no associator for it in the truth graph, or none exported). Drawn faint, with the reason in the Truth tab. Ember builds none in its place. |
+| simulated energy | energy deposited in the sensors (Geant4), not calibrated; a share within one detector only |
+| rechit energy | the reconstructed energy of hits (of a cluster or trackster: its raw energy) |
 | fact | a truth → hit relation of simulated energy per particle and cell, in one detector |
 
 ## Samples

@@ -44,7 +44,7 @@
     "linkedTrackster": {"label": "Linked tracksters", "domain": "HGCal", "repr": "ellipsoids", "shape": "shell", "colourBy": "row", "visible": true},
     "interpretation": {"label": "Interpretations", "domain": "HGCal", "repr": "ellipsoids", "shape": "cage", "colourBy": "row", "visible": true},
     "candidateTrackster": {"label": "Candidate tracksters", "domain": "HGCal", "repr": "ellipsoids", "shape": "cage", "colourBy": "row", "visible": true},
-    "mtdHit": {"label": "MTD hits", "domain": "Tracker", "repr": "markers", "visible": false, "palette": "cool", "colour": "time", "time": "time", "size": null, "describe": {"columns": ["time", "energy"]}, "inspect": ["time", "timeError", "energy", "detId", "row", "column"], "truthGap": {"reason": "no truth table of MTD hits", "gap": 19}},
+    "mtdHit": {"label": "MTD hits", "domain": "Tracker", "repr": "markers", "visible": false, "palette": "cool", "colour": "time", "time": "time", "size": null, "describe": {"columns": ["time"]}, "inspect": ["time", "timeError", "energy", "detId", "row", "column"], "truthGap": {"reason": "no truth table of MTD hits", "gap": 19}},
     "candidate": {"label": "Candidates", "domain": "HGCal", "repr": "ellipsoids", "shape": "core", "visible": true, "colourBy": {"category": "pdgID", "abs": true, "names": {"22": "photon", "11": "electron", "13": "muon", "211": "charged hadron", "130": "neutral hadron", "111": "neutral pion"}}}
   },
   "display": [

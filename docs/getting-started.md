@@ -30,7 +30,7 @@ simulated event.
 
 > **Optional: more in your bundles.** Two CMSSW branches, not merged yet, add the hits of each cluster and the truth
 > graph. Add them to your CMSSW area with `git cms-merge-topic` and build. `ember` uses them when it finds them. See
-> [Get the cluster hits and the truth](how-to.md#get-the-cluster-hits-and-the-truth).
+> [Get every table: the CMSSW branches](how-to.md#get-every-table-the-cmssw-branches).
 
 ## Step 1: Get the `ember` command
 

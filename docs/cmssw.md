@@ -152,7 +152,7 @@ Without pile-up, a job of 10 events takes 29 s with truth and 28 s without.
 ## The CMSSW branches
 
 All are generic NanoAOD table producers, useful for truth-graph studies, validation and ML training without Ember.
-Add them to a CMSSW_20_1_X area with `git cms-merge-topic` ([How-to](how-to.md#get-the-cluster-hits-and-the-truth)).
+Add them to a CMSSW_20_1_X area with `git cms-merge-topic` ([How-to](how-to.md#get-every-table-the-cmssw-branches)).
 
 | branch | what it adds | state |
 |---|---|---|
@@ -170,8 +170,8 @@ Add them to a CMSSW_20_1_X area with `git cms-merge-topic` ([How-to](how-to.md#g
 | `mmarriot:nanoaod-reco-tables-all` | all of the above together | pushed |
 
 For each branch whose producers the release lacks, the configuration's header names the branch and the branch of all
-of them. The table and column names above follow the branches as they stand today; they are checked again when the
-branches are final.
+of them. The table and column names above are those of the branches as pushed (reviewed, with their review fixes), and
+`ember` reads them as they are. The pull request text of each branch is kept with the branches.
 
 ## What it costs
 
@@ -193,6 +193,14 @@ pile-up, 0.46 MB at 200 pile-up (10k PF candidates) and 0.07 MB in Run 3. At 200
 `particleFlow` from the file, as the first module that asks for a product pays for its decompression; the HGCal
 electrons 10 ms, whose index columns are evaluated by name for each object, `lazyEval`). Warm, a Run 3 job of 10
 events takes 28 s against 27 s.
+
+**With every branch** (`nanoaod-reco-tables-all`, cluster hits and truth included), on the stock ttbar files: the
+bundle is 0.77 MB per event without pile-up and 19.7 MB at 200 pile-up (the RECO file itself: 8.0 and 177 MB). Their
+largest additions at 200 pile-up, in the NanoAOD: the hits of the general tracks (1.15 MB), the MTD rechits (0.58 MB)
+and the PF candidates (0.34 MB). Measured side by side on the same 3 events at 200 pile-up, 4 threads, on a loaded
+machine: 5.4 s per event with every branch against 5.0 s with the cluster hits and truth only (8.7 → 11.0 s of
+CPU, mostly reading more of the RECO file: track extras and hits, PF blocks, MTD hits). Most of either is the truth
+associators (tracks 1.8 s, tracksters 1.0 s).
 
 - The job start is most of the time for 10 events: loading the libraries, building the geometry and the conditions.
   Before it, `ember` takes a few seconds to find the settings and to check the input's classes.
@@ -224,7 +232,7 @@ https://marriot-evd.web.cern.ch) have most of them, through tables that are no l
 | what the branches above add | the branches, as cms-sw pull requests |
 | SoA tables | the generic SoA table producer ([above](#soa-collections)) |
 | exact HGCal cell outlines | see below |
-| HGCal fine scintillator tiles (geometries other than D104) | a DetId rule, tested against every cell of such a geometry. Today these tiles get NaN as their size, so they are most likely not drawn (not checked on screen). |
+| HGCal fine scintillator tiles (the v19 geometries: D120, D122, D123, D126–D128) | sized as 432 tiles around the ring from the DetId; still to check against every cell of such a geometry |
 
 **HGCal cells as drawn today.** Each HGCal cell is drawn as a regular hexagon centred on the cell's position, with
 its corners at the cell's half-width (the apothem for silicon, r·Δφ/2 for a scintillator tile). So:

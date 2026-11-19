@@ -21,7 +21,7 @@ has. Run `ember` on the reconstruction file (RECO or FEVT) of the same events in
 
 The hits of each cluster need a CMSSW branch that is not merged yet. Without it, the clusters are drawn, but selecting
 one does not show its hits. Add the branch to your CMSSW area with `git cms-merge-topic mmarriot:nanoaod-cluster-hits`
-and build ([Get the cluster hits and the truth](how-to.md#get-the-cluster-hits-and-the-truth)).
+and build ([Get every table: the CMSSW branches](how-to.md#get-every-table-the-cmssw-branches)).
 
 **`ember` says `left out: this release has no TruthGraphFlatTableProducer, TruthGraphHitFlatTableProducer ...`**
 
@@ -117,7 +117,7 @@ muons, taus, missing momentum). The tag on each step of the selection's card say
 **Everything is grey in the truth colours.**
 
 The bundle has no truth. Either the release that ran `ember_cfg.py` had no truth graph tables (they need a CMSSW
-branch for now: [Get the cluster hits and the truth](how-to.md#get-the-cluster-hits-and-the-truth)), or the input has
+branch for now: [Get every table: the CMSSW branches](how-to.md#get-every-table-the-cmssw-branches)), or the input has
 no truth graph (AOD, MiniAOD, NanoAOD, Run 3, FastSim, premixed pile-up, or an era without the `enableTruth`
 modifier), or the file's truth tables are empty. Run `ember inspect FILE.ember`: it shows the bundle's
 relations and the largest tables of the first events. Look for `TruthParticles`.

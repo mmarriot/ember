@@ -69,32 +69,42 @@ what it left out, and why.
 **How long it takes:** with 4 threads, about 20 s for the job to start (Run 3 data: 16 s), then about 0.6 s per
 event without pile-up, or 0.7 s per event at 200 pile-up (Run 3 data: 0.24 s). `-j 8` gives the job 8 threads.
 
-## Get the cluster hits and the truth
+## Get every table: the CMSSW branches
 
-Two CMSSW branches add what the release cannot write yet. Neither is merged. Add them to a CMSSW area of a recent
-CMSSW_20_1_X integration build (`scram list -c CMSSW_20_1_X` lists the builds; they expire after a few weeks), once:
+The release writes most of what the viewer draws. Eleven CMSSW branches add the rest; none is merged yet. Add them to
+a CMSSW area of a recent CMSSW_20_1_X integration build (`scram list -c CMSSW_20_1_X` lists the builds; they expire
+after a few weeks), once. All of them at once:
 
 ```bash
 cmsrel CMSSW_20_1_X_<date> && cd CMSSW_20_1_X_<date>/src && cmsenv
-git cms-merge-topic mmarriot:nanoaod-cluster-hits       # the hits of each cluster
-git cms-merge-topic mmarriot:truthgraph-nano-tables     # the truth graph tables (it contains cms-sw/cmssw#52451)
+git cms-merge-topic mmarriot:nanoaod-reco-tables-all    # every branch below, merged and tested together
 scram b -j 8
 ```
 
-Then run `ember step3.root` in that area. `ember` sees the new modules and uses them:
+or only the ones you want, each with its own `git cms-merge-topic mmarriot:<branch>`:
 
-- **Cluster hits** (`nanoaod-cluster-hits`): for every HGCal layer cluster, PF cluster and supercluster, its hits and
-  their fractions. The viewer then shows a cluster's hits when you select it, and a hit's clusters. Without it, the
-  header of `ember_cfg.py` says `the hits of clusters: this release has no ...`.
-- **Truth** (`truthgraph-nano-tables`): the truth graph's particles, vertices and parent → child links, the simulated
-  energy of each particle in each hit, and the reco ↔ truth associations of CMSSW's truth-graph associators (tracks,
-  TICL tracksters, ECAL and HCAL PF clusters), on Phase-2 files that hold the graph
-  ([Which files work](#which-files-work)). The associators run in the job, unless the file holds their maps already
-  (the TICL v6 samples do). At 200 pile-up they add about 1 s per event; `--no-truth-associators` skips them, and the
-  bundle then has no reco ↔ truth matches.
+| branch | what the viewer gains |
+|---|---|
+| `nanoaod-cluster-hits` | the hits of every HGCal layer cluster, PF cluster and supercluster: select a cluster, see its hits |
+| `truthgraph-nano-tables` | truth: the truth graph's particles, vertices and parent → child links, the simulated energy of each particle in each hit, and the reco ↔ truth matches (it contains [cms-sw/cmssw#52451](https://github.com/cms-sw/cmssw/pull/52451)) |
+| `nanoaod-calo-rechits` | every ECAL and HCAL rechit, not only those particle flow uses |
+| `nanoaod-track-hits` | the hits of the general, GSF and muon tracks (RECO and FEVT files; an AOD keeps none) |
+| `nanoaod-vertex-tracks` | which tracks each primary and secondary vertex is made of |
+| `nanoaod-pfcandidate-links` | each PF candidate's PF clusters and TICL candidate: the whole detector takes the candidates' colours |
+| `nanoaod-reco-constituents` | the PF candidates of each jet and tau: select a jet, see what it is made of |
+| `nanoaod-jet-tags` | the b-tags of the CHS jets (preset "b-tags") |
+| `nanoaod-mtd-rechits` | every BTL and ETL rechit (preset "Track time") |
+| `muontools-rechits-chambers` | DT and CSC rechits, the chambers in use, and each muon's segments |
+| `nanoaod-muon-track-links` | each muon's standalone track |
 
-Either branch alone works too. The truth branch builds on
-[cms-sw/cmssw#52451](https://github.com/cms-sw/cmssw/pull/52451), and already contains its commits.
+Then run `ember step3.root` in that area. `ember` sees the new modules and uses them. For each branch your area lacks,
+the header of `ember_cfg.py` names it under "Left out", with the all branch. [CMSSW side](cmssw.md#the-cmssw-branches)
+lists the tables each branch writes.
+
+**Truth** needs a Phase-2 file that holds the graph ([Which files work](#which-files-work)). The reco ↔ truth
+associations come from the file's own maps when it has them (the TICL v6 samples do); otherwise CMSSW's associators
+run in the job, adding about 1 s per event at 200 pile-up. `--no-truth-associators` skips them: the bundle then has
+the graph and the hit energies, but no reco ↔ truth matches.
 
 ## Get corrected jets, IDs and b-tags (`--pat`)
 

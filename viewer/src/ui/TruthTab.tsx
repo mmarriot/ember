@@ -311,7 +311,13 @@ function ByDetector({ table }: { table: string }) {
     t = ev.tables[table],
     sel = selection.value,
     keep = filterMask(t, filters.value[table]);
-  const where = [...new Set(facts(b.header).filter((f) => f.from === table && ev.relations[f.name]).map((f) => f.in))];
+  const where = [
+    ...new Set(
+      facts(b.header)
+        .filter((f) => f.from === table && ev.relations[f.name])
+        .map((f) => f.in),
+    ),
+  ];
   const dets = where.map((w) => {
     const kind = comparedKind(b.header, table, w),
       t2r = kind ? truthToReco(b.header, table, kind) : undefined,
@@ -370,7 +376,11 @@ function ByDetector({ table }: { table: string }) {
                       ) : k >= 0 ? (
                         <>
                           {chip(d.kind, d.best!.partner[r])}
-                          {w !== undefined && <span class="muted" title={d.weight}>{short(w)}</span>}
+                          {w !== undefined && (
+                            <span class="muted" title={d.weight}>
+                              {short(w)}
+                            </span>
+                          )}
                         </>
                       ) : (
                         <span class="muted">none</span>
@@ -395,8 +405,8 @@ function ByDetector({ table }: { table: string }) {
       )}
       {uncompared.length > 0 && (
         <p class="hint">
-          Hits only where no reco has an association ({[...new Set(uncompared.flatMap(({ cells }) => cells.map((d) => d.in)))].join(", ")}):{" "}
-          {uncompared.length}
+          Hits only where no reco has an association (
+          {[...new Set(uncompared.flatMap(({ cells }) => cells.map((d) => d.in)))].join(", ")}): {uncompared.length}
         </p>
       )}
     </section>

@@ -22,7 +22,10 @@ export function PairBars() {
       {parts
         .filter(([v]) => v > 0)
         .map(([v, colour, label]) => (
-          <span style={{ width: `${(100 * v) / total}%`, background: colour }} title={`${label} ${percent(v / total)}`} />
+          <span
+            style={{ width: `${(100 * v) / total}%`, background: colour }}
+            title={`${label} ${percent(v / total)}`}
+          />
         ))}
     </div>
   );
@@ -76,7 +79,10 @@ export function PairBars() {
               not compared:{" "}
               {d.gaps.length
                 ? d.gaps
-                    .map((g) => `${kindName(g.table)}: ${g.reason ?? "no truth association exported"}${g.gap ? ` (gap ${g.gap})` : ""}`)
+                    .map(
+                      (g) =>
+                        `${kindName(g.table)}: ${g.reason ?? "no truth association exported"}${g.gap ? ` (gap ${g.gap})` : ""}`,
+                    )
                     .join("; ")
                 : "no reco object here has an association to truth"}
             </span>
@@ -107,7 +113,9 @@ export function PairBars() {
             {sim.descendants > 0 && legend(who, total)}
           </>
         )}
-        {!sim && <p class="hint">No simulated energy per tracker hit in the file: the match's own numbers are under it.</p>}
+        {!sim && (
+          <p class="hint">No simulated energy per tracker hit in the file: the match's own numbers are under it.</p>
+        )}
         {sim && total <= 0 && (
           <p class="hint">
             The file has no simulated hits of it here (only particles that entered the calorimeter have them): the match
@@ -137,21 +145,20 @@ export function PairBars() {
         best for it (its matches).
       </p>
       <p>
-        <b>Which particle</b>: the one selected; for a reco object, its best match (associator); for a hit, the
-        particle that left the most simulated energy in it. Its parents are in the lineage: select one there for a
-        larger branch.
+        <b>Which particle</b>: the one selected; for a reco object, its best match (associator); for a hit, the particle
+        that left the most simulated energy in it. Its parents are in the lineage: select one there for a larger branch.
       </p>
       <p>
-        <b>Simulated energy</b>: what the branch's particles deposited in each detector's sensors (Geant4), counted
-        once per hit, not calibrated: a 67 GeV pion leaves about 0.2 GeV in HGCal. It is a share within one detector
-        only, never added across detectors. The file gives each particle that entered the calorimeter its shower as a
-        whole (with its own descendants inside the calorimeter), so "its descendants'" is the energy of other
-        particles of the branch that entered the calorimeter on their own: conversion electrons, the products of an
-        interaction or a decay in the tracker.
+        <b>Simulated energy</b>: what the branch's particles deposited in each detector's sensors (Geant4), counted once
+        per hit, not calibrated: a 67 GeV pion leaves about 0.2 GeV in HGCal. It is a share within one detector only,
+        never added across detectors. The file gives each particle that entered the calorimeter its shower as a whole
+        (with its own descendants inside the calorimeter), so "its descendants'" is the energy of other particles of the
+        branch that entered the calorimeter on their own: conversion electrons, the products of an interaction or a
+        decay in the tracker.
       </p>
       <p>
-        <b>Rechit energy</b>: the reconstructed energy of the match's hits, each hit split between the particles by
-        the simulated energy they left in it.
+        <b>Rechit energy</b>: the reconstructed energy of the match's hits, each hit split between the particles by the
+        simulated energy they left in it.
       </p>
       <p>
         A detector is <b>not compared</b> where its reco objects have no association to truth: its hits are shown

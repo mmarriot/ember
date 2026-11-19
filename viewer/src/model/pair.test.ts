@@ -46,7 +46,12 @@ const ev = {
 } as unknown as EventData;
 const rel = (from: string, to: string, extra = {}) => ({ from, to, weights: [], ...extra });
 const fact = (from: string, to: string, where: string) =>
-  rel(from, to, { weights: ["simEnergy"], association: true, fact: { in: where }, best: { weight: "simEnergy", order: "max" } });
+  rel(from, to, {
+    weights: ["simEnergy"],
+    association: true,
+    fact: { in: where },
+    best: { weight: "simEnergy", order: "max" },
+  });
 const header = {
   relations: {
     cK: rel("C", "K"),
@@ -163,7 +168,9 @@ describe("truth <-> reco pair", () => {
     const { truthK: _, ...rels } = ev.relations;
     const p = pairFor({ ...ev, relations: rels } as unknown as EventData, header, { table: "P", row: 4 }, "P")!;
     expect(det(p, "HGCal").matches).toEqual([]);
-    expect(pairFor({ ...ev, relations: rels } as unknown as EventData, header, { table: "K", row: 0 }, "P")?.particle).toBe(0);
+    expect(
+      pairFor({ ...ev, relations: rels } as unknown as EventData, header, { table: "K", row: 0 }, "P")?.particle,
+    ).toBe(0);
   });
   it("gives a reco object its best match's pair, and a fragment shows as split", () => {
     const p = pair("K", 2);

@@ -211,8 +211,7 @@ function TruthSide({ table, row }: { table: string; row: number }) {
       <p>
         <b>%</b>: the share of this particle that the object holds, by the associator: of its energy in that detector
         (calorimeters: each cell's rechit energy, split between the particles by the simulated energy they left in it),
-        or of its tracker hits (tracks).{" "}
-        <span class="ok">★</span>: it is that object's own best match.
+        or of its tracker hits (tracks). <span class="ok">★</span>: it is that object's own best match.
       </p>
       <p>
         <b>Click</b> an object to look at it in the view; <b>double click</b> to open its card.

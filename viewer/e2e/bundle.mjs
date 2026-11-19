@@ -507,7 +507,13 @@ async function checkLevels(page, h, target, fail, shot, tag) {
   const name = (await particle.innerText()).replace(/\s+/g, " ");
   await particle.click();
   await page.waitForTimeout(1200);
-  const truthLine = (await page.locator(".inspector .pair .pairline").first().innerText().catch(() => "")).replace(/\s+/g, " ");
+  const truthLine = (
+    await page
+      .locator(".inspector .pair .pairline")
+      .first()
+      .innerText()
+      .catch(() => "")
+  ).replace(/\s+/g, " ");
   log(`${tag}: the pair from its particle: ${truthLine || "none"}`);
   if (!truthLine.includes(name)) fail(`the particle ${name} does not open its own pair`);
   await page.locator(".inspector .looking .lookhead .link").click({ timeout: 120000 }); // stop looking at the particle

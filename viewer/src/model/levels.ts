@@ -93,8 +93,7 @@ export function focusLevels(
   // Not other kinds that share objects (jets and taus, both made of PF candidates): nothing says one holds the other.
   const stage = (l: L) => Math.max(-1, ...l.layers.map((d) => d.stage ?? -1));
   const shares = (a: L, b: L) => [...reach.get(a)!].some((t) => reach.get(b)!.has(t));
-  const holds = (a: L, b: L) =>
-    leads(a, b) || (stage(b) >= 0 && stage(a) > stage(b) && !leads(b, a) && shares(a, b));
+  const holds = (a: L, b: L) => leads(a, b) || (stage(b) >= 0 && stage(a) > stage(b) && !leads(b, a) && shares(a, b));
   const above = (a: L, b: L) => holds(a, b) && !holds(b, a);
   // Holds it directly: a chain of relations to it that passes no other kind, or else no level in between (linked
   // tracksters hold tracksters, and candidates hold them only through those).

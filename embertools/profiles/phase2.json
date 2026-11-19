@@ -88,7 +88,7 @@
     {"name": "Muon endcap", "r": [100, 700], "z": [565, 1080]}
   ],
   "presets": [
-    {"name": "Track time", "colour": {"GeneralTrack": "t0", "PV": "t", "RecHitBTL": "time", "RecHitETL": "time"}}
+    {"name": "Track time", "colour": {"GeneralTrack": "t0", "PV": "t", "RecHitBTL": "time", "RecHitETL": "time"}, "show": ["RecHitBTL", "RecHitETL"]}
   ],
   "view": {"tour": "beam", "minRadius": 90}
 }

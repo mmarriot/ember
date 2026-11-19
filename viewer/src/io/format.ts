@@ -233,6 +233,8 @@ export interface Preset {
   name: string;
   colour?: Record<string, string>;
   filters?: Record<string, string>;
+  /** Tables whose layers the preset ticks. */
+  show?: string[];
 }
 /** A part of the detector (header `domains`), with its region and the view that suits it. */
 export interface Domain {

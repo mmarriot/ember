@@ -289,9 +289,12 @@ class Converter:
                     if "filters" in p
                     else {}
                 ),
+                **({"show": [t for t in p["show"] if t in written]} if "show" in p else {}),
             }
             if kept.get("colour") or kept.get("filters") or not (p.get("colour") or p.get("filters")):
-                out.append({k: v for k, v in kept.items() if v != {} or k not in ("colour", "filters")})
+                out.append(
+                    {k: v for k, v in kept.items() if v not in ({}, []) or k not in ("colour", "filters", "show")}
+                )
         return out
 
     def _filterable(self, table, expr):
@@ -542,7 +545,7 @@ def used_tables(profile):
     used |= {t for s in profile.get("sameRows", []) for t in (s["keep"], s["drop"])}
     used |= {s.get("table") for s in profile.get("summaries", [])}
     for preset in profile.get("presets", []):
-        used |= set(preset.get("filters", {})) | set(preset.get("colour", {}))
+        used |= set(preset.get("filters", {})) | set(preset.get("colour", {})) | set(preset.get("show", []))
     return used - {None}
 
 

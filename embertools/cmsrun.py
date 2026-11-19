@@ -931,10 +931,10 @@ from DPGAnalysis.MuonTools.common_cff import DetIdVar, GlobGeomVar
             label = f"{k.lower()}RecHitTable"
             text += (
                 f'table("{label}", cms.EDProducer("{plugin}", src=cms.InputTag("{module}", "{instance}"),\n'
-                f'    name=cms.string("{k}RecHits"), doc=cms.string("{doc} rechits"), precision=cms.int32(14),\n'
+                f'    name=cms.string("RecHit{k}"), doc=cms.string("{doc} rechits"), precision=cms.int32(14),\n'
                 f"    skipNonExistingSrc=cms.bool(True)))\n"
             )
-            self.hit_tables[label] = (f"Truth{k}RecHits", "detId")
+            self.hit_tables[label] = (f"TruthRecHit{k}", "detId")
         self.add(text)
         return True
 
@@ -1044,7 +1044,7 @@ table("jetCHSTagTable", cms.EDProducer("JetTagTableProducer", src=cms.InputTag("
             "\n# Every MTD rechit (BTL and ETL) with its time and position (CMSSW branch nanoaod-mtd-rechits), one table\n"
             + "".join(
                 f'table("{n.lower()}RecHitTable", cms.EDProducer("MTDRecHitTableProducer",\n'
-                f'    src=cms.InputTag("mtdRecHits", "{i}"), name=cms.string("{n}RecHits"), doc=cms.string("{n} rechits"),\n'
+                f'    src=cms.InputTag("mtdRecHits", "{i}"), name=cms.string("RecHit{n}"), doc=cms.string("{n} rechits"),\n'
                 f"    precision=cms.int32(14), skipNonExistingSrc=cms.bool(True)))\n"
                 for n, i in parts
             )

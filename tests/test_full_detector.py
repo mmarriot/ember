@@ -71,7 +71,8 @@ def test_with_pat_physics_objects_the_links_to_them_are_left_out():
 I4, U2, U4, F4, I2 = (np.dtype(d) for d in ("i4", "u2", "u4", "f4", "i2"))
 HITS = {"detId": U4, "energy": F4, "time": F4, "x": F4, "y": F4, "z": F4}
 BRANCHES = {
-    **{f"{k}RecHits": HITS for k in ("EB", "HBHE", "HF", "HO", "BTL", "ETL")},
+    **{f"RecHit{k}": HITS for k in ("EB", "HBHE", "HF", "HO")},
+    **{f"RecHit{k}": {**HITS, "row": np.dtype("u1"), "column": np.dtype("u1"), "timeError": F4} for k in ("BTL", "ETL")},
     **{f"{t}Hits": {"detId": U4, "x": F4, "y": F4, "z": F4, "layer": np.dtype("u1")}
        for t in ("GeneralTrack", "GsfTrack", "StandaloneMuonTrack", "GlobalMuonTrack")},
     **{t: {"pt": F4, "eta": F4, "phi": F4, "charge": I2, "vx": F4, "vy": F4, "vz": F4, "chi2": F4, f"n{t}Hits": U2}
@@ -105,7 +106,7 @@ def test_the_tables_of_every_cmssw_branch_are_drawn_and_linked():
     header = conv.header([], "t")
     drawn, rels = {d["table"] for d in header["display"]}, header["relations"]
     assert set(conv.written()) - drawn == set()
-    assert {"EBRecHits", "HBRecHits", "HORecHits", "HFRecHits", "BTLRecHits", "GeneralTrackHits", "DTRecHit",
+    assert {"RecHitEB", "RecHitHB", "RecHitHO", "RecHitHF", "RecHitBTL", "GeneralTrackHits", "DTRecHit",
             "CSCRecHit", "MuonChamber", "StandaloneMuonTrack", "GlobalMuonTrackHits"} <= drawn  # fmt: skip
     for name in ("trackHits", "gsfTrackHits", "vertexTracks", "trackVertex", "svTracks", "pfTicl", "pfClustersECAL",
                  "pfClustersHF", "jetConstituents", "jetCHSConstituents", "tauConstituents", "muonStandaloneTrack",
@@ -118,6 +119,6 @@ def test_the_tables_of_every_cmssw_branch_are_drawn_and_linked():
     assert presets["Track time"]["colour"] == {
         "GeneralTrack": "t0",
         "PV": "t",
-        "BTLRecHits": "time",
-        "ETLRecHits": "time",
+        "RecHitBTL": "time",
+        "RecHitETL": "time",
     }

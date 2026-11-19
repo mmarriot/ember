@@ -341,7 +341,7 @@ def test_each_cmssw_branch_s_producers_are_used_once_the_release_has_them():
     assert not [n for n in notes if "cms-merge-topic" in n and "cluster" not in n and "truth" not in n]
     # every rechit instead of the PF rechits, with their truth tables keyed by DetId when the truth is written
     assert 'cms.EDProducer("EcalRecHitTableProducer", src=cms.InputTag("ecalRecHit", "EcalRecHitsEB")' in text
-    assert 'name=cms.string("HBHERecHits")' in text and "pfRecHitTable" not in text and "EERecHits" not in text
+    assert 'name=cms.string("RecHitHBHE")' in text and "pfRecHitTable" not in text and "RecHitEE" not in text
     # the hits of the general, GSF and muon tracks, and the muons' rows of their muon tracks
     for name in ("GeneralTrack", "GsfTrack", "StandaloneMuonTrack", "GlobalMuonTrack"):
         assert f'name=cms.string("{name}"), hitsName=cms.string("{name}Hits")' in text
@@ -352,7 +352,7 @@ def test_each_cmssw_branch_s_producers_are_used_once_the_release_has_them():
     assert "trackIdx=ref(" not in pf and "muonIdx=ref(" not in pf and "electronIdx=ref(" in pf
     assert 'ticlCandidates=cms.InputTag("pfTICL")' in text and 'name=cms.string("PFCandidateClustersECAL")' in text
     # jet and tau constituents, CHS b-tags, MTD rechits, the muon system's rechits, chambers and segment matches
-    for name in ("JetPFCands", "JetCHSPFCands", "TauPFCands", "BTLRecHits", "ETLRecHits", "DTRecHit", "CSCRecHit"):
+    for name in ("JetPFCands", "JetCHSPFCands", "TauPFCands", "RecHitBTL", "RecHitETL", "DTRecHit", "CSCRecHit"):
         assert f'name=cms.string("{name}")' in text or f'name="{name}"' in text
     assert "JetTagTableProducer" in text and "'pfDeepCSVJetTags:probb', 'pfDeepCSVJetTags:probbb'" in text
     assert 'name=cms.string("MuonChamber")' in text and 'name=cms.string("MuonDTSegments")' in text

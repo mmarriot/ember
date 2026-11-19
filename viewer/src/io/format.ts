@@ -110,6 +110,8 @@ export interface DisplayLayer {
   group: string;
   label: string;
   kind?: string; // object type from the profile (e.g. "trackster"); `group` is then its label
+  /** What this kind of object is, in a few sentences, for someone who does not know it (side panel, card, chain). */
+  doc?: string;
   source?: string; // which reconstruction path produced it, e.g. "SoA" or "legacy"
   /** The part of the detector it belongs to (e.g. "HGCal"): its tab in the side panel, and with a header `domains`
    *  entry of that name, the view that draws it (none: drawn in every domain's view). Truth layers have none. */

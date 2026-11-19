@@ -206,7 +206,7 @@ each of layers 25 and 26:
 `display` is a list of layers. Their keys are the display hints of [Bundle format](format.md#display-hints):
 `table`, `repr`, `position`, `end`, `momentum`, `charge`, `axis`, `extent`, `size`, `colour`, `palette`, `colourBy`,
 `time`, `group`, `label`, `visible`, `kind`, `source`, `domain`, `cut`, `filter`, `context`, `dim`, `shape`, `truth`,
-`particle`, `onSelection`, `describe`; and, added for the whole detector, `cell`, `direction`, `radius`, `length`,
+`particle`, `onSelection`, `describe`, `doc`; and, added for the whole detector, `cell`, `direction`, `radius`, `length`,
 `arrow`, `width`, `views`, `labels`, `list`, `inspect`, `fractions`, `truthGap`, `fixedColour` and `cut.label`.
 
 - They are copied to the bundle for the layers whose table is written.

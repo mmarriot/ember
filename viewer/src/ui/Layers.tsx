@@ -28,7 +28,7 @@ import {
   visible,
 } from "../model/store";
 import { CutChip } from "./Cuts";
-import { popover, togglePopover } from "./Info";
+import { Info, popover, togglePopover } from "./Info";
 import { explainedByKey, Options, Scale } from "./LayerOptions";
 import { Headline, ObjectRows } from "./ObjectRows";
 
@@ -74,6 +74,11 @@ export function Collections({ layers }: { layers: DisplayLayer[] }) {
               >
                 {group}
               </button>
+              {ls[0].doc && (
+                <Info title={group}>
+                  <p>{ls[0].doc}</p>
+                </Info>
+              )}
               {sameTruth(ls) && <TruthWord table={ls[0].table} />}
               {shut && (
                 <span class="count">

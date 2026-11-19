@@ -130,7 +130,9 @@ function RungRow({ rung, role }: { rung: Rung; role: "above" | "self" | "below" 
   return (
     <li class={`rung ${role}${on ? " shown" : ""}`} style={rung.indent ? { "--indent": rung.indent } : undefined}>
       <div class="rhead">
-        <span class="rkind">{rung.kind}</span>
+        <span class="rkind" title={layerOf(rung.groups[0]?.table)?.doc}>
+          {rung.kind}
+        </span>
         {role === "self" ? null : few ? (
           rung.groups.map((g) => (
             <>

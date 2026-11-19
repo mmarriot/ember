@@ -122,6 +122,9 @@ with a message while an old one is set without its new name. `deploy.sh` links `
   Before, the branches were interleaved by depth. Jets and taus, which share PF candidates, no longer hold each other.
 - **The side panel lists each part's kinds from the top down**, in an order the profile states (`order`): candidates,
   their tracksters, layer clusters, hits. Bundles converted before keep their order until converted again.
+- The TICL kinds say what they are (display hint `doc`, behind the kind's **i** and on the chain's steps): tracksters,
+  linked tracksters, and the candidate tracksters, one per TICL candidate (layer "One per candidate", was "Of the
+  candidates").
 
 ### Fixed
 

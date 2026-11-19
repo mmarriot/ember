@@ -181,10 +181,17 @@ ttbar with geometry `ExtendedRun4D104` and the stock reconstruction; Run 3 is Je
 |---|---|---|---|
 | cmsRun: time to start (once per job) | 19 s | 20 s | 16 s |
 | cmsRun: time per event | 0.57 s | 0.71 s | 0.24 s |
-| NanoAOD | 0.55 MB | 7.3 MB | 0.16 MB |
-| bundle | 0.37 MB | 5.2 MB | 0.14 MB |
-| with the cluster hits: NanoAOD, bundle | 0.58 MB, 0.39 MB | 9.0 MB, 5.9 MB | 0.20 MB, 0.17 MB |
-| with the cluster hits and truth: bundle | 0.66 MB | 17.0 MB | (no truth) |
+| NanoAOD | 0.69 MB | 7.7 MB | 0.79 MB |
+| bundle | 0.40 MB | 5.4 MB | 0.21 MB |
+| with the cluster hits and truth: bundle | 0.70 MB | 17.9 MB | (no truth) |
+
+The PF candidates, CHS jets, taus, GSF tracks, every vertex and the muon system's tables (measured against the main
+branch on the same events: 3 events at 200 pile-up, 10 otherwise) add 0.02 MB per event to the bundle without
+pile-up, 0.46 MB at 200 pile-up (10k PF candidates) and 0.07 MB in Run 3. At 200 pile-up their modules take about
+50 ms per event of the job's 0.7 s (TimeReport over 3 events: the PF candidate table 21 ms, which includes reading
+`particleFlow` from the file, as the first module that asks for a product pays for its decompression; the HGCal
+electrons 10 ms, whose index columns are evaluated by name for each object, `lazyEval`). Warm, a Run 3 job of 10
+events takes 28 s against 27 s.
 
 - The job start is most of the time for 10 events: loading the libraries, building the geometry and the conditions.
   Before it, `ember` takes a few seconds to find the settings and to check the input's classes.

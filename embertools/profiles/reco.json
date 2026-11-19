@@ -1,0 +1,39 @@
+{
+  "name": "reco",
+  "note": "What Ember's own NanoAOD of a reconstruction file has in Phase 2 and in Run 3 alike (phase2.json and run3.json include it): general tracks as helices from their reference point to their outermost hit (high purity by default), the beam spot, PF clusters (ECAL, preshower, HCAL, HF, HO) and superclusters (ECAL barrel and endcap) as markers, and the kinds of the calorimeter hits that phase2.json and run3.json split by subdetector. A cluster's hits are found by DetId in the hit tables (relations of kind counts with toKey): the cluster-hits tables of the CMSSW branch mmarriot:nanoaod-cluster-hits, when the release has them; the hits below the PF thresholds are not written, and their links are dropped.",
+  "internal": ["PFClusterECALHits", "PFClusterPSHits", "PFClusterHCALHits", "PFClusterHFHits", "PFClusterHOHits", "SuperClusterEBHits", "SuperClusterEEHits"],
+  "derive": [
+    {"table": "GeneralTrack", "momentum": ["pt", "eta", "phi"]}
+  ],
+  "relations": [
+    {"name": "pfClusterECALHitsEB", "kind": "counts", "from": "PFClusterECAL", "to": "EBHits", "counts": "PFClusterECAL.nPFClusterECALHits", "indices": "PFClusterECALHits.detId", "toKey": "EBHits.rechit_ID", "weights": ["PFClusterECALHits.fraction"]},
+    {"name": "pfClusterECALHitsEE", "kind": "counts", "from": "PFClusterECAL", "to": "EEHits", "counts": "PFClusterECAL.nPFClusterECALHits", "indices": "PFClusterECALHits.detId", "toKey": "EEHits.rechit_ID", "weights": ["PFClusterECALHits.fraction"]},
+    {"name": "pfClusterPSHits", "kind": "counts", "from": "PFClusterPS", "to": "ESHits", "counts": "PFClusterPS.nPFClusterPSHits", "indices": "PFClusterPSHits.detId", "toKey": "ESHits.rechit_ID", "weights": ["PFClusterPSHits.fraction"]},
+    {"name": "pfClusterHCALHitsHB", "kind": "counts", "from": "PFClusterHCAL", "to": "HBHits", "counts": "PFClusterHCAL.nPFClusterHCALHits", "indices": "PFClusterHCALHits.detId", "toKey": "HBHits.rechit_ID", "weights": ["PFClusterHCALHits.fraction"]},
+    {"name": "pfClusterHCALHitsHE", "kind": "counts", "from": "PFClusterHCAL", "to": "HEHits", "counts": "PFClusterHCAL.nPFClusterHCALHits", "indices": "PFClusterHCALHits.detId", "toKey": "HEHits.rechit_ID", "weights": ["PFClusterHCALHits.fraction"]},
+    {"name": "pfClusterHFHits", "kind": "counts", "from": "PFClusterHF", "to": "HFHits", "counts": "PFClusterHF.nPFClusterHFHits", "indices": "PFClusterHFHits.detId", "toKey": "HFHits.rechit_ID", "weights": ["PFClusterHFHits.fraction"]},
+    {"name": "pfClusterHOHits", "kind": "counts", "from": "PFClusterHO", "to": "HOHits", "counts": "PFClusterHO.nPFClusterHOHits", "indices": "PFClusterHOHits.detId", "toKey": "HOHits.rechit_ID", "weights": ["PFClusterHOHits.fraction"]},
+    {"name": "superClusterEBHits", "kind": "counts", "from": "SuperClusterEB", "to": "EBHits", "counts": "SuperClusterEB.nSuperClusterEBHits", "indices": "SuperClusterEBHits.detId", "toKey": "EBHits.rechit_ID", "weights": ["SuperClusterEBHits.fraction"]},
+    {"name": "superClusterEEHits", "kind": "counts", "from": "SuperClusterEE", "to": "EEHits", "counts": "SuperClusterEE.nSuperClusterEEHits", "indices": "SuperClusterEEHits.detId", "toKey": "EEHits.rechit_ID", "weights": ["SuperClusterEEHits.fraction"]}
+  ],
+  "kinds": {
+    "caloHit": {"label": "Hits", "domain": "Calo", "repr": "cells", "palette": "heat", "colour": "rechit_energy", "size": null, "time": "rechit_time", "visible": true, "describe": {"columns": ["rechit_energy"]}, "inspect": ["rechit_energy", "rechit_time", "rechit_eta", "rechit_phi", "rechit_depth", "rechit_ID"]},
+    "pfCluster": {"label": "PF clusters", "domain": "Calo", "repr": "markers", "palette": "cool", "visible": true, "colour": "energy", "size": null, "cut": {"group": "PF cluster energy", "label": "PF cluster energy", "column": "energy", "unit": "GeV", "default": 1.0}, "describe": {"columns": ["energy"]}, "inspect": ["energy", "nHits"]},
+    "superCluster": {"label": "Superclusters", "domain": "Calo", "repr": "markers", "palette": "cool", "visible": false, "colour": "energy", "size": null, "describe": {"columns": ["energy"]}, "inspect": ["energy", "rawEnergy", "eta", "phi", "etaWidth", "phiWidth", "nClusters"]},
+    "track": {"label": "Tracks", "domain": "Tracker", "repr": "helix", "visible": true, "colour": "pt", "size": null, "cut": {"group": "Track pT", "label": "track pT", "column": "pt", "unit": "GeV", "default": 1.0}, "describe": {"columns": ["pt", "eta"]}, "inspect": ["pt", "eta", "phi", "charge", "nhits", "highPurity"]},
+    "beamSpot": {"label": "Beam spot", "domain": "Tracker", "repr": "markers", "visible": false, "size": null}
+  },
+  "display": [
+    {"table": "GeneralTrack", "kind": "track", "label": "General tracks", "position": ["vx", "vy", "vz"], "momentum": ["px", "py", "pz"], "charge": "charge", "end": ["outerX", "outerY", "outerZ"], "filter": "highPurity == 1"},
+    {"table": "OfflineBeamSpot", "kind": "beamSpot", "label": "Beam spot", "position": ["x", "y", "z"]},
+    {"table": "PFClusterECAL", "kind": "pfCluster", "label": "ECAL", "position": ["x", "y", "z"]},
+    {"table": "PFClusterPS", "kind": "pfCluster", "label": "Preshower", "position": ["x", "y", "z"], "visible": false, "cut": {"group": "Preshower cluster energy", "label": "preshower cluster energy", "default": 0.0}},
+    {"table": "PFClusterHCAL", "kind": "pfCluster", "label": "HCAL", "position": ["x", "y", "z"]},
+    {"table": "PFClusterHO", "kind": "pfCluster", "label": "HCAL outer", "position": ["x", "y", "z"], "visible": false, "truthGap": {"reason": "no PF-cluster associator for HF and HO is configured in CMSSW", "gap": 15}},
+    {"table": "PFClusterHF", "kind": "pfCluster", "label": "HCAL forward", "position": ["x", "y", "z"], "visible": false, "truthGap": {"reason": "no PF-cluster associator for HF and HO is configured in CMSSW", "gap": 15}, "views": ["3d", "side", "rz"]},
+    {"table": "SuperClusterEB", "kind": "superCluster", "label": "ECAL barrel", "position": ["x", "y", "z"]},
+    {"table": "SuperClusterEE", "kind": "superCluster", "label": "ECAL endcap", "position": ["x", "y", "z"]}
+  ],
+  "domains": [{"name": "Tracker", "region": {"rMax": 120, "zMax": 280}, "view": "front", "colourMode": "layers", "minRadius": 15}],
+  "field": {"bz": 3.8, "rMax": 295, "zMax": 320}
+}

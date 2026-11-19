@@ -6,6 +6,7 @@ to a BundleWriter (bundle.py).
 """
 
 import contextlib
+import copy
 import itertools
 import os
 import re
@@ -24,7 +25,7 @@ from .profile import load_profile
 def convert(
     files,
     output,
-    profile_name="hgcal",
+    profile_name="auto",
     max_events=None,
     log=None,
     data_time=None,
@@ -47,13 +48,21 @@ def convert(
     threads     threads that decompress the input and compress the records (default: threads_available())
     """
     log = log or sys.stderr  # the stream of the moment, not the one there was when this module was imported
-    profile = load_profile(profile_name)
+    profile = None if profile_name == "auto" else load_profile(profile_name)
     if run_info and not run_info.startswith("registry:") and not os.path.isfile(run_info):
         raise Problem(f"no run information file {run_info}")  # now, not after converting every event
+    missing = [f for f in files if not f.startswith("root://") and not os.path.exists(f)]
+    if missing:
+        raise Problem(f"{missing[0]}: no such file")
     first = open_file(files[0])  # stays open to read its events
     try:
+        _check_nanoaod(first, files[0])
         with open_file(run_tables) if run_tables else contextlib.nullcontext(first) as r:
-            conv = Converter(discover(first["Events"]), profile, discover(r["Runs"]) if "Runs" in r else None)
+            tables, per_run = discover(first["Events"]), discover(r["Runs"]) if "Runs" in r else None
+            if profile is None:
+                profile_name, profile = choose_profile(tables, per_run, files[0])
+                print(f"profile {profile_name} (chosen for the tables of {os.path.basename(files[0])})", file=log)
+            conv = Converter(tables, profile, per_run)
             runs = _run_tables(conv, r) if run_tables else None
         if run_tables:
             print(f"per-run tables of run(s) {sorted(runs)} from {os.path.basename(run_tables)}", file=log)
@@ -65,8 +74,7 @@ def convert(
             has = ", ".join(sorted(conv.tables)[:12]) + (", ..." if len(conv.tables) > 12 else "")
             raise Problem(
                 f"{files[0]} has none of the tables that the profile {profile.get('name', profile_name)} "
-                f"draws (it has: {has or 'no table'}). Event-display NanoAOD is written by CMSSW with "
-                "NANO:@EVD; another kind of file needs its own --profile"
+                f"draws (it has: {has or 'no table'}); another kind of file needs its own --profile"
             )
 
         header = conv.header(files, profile.get("name", profile_name), written_by(first))
@@ -74,7 +82,7 @@ def convert(
             header["source"]["data_time"] = data_time.isoformat(timespec="seconds")
         written, runs_written = 0, set()
         with BundleWriter(output, header, sort=sort, threads=threads or threads_available()) as out:
-            records = _records(conv, files, log, events, runs, first, out.pool)
+            records = _records(conv, files, log, events, runs, first, out.pool, max_events)
             for record, per_run in itertools.islice(records, max_events):
                 run = int(record[0][0])
                 if per_run and run not in runs_written:  # a run's tables go in before its first event
@@ -94,6 +102,41 @@ def convert(
         first.close()
 
 
+# The profiles that `--profile auto` chooses from: the kinds of NanoAOD files CMS makes (docs/profiles.md).
+AUTO = ["phase2", "run3", "nano", "hgcal", "cms"]
+
+
+def choose_profile(tables, run_tables, path):
+    """(name, profile) of the AUTO profile that draws the most of the file's tables; of those that draw as many, the
+    one with the fewest layers in all (the most specific: a standard NanoAOD is drawn by nano, not by the profiles
+    that include it). A Problem if none draws anything."""
+    best = None
+    for name in AUTO:
+        profile = load_profile(name)
+        try:
+            drawn = len(Converter(copy.deepcopy(tables), profile, copy.deepcopy(run_tables)).display)
+        except ValueError:  # a table of the same name with other columns: not this kind of file
+            continue
+        rank = (drawn, -len(profile.get("display", [])))
+        if drawn and (best is None or rank > best[0]):
+            best = (rank, name, profile)
+    if best is None:
+        has = ", ".join(sorted(tables)[:12]) + (", ..." if len(tables) > 12 else "")
+        raise Problem(
+            f"{path}: none of the profiles {', '.join(AUTO)} draws its tables (it has: {has or 'no table'}). Ember "
+            "reads standard NanoAOD, NANO:@HGCAL and its own NanoAOD of reconstruction files; give --profile for "
+            "another kind"
+        )
+    return best[1], best[2]
+
+
+def _check_nanoaod(f, path):
+    """A Problem for an input that is a CMSSW reconstruction file (checked here, on the file the conversion reads,
+    rather than by opening each file once more beforehand: reading the description of 1000 branches takes 0.4 s)."""
+    if "Events" in f and "EventAuxiliary" in f["Events"]:
+        raise Problem(f"{path} is a CMSSW reconstruction file, not NanoAOD: `ember view` makes its NanoAOD first")
+
+
 def open_file(path):
     """The ROOT file at `path` (a local path or a root:// URL), opened with uproot for reading tables.
 
@@ -108,16 +151,26 @@ def open_file(path):
 
 
 def discover(tree):
-    """The collection tables of a NanoAOD tree, from its branches (n<T> and <T>_<column>), with the columns in the
-    order the producers wrote them: {table: {"doc": str, "columns": {column: (dtype, doc)}}}."""
+    """The tables of a NanoAOD tree, from its branches, with the columns in the order the producers wrote them:
+    {table: {"doc": str, "columns": {column: (dtype, doc)}}}. A collection table has a counter n<T> and branches
+    <T>_<column>; branches <T>_<column> without a counter make a singleton table (one row per event, e.g. MET),
+    marked "singleton": True."""
     branches = tree.keys()
     keys = set(branches)
-    columns = defaultdict(dict)
+    columns, singletons = defaultdict(dict), defaultdict(dict)
     for branch in branches:
         table, sep, column = branch.partition("_")
-        if sep and f"n{table}" in keys:
-            columns[table][column] = (tree[branch].interpretation.content.from_dtype, tree[branch].title)
-    return {t: {"doc": tree[f"n{t}"].title, "columns": cols} for t, cols in columns.items()}
+        if not sep:
+            continue
+        interpretation = getattr(tree[branch].interpretation, "content", tree[branch].interpretation)
+        dtype = getattr(interpretation, "from_dtype", None)
+        if f"n{table}" in keys:
+            columns[table][column] = (dtype, tree[branch].title)
+        elif dtype is not None and dtype.shape == ():
+            singletons[table][column] = (dtype, tree[branch].title)
+    out = {t: {"doc": tree[f"n{t}"].title, "columns": cols} for t, cols in columns.items()}
+    out.update({t: {"doc": t, "columns": cols, "singleton": True} for t, cols in singletons.items()})
+    return out
 
 
 def branch_bytes(branch):
@@ -175,13 +228,14 @@ def _run_tables(conv, f):
     return {int(arrays["run"][i]): conv.run_tables(arrays, i) for i in range(len(arrays["run"]))}
 
 
-def _records(conv, files, log, events=None, runs=None, first=None, pool=None):
+def _records(conv, files, log, events=None, runs=None, first=None, pool=None, max_events=None):
     """Yield (record, run tables) for each converted event of `files`, in order.
 
     events  only these event numbers
     runs    per-run tables to use instead of each file's own
     first   the first file, already open (reading the description of a tree of 2000 branches takes 0.3 s)
     pool    see _entries
+    max_events  at most this many are needed: without an event selection, no more entries are read
     """
 
     def progress(n):  # how far the file being read (`name`, below) has got
@@ -194,8 +248,10 @@ def _records(conv, files, log, events=None, runs=None, first=None, pool=None):
         name, selected = os.path.basename(path), 0
         with first if first is not None and path == files[0] else open_file(path) as f:
             first = None  # used once, even if the same file is listed again
+            _check_nanoaod(f, path)
             file_runs = _run_tables(conv, f) if runs is None else runs
-            for arrays, i in _entries(f["Events"], conv, events, progress, pool):
+            stop = max_events if max_events and not conv.select else None
+            for arrays, i in _entries(f["Events"], conv, events, progress, pool, stop):
                 run_tables = file_runs.get(int(arrays["run"][i]))
                 record = conv.event(arrays, i, run_tables)
                 if record is not None:
@@ -203,7 +259,7 @@ def _records(conv, files, log, events=None, runs=None, first=None, pool=None):
                     yield record, run_tables
 
 
-def _entries(tree, conv, events, progress, pool=None):
+def _entries(tree, conv, events, progress, pool=None, stop=None):
     """Yield (arrays, i) for each entry of an Events tree to convert: entry i of the chunk `arrays`.
 
     With `events`, only the entries of these event numbers: they are found from the event branch alone, then read one
@@ -231,7 +287,9 @@ def _entries(tree, conv, events, progress, pool=None):
     pre = conv.selection_branches()
     # "100 MB" is one PU200 event per chunk (two with "200 MB"). The memory at its peak follows the chunk: about 2.6
     # times its arrays, as the compressed baskets, the decompressed baskets and the arrays are alive together.
-    for arrays, report in tree.iterate(pre or full, step_size="100 MB", library="np", report=True, **threaded):
+    # `stop`: the entries after it are not read (a chunk of small events, e.g. standard NanoAOD, is thousands of them)
+    chunks = tree.iterate(pre or full, step_size="100 MB", entry_stop=stop, library="np", report=True, **threaded)
+    for arrays, report in chunks:
         for i in range(report.tree_entry_stop - report.tree_entry_start):
             if pre is None:
                 yield arrays, i

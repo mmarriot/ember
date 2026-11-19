@@ -116,7 +116,7 @@ function PidKey() {
         </li>
       </ul>
       <p class="hint keyhelp">
-        Select anything for its truth ↔ reco pair{" "}
+        {roots.truth ? "Select anything for its truth ↔ reco pair " : "The reconstruction's particle type "}
         <Info title="Colour = candidate type">
           <p>The reconstruction's particle type: everything a candidate is made of takes its colour.</p>
         </Info>

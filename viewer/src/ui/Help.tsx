@@ -127,7 +127,8 @@ export function HelpDialog() {
         [
           [],
           `in a CMSSW area: ${PUBLISH_COMMAND}`,
-          "Publish a file: it is converted, listed under My files and gets a link (it is removed after a while)",
+          "Convert a file to a .ember file to open here; where this site is set up for it (EMBER_SITE_DIR), it is " +
+            "published instead: listed under My files, with a link (removed after a while)",
         ],
         [
           [],
@@ -207,7 +208,8 @@ export function HelpDialog() {
         The share button copies a link to what is on screen: the data set, event, view, part of the detector, a kind
         looked at alone, the selection with the level shown, and the truth colours (the address bar always holds it).
         Anyone who can open this site can open the link, also for a file someone else published; it works while the file
-        is on the site. A local file has no link: publish it with <code>{PUBLISH_COMMAND}</code>.
+        is on the site. A local file has no link: send the file, or publish it with <code>{PUBLISH_COMMAND}</code> where
+        this site is set up for it (<code>EMBER_SITE_DIR</code>).
       </p>
     </Modal>
   );

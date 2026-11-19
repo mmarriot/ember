@@ -74,6 +74,23 @@ with a message while an old one is set without its new name. `deploy.sh` links `
   objects of a kind are kept: CHS jets and PF MET (hidden, as before), CLUE3D tracksters. Until the DetId relations,
   HGCal superclusters lose the link to their hits in such files (it points at the legacy hits). The viewer opens older
   bundles as before, minus their legacy copies (the "Other reconstruction paths" in the layer list).
+- **`ember` writes its own cmsRun configuration.** For a reconstruction file (Phase 2 or Run 3, data or simulation),
+  `ember FILE.root` writes `ember_cfg.py` from the modules of your release, runs it, and converts the result: no
+  `NANO:@EVD` is needed. The configuration has what the input and the release have (HGCal and calorimeter hits,
+  layer, PF and super clusters, tracksters, TICL candidates, tracks, physics objects, and the hits of every cluster
+  once the release has the cluster-hits tables), lists what it left out, and is kept with `--config FILE.py`. `--pat`
+  takes the physics objects from PAT and standard NanoAOD instead, at a cost. A MiniAOD gets standard NanoAOD.
+  With the truth-graph NanoAOD tables in the release and the graph in the file (Phase 2 RECO and FEVT), the bundle
+  has the truth graph, the simulated energy of each particle in each hit, and the reco ↔ truth matches: read from
+  the file's own association maps when it has them, else made by the associators (`--no-truth-associators` leaves
+  them out).
+- **`ember FILE.root` writes `NAME.ember` here**, to drop on the viewer at https://marriot-evd.web.cern.ch (nothing is
+  uploaded). It publishes to a site only when one is set (`--site` or `EMBER_SITE_DIR`).
+- **Standard NanoAOD and NANO:@HGCAL open directly**, and `--profile auto` (now the default) picks the profile that
+  draws the most of a file. New profiles `phase2`, `run3`, `reco` and `nano`; the converter derives calorimeter cell
+  sizes from the DetId, splits tables by DetId bits, finds a cluster's hits by DetId (which gives HGCal superclusters
+  their hits back in these files), and reads NanoAOD singleton tables.
+- A bundle without truth (data, standard NanoAOD) no longer opens a truth and reco pair.
 
 ### Fixed
 

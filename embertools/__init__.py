@@ -5,7 +5,9 @@
     converter.py   a profile resolved against a file's tables, which converts one event at a time
     profile.py     loading a profile; what its keys do: relations.py, derive.py (columns), display.py (layers)
     bundle.py      the bundle format: writer, reader and checks
-    export.py      CMSSW reconstruction files -> event-display NanoAOD, with cmsDriver.py
+    export.py      CMSSW reconstruction (or MiniAOD) files -> NanoAOD: settings, then ember_cfg.py run with cmsRun
+    cmsrun.py      the cmsRun configuration ember writes, from what the release and the input have
+    cells.py       calorimeter cell sizes from the DetId (the `cell` derive)
     site.py        the site and the users' areas on it (ember view, list, rm, clean)
     service.py     the site's cron jobs: converting campaigns of files and the site's index
     runinfo.py     information about runs, from a JSON file or the run registry

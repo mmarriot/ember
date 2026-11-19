@@ -71,8 +71,9 @@ function Welcome() {
         )}
         <ol>
           <li>
-            <b>Publish a file.</b> In a CMSSW area, one command converts a NanoAOD or step3 file, puts it in your area
-            of this site and prints a link to it: <Command text={PUBLISH_COMMAND} />
+            <b>Convert a file.</b> In a CMSSW area, one command turns a NanoAOD, reconstruction or MiniAOD file into a{" "}
+            <code>.ember</code> file to open here (below): <Command text={PUBLISH_COMMAND} /> Where this site is set up
+            for it (<code>EMBER_SITE_DIR</code>), the command publishes it here instead and prints a link.
           </li>
           <li>
             <b>Open a local file.</b> Drop a <code>.ember</code> file (or an older <code>.evdb</code>) anywhere on this
@@ -117,8 +118,8 @@ function Failed() {
         <p>{f.text}</p>
         {f.kind === "gone" && !f.external && (
           <p class="hint">
-            One command in a CMSSW area converts a file, publishes it here and prints its link:{" "}
-            <Command text={PUBLISH_COMMAND} />
+            One command in a CMSSW area converts a file again, to a <code>.ember</code> file to open here (or, where
+            this site is set up for it, publishes it here and prints its link): <Command text={PUBLISH_COMMAND} />
           </p>
         )}
         <p class="buttons">

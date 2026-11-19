@@ -7,7 +7,8 @@ import { FormatError, HttpError, NetworkError } from "../io/bundle";
 
 /** The documentation site: every "how do I get data in" link points here. */
 export const DOCS_URL = "https://mmarriot.github.io/ember/";
-/** The one command that converts a file, publishes it in the user's area and prints its link. */
+/** The one command that converts a file: to file.ember where it runs, or, with a site set up (EMBER_SITE_DIR), published
+ *  in the user's area of it with its link printed. */
 export const PUBLISH_COMMAND = "ember file.root";
 /** The extensions of bundle files: .ember, and .evdb, which bundles had before the project was called Ember. The file
  *  chooser offers both, and a data set's title is its file name without either. */

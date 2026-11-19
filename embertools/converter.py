@@ -2,12 +2,14 @@
 
 Resolving a profile drops its entries for tables the file lacks, so that one profile serves legacy-only, SoA-only and
 mixed files; of a mixed file it writes one source per kind (profile `prefer`). Tables of the Runs tree are per-run
-tables: read once per run, available to lookups, and written once per run.
+tables: read once per run, available to lookups, and written once per run. A NanoAOD singleton table (one row per
+event, no counter, e.g. MET) is kept only if the profile uses it, and with `"keepUnused": false` every table the
+profile does not use is left out (a standard NanoAOD has a hundred tables of which a profile draws a few).
 
 Each event then goes through these steps (Converter.event):
-  read its tables -> derive columns -> build the relations (CSR) -> gather columns through them -> row cuts ->
-  event selection -> renumber index columns and cut the relations (links to removed rows dropped) -> leave out the
-  internal and per-run tables.
+  read its tables -> derive columns (and split tables) -> build the relations (CSR) -> gather columns through them ->
+  row cuts -> event selection -> renumber index columns and cut the relations (links to removed rows dropped) ->
+  leave out the internal and per-run tables.
 
 Tables are held as {name: (rows, {column: numpy array})}; relations as in relations.py.
 """
@@ -41,6 +43,8 @@ PROFILE_KEYS = {
     "kinds",
     "prefer",
     "stages",
+    "keepUnused",
+    "omit",
 }
 HEADER_KEYS = {"schema", "source", "profile", "tables"}  # written by the converter, never taken from the profile
 OPS = {"<": np.less, "<=": np.less_equal, ">": np.greater, ">=": np.greater_equal, "==": np.equal, "!=": np.not_equal}
@@ -53,12 +57,22 @@ class Converter:
         """`tables`: the per-event tables of the file, `run_tables` the per-run ones (Runs tree), as discover() gives
         them (see nano.discover). The metadata of derived and copied columns is added to these dictionaries."""
 
-        def wanted(table):
-            return not any(fnmatch.fnmatch(table, p) for p in profile.get("exclude", []))
+        used = used_tables(profile)
+        keep_unused = profile.get("keepUnused", True)
 
-        run_tables = {t: m for t, m in (run_tables or {}).items() if wanted(t) and t not in tables}
+        def wanted(table, meta):
+            if any(fnmatch.fnmatch(table, p) for p in profile.get("exclude", [])):
+                return False
+            return table in used or (keep_unused and not meta.get("singleton"))
+
+        run_tables = {t: m for t, m in (run_tables or {}).items() if wanted(t, m) and t not in tables}
         self.run_scope = set(run_tables)
-        self.tables = {t: m for t, m in {**tables, **run_tables}.items() if wanted(t)}
+        self.tables = {t: m for t, m in {**tables, **run_tables}.items() if wanted(t, m)}
+        self.made = set()  # tables made by a split, not read from the file
+        # omit: "Table.column" of columns neither read nor written (e.g. one a producer writes that nothing uses)
+        for spec in profile.get("omit", []):
+            table, column = table_column(spec)
+            self.tables.get(table, {}).get("columns", {}).pop(column, None)
 
         # sameRows: a table with the same rows as another (e.g. legacy objects converted 1:1 from SoA) is checked on
         # every event and not written; relations to or from it are redirected to the kept table.
@@ -96,19 +110,39 @@ class Converter:
                 self.derived.add((s["keep"], c))
 
     def _resolve_derives(self, profile):
-        """The derives whose tables are present, with their columns added to the tables' metadata."""
-        derives = [
-            d
-            for d in profile.get("derive", [])
-            if d["table"] in self.tables and d.get("lookup", d["table"]) in self.tables
-        ]
-        for d in derives:
+        """The derives whose tables are present, in profile order, with their columns added to the tables' metadata.
+        A split adds its tables (which later derives may name) and leaves its source table out of the bundle."""
+        derives = []
+        for d in profile.get("derive", []):
+            if d["table"] not in self.tables or d.get("lookup", d["table"]) not in self.tables:
+                continue
+            derives.append(d)
+            if "split" in d:
+                self._resolve_split(d)
+                continue
             for c, meta in derived_columns(d, self.tables).items():
                 if d.get("missing") and c in self.tables[d["table"]]["columns"]:
                     continue  # a gather that only fills the missing (NaN) values of a stored column: still read
                 self.tables[d["table"]]["columns"][c] = meta
                 self.derived.add((d["table"], c))
         return derives
+
+    def _resolve_split(self, d):
+        """split: {new table: [conditions]}: each new table has the source's columns (as derived so far) and the rows
+        that pass its conditions."""
+        source = self.tables[d["table"]]
+        for new, conds in d["split"].items():
+            if new in self.tables:
+                raise ValueError(f"split {d['table']}: the file already has a table {new}")
+            for cond in conds:
+                self._check_condition(d["table"], cond)
+            self.tables[new] = {
+                "doc": f"{source['doc']} ({' and '.join(map(_describe_condition, conds))})",
+                "columns": dict(source["columns"]),
+            }
+            self.made.add(new)
+            self.derived |= {(new, c) for c in source["columns"]}
+        self.internal.add(d["table"])
 
     def _resolve_relations(self, profile):
         """{name: profile relation} of the relations the file can serve, in profile order, with the ends of sameRows
@@ -280,8 +314,10 @@ class Converter:
     def branches(self, scope="event"):
         """The branches to read: those of the per-event tables (Events tree), or with scope="run" those of the per-run
         tables (Runs tree)."""
-        tables = {t: m for t, m in self.tables.items() if (t in self.run_scope) == (scope == "run")}
-        out = [f"n{t}" for t in tables]
+        tables = {
+            t: m for t, m in self.tables.items() if (t in self.run_scope) == (scope == "run") and t not in self.made
+        }
+        out = [f"n{t}" for t, m in tables.items() if not m.get("singleton")]
         out += [f"{t}_{c}" for t, m in tables.items() for c in m["columns"] if (t, c) not in self.derived]
         return out + ["run"] + (["luminosityBlock", "event"] if scope == "event" else [])
 
@@ -350,12 +386,19 @@ class Converter:
         return event_id, self._cut_tables(tables, masks, skip=self.run_scope), relations
 
     def _read(self, arrays, i):
-        """The tables of entry i, with those of their columns that `arrays` holds."""
-        return {
-            t: (int(arrays[f"n{t}"][i]), {c: arrays[f"{t}_{c}"][i] for c in m["columns"] if f"{t}_{c}" in arrays})
-            for t, m in self.tables.items()
-            if f"n{t}" in arrays
-        }
+        """The tables of entry i, with those of their columns that `arrays` holds (a singleton table: one row)."""
+        out = {}
+        for t, m in self.tables.items():
+            if m.get("singleton"):
+                cols = {c: arrays[f"{t}_{c}"][i : i + 1] for c in m["columns"] if f"{t}_{c}" in arrays}
+                if cols:
+                    out[t] = (1, cols)
+            elif f"n{t}" in arrays:
+                out[t] = (
+                    int(arrays[f"n{t}"][i]),
+                    {c: arrays[f"{t}_{c}"][i] for c in m["columns"] if f"{t}_{c}" in arrays},
+                )
+        return out
 
     def _derive(self, tables, skip=()):
         """Apply the derives (all but gather, which needs the relations) of the tables present, in profile order."""
@@ -366,7 +409,10 @@ class Converter:
                 and d["table"] not in skip
                 and d.get("lookup", d["table"]) in tables
             ):
-                apply_derive(d, tables)
+                if "split" in d:
+                    _split(d, tables)
+                else:
+                    apply_derive(d, tables)
 
     def _masks(self, tables, relations, skip=()):
         """{table: mask of the rows kept} of the cut tables, in profile order: a reachedBy cut sees the cuts of the
@@ -436,6 +482,37 @@ class Converter:
             for t, (n, cols) in tables.items()
             if t not in self.internal and t not in skip
         }
+
+
+def used_tables(profile):
+    """The tables a profile names anywhere: drawn, related, derived, cut, selected, kept internal, summarised."""
+    used = set(profile.get("internal", []))
+    used |= {layer["table"] for layer in profile.get("display", [])}
+    for r in profile.get("relations", []):
+        used |= {r.get("from"), r.get("to"), r.get("table"), *r.get("unless", [])}
+        specs = [
+            r.get(k)
+            for k in ("offsets", "counts", "indices", "index", "via", "fromIndex", "toIndex", "fromKey", "toKey")
+        ]
+        used |= {table_column(s)[0] for s in [*specs, *r.get("weights", [])] if isinstance(s, str)}
+    for d in profile.get("derive", []):
+        used |= {d["table"], d.get("lookup")}
+    used |= set(profile.get("cuts", {})) | {s["table"] for s in profile.get("select", [])}
+    used |= {t for s in profile.get("sameRows", []) for t in (s["keep"], s["drop"])}
+    used |= {s.get("table") for s in profile.get("summaries", [])}
+    for preset in profile.get("presets", []):
+        used |= set(preset.get("filters", {})) | set(preset.get("colour", {}))
+    return used - {None}
+
+
+def _split(d, tables):
+    """Add the tables of a split derive: the rows of its table that pass each new table's conditions."""
+    n, cols = tables[d["table"]]
+    for new, conds in d["split"].items():
+        keep = np.ones(n, bool)
+        for cond in conds:
+            keep &= _condition_mask(cond, cols)
+        tables[new] = (int(keep.sum()), {c: a[keep] for c, a in cols.items()})
 
 
 # Row conditions (cuts and the event selection): [expression, operator, number], with the expression a column or a

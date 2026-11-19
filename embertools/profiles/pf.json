@@ -62,7 +62,6 @@
   "derive": [
     {"table": "PFCandidates", "missing": true, "gather": [{"relation": "pfTrack", "columns": {"endX": "outerX", "endY": "outerY", "endZ": "outerZ"}}]}
   ],
-  "prefer": ["Puppi", "PF"],
   "kinds": {
     "pfCandidate": {"label": "PF candidates", "domain": "Physics", "repr": "helix", "visible": false,
                     "colourBy": {"category": "pdgId", "abs": true, "names": [["211", "charged hadron"], ["22", "photon"], ["130", "neutral hadron"], ["11", "electron"], ["13", "muon"], ["1", "HF hadron"], ["2", "HF EM"]]},

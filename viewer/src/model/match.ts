@@ -150,8 +150,8 @@ export function truthStatus(
 
 /** Whether a selection of `table` may open the truth <-> reco pair: not for a kind with no truth of its own (a jet
  *  never opens a pair; its constituents may), and, given the reco mode's colouring (`reco`), not for a reco kind
- *  outside the candidates' chain (an ECAL cluster: the pair is the HGCal candidates'). Truth particles and bundles
- *  without truth keep their pair. */
+ *  outside the candidates' chain (an ECAL cluster: the pair is the HGCal candidates'). Truth particles keep their
+ *  pair; a bundle without truth opens none (store/selection.ts pairView). */
 export function opensPair(
   header: Header,
   table: string,

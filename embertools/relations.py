@@ -26,8 +26,15 @@ def build_relation(rel, tables):
     elif kind == "counts":  # NanoAOD style: a count per `from` row and a flat list
         offsets = np.concatenate([[0], np.cumsum(column(rel["counts"]), dtype=np.int64)])
         indices = column(rel["indices"])
+        if "toKey" in rel:  # the list holds keys (e.g. DetIds) of `to` rows, not their numbers
+            offsets, indices, weights = _keys_to_rows(offsets, indices, column(rel["toKey"]), weights)
     elif kind == "links":  # one row per (from, to) pair; a `to` below 0 means no target
-        offsets, indices, weights = _from_links(column(rel["fromIndex"]), column(rel["toIndex"]), weights, n_from)
+        dst = column(rel["toIndex"])
+        if "toKey" in rel:  # the pairs name `to` rows by key (e.g. a DetId): keys no `to` row has are dropped
+            rows, found = _find_keys(np.asarray(dst), column(rel["toKey"]))
+            dst = np.full(len(dst), -1, np.int64)
+            dst[found] = rows
+        offsets, indices, weights = _from_links(column(rel["fromIndex"]), dst, weights, n_from)
     elif kind == "index":  # a column that holds one row of the other table (below 0: none)
         offsets, indices = _from_index(rel, column, n_from)
     elif kind == "key":  # rows of `from` and `to` with equal key columns (e.g. the same DetId in two hit tables)
@@ -71,15 +78,40 @@ def _from_index(rel, column, n_from):
     return offsets, indices
 
 
+def _keys_to_rows(offsets, keys, key_to, weights):
+    """(offsets, indices, weights) of a counts relation whose list holds keys: each key becomes the first `to` row
+    with that key, and keys no `to` row has are dropped with their weights (e.g. the DetIds of a cluster's hits that
+    are in another hit table, or below the threshold of the hits written). Cost: a sort of the `to` keys and a binary
+    search per key (n log n in numpy), plus a sort of the pairs when a key repeats."""
+    rows, found = _find_keys(keys, key_to)
+    owners = owner_rows(offsets)[found]
+    weights = {w: a[found] for w, a in weights.items()}
+    # A key may repeat within a `from` row (a supercluster lists a hit once per basic cluster that has it): one link
+    # per (from, to) pair, its weights summed. The links of a row are then in `to` row order.
+    pair = owners * max(len(key_to), 1) + rows
+    if len(np.unique(pair)) < len(pair):
+        pair, inverse = np.unique(pair, return_inverse=True)
+        owners, rows = pair // len(key_to), pair % len(key_to)
+        weights = {w: np.bincount(inverse, a, len(pair)).astype(a.dtype) for w, a in weights.items()}
+    counts = np.bincount(owners, minlength=len(offsets) - 1)
+    return np.concatenate([[0], np.cumsum(counts, dtype=np.int64)]), rows, weights
+
+
+def _find_keys(keys, key_to):
+    """(rows, found): for each key, whether a `to` row has it (`found`), and the first such row of those found."""
+    order = np.argsort(key_to, kind="stable")
+    pos = np.searchsorted(key_to[order], keys)
+    if len(order):
+        found = (pos < len(order)) & (key_to[order][np.minimum(pos, len(order) - 1)] == keys)
+    else:
+        found = np.zeros(len(keys), bool)
+    return order[pos[found]], found
+
+
 def _from_keys(key_from, key_to):
     """(offsets, indices) linking each `from` row to the first `to` row with the same key, if there is one."""
-    order = np.argsort(key_to, kind="stable")
-    pos = np.searchsorted(key_to[order], key_from)
-    if len(order):
-        found = (pos < len(order)) & (key_to[order][np.minimum(pos, len(order) - 1)] == key_from)
-    else:
-        found = np.zeros(len(key_from), bool)
-    return np.concatenate([[0], np.cumsum(found, dtype=np.int64)]), order[pos[found]]
+    rows, found = _find_keys(key_from, key_to)
+    return np.concatenate([[0], np.cumsum(found, dtype=np.int64)]), rows
 
 
 def compose_relations(a, b):

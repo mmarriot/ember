@@ -1,0 +1,39 @@
+{
+  "name": "run3",
+  "note": "Ember's own NanoAOD of a Run 3 reconstruction file (data or simulation; ember FILE.root: embertools/cmsrun.py): ECAL, preshower and HCAL PF rechits (PhysicsTools/TruthInfo table 'pfrechits', remade in the job when the input keeps only the cleaned-away ones; positions from CaloGeometry), split here by the DetId's subdetector: ECAL barrel (towers 0.0174 x 1 degree), ECAL endcap (eta-phi bins with the area of the 2.862 cm crystal face), preshower (6.1 cm x 1.9 mm strips, along y in plane 1 and x in plane 2), HB, HE, HF and HO (towers from the DetId's ieta and depth, geometry sweep of Run 3); ECAL and HO show energy as length; PF clusters, superclusters, tracks and physics objects (reco.json, nano.json). A cluster's hits are found by DetId (when the release writes cluster-hits tables). Domain Calo: the barrel and endcap calorimeters (r <= 420 cm, |z| <= 580 cm), front view; the endcaps (ECAL, preshower, HCAL) and HF are not drawn in the front view, where they would sit over the barrel.",
+  "include": ["nano", "reco"],
+  "derive": [
+    {"table": "pfrechits", "bits": {"det": ["rechit_ID", 28, 4], "subdet": ["rechit_ID", 25, 3]}},
+    {"table": "pfrechits", "split": {"EBHits": [["det", "==", 3], ["subdet", "==", 1]], "EEHits": [["det", "==", 3], ["subdet", "==", 2]], "ESHits": [["det", "==", 3], ["subdet", "==", 3]], "HBHits": [["det", "==", 4], ["subdet", "==", 1]], "HEHits": [["det", "==", 4], ["subdet", "==", 2]], "HOHits": [["det", "==", 4], ["subdet", "==", 3]], "HFHits": [["det", "==", 4], ["subdet", "==", 4]]}},
+    {"table": "EEHits", "cell": "ecalEndcap", "detId": "rechit_ID", "position": ["rechit_x", "rechit_y", "rechit_z"]},
+    {"table": "ESHits", "cell": "preshower", "detId": "rechit_ID", "position": ["rechit_x", "rechit_y", "rechit_z"]},
+    {"table": "HBHits", "cell": "hcal", "geometry": "run3", "detId": "rechit_ID", "position": ["rechit_x", "rechit_y", "rechit_z"]},
+    {"table": "HEHits", "cell": "hcal", "geometry": "run3", "detId": "rechit_ID", "position": ["rechit_x", "rechit_y", "rechit_z"]},
+    {"table": "HOHits", "cell": "hcal", "geometry": "run3", "detId": "rechit_ID", "position": ["rechit_x", "rechit_y", "rechit_z"]},
+    {"table": "HFHits", "cell": "hcal", "geometry": "run3", "detId": "rechit_ID", "position": ["rechit_x", "rechit_y", "rechit_z"]}
+  ],
+  "display": [
+    {"table": "EBHits", "kind": "caloHit", "label": "ECAL barrel", "position": ["rechit_x", "rechit_y", "rechit_z"], "cell": {"shape": "tower", "face": "cylinder", "dEta": 0.0174, "dPhi": 0.01745, "depth": {"column": "rechit_energy", "scale": 22, "log": true, "min": 0.5, "max": 45}}, "cut": {"group": "ECAL barrel energy", "label": "ECAL barrel", "column": "rechit_energy", "unit": "GeV", "default": 1.0}},
+    {"table": "EEHits", "kind": "caloHit", "label": "ECAL endcap", "position": ["rechit_x", "rechit_y", "rechit_z"], "cell": {"shape": "tower", "face": "disc", "dEta": "dEta", "dPhi": "dPhi", "depth": {"column": "rechit_energy", "scale": 22, "log": true, "min": 0.5, "max": 45}}, "cut": {"group": "ECAL endcap energy", "label": "ECAL endcap", "column": "rechit_energy", "unit": "GeV", "default": 1.0}, "views": ["3d", "side", "rz"]},
+    {"table": "ESHits", "kind": "caloHit", "label": "Preshower", "position": ["rechit_x", "rechit_y", "rechit_z"], "visible": false, "cell": {"shape": "box", "u": ["ux", "uy", "uz"], "v": ["vx", "vy", "vz"], "size": [0.095, 0.095, 3.05, 0.016]}, "cut": {"group": "Preshower energy", "label": "preshower", "column": "rechit_energy", "unit": "GeV", "default": 0.0}, "views": ["3d", "side", "rz"]},
+    {"table": "HBHits", "kind": "caloHit", "label": "HCAL barrel", "position": ["rechit_x", "rechit_y", "rechit_z"], "cell": {"shape": "tower", "face": "cylinder", "dEta": "dEta", "dPhi": "dPhi", "depth": "depth"}, "cut": {"group": "HCAL barrel energy", "label": "HCAL barrel", "column": "rechit_energy", "unit": "GeV", "default": 1.0}},
+    {"table": "HEHits", "kind": "caloHit", "label": "HCAL endcap", "position": ["rechit_x", "rechit_y", "rechit_z"], "cell": {"shape": "tower", "face": "disc", "dEta": "dEta", "dPhi": "dPhi", "depth": "depth"}, "cut": {"group": "HCAL endcap energy", "label": "HCAL endcap", "column": "rechit_energy", "unit": "GeV", "default": 1.0}, "views": ["3d", "side", "rz"]},
+    {"table": "HOHits", "kind": "caloHit", "label": "HCAL outer", "position": ["rechit_x", "rechit_y", "rechit_z"], "cell": {"shape": "tower", "face": "cylinder", "dEta": "dEta", "dPhi": "dPhi", "depth": {"column": "rechit_energy", "scale": 22, "log": true, "min": 0.5, "max": 45}}, "cut": {"group": "HCAL outer energy", "label": "HCAL outer", "column": "rechit_energy", "unit": "GeV", "default": 1.0}, "visible": false},
+    {"table": "HFHits", "kind": "caloHit", "label": "HCAL forward", "position": ["rechit_x", "rechit_y", "rechit_z"], "cell": {"shape": "tower", "face": "disc", "dEta": "dEta", "dPhi": "dPhi", "depth": "depth"}, "cut": {"group": "HCAL forward energy", "label": "HCAL forward", "column": "rechit_energy", "unit": "GeV", "default": 3.0}, "visible": false, "views": ["3d", "side", "rz"]}
+  ],
+  "domains": [
+    {"name": "Calo", "region": {"rMax": 420, "zMax": 580}, "view": "front", "colourMode": "layers"}
+  ],
+  "outlines": [
+    {"name": "Tracker", "r": [2, 118], "z": [0, 270]},
+    {"name": "ECAL barrel", "r": [129, 152], "z": [0, 291]},
+    {"name": "ECAL endcap", "r": [30, 171], "z": [317, 345]},
+    {"name": "Preshower", "r": [45, 125], "z": [303, 309]},
+    {"name": "HCAL barrel", "r": [181, 289], "z": [0, 433]},
+    {"name": "HCAL endcap", "r": [40, 300], "z": [388, 568]},
+    {"name": "Solenoid", "r": [295, 380], "z": [0, 630]},
+    {"name": "HCAL outer", "r": [390, 414], "z": [0, 707]},
+    {"name": "HCAL forward", "r": [12, 130], "z": [1115, 1280]}
+  ],
+  "view": {"minRadius": 90}
+}

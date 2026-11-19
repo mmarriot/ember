@@ -232,6 +232,7 @@ def test_presets_keep_only_the_tables_columns_and_relations_the_bundle_has():
             {"name": "All vertices", "filters": {"PV": ""}, "colour": {"PV": "rel:vertexTracks"}},
             {"name": "Track time", "colour": {"PV": "t", "MTDHits": "time"}},
             {"name": "Good vertices", "filters": {"PV": "chi2 < 3"}},
+            {"name": "Upper half", "filters": {"PV": "atan2(y, x) > pi / 2"}},
         ],
     }  # fmt: skip
     conv = converter({"PV": {"x": F4, "y": F4, "z": F4, "ndof": F4}}, profile)
@@ -239,6 +240,7 @@ def test_presets_keep_only_the_tables_columns_and_relations_the_bundle_has():
         {"name": "Defaults"},  # empty on purpose: kept
         {"name": "Primary vertex", "filters": {"PV": "abs(z) < 1 && ndof > 4"}},
         {"name": "All vertices", "filters": {"PV": ""}},
+        {"name": "Upper half", "filters": {"PV": "atan2(y, x) > pi / 2"}},  # pi is a constant, not a column
     ]  # PV has no time, no chi2, and no relation to its tracks
     # a layer's default filter naming a column the file lacks (no PUPPI weights) is left out
     layer = {"table": "PV", "repr": "markers", "position": ["x", "y", "z"], "filter": "puppiWeight > 0"}

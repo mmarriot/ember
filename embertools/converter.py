@@ -24,6 +24,9 @@ import numpy as np
 from . import __version__
 from .bundle import type_code
 from .derive import OPS, apply_derive, derived_columns, gather
+
+# The names that viewer filter expressions read as constants, not columns (viewer/src/model/expr.ts CONSTANTS).
+CONSTANTS = {"pi"}
 from .display import display_layers, less_preferred, named_columns
 from .profile import table_column
 from .relations import build_relation, compose_relations, cut_relation, owner_rows
@@ -304,9 +307,8 @@ class Converter:
     def _filterable(self, table, expr):
         """Whether `table` is written and has the columns that the viewer filter expression `expr` names (its names
         not followed by "(", which are functions)."""
-        return table in self.written() and set(re.findall(r"\b[A-Za-z_]\w*\b(?!\s*\()", expr)) <= set(
-            self.tables[table]["columns"]
-        )
+        names = set(re.findall(r"\b[A-Za-z_]\w*\b(?!\s*\()", expr)) - CONSTANTS
+        return table in self.written() and names <= set(self.tables[table]["columns"])
 
     # What the bundle and the reader need to know.
 

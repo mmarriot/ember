@@ -368,6 +368,13 @@ def test_each_cmssw_branch_s_producers_are_used_once_the_release_has_them():
     assert "btagDeepCSVB=cms.PSet(src=cms.VInputTag('pfDeepCSVJetTags:probb', 'pfDeepCSVJetTags:probbb')" in text
     assert 'name=cms.string("MuonChamber")' in text and 'name=cms.string("MuonDTSegments")' in text
     assert 'chamberDetId=DetIdVar("chamberId().rawId()"' in text
+    # an AOD keeps the segments but not the DT and CSC rechits: the chambers and the muons' segments are still written,
+    # and the chamber producer is told which collections there are not
+    aod = [b for b in PHASE2 + FULL if "dt1DRecHits" not in b and "csc2DRecHits" not in b]
+    text, _ = configuration(s, aod, RELEASE | plugins)
+    assert "DTRecHitFlatTableProducer" not in text and 'name=cms.string("MuonChamber")' in text
+    assert 'dtRecHitSrc=cms.InputTag("none")' in text and 'dtSegmentSrc=cms.InputTag("dt4DSegments")' in text
+    assert 'name=cms.string("MuonDTSegments")' in text
     # an AOD: no hits of tracks, no PF blocks for the PF candidates' clusters
     aod = [b for b in PHASE2 + FULL if "TrackingRecHitsOwned" not in b and "particleFlowBlock" not in b]
     text, notes = configuration(s, aod, RELEASE | plugins)

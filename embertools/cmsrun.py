@@ -876,8 +876,13 @@ table("muonTrackLinkTable", cms.EDProducer("MuonTrackLinkTableProducer", src=cms
              hit.format(strips + '\n        time=Var("time", "float", precision=8, doc="time [ns]"),')
              + detid("region", "ring", "station", "sector", "layer", "roll")),
         ]  # fmt: skip
-        rechits = inv.has("dt1DRecHits") or inv.has("csc2DRecHits")
-        more = rechits and self.branch(
+        # the branch's tables: the DT and CSC rechits (RECO), and the chambers and the muons' segments, which need only
+        # the segments (an AOD keeps them)
+        sources = {"dtSegmentSrc": "dt4DSegments", "cscSegmentSrc": "cscSegments", "gemSegmentSrc": "gemSegments",
+                   "dtRecHitSrc": "dt1DRecHits", "cscRecHitSrc": "csc2DRecHits", "rpcRecHitSrc": "rpcRecHits",
+                   "gemRecHitSrc": "gemRecHits"}  # fmt: skip
+        held = {k: src for k, src in sources.items() if inv.has(src)}
+        more = bool(held) and self.branch(
             MUON_RECHITS, "the DT and CSC rechits, the muon chambers and the muons' segments"
         )
         # the chamber's DetId, which joins the MuonChamber table
@@ -898,10 +903,12 @@ table("muonTrackLinkTable", cms.EDProducer("MuonTrackLinkTableProducer", src=cms
                     f"{columns}\n))\n"
                 )
         if more:
+            # a collection the input lacks is "none" (the MuonTools convention), not a missing product every event
+            given = "".join(f'\n    {k}=cms.InputTag("{held.get(k, "none")}"),' for k in sources)
             parts.append(
                 "# The chambers that hold a rechit or a segment (centre, axes, half sizes), and the muons' segments\n"
-                'table("muChamberTable", cms.EDProducer("MuChamberTableProducer", name=cms.string("MuonChamber"),\n'
-                "    precision=cms.int32(14)))\n"
+                'table("muChamberTable", cms.EDProducer("MuChamberTableProducer", name=cms.string("MuonChamber"),'
+                f"{given}\n    precision=cms.int32(14)))\n"
             )
             for kind, src in (("DT", "dt4DSegments"), ("CSC", "cscSegments"), ("GEM", "gemSegments")):
                 if not pat and inv.has("muons", product_type="recoMuons") and inv.has(src):

@@ -391,6 +391,7 @@ export function startScene(canvas: HTMLCanvasElement): () => void {
     }
     entries = [...entries, ...fresh];
     pinSelection();
+    rootLegend(b.header, ev, drawn, PALETTES[theme.peek()]); // the root's layer may be among those just unticked
     legends.value = drawn;
     applyCuts(false);
   });

@@ -17,12 +17,16 @@ Tables are held as {name: (rows, {column: numpy array})}; relations as in relati
 import datetime
 import fnmatch
 import os
+import re
 
 import numpy as np
 
 from . import __version__
 from .bundle import type_code
-from .derive import apply_derive, derived_columns, gather
+from .derive import OPS, apply_derive, derived_columns, gather
+
+# The names that viewer filter expressions read as constants, not columns (viewer/src/model/expr.ts CONSTANTS).
+CONSTANTS = {"pi"}
 from .display import display_layers, less_preferred, named_columns
 from .profile import table_column
 from .relations import build_relation, compose_relations, cut_relation, owner_rows
@@ -47,7 +51,6 @@ PROFILE_KEYS = {
     "omit",
 }
 HEADER_KEYS = {"schema", "source", "profile", "tables"}  # written by the converter, never taken from the profile
-OPS = {"<": np.less, "<=": np.less_equal, ">": np.greater, ">=": np.greater_equal, "==": np.equal, "!=": np.not_equal}
 
 
 class Converter:
@@ -116,13 +119,18 @@ class Converter:
         for d in profile.get("derive", []):
             if d["table"] not in self.tables or d.get("lookup", d["table"]) not in self.tables:
                 continue
+            if "parentRow" in d and d["counts"].split(".")[0] not in self.tables:
+                continue
+            own = self.tables[d["table"]]["columns"]
+            if "nanUnless" in d and not {d["nanUnless"][0], *d["columns"]} <= set(own):
+                continue  # e.g. tracks without a time (no tofPID in the input): nothing to blank
             derives.append(d)
             if "split" in d:
                 self._resolve_split(d)
                 continue
             for c, meta in derived_columns(d, self.tables).items():
-                if d.get("missing") and c in self.tables[d["table"]]["columns"]:
-                    continue  # a gather that only fills the missing (NaN) values of a stored column: still read
+                if (d.get("missing") or "nanUnless" in d) and c in self.tables[d["table"]]["columns"]:
+                    continue  # a stored column that the derive only changes in places (NaN filled, or set): still read
                 self.tables[d["table"]]["columns"][c] = meta
                 self.derived.add((d["table"], c))
         return derives
@@ -178,7 +186,9 @@ class Converter:
 
     def _available(self, rel):
         """Whether the file can serve a relation: all its tables are present and none of its `unless` tables is. A
-        relation that can be served must name existing columns."""
+        relation that can be served must name existing columns, but an `optional` one, which is then not built (an
+        index column that one export writes and another does not: ember's own Electron table has the row of its GSF
+        track, a standard NanoAOD's has none)."""
         keys = ("offsets", "counts", "indices", "index", "via", "fromIndex", "toIndex", "fromKey", "toKey")
         specs = [s for s in [rel.get(k) for k in keys] + rel.get("weights", []) if s]
         tables = {rel["from"], rel["to"], rel.get("table")} | {table_column(s)[0] for s in specs}
@@ -188,6 +198,8 @@ class Converter:
             return False
         for table, column in map(table_column, specs):
             if column not in self.tables[table]["columns"]:
+                if rel.get("optional"):
+                    return False
                 raise ValueError(
                     f"relation {rel['name']}: table {table} has no column {column}; "
                     f"it has: {', '.join(self.tables[table]['columns'])}"
@@ -241,6 +253,8 @@ class Converter:
             if (layer.get("points") or {}).get("relation", None) in (None, *self.relations)
         ]
         for layer in layers:
+            if "filter" in layer and not self._filterable(layer["table"], layer["filter"]):
+                del layer["filter"]  # e.g. puppiWeight > 0 for an input without PUPPI weights
             columns = self.tables[layer["table"]]["columns"]
             missing = [c for c in named_columns(layer) if c and c not in columns]
             if missing:
@@ -251,14 +265,50 @@ class Converter:
 
     def _viewer_hints(self, profile):
         """The profile keys the converter does not act on, for the header. Like the entries of absent tables,
-        `domains` that none of the layers is in are dropped."""
+        `domains` that none of the layers is in are dropped, and so are the parts of `presets` that name absent
+        tables."""
         hints = {k: v for k, v in profile.items() if k not in PROFILE_KEYS}
         if set(hints) & HEADER_KEYS:
             raise ValueError(f"profile keys {sorted(set(hints) & HEADER_KEYS)} are the bundle header's own")
         if "domains" in hints:
             used = {layer.get("domain") for layer in self.display}
             hints["domains"] = [d for d in hints["domains"] if d["name"] in used]
+        if "presets" in hints:
+            hints["presets"] = self._presets(hints["presets"])
         return hints
+
+    def _presets(self, presets):
+        """The presets, each with only the colours and filters of the tables written, a colour "rel:<relation>" only
+        if that relation is, and a filter only if its table has the columns it names (one profile serves files with and
+        without, e.g., the vertices' tracks or the PUPPI weights). A preset that this leaves with nothing is dropped;
+        one with nothing to begin with (the bundle's defaults, e.g. "Energy") is kept."""
+        written = self.written()
+        colour = lambda t, c: (
+            t in written and (c[4:] in self.relations if c.startswith("rel:") else c in self.tables[t]["columns"])
+        )
+        out = []
+        for p in presets:
+            kept = {
+                **p,
+                **({"colour": {t: c for t, c in p["colour"].items() if colour(t, c)}} if "colour" in p else {}),
+                **(
+                    {"filters": {t: f for t, f in p["filters"].items() if self._filterable(t, f)}}
+                    if "filters" in p
+                    else {}
+                ),
+                **({"show": [t for t in p["show"] if t in written]} if "show" in p else {}),
+            }
+            if kept.get("colour") or kept.get("filters") or not (p.get("colour") or p.get("filters")):
+                out.append(
+                    {k: v for k, v in kept.items() if v not in ({}, []) or k not in ("colour", "filters", "show")}
+                )
+        return out
+
+    def _filterable(self, table, expr):
+        """Whether `table` is written and has the columns that the viewer filter expression `expr` names (its names
+        not followed by "(", which are functions)."""
+        names = set(re.findall(r"\b[A-Za-z_]\w*\b(?!\s*\()", expr)) - CONSTANTS
+        return table in self.written() and names <= set(self.tables[table]["columns"])
 
     # What the bundle and the reader need to know.
 
@@ -408,6 +458,7 @@ class Converter:
                 and d["table"] in tables
                 and d["table"] not in skip
                 and d.get("lookup", d["table"]) in tables
+                and d.get("counts", d["table"]).split(".")[0] in tables
             ):
                 if "split" in d:
                     _split(d, tables)
@@ -501,7 +552,7 @@ def used_tables(profile):
     used |= {t for s in profile.get("sameRows", []) for t in (s["keep"], s["drop"])}
     used |= {s.get("table") for s in profile.get("summaries", [])}
     for preset in profile.get("presets", []):
-        used |= set(preset.get("filters", {})) | set(preset.get("colour", {}))
+        used |= set(preset.get("filters", {})) | set(preset.get("colour", {})) | set(preset.get("show", []))
     return used - {None}
 
 

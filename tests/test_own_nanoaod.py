@@ -208,3 +208,40 @@ def test_truth_hits_are_found_by_detid_in_the_split_tables_and_momenta_derived()
     assert list(eb["offsets"]) == [0, 1, 1] and list(eb["weights"]["simEnergy"]) == [0.25]  # the EB hit, row 0
     assert list(hb["offsets"]) == [0, 0, 1] and list(hb["indices"]) == [0]  # the HB hit; the HF one is in neither
     assert np.allclose(tables["Truth"][1]["pz"], [0.0, -5.0]) and np.allclose(tables["Truth"][1]["px"], [10.0, 0.0])
+
+
+def test_an_optional_relation_is_left_out_of_a_file_whose_table_lacks_its_index_column():
+    # ember's own Electron table has the row of its GSF track; a PAT one (standard NanoAOD next to ember's GsfTrack)
+    # has none
+    relation = {"name": "electronGsfTrack", "kind": "index", "from": "Electron", "to": "GsfTrack",
+                "index": "Electron.gsfTrackIdx"}  # fmt: skip
+    own = {"Electron": {"pt": F4, "gsfTrackIdx": np.dtype("i4")}, "GsfTrack": {"pt": F4}}
+    pat = {"Electron": {"pt": F4}, "GsfTrack": {"pt": F4}}
+    assert "electronGsfTrack" in converter(own, {"relations": [{**relation, "optional": True}]}).relations
+    assert converter(pat, {"relations": [{**relation, "optional": True}]}).relations == {}
+    with pytest.raises(ValueError, match="relation electronGsfTrack: table Electron has no column gsfTrackIdx"):
+        converter(pat, {"relations": [relation]})
+
+
+def test_presets_keep_only_the_tables_columns_and_relations_the_bundle_has():
+    profile = {
+        "display": [{"table": "PV", "repr": "markers", "position": ["x", "y", "z"]}],
+        "presets": [
+            {"name": "Defaults"},
+            {"name": "Primary vertex", "filters": {"PV": "abs(z) < 1 && ndof > 4", "MTDHits": ""}},
+            {"name": "All vertices", "filters": {"PV": ""}, "colour": {"PV": "rel:vertexTracks"}},
+            {"name": "Track time", "colour": {"PV": "t", "MTDHits": "time"}},
+            {"name": "Good vertices", "filters": {"PV": "chi2 < 3"}},
+            {"name": "Upper half", "filters": {"PV": "atan2(y, x) > pi / 2"}},
+        ],
+    }  # fmt: skip
+    conv = converter({"PV": {"x": F4, "y": F4, "z": F4, "ndof": F4}}, profile)
+    assert conv.viewer_hints["presets"] == [
+        {"name": "Defaults"},  # empty on purpose: kept
+        {"name": "Primary vertex", "filters": {"PV": "abs(z) < 1 && ndof > 4"}},
+        {"name": "All vertices", "filters": {"PV": ""}},
+        {"name": "Upper half", "filters": {"PV": "atan2(y, x) > pi / 2"}},  # pi is a constant, not a column
+    ]  # PV has no time, no chi2, and no relation to its tracks
+    # a layer's default filter naming a column the file lacks (no PUPPI weights) is left out
+    layer = {"table": "PV", "repr": "markers", "position": ["x", "y", "z"], "filter": "puppiWeight > 0"}
+    assert "filter" not in converter({"PV": {"x": F4, "y": F4, "z": F4}}, {"display": [layer]}).display[0]

@@ -207,6 +207,22 @@ PHASE2 = [
     "recoVertexs_offlinePrimaryVertices__RECO.",
     "recoBeamSpot_offlineBeamSpot__RECO.",
     "recoGenParticles_genParticles__HLT.",
+    "recoPFCandidates_particleFlow__RECO.",
+    "floatedmValueMap_puppi__RECO.",
+    "floatedmValueMap_tofPID_t0_RECO.",
+    "recoGsfTracks_electronGsfTracks__RECO.",
+    "TrackingRecHitsOwned_generalTracks__RECO.",
+    "TrackingRecHitsOwned_electronGsfTracks__RECO.",
+    "recoPFTaus_hpsPFTauProducer__RECO.",
+    "recoGsfElectrons_ecalDrivenGsfElectronsHGC__RECO.",
+    "recoPhotons_gedPhotons__RECO.",
+    "recoSuperClusters_particleFlowSuperClusterECAL_particleFlowSuperClusterECALBarrel_RECO.",
+    "recoVertexs_inclusiveSecondaryVertices__RECO.",
+    "DTChamberIdDTRecSegment4DedmIdToHitRange_dt4DSegments__RECO.",
+    "CSCDetIdCSCSegmentedmIdToHitRange_cscSegments__RECO.",
+    "GEMDetIdGEMSegmentedmIdToHitRange_gemSegments__RECO.",
+    "GEMDetIdGEMRecHitedmIdToHitRange_gemRecHits__RECO.",
+    "RPCDetIdRPCRecHitedmIdToHitRange_rpcRecHits__RECO.",
 ]
 # Run 3 data RECO: PF rechits kept only cleaned away, preshower clusters, no HGCal
 RUN3 = [
@@ -227,6 +243,9 @@ RELEASE = {
     "TICLCandidateTableProducer", "TICLCandidateExtraTableProducer", "LayerClustersCollectionTableProducer",
     "SimpleSuperclusterFlatTableProducer", "SimplePFJetFlatTableProducer", "SimpleTrackFlatTableProducer", "SimpleMETFlatTableProducer",
     "SimpleCandidateFlatTableProducer", "SimpleVertexFlatTableProducer", "SimpleBeamspotFlatTableProducer",
+    "SimplePFCandidateFlatTableProducer", "SimpleGsfTrackFlatTableProducer", "SimplePFTauCandidateFlatTableProducer",
+    "DTSegmentFlatTableProducer", "CSCSegmentFlatTableProducer", "GEMSegmentFlatTableProducer",
+    "GEMRecHitFlatTableProducer", "RPCRecHitFlatTableProducer",
 }  # fmt: skip
 
 
@@ -253,9 +272,128 @@ def test_the_phase2_configuration_has_what_the_input_and_the_release_have():
     assert any("hits of clusters" in n for n in notes) and "#   - the hits of clusters" in text
 
     text, notes = configuration(s, PHASE2, RELEASE | cmsrun.CLUSTER_HITS)
-    assert notes == ["truth: the input has no truth graph (truthLogicalGraphProducer)"]
+    branches = [
+        n for n in notes if "or every table at once with git cms-merge-topic mmarriot:nanoaod-reco-tables-all" in n
+    ]
+    assert [n for n in notes if n not in branches] == [
+        "truth: the input has no truth graph (truthLogicalGraphProducer)"
+    ]
     assert 'cms.EDProducer("CaloClusterHitsTableProducer",\n    src=cms.InputTag("hgcalMergeLayerClusters")' in text
     assert 'hitsName=cms.string("PFClusterECALHits")' in text
+
+
+def test_the_whole_detector_is_written_from_what_the_release_and_the_input_have():
+    s = cmsrun.Settings(True, False, "Phase2C22I13M9", "ExtendedRun4D104", "auto:phase2_realistic_T35")
+    text, notes = configuration(s, PHASE2)
+    # PF candidates with their PUPPI weight and the rows of what they were made from (references' keys)
+    pf = text.split('name=cms.string("PFCandidates")')[1].split("table(")[0]
+    assert 'puppiWeight=ExtVar("puppi"' in pf and 'endX=Var("?positionAtECALEntrance().R() > 0' in pf
+    for column in ("trackIdx", "gsfTrackIdx", "muonIdx", "electronIdx", "photonIdx"):
+        assert f"{column}=ref(" in pf
+    assert "def ref(r, doc, lazy=False):" in text
+    # objects are uncut, so that index columns address their rows; CHS jets next to the Puppi ones; taus
+    assert 'cut=cms.string("pt' not in text
+    assert 'src=cms.InputTag("ak4PFJetsCHS"), name=cms.string("JetCHS")' in text
+    assert 'name=cms.string("Tau")' in text and "leadCandIdx=ref(" in text
+    # electrons and photons point at the barrel PF superclusters (their parents), HGCal ones at their own; tracks
+    electron = text.split('name=cms.string("Electron")')[1].split("table(")[0]
+    assert "superClusterEBIdx=" in electron and "superClusterEEIdx" not in electron  # no ECAL endcap in Phase 2
+    assert "gsfTrackIdx=ref(" in electron and "trackIdx=ref(" in electron
+    assert "superClusterIdx=" in text.split('name=cms.string("ElectronHGC")')[1].split("table(")[0]
+    assert 'trackIdx=ref("innerTrack()"' in text.split('name=cms.string("Muon")')[1]
+    # every primary vertex with its time, GSF tracks, the tracks' time, the muon system with global positions
+    assert 'name=cms.string("PV")' in text and "maxLen" not in text and 't=Var("t"' in text
+    assert 'name=cms.string("GsfTrack")' in text and 'ExtVar("tofPID:t0"' in text
+    for name in ("DTSegment", "CSCSegment", "GEMSegment", "GEMRecHit", "RPCRecHit"):
+        assert f'name="{name}"' in text
+    assert "globalDirVariables" in text and 'x=GlobGeomVar("x()"' in text
+    # an input without them, or a release without the producers: left out, with a note for the release
+    text, notes = configuration(s, [b for b in PHASE2 if "puppi" not in b and "Gsf" not in b and "tofPID" not in b])
+    assert "puppiWeight" not in text and "gsfTrackIdx" not in text and "tofPID" not in text
+    text, notes = configuration(s, PHASE2, RELEASE - {"SimplePFCandidateFlatTableProducer"})
+    assert "PFCandidates" not in text and "leadCandIdx" not in text
+    assert "this release has no SimplePFCandidateFlatTableProducer" in notes
+    # with PAT, the PF candidates point at no physics object (the PAT ones are in another order)
+    text, _ = cmsrun.config(s, ["file:/in.root"], 5, cmsrun.Inventory(cmsrun.products(PHASE2)), RELEASE, pat=True)
+    assert "PFCandidates" in text and "trackIdx=ref(" in text and "muonIdx" not in text and "electronIdx" not in text
+
+
+# What the CMSSW branches' producers read, in a stock Phase-2 step3
+FULL = [
+    "EcalRecHitsSorted_ecalRecHit_EcalRecHitsEB_RECO.",
+    "HBHERecHitsSorted_hbhereco__RECO.",
+    "recoPFCandidates_pfTICL__RECO.",
+    "recoTracks_standAloneMuons_UpdatedAtVtx_RECO.",
+    "recoTracks_globalMuons__RECO.",
+    "FTLRecHitsSorted_mtdRecHits_FTLBarrel_RECO.",
+    "FTLRecHitsSorted_mtdRecHits_FTLEndcap_RECO.",
+    "DTLayerIdDTRecHit1DPairedmIdToHitRange_dt1DRecHits__RECO.",
+    "CSCDetIdCSCRecHit2DedmIdToHitRange_csc2DRecHits__RECO.",
+    "JetTagsAssociation_pfDeepCSVJetTags_probb_RECO.",
+    "JetTagsAssociation_pfDeepCSVJetTags_probbb_RECO.",
+    "JetTagsAssociation_pfJetProbabilityBJetTags__RECO.",
+    "recoPFClusters_particleFlowClusterHCAL__RECO.",
+    "TrackingRecHitsOwned_standAloneMuons__RECO.",
+    "recoTracks_standAloneMuons__RECO.",
+    "TrackingRecHitsOwned_globalMuons__RECO.",
+    "recoPFBlocks_particleFlowBlock__RECO.",
+]
+
+
+def test_each_cmssw_branch_s_producers_are_used_once_the_release_has_them():
+    s = cmsrun.Settings(True, False, "Phase2C22I13M9", "ExtendedRun4D104", "auto:phase2_realistic_T35")
+    plugins = set().union(*cmsrun.BRANCHES.values())
+    text, notes = configuration(s, PHASE2 + FULL, RELEASE | plugins)
+    assert not [n for n in notes if "cms-merge-topic" in n and "cluster" not in n and "truth" not in n]
+    # every rechit instead of the PF rechits, with their truth tables keyed by DetId when the truth is written
+    assert 'cms.EDProducer("EcalRecHitTableProducer", src=cms.InputTag("ecalRecHit", "EcalRecHitsEB")' in text
+    assert 'name=cms.string("RecHitHBHE")' in text and "pfRecHitTable" not in text and "RecHitEE" not in text
+    # the hits of the general, GSF and muon tracks, and the muons' rows of their muon tracks
+    for name in ("GeneralTrack", "GsfTrack", "StandaloneMuonTrack", "GlobalMuonTrack"):
+        assert f'name=cms.string("{name}"), hitsName=cms.string("{name}Hits")' in text
+    assert 'globalTrackIdx=ref("globalTrack()"' in text and "standaloneTrackIdx=ref(" not in text
+    # the standalone track's row comes from the branch's producer, given both collections an outer track can be in
+    assert 'cms.EDProducer("MuonTrackLinkTableProducer"' in text and 'name=cms.string("standaloneTrackIdx")' in text
+    assert 'src=cms.InputTag("standAloneMuons"),' in text
+    assert 'src=cms.InputTag("standAloneMuons:UpdatedAtVtx")' in text
+    # vertices' tracks; the PF candidates' links come from the branch's producer (not from references' keys)
+    assert 'name=cms.string("PVTracks")' in text and 'name=cms.string("SVTracks")' in text
+    pf = text.split('name=cms.string("PFCandidates"), doc')[1].split("table(")[0]
+    assert "trackIdx=ref(" not in pf and "muonIdx=ref(" not in pf and "electronIdx=ref(" in pf
+    assert 'ticlCandidates=cms.InputTag("pfTICL")' in text and 'name=cms.string("PFCandidateClustersECAL")' in text
+    # jet and tau constituents, CHS b-tags, MTD rechits, the muon system's rechits, chambers and segment matches
+    for name in ("JetPFCands", "JetCHSPFCands", "TauPFCands", "RecHitBTL", "RecHitETL", "DTRecHit", "CSCRecHit"):
+        assert f'name=cms.string("{name}")' in text or f'name="{name}"' in text
+    assert "JetTagTableProducer" in text
+    assert "btagDeepCSVB=cms.PSet(src=cms.VInputTag('pfDeepCSVJetTags:probb', 'pfDeepCSVJetTags:probbb')" in text
+    assert 'name=cms.string("MuonChamber")' in text and 'name=cms.string("MuonDTSegments")' in text
+    assert 'chamberDetId=DetIdVar("chamberId().rawId()"' in text
+    # an AOD keeps the segments but not the DT and CSC rechits: the chambers and the muons' segments are still written,
+    # and the chamber producer is told which collections there are not
+    aod = [b for b in PHASE2 + FULL if "dt1DRecHits" not in b and "csc2DRecHits" not in b]
+    text, _ = configuration(s, aod, RELEASE | plugins)
+    assert "DTRecHitFlatTableProducer" not in text and 'name=cms.string("MuonChamber")' in text
+    assert 'dtRecHitSrc=cms.InputTag("none")' in text and 'dtSegmentSrc=cms.InputTag("dt4DSegments")' in text
+    assert 'name=cms.string("MuonDTSegments")' in text
+    # an AOD: no hits of tracks, no PF blocks for the PF candidates' clusters
+    aod = [b for b in PHASE2 + FULL if "TrackingRecHitsOwned" not in b and "particleFlowBlock" not in b]
+    text, notes = configuration(s, aod, RELEASE | plugins)
+    assert "TrackHitsTableProducer" not in text and "PFCandidateClustersECAL" not in text
+    assert any("no PF blocks (AOD)" in n for n in notes)
+    # an input with only the CHS jets: they are written as JetCHS (drawn as CHS jets), not in the Puppi jets' table
+    chs = [b for b in PHASE2 + FULL if "ak4PFJetsPuppi" not in b]
+    text, _ = configuration(s, chs, RELEASE | plugins)
+    assert (
+        'src=cms.InputTag("ak4PFJetsCHS"), name=cms.string("JetCHS")' in text and 'name=cms.string("Jet")' not in text
+    )
+    assert any("the input does not keep them (AOD)" in n for n in notes)
+    # without them: the release's tables, and a note per branch naming it and the branch of all of them
+    text, notes = configuration(s, PHASE2 + FULL, RELEASE)
+    for branch in set(cmsrun.BRANCHES) - {cmsrun.MUON_TRACK_LINKS}:  # that one only with the muon tracks' table
+        assert any(f"git cms-merge-topic mmarriot:{branch}, or every table at once" in n for n in notes), branch
+    _, notes = configuration(s, PHASE2 + FULL, RELEASE | plugins - cmsrun.BRANCHES[cmsrun.MUON_TRACK_LINKS])
+    assert any(f"mmarriot:{cmsrun.MUON_TRACK_LINKS}, or every table" in n for n in notes)
+    assert "pfRecHitTable" in text and "trackIdx=ref(" in text and "StandaloneMuonTrack" not in text
 
 
 def test_the_run3_configuration_remakes_the_pf_rechits_and_has_no_hgcal():
@@ -462,6 +600,7 @@ def test_the_truth_tables_are_written_when_the_release_and_the_input_have_them()
     maps = {
         "truthGraphGeneralTracksToTruthTable": ("allTrackToTruthBranchAssociators", "generalTracksRecoToTruthAdaptiveNominal"),
         "truthGraphTiclCandidateToTruthTable": ("truthBranchTracksterAssociators", "ticlCandidateRecoToTruthAdaptiveNominal"),
+        "truthGraphOfflinePrimaryVerticesToTruthTable": ("allVertexToTruthBranchAssociators", "offlinePrimaryVerticesRecoToTruthAdaptiveNominal"),
     }  # fmt: skip
 
     def truth(branches, release=RELEASE | TRUTH, **options):
@@ -478,12 +617,18 @@ def test_the_truth_tables_are_written_when_the_release_and_the_input_have_them()
     header = text.replace("\n#     ", " ")  # the notes as one line each: the command is not split at a hyphen
     assert "git cms-merge-topic mmarriot:truthgraph-nano-tables" in header
     text, notes = truth(PHASE2 + GRAPH)
-    assert "process.truthGraphTable = process.truthGraphCaloBoundaryTable.clone(" in text and not notes[1:]
-    # no vertex associations, so no vertex associator runs
-    assert "keepVerticesMatchedBy=[], keepVerticesMatchedByTruthToReco=[]" in text
+    assert "process.truthGraphTable = process.truthGraphCaloBoundaryTable.clone(" in text
+    assert not [n for n in notes[1:] if "git cms-merge-topic mmarriot:nanoaod-" not in n]  # only other branches
+    # with every primary vertex written, the vertex associations too, and the truth vertices they match
+    assert "process.truthGraphTable = process.truthGraphCaloBoundaryTable.clone()" in text
+    assert "'truthGraphOfflinePrimaryVerticesToTruthTable'," in text
     assert 'hitTable="recHitTable", hitIdColumn="rechit_ID", name="TruthHGCalRecHits"' in text
     assert 'hitTable="pfRecHitTable", hitIdColumn="rechit_ID", name="TruthPFRecHits"' in text
     assert "'truthGraphGeneralTracksToTruthTable'," in text and "truthGraphNanoAssociatorsTask" in text
+    # with --pat, PV and SV are standard NanoAOD's (not the collections the vertex maps index): no vertex association
+    text, _ = truth(PHASE2 + GRAPH, pat=True)
+    assert "VerticesToTruthTable" not in text and "keepVerticesMatchedBy=[]" in text
+    assert "'truthGraphGeneralTracksToTruthTable'," in text
     text, notes = truth(PHASE2 + GRAPH, associators=False)
     assert "truthGraphNanoAssociatorsTask" not in text and "ToTruthTable" not in text
     assert any("--no-truth-associators" in n for n in notes)
@@ -493,7 +638,8 @@ def test_the_truth_tables_are_written_when_the_release_and_the_input_have_them()
     text, notes = truth([*PHASE2, *GRAPH, stored])
     assert "'truthGraphGeneralTracksToTruthTable'," in text and "truthGraphNanoAssociatorsTask" not in text
     assert "'truthGraphTiclCandidateToTruthTable'" not in text  # named in a note only
-    assert any("associations TiclCandidateToTruth: the input's own maps do not have them" in n for n in notes)
+    assert "keepVerticesMatchedBy=[]" in text and "Vertices" not in text.split("own: the tables read them")[1]
+    assert any("TiclCandidateToTruth: the input's own maps do not have them" in n for n in notes)
     # a stored map of a class this release cannot read is dropped on input, so not read
     text, notes = cmsrun.config(
         s, ["file:/in.root"], 5, cmsrun.Inventory(cmsrun.products([*PHASE2, *GRAPH, stored])), RELEASE | TRUTH,

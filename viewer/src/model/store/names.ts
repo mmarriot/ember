@@ -74,6 +74,8 @@ export function describe(table: string, row: number, skip: string[] = []): strin
       const v = Number(t.columns[c][row]),
         name = hint.names?.[c]?.[String(v)];
       if (name) return name;
+      const prefix = hint.prefix?.[c];
+      if (prefix) return `${prefix} ${short(v)}`; // e.g. "St 4" for a muon segment's station
       const unit = unitOf(b.header.tables[table]?.columns[c]?.doc);
       return `${short(v)}${unit ? ` ${unit}` : ""}`;
     })

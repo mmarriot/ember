@@ -122,8 +122,13 @@ export function recoLadder(
       .map(({ l }) => rung(l.name, [...new Set(l.layers.map((d) => d.table))], from, rank));
   const own = layerOf(header, sel.table),
     self = rung(own ? kindName(own) : sel.table, [sel.table], new Map([[sel.table, new Set([sel.row])]]), true);
+  // A table read only as a polyline's points (a global muon track's hits, tracker ones too) is its shape, not other
+  // objects: not listed.
+  const points = new Set(
+    header.display.flatMap((d) => (d.points ? [header.relations[d.points.relation]?.to] : [])).filter(Boolean),
+  );
   const other = [...parts.partOf, ...below]
-    .filter(([t, rows]) => rows.size && t !== sel.table && !layerOf(header, t))
+    .filter(([t, rows]) => rows.size && t !== sel.table && !layerOf(header, t) && !points.has(t))
     .map(([t, rows]) => ({ kind: t, groups: [{ table: t, rows: sorted(rows) }], count: rows.size, links: [] }));
   return {
     above: [...voted(ev, header, sel, parts, statuses, truth), ...rungs(parts.partOf, true)],

@@ -136,7 +136,7 @@ console warning, and draws the others.
 | `truthGap` | a reco kind that the truth graph has no answer for: `{"reason", "gap", "derived"}`. `reason` is shown in the inspector, the truth colour key and the Truth tab's coverage list. `gap` is its number in [Truth graph](truth-graph.md). In the truth mode the layer is drawn neutral and faint (cones as outlines), and never takes a colour from its container or its parts. `"derived": "content"` is the one exception: Ember's stand-in colour, by the particle with the most simulated energy in the object's parts (HGCal layer clusters). The hint is ignored once the table has its own reco → truth relation with a `match` hint ([Truth](truth.md#where-truth-stops)). |
 | `particle` | truth particles: `{"flags", "bit", "first"}`, the level that is "the particle" ([Truth](truth.md#two-levels-the-particle-and-each-kinds-target)): the rows with `bit` set in the integer column `flags` (truth::LevelFlag bit 2: generator-level stable). With `"colourBy": "identity"`, a particle takes the colour of its highest ancestor in the level. With `first` (for example `isSignal`), only rows where it is not zero take colours (the others, pile-up, are drawn small in their own grey). Rows in the level come before those above it, then they are ordered by size. The viewer's Truth colours need this hint. |
 | `onSelection` | draw only the objects related to the selection (none without a selection), until the user asks for all of them. Objects reached only from objects that a cut hides are not drawn (for example the hits of a vertex's tracks below the pT cut). The selected object itself is drawn whatever the cut. |
-| `describe` | `{"columns": [...], "names": {column: {value: name}}}`: how to name an object in lists (related objects, tree, inspector), for example `["pdgId", "energy"]` with PDG names |
+| `describe` | `{"columns": [...], "names": {column: {value: name}}, "prefix": {column: text}}`: how to name an object in lists (related objects, tree, inspector), for example `["pdgId", "energy"]` with PDG names, or a muon segment's `["station", "chamber"]` with the prefixes `St`, `Ch` ("St 1 · Ch 30") |
 | `list` | `{"columns": [...], "sort": column, "max": n, "headline": "count"`\|`"value"}`: object rows under the layer in its side-panel tab (the Physics tab's event summary). It lists the `max` (default 10) largest objects by `sort` (default: its cut, colour or energy column) that pass its cut and filter, with these columns. A click selects one. The tab's headline counts them, or, with `"value"`, gives the first column of a one-object table (MET). |
 | `inspect` | `[columns]`: the inspector's summary rows (for example the `pt`, `eta`, `phi` of a jet), instead of the columns that colour, place and size the layer |
 | `fractions` | `{column: name}`: columns that hold fractions (0..1) of the object's energy, shown in the inspector as one bar in a neutral ramp, with each share named (for example a jet's `chargedHadronEF`: "charged hadrons") |
@@ -204,11 +204,17 @@ All are optional. The converter copies them from the profile.
   - `tour`: `beam` for collider data (the camera stays outside the detector, and glides to each step's objects and
     back); `orbit` (default) frames the objects at their own scale and orbits them.
   - `domain`: the part of the detector that the viewer opens on (one of `domains`, for example `Physics`).
+  - `colourRoot`: the kind whose objects the "candidate type" colours start from (for example `pfCandidate`): every
+    reco layer whose chain of relations leads to them takes the colour of its candidate. Without it, or when the
+    bundle has reconstruction stages and no relation from that kind's layer to the last stage's layer (for example
+    PF candidates without their TICL candidates), the colours start from the last stage (the TICL candidates).
 - `summaries`: `[{"title", "table", "groupBy", "value", "op", "unit", "where"}]`: per-event charts of the rows of
   `table` that pass the cuts (and the expression `where`), grouped by the integer column `groupBy`. `op` is `count`,
   `sum` or `mean` (of `value`).
-- `presets`: `[{"name", "colour": {table: column}, "filters": {table: expression}}]`: named colour and filter
-  settings, shown as buttons when there are several.
+- `presets`: `[{"name", "colour": {table: column}, "filters": {table: expression}, "show": [table]}]`: named colour,
+  filter and tick settings, shown as buttons when there are several. `show` ticks the layers of those tables (for
+  example the PF candidates, which start unticked, for "What PUPPI removed"); another preset puts them back to their
+  default tick.
   - A colour `"rel:<relation>"`, instead of a column, takes the colour of the related object through that relation,
     as the layer's "Related objects" colour choice does. For example `{"Tracks": "rel:trackVertex"}`: each track in
     its vertex's colour.

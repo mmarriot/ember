@@ -1,0 +1,49 @@
+{
+  "name": "muonsystem",
+  "note": "Module: the muon system in Ember's own NanoAOD of a reconstruction file (Phase 2 and Run 3; phase2.json and run3.json include it, and declare its domain Muons). The release's DPGAnalysis/MuonTools tables: DT 4D, CSC and GEM segments, drawn as lines of 25 cm (about a chamber's depth) centred on their global position, along their global direction; GEM and RPC rechits as markers at their global position. Each detector is a layer of its own colour (the Muons part is coloured by layer). GE0 (GEM station 0, behind HGCal in Phase 2) is mostly neutron background: its rechits are filtered out by default (filter 'station != 0'). Tables are in collection order (by DetId), so that index columns of other tables address them. Truth: the truth graph has no muon-segment associator (truth-graph.md gap 17), and no truth table of muon hits (the truth graph's muon channel is keyed by detector unit, not by cell: gap 16).",
+  "internal": ["MuonDTSegments", "MuonCSCSegments", "MuonGEMSegments"],
+  "derive": [
+    {"table": "MuonChamber", "bits": {"subdet": ["detId", 25, 3]}},
+    {"table": "StandaloneMuonTrackHits", "bits": {"part": ["detId", 25, 7]}},
+    {"table": "GlobalMuonTrackHits", "bits": {"part": ["detId", 25, 7], "det": ["detId", 28, 4]}},
+    {"table": "GlobalMuonTrackHits", "parentRow": "trackIdx", "counts": "GlobalMuonTrack.nGlobalMuonTrackHits"},
+    {"table": "GlobalMuonTrackHits", "split": {"GlobalMuonTrackPoints": [], "GlobalMuonTrackMuonHits": [["det", "==", 2]]}}
+  ],
+  "relations": [
+    {"name": "muonDTSegments", "kind": "links", "from": "Muon", "to": "DTSegment", "table": "MuonDTSegments", "fromIndex": "MuonDTSegments.muonIdx", "toIndex": "MuonDTSegments.segmentIdx"},
+    {"name": "dtSegmentChamber", "kind": "key", "from": "DTSegment", "to": "MuonChamber", "fromKey": "DTSegment.detId", "toKey": "MuonChamber.detId"},
+    {"name": "muonCSCSegments", "kind": "links", "from": "Muon", "to": "CSCSegment", "table": "MuonCSCSegments", "fromIndex": "MuonCSCSegments.muonIdx", "toIndex": "MuonCSCSegments.segmentIdx"},
+    {"name": "cscSegmentChamber", "kind": "key", "from": "CSCSegment", "to": "MuonChamber", "fromKey": "CSCSegment.detId", "toKey": "MuonChamber.detId"},
+    {"name": "muonGEMSegments", "kind": "links", "from": "Muon", "to": "GEMSegment", "table": "MuonGEMSegments", "fromIndex": "MuonGEMSegments.muonIdx", "toIndex": "MuonGEMSegments.segmentIdx"},
+    {"name": "gemSegmentChamber", "kind": "key", "from": "GEMSegment", "to": "MuonChamber", "fromKey": "GEMSegment.detId", "toKey": "MuonChamber.detId"},
+    {"name": "standaloneTrackHits", "kind": "counts", "from": "StandaloneMuonTrack", "to": "StandaloneMuonTrackHits", "counts": "StandaloneMuonTrack.nStandaloneMuonTrackHits"},
+    {"name": "muonStandaloneTrack", "kind": "index", "from": "Muon", "to": "StandaloneMuonTrack", "index": "Muon.standaloneTrackIdx", "optional": true},
+    {"name": "muonGlobalTrack", "kind": "index", "from": "Muon", "to": "GlobalMuonTrack", "index": "Muon.globalTrackIdx", "optional": true},
+    {"name": "dtRecHitChamber", "kind": "key", "from": "DTRecHit", "to": "MuonChamber", "fromKey": "DTRecHit.chamberDetId", "toKey": "MuonChamber.detId"},
+    {"name": "cscRecHitChamber", "kind": "key", "from": "CSCRecHit", "to": "MuonChamber", "fromKey": "CSCRecHit.chamberDetId", "toKey": "MuonChamber.detId"},
+    {"name": "globalTrackPoints", "kind": "index", "from": "GlobalMuonTrack", "to": "GlobalMuonTrackPoints", "index": "GlobalMuonTrackPoints.trackIdx"},
+    {"name": "globalTrackHits", "kind": "index", "from": "GlobalMuonTrack", "to": "GlobalMuonTrackMuonHits", "index": "GlobalMuonTrackMuonHits.trackIdx"}
+  ],
+  "kinds": {
+    "muonSegment": {"label": "Segments", "domain": "Muons", "repr": "segments", "visible": true, "width": 2, "size": null, "length": 25, "centred": true, "truthGap": {"reason": "the truth graph has no muon-segment associator", "gap": 17}},
+    "muonHit": {"label": "Muon hits", "domain": "Muons", "repr": "markers", "visible": true, "size": null, "truthGap": {"reason": "no truth table of muon hits: the truth graph's muon channel is keyed by detector unit, not by cell", "gap": 16}},
+    "muonTrack": {"label": "Muon tracks", "domain": "Muons", "repr": "polyline", "visible": true, "width": 2, "size": null, "colourBy": "none", "fixedColour": "#e04040", "truthGap": {"reason": "the truth graph has no muon associator", "gap": 18}},
+    "standaloneTrackHit": {"label": "Standalone track hits", "domain": "Muons", "repr": "markers", "visible": true, "onSelection": true, "size": null, "colourBy": {"category": "part", "names": [["17", "DT"], ["18", "CSC"], ["19", "RPC"], ["20", "GEM"], ["21", "ME0"]]}},
+    "globalTrackHit": {"label": "Global track hits", "domain": "Muons", "repr": "markers", "visible": true, "onSelection": true, "size": null, "colourBy": {"category": "part", "names": [["17", "DT"], ["18", "CSC"], ["19", "RPC"], ["20", "GEM"], ["21", "ME0"]]}},
+    "muonChamber": {"label": "Chambers", "domain": "Muons", "repr": "cells", "visible": true, "onSelection": true, "size": null, "colourBy": {"category": "subdet", "names": [["1", "DT"], ["2", "CSC"], ["3", "RPC"], ["4", "GEM"], ["5", "ME0"]]}, "truthGap": {"reason": "a detector element, not a reconstructed object"}}
+  },
+  "display": [
+    {"table": "DTSegment", "kind": "muonSegment", "label": "DT", "fixedColour": "#e8a33d", "position": ["x", "y", "z"], "direction": ["dx", "dy", "dz"], "time": "time", "describe": {"columns": ["wheel", "station", "sector"], "prefix": {"wheel": "W", "station": "St", "sector": "Sec"}}, "inspect": ["wheel", "station", "sector", "chi2", "ndof", "time"]},
+    {"table": "CSCSegment", "kind": "muonSegment", "label": "CSC", "fixedColour": "#4f9de0", "position": ["x", "y", "z"], "direction": ["dx", "dy", "dz"], "time": "time", "describe": {"columns": ["station", "ring", "chamber"], "prefix": {"station": "St", "ring": "R", "chamber": "Ch"}}, "inspect": ["endcap", "station", "ring", "chamber", "nHits", "chi2", "ndof", "time"]},
+    {"table": "GEMSegment", "kind": "muonSegment", "label": "GEM", "fixedColour": "#5cc46a", "position": ["x", "y", "z"], "direction": ["dx", "dy", "dz"], "describe": {"columns": ["station", "chamber"], "prefix": {"station": "St", "chamber": "Ch"}}, "inspect": ["region", "station", "ring", "chamber", "nHits", "chi2", "ndof"]},
+    {"table": "GEMRecHit", "kind": "muonHit", "label": "GEM", "fixedColour": "#5cc46a", "position": ["x", "y", "z"], "filter": "station != 0", "describe": {"columns": ["station", "layer", "roll"], "prefix": {"station": "St", "layer": "L", "roll": "Roll"}}, "inspect": ["region", "station", "ring", "chamber", "layer", "roll", "bx", "clusterSize"]},
+    {"table": "RPCRecHit", "kind": "muonHit", "label": "RPC", "fixedColour": "#c070d0", "position": ["x", "y", "z"], "time": "time", "describe": {"columns": ["station", "ring", "roll"], "prefix": {"station": "St", "ring": "R", "roll": "Roll"}}, "inspect": ["region", "ring", "station", "sector", "layer", "roll", "bx", "time", "clusterSize"]},
+    {"table": "DTRecHit", "kind": "muonHit", "label": "DT", "fixedColour": "#e8a33d", "position": ["x", "y", "z"], "describe": {"columns": ["wheel", "station", "sector"], "prefix": {"wheel": "W", "station": "St", "sector": "Sec"}}, "inspect": ["wheel", "station", "sector", "superlayer", "layer"]},
+    {"table": "CSCRecHit", "kind": "muonHit", "label": "CSC", "fixedColour": "#4f9de0", "position": ["x", "y", "z"], "time": "time", "describe": {"columns": ["station", "ring", "chamber"], "prefix": {"station": "St", "ring": "R", "chamber": "Ch"}}, "inspect": ["endcap", "station", "ring", "chamber", "layer", "time"]},
+    {"table": "StandaloneMuonTrack", "kind": "muonTrack", "label": "Standalone", "fixedColour": "#3fb8b0", "position": ["vx", "vy", "vz"], "points": {"relation": "standaloneTrackHits"}, "describe": {"columns": ["pt", "eta"]}, "inspect": ["pt", "eta", "phi", "charge", "chi2"]},
+    {"table": "GlobalMuonTrack", "kind": "muonTrack", "label": "Global", "position": ["vx", "vy", "vz"], "points": {"relation": "globalTrackPoints"}, "describe": {"columns": ["pt", "eta"]}, "inspect": ["pt", "eta", "phi", "charge", "chi2"]},
+    {"table": "StandaloneMuonTrackHits", "kind": "standaloneTrackHit", "label": "On standalone tracks", "position": ["x", "y", "z"], "describe": {"columns": ["part", "layer"], "prefix": {"layer": "L"}, "names": {"part": {"9": "PXB", "10": "PXF", "11": "TIB", "12": "TID", "13": "TOB", "14": "TEC", "17": "DT", "18": "CSC", "19": "RPC", "20": "GEM", "21": "ME0"}}}, "truthGap": {"reason": "the hits the muon track was fitted with (a DT or CSC segment counts as one); the truth graph has no table of muon hits", "gap": 18}},
+    {"table": "GlobalMuonTrackMuonHits", "kind": "globalTrackHit", "label": "On global tracks (muon system)", "position": ["x", "y", "z"], "describe": {"columns": ["part", "layer"], "prefix": {"layer": "L"}, "names": {"part": {"9": "PXB", "10": "PXF", "11": "TIB", "12": "TID", "13": "TOB", "14": "TEC", "17": "DT", "18": "CSC", "19": "RPC", "20": "GEM", "21": "ME0"}}}, "truthGap": {"reason": "the hits the muon track was fitted with (a DT or CSC segment counts as one); the truth graph has no table of muon hits", "gap": 18}},
+    {"table": "MuonChamber", "kind": "muonChamber", "label": "Chambers in use", "position": ["x", "y", "z"], "cell": {"shape": "box", "u": ["ux", "uy", "uz"], "v": ["vx", "vy", "vz"], "size": ["halfWidthBottom", "halfWidthTop", "halfLength", "halfThickness"]}, "describe": {"columns": ["subdet"], "names": {"subdet": {"1": "DT", "2": "CSC", "3": "RPC", "4": "GEM", "5": "ME0"}}}}
+  ]
+}

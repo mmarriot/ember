@@ -83,6 +83,32 @@ CONFIG = "ember_cfg.py"
 # CMSSW branch mmarriot:nanoaod-cluster-hits (git cms-merge-topic), used once the release has them.
 CLUSTER_HITS = {"CaloClusterHitsTableProducer", "PFClusterHitsTableProducer", "SuperClusterHitsTableProducer"}
 
+# The generic NanoAOD table producers of the other CMSSW branches (git cms-merge-topic mmarriot:<branch>, or all of
+# them with mmarriot:nanoaod-reco-tables-all), each used once the release has its plugins: branch -> plugins.
+ALL = "nanoaod-reco-tables-all"
+CALO_RECHITS = "nanoaod-calo-rechits"
+TRACK_HITS = "nanoaod-track-hits"
+VERTEX_TRACKS = "nanoaod-vertex-tracks"
+PF_LINKS = "nanoaod-pfcandidate-links"
+CONSTITUENTS = "nanoaod-reco-constituents"
+JET_TAGS = "nanoaod-jet-tags"
+MTD_RECHITS = "nanoaod-mtd-rechits"
+MUON_RECHITS = "muontools-rechits-chambers"
+MUON_TRACK_LINKS = "nanoaod-muon-track-links"
+BRANCHES = {
+    CALO_RECHITS: {"EcalRecHitTableProducer", "HBHERecHitTableProducer", "HFRecHitTableProducer",
+                   "HORecHitTableProducer"},
+    TRACK_HITS: {"TrackHitsTableProducer"},
+    VERTEX_TRACKS: {"VertexTrackTableProducer"},
+    PF_LINKS: {"PFCandidateLinkTableProducer"},
+    CONSTITUENTS: {"SimplePFJetConstituentTableProducer", "SimplePFTauConstituentTableProducer"},
+    JET_TAGS: {"JetTagTableProducer"},
+    MTD_RECHITS: {"MTDRecHitTableProducer"},
+    MUON_RECHITS: {"DTRecHitFlatTableProducer", "CSCRecHitFlatTableProducer", "MuChamberTableProducer",
+                   "MuDTSegmentMatchTableProducer", "MuCSCSegmentMatchTableProducer", "MuGEMSegmentMatchTableProducer"},
+    MUON_TRACK_LINKS: {"MuonTrackLinkTableProducer"},
+}  # fmt: skip
+
 
 def config(
     settings, inputs, events, inventory, release, threads=4, output=OUTPUT, made_by="", drop=(), pat=False,
@@ -100,11 +126,19 @@ def config(
     w.process(inputs, events, threads, drop, pat)
     if settings.phase2:
         w.hgcal()
-    w.pf_rechits(pat)
+    if not w.calo_rechits():
+        w.pf_rechits(pat)
     w.clusters()
     w.tracks()
+    w.vertices(pat)
+    w.pf_candidates(pat)
     w.physics(pat)
-    w.truth(associators, truth_maps or {}, set(drop))
+    w.muon_system(pat)
+    w.track_hits()
+    if not pat:
+        w.muon_track_links()
+    w.mtd_rechits()
+    w.truth(associators, truth_maps or {}, set(drop), pat)
     w.output(output, pat)
     return w.text(), w.notes
 
@@ -117,7 +151,14 @@ class _Writer:
         self.parts, self.notes = [], []
         self.hgcal_nano = False  # whether DPGAnalysis/HGCalNanoAOD's tables are loaded (layer clusters, tracks)
         self.cluster_hits = CLUSTER_HITS <= release
-        self.hit_tables = {}  # hit table module -> name of its truth table
+        self.hit_tables = {}  # hit table module -> (name of its truth table, its DetId column)
+        self.track_tables = []  # (track table, its collection) of the tables whose hits are written (track_hits)
+        self.written = set()  # the tables written that other tables point into (see where they are added)
+        self.ticl = False  # whether the TICL candidate table is written
+        self.pf_clusters = []  # (table, collection) of the PF cluster tables written
+        self.gsf = False  # whether the GSF track table is written (electrons and PF candidates point into it)
+        self.pf = False  # whether the PF candidate table is written (taus point into it)
+        self.superclusters = {}  # supercluster table -> module of its collection
 
     def text(self):
         wrap = lambda n: textwrap.fill(
@@ -128,6 +169,16 @@ class _Writer:
 
     def add(self, text):
         self.parts.append(text.strip("\n") + "\n")
+
+    def branch(self, name, what):
+        """Whether the release has the producers of the CMSSW branch `name`; a note on `what` is left out if not."""
+        missing = sorted(BRANCHES[name] - self.release)
+        if missing:
+            self.notes.append(
+                f"{what}: this release has no {', '.join(missing)} (add them with git cms-merge-topic mmarriot:{name}, "
+                f"or every table at once with git cms-merge-topic mmarriot:{ALL})"
+            )
+        return not missing
 
     def need(self, *plugins):
         """Whether the release has all these module plugins; a note if not."""
@@ -147,7 +198,7 @@ class _Writer:
 # {made_by or "ember"}: hits, clusters, HGCal, tracks; the physics objects are standard NanoAOD's.
 # Left out (not in the input, or not in this release):
 #{{NOTES}}
-from PhysicsTools.NanoAOD.common_cff import Var
+from PhysicsTools.NanoAOD.common_cff import ExtVar, Var
 """
             )
             return
@@ -164,7 +215,7 @@ from PhysicsTools.NanoAOD.common_cff import Var
 #{{NOTES}}
 import FWCore.ParameterSet.Config as cms
 from Configuration.Eras.Era_{s.era}_cff import {s.era}
-from PhysicsTools.NanoAOD.common_cff import Var
+from PhysicsTools.NanoAOD.common_cff import ExtVar, Var
 
 process = cms.Process("EMBER", {s.era})
 """
@@ -180,6 +231,13 @@ process.emberTables = cms.Task()
 def table(label, module):
     setattr(process, label, module)
     process.emberTables.add(module)
+
+
+# An index column: the row of the object that the reference r points to (its key in its collection, which its table
+# keeps in order), -1 if none. lazy: for a method of the collection's own class, on a table producer of a base class
+# (reco::Candidate).
+def ref(r, doc, lazy=False):
+    return Var(f"?{r}.isNonnull()?{r}.key():-1", "int", doc=doc, lazyEval=lazy)
 """
         if pat:
             self.add(self.dropped(drop) + tables)
@@ -243,7 +301,7 @@ process.load("PhysicsTools.TruthInfo.recHitTable_cfi")
 process.emberTables.add(process.recHitTable)
 """
             )
-            self.hit_tables["recHitTable"] = "TruthHGCalRecHits"
+            self.hit_tables["recHitTable"] = ("TruthHGCalRecHits", "rechit_ID")
         self.hgcal_reco()
 
     def hgcal_reco(self):
@@ -268,6 +326,7 @@ process.emberTables.add(process.recHitTable)
             )
         labels = ["hgcalLayerClustersTable", "hgcalLayerClustersExtraTable"] * layer_clusters
         labels += ["ticlCandidateTable", "ticlCandidateExtraTable"] * bool(tracksters)
+        self.ticl = bool(tracksters)
         text = f"""
 # HGCal reconstruction as NANO:@HGCAL writes it (DPGAnalysis/HGCalNanoAOD): layer clusters, a table per trackster
 # collection of the input with its layer clusters (the release's table for CLUE3D, made for each collection), TICL
@@ -344,7 +403,7 @@ process.pfRecHitTable = cms.EDProducer("PFRecHitFlatTableProducer", objName=cms.
 ))
 process.emberTables.add(process.pfRecHitTable)
 """
-        self.hit_tables["pfRecHitTable"] = "TruthPFRecHits"
+        self.hit_tables["pfRecHitTable"] = ("TruthPFRecHits", "rechit_ID")
         if remade:
             reco = "Reconstruction_Data_cff" if s.data else "Reconstruction_cff"
             if pat:
@@ -399,6 +458,8 @@ for kind in {remade!r}:
                 plugins = ("SimpleSuperclusterFlatTableProducer", "SuperClusterHitsTableProducer")
                 rows.append((label, plugins[0], name, src, plugins[1]))
         rows = [r for r in rows if self.need(r[1])]
+        self.superclusters = {r[2]: r[3].partition(":")[0] for r in rows if "Super" in r[1]}
+        self.pf_clusters = [(r[2], r[3]) for r in rows if r[2].startswith("PFCluster")]
         text = ""
         if rows:
             text += """
@@ -447,7 +508,7 @@ superClusterVariables = cms.PSet(pfClusterVariables,
         else:
             self.notes.append(
                 "the hits of clusters: this release has no " + ", ".join(sorted(CLUSTER_HITS)) + " (add them with "
-                "git cms-merge-topic mmarriot:nanoaod-cluster-hits)"
+                f"git cms-merge-topic mmarriot:nanoaod-cluster-hits, or every table at once with git cms-merge-topic mmarriot:{ALL})"
             )
         if text:
             self.add(text)
@@ -488,32 +549,159 @@ table("generalTracksTable", generalTracksTable.clone())
     highPurity=Var("quality('highPurity')", bool, doc="high-purity track"),
 )
 """
+            + self.track_time()
+        )
+        self.written.add("GeneralTrack")
+        self.track_tables.append(("GeneralTrack", "generalTracks"))
+        self.gsf_tracks()
+
+    def track_time(self):
+        """Phase 2: the tracks' time at the beam line from MTD (tofPID), when the input has it."""
+        if not self.inv.has("tofPID", "t0"):
+            return ""
+        return """# Their time at the beam line from MTD (tofPID, Phase 2), and its uncertainty (negative: none)
+process.generalTracksTable.externalVariables = cms.PSet(
+    t0=ExtVar("tofPID:t0", float, precision=10, doc="time at the beam line [ns]"),
+    sigmat0=ExtVar("tofPID:sigmat0", float, precision=8, doc="uncertainty of t0 [ns]; negative: no time"),
+)
+"""
+
+    def gsf_tracks(self):
+        """The electrons' GSF tracks (electronGsfTracks): the same columns as the general tracks."""
+        self.gsf = self.inv.has("electronGsfTracks", product_type="recoGsfTracks") and self.need(
+            "SimpleGsfTrackFlatTableProducer"
+        )
+        if self.gsf:
+            self.track_tables.append(("GsfTrack", "electronGsfTracks"))
+            self.add(
+                """
+# The electrons' GSF tracks, drawn as the general tracks are
+table("gsfTrackTable", cms.EDProducer("SimpleGsfTrackFlatTableProducer", src=cms.InputTag("electronGsfTracks"),
+    name=cms.string("GsfTrack"), doc=cms.string("electronGsfTracks"), cut=cms.string(""), singleton=cms.bool(False),
+    extension=cms.bool(False), skipNonExistingSrc=cms.bool(True), variables=cms.PSet(
+        process.generalTracksTable.variables.clone(highPurity=None))))
+"""
+            )
+
+    def vertices(self, pat=False):
+        """Every primary vertex (row 0 is the leading one, which PF and PUPPI take as the hard scatter) and the
+        inclusive secondary vertices, in collection order; with `pat`, standard NanoAOD has the leading one."""
+        inv, rows = self.inv, []
+        if pat:
+            return
+        time = (
+            '\n        t=Var("t", "float", precision=10, doc="time [ns] (MTD)"),'
+            '\n        tError=Var("tError", "float", precision=8, doc="uncertainty of t [ns]; 0 or less: no time"),'
+        ) * self.s.phase2
+        for label, name, src, doc, extra in [
+            ("pvTable", "PV", "offlinePrimaryVertices", "offline primary vertices (row 0: the leading one)",
+             '\n        ndof=Var("ndof", "float", precision=8, doc="number of degrees of freedom"),'
+             '\n        chi2=Var("normalizedChi2", "float", precision=8, doc="chi2 / ndof"),' + time),
+            ("svTable", "SV", "inclusiveSecondaryVertices", "inclusive secondary vertices", ""),
+        ]:  # fmt: skip
+            if inv.has(src, product_type="recoVertexs") and self.need("SimpleVertexFlatTableProducer"):
+                rows.append(f"""
+table("{label}", cms.EDProducer("SimpleVertexFlatTableProducer", src=cms.InputTag("{src}"),
+    name=cms.string("{name}"), doc=cms.string("{doc}"), cut=cms.string(""),
+    singleton=cms.bool(False), extension=cms.bool(False), skipNonExistingSrc=cms.bool(True),
+    variables=cms.PSet(
+        x=Var("x", "float", precision=14, doc="x [cm]"),
+        y=Var("y", "float", precision=14, doc="y [cm]"),
+        z=Var("z", "float", precision=14, doc="z [cm]"),
+        ntracks=Var("tracksSize", "uint16", doc="number of tracks"),{extra}
+    )))""")
+        if rows:
+            self.add(
+                "\n# Vertices: every primary vertex, and the inclusive secondary vertices"
+                + "".join(rows)
+                + self.vertex_tracks()
+            )
+
+    def pf_candidates(self, pat=False):
+        """The PF candidates (particleFlow), with their PUPPI weight and the rows of their track, GSF track and (but
+        with `pat`, whose physics objects are PAT's) muon, electron and photon."""
+        inv = self.inv
+        if not inv.has("particleFlow", product_type="recoPFCandidates") or not self.need(
+            "SimplePFCandidateFlatTableProducer"
+        ):
+            return
+        self.pf = True
+        # with the CMSSW branch's producer, the rows of the tracks, GSF tracks and muons are its own, checked against
+        # the collection each reference points into; else the references' keys (they point into these collections)
+        linked = self.pf_links(pat)
+        links = [] if linked else [("trackIdx", "trackRef()", "GeneralTrack (generalTracks)")]
+        links += [("gsfTrackIdx", "gsfTrackRef()", "GsfTrack (electronGsfTracks)")] * (self.gsf and not linked)
+        for column, r, table, src, type_ in [
+            *[("muonIdx", "muonRef()", "Muon", "muons", "recoMuons")] * (not linked),
+            ("electronIdx", "gsfElectronRef()", "Electron", "gedGsfElectrons", "recoGsfElectrons"),
+            ("photonIdx", "photonRef()", "Photon", "gedPhotons", "recoPhotons"),
+        ]:
+            if not pat and inv.has(src, product_type=type_):
+                links.append((column, r, f"{table} ({src})"))
+        links = "".join(f'\n        {c}=ref("{r}", "row in {t}; -1: none"),' for c, r, t in links)
+        puppi = ""
+        if inv.has("puppi", product_type="floatedmValueMap"):
+            puppi = (
+                '\n    externalVariables=cms.PSet(puppiWeight=ExtVar("puppi", float, precision=8, doc="PUPPI weight")),'
+            )
+        end = "?positionAtECALEntrance().R() > 0?positionAtECALEntrance().{}():0/0"
+        self.add(
+            f"""
+# PF candidates (particleFlow; in Phase 2 it ends with the HGCal ones, pfTICL): a helix from the vertex to the ECAL
+# entrance (NaN where there is none), and the rows of the objects they were made from
+table("pfCandidateTable", cms.EDProducer("SimplePFCandidateFlatTableProducer", src=cms.InputTag("particleFlow"),
+    name=cms.string("PFCandidates"), doc=cms.string("particleFlow"), cut=cms.string(""), singleton=cms.bool(False),
+    extension=cms.bool(False), skipNonExistingSrc=cms.bool(True),{puppi}
+    variables=cms.PSet(
+        pt=Var("pt", "float", precision=10, doc="pt [GeV]"),
+        eta=Var("eta", "float", precision=12, doc="pseudorapidity"),
+        phi=Var("phi", "float", precision=12, doc="azimuth"),
+        energy=Var("energy", "float", precision=10, doc="energy [GeV]"),
+        pdgId=Var("pdgId", "int16", doc="particle type"),
+        charge=Var("charge", "int16", doc="charge"),
+        vx=Var("vx", "float", precision=14, doc="x of the vertex [cm]"),
+        vy=Var("vy", "float", precision=14, doc="y of the vertex [cm]"),
+        vz=Var("vz", "float", precision=14, doc="z of the vertex [cm]"),
+        endX=Var("{end.format("x")}", "float", precision=14, doc="x at the ECAL entrance [cm]"),
+        endY=Var("{end.format("y")}", "float", precision=14, doc="y at the ECAL entrance [cm]"),
+        endZ=Var("{end.format("z")}", "float", precision=14, doc="z at the ECAL entrance [cm]"),
+        ecalEnergy=Var("ecalEnergy", "float", precision=10, doc="ECAL energy [GeV]"),
+        hcalEnergy=Var("hcalEnergy", "float", precision=10, doc="HCAL energy [GeV]"),
+        time=Var("?isTimeValid()?time():-99", "float", precision=10, doc="time [ns]; -99: none"),{links}
+    )))"""
+            + linked
         )
 
     def physics(self, pat=False):
         """Physics objects from the RECO collections, named and laid out as in standard NanoAOD (a subset of its
         columns), so that the same profile draws a standard NanoAOD; with `pat`, standard NanoAOD has them, and only
-        the beam spot's position (which its BeamSpot table lacks) is written here."""
-        inv = self.inv
-        jets = (
-            None
-            if pat
-            else next((j for j in ("ak4PFJetsPuppi", "ak4PFJetsCHS") if inv.has(j, product_type="recoPFJets")), None)
-        )
-        rows = []
-        if jets and self.need("SimplePFJetFlatTableProducer"):
+        the beam spot's position (which its BeamSpot table lacks) is written here. No table takes a cut: index
+        columns (e.g. of the PF candidates) address their rows in collection order; the viewer's pT cuts hide the soft
+        ones (at 200 pileup, about 175 CHS jets, 118 taus and 43 muons per event).
+        The rows of the objects an object was made from are index columns, from references (ref)."""
+        inv, s, rows = self.inv, self.s, []
+        names = {"ak4PFJetsPuppi": "Jet", "ak4PFJetsCHS": "JetCHS"}  # each collection its table (the profiles' names)
+        jets = [(n, j) for j, n in names.items() if not pat and inv.has(j, product_type="recoPFJets")]
+        jets = jets if jets and self.need("SimplePFJetFlatTableProducer") else []
+        for name, src in jets:
             rows.append(f"""
-table("jetTable", cms.EDProducer("SimplePFJetFlatTableProducer",
-    src=cms.InputTag("{jets}"), name=cms.string("Jet"), doc=cms.string("AK4 jets ({jets}), uncorrected"),
-    cut=cms.string("pt > 10"), singleton=cms.bool(False), extension=cms.bool(False), skipNonExistingSrc=cms.bool(True),
-    variables=cms.PSet(kinematics,
-        nConstituents=Var("nConstituents", "uint8", doc="number of constituents"),
-        chHEF=Var("chargedHadronEnergyFraction", "float", precision=6, doc="charged hadron energy fraction"),
-        neHEF=Var("neutralHadronEnergyFraction", "float", precision=6, doc="neutral hadron energy fraction"),
-        chEmEF=Var("chargedEmEnergyFraction", "float", precision=6, doc="charged EM energy fraction"),
-        neEmEF=Var("neutralEmEnergyFraction", "float", precision=6, doc="neutral EM energy fraction"),
-        muEF=Var("muonEnergyFraction", "float", precision=6, doc="muon energy fraction"),
-    )))""")
+table("{name[0].lower()}{name[1:]}Table", cms.EDProducer("SimplePFJetFlatTableProducer",
+    src=cms.InputTag("{src}"), name=cms.string("{name}"), doc=cms.string("AK4 jets ({src}), uncorrected"),
+    cut=cms.string(""), singleton=cms.bool(False), extension=cms.bool(False), skipNonExistingSrc=cms.bool(True),
+    variables=jetVariables))""")
+        if rows:
+            rows.insert(
+                0,
+                """
+jetVariables = cms.PSet(kinematics,
+    nConstituents=Var("nConstituents", "uint8", doc="number of constituents"),
+    chHEF=Var("chargedHadronEnergyFraction", "float", precision=6, doc="charged hadron energy fraction"),
+    neHEF=Var("neutralHadronEnergyFraction", "float", precision=6, doc="neutral hadron energy fraction"),
+    chEmEF=Var("chargedEmEnergyFraction", "float", precision=6, doc="charged EM energy fraction"),
+    neEmEF=Var("neutralEmEnergyFraction", "float", precision=6, doc="neutral EM energy fraction"),
+    muEF=Var("muonEnergyFraction", "float", precision=6, doc="muon energy fraction"),
+)""",
+            )
         for label, name, src in () if pat else (("puppiMet", "PuppiMET", "pfMetPuppi"), ("pfMet", "PFMET", "pfMet")):
             if inv.has(src, product_type="recoPFMETs") and self.need("SimpleMETFlatTableProducer"):
                 rows.append(f"""
@@ -522,52 +710,65 @@ table("{label}Table", cms.EDProducer("SimpleMETFlatTableProducer",
     singleton=cms.bool(True), extension=cms.bool(False), skipNonExistingSrc=cms.bool(True),
     variables=cms.PSet(pt=Var("pt", "float", precision=10, doc="pt [GeV]"), phi=Var("phi", "float", precision=10,
         doc="phi"), sumEt=Var("sumEt", "float", precision=10, doc="scalar sum of Et [GeV]"))))""")
+        taus = not pat and inv.has("hpsPFTauProducer", product_type="recoPFTaus")
+        taus = taus and self.need("SimplePFTauCandidateFlatTableProducer")
+        if taus:
+            lead = (
+                '\n        leadCandIdx=ref("leadChargedHadrCand()", "row in PFCandidates of the leading charged '
+                'hadron; -1: none"),'
+                if self.pf
+                else ""
+            )
+            rows.append(f"""
+table("tauTable", cms.EDProducer("SimplePFTauCandidateFlatTableProducer", src=cms.InputTag("hpsPFTauProducer"),
+    name=cms.string("Tau"), doc=cms.string("hadronic taus (HPS, hpsPFTauProducer)"), cut=cms.string(""),
+    singleton=cms.bool(False), extension=cms.bool(False), skipNonExistingSrc=cms.bool(True),
+    variables=cms.PSet(kinematics,
+        charge=Var("charge", "int16", doc="charge"),
+        decayMode=Var("decayMode", "int16", doc="decay mode (HPS)"),{lead}
+    )))""")
+        # Which supercluster table an electron's or photon's supercluster is in: the barrel PF superclusters are the
+        # parents of the barrel (and Run 3 endcap) objects, whose own supercluster is a refined copy
+        # (particleFlowEGamma); the HGCal objects' own supercluster is an HGCal one.
+        sc = self.superclusters
+        egamma = {
+            "barrel": [("superClusterEBIdx", "?isEB()&&", "parentSuperCluster()", "SuperClusterEB")]
+            + [("superClusterEEIdx", "?isEE()&&", "parentSuperCluster()", "SuperClusterEE")] * (not s.phase2),
+            "hgcal": [("superClusterIdx", "?", "superCluster()", "SuperClusterHGCal")],
+        }
+        tracks = [("trackIdx", "closestCtfTrackRef()", "GeneralTrack (generalTracks)")]
+        tracks += [("gsfTrackIdx", "gsfTrack()", "GsfTrack (electronGsfTracks)")] * self.gsf
         candidates = [
-            ("electron", "Electron", "gedGsfElectrons", "recoGsfElectrons", "pt > 5"),
-            ("electronHGC", "ElectronHGC", "ecalDrivenGsfElectronsHGC", "recoGsfElectrons", "pt > 5"),
-            ("photon", "Photon", "gedPhotons", "recoPhotons", "pt > 10"),
-            ("photonHGC", "PhotonHGC", "photonsHGC", "recoPhotons", "pt > 10"),
-            ("muon", "Muon", "muons", "recoMuons", "pt > 3"),
-        ]
-        for label, name, src, type_, cut in [] if pat else candidates:
+            ("electron", "Electron", "gedGsfElectrons", "recoGsfElectrons", "barrel", tracks),
+            ("electronHGC", "ElectronHGC", "ecalDrivenGsfElectronsHGC", "recoGsfElectrons", "hgcal", tracks),
+            ("photon", "Photon", "gedPhotons", "recoPhotons", "barrel", []),
+            ("photonHGC", "PhotonHGC", "photonsHGC", "recoPhotons", "hgcal", []),
+            ("muon", "Muon", "muons", "recoMuons", None, [("trackIdx", "innerTrack()", "GeneralTrack (inner track)")]
+             + [(c, r, f"{n} ({src})") for n, src, r, c in self.muon_tracks() if r]),
+        ]  # fmt: skip
+        for label, name, src, type_, region, refs in [] if pat else candidates:
             if inv.has(src, product_type=type_) and self.need("SimpleCandidateFlatTableProducer"):
-                muon = (
+                extra = (
                     '\n        isGlobal=Var("isGlobalMuon", bool, doc="global muon"),'
                     '\n        isTracker=Var("isTrackerMuon", bool, doc="tracker muon"),'
                     '\n        isStandalone=Var("isStandAloneMuon", bool, doc="standalone muon"),'
                     if name == "Muon"
                     else ""
                 )
+                extra += "".join(f'\n        {c}=ref("{r}", "row in {t}; -1: none", lazy=True),' for c, r, t in refs)
+                for column, test, r, table in egamma.get(region, []):
+                    if sc.get(table) in ("particleFlowSuperClusterECAL", "particleFlowSuperClusterHGCal"):
+                        extra += (
+                            f'\n        {column}=Var("{test}{r}.isNonnull()?{r}.key():-1", "int", lazyEval=True,'
+                            f'\n            doc="row in {table}; -1: none"),'
+                        )
                 rows.append(f"""
 table("{label}Table", cms.EDProducer("SimpleCandidateFlatTableProducer", src=cms.InputTag("{src}"),
-    name=cms.string("{name}"), doc=cms.string("{src}"), cut=cms.string("{cut}"), singleton=cms.bool(False),
+    name=cms.string("{name}"), doc=cms.string("{src}"), cut=cms.string(""), singleton=cms.bool(False),
     extension=cms.bool(False), skipNonExistingSrc=cms.bool(True), variables=cms.PSet(kinematics,
-        charge=Var("charge", "int16", doc="charge"),{muon}
+        charge=Var("charge", "int16", doc="charge"),{extra}
     )))""")
-        if (
-            not pat
-            and inv.has("offlinePrimaryVertices", product_type="recoVertexs")
-            and self.need("SimpleVertexFlatTableProducer")
-        ):
-            rows.append("""
-table("pvTable", cms.EDProducer("SimpleVertexFlatTableProducer", src=cms.InputTag("offlinePrimaryVertices"),
-    name=cms.string("PV"), doc=cms.string("the leading primary vertex"), cut=cms.string(""), maxLen=cms.uint32(1),
-    singleton=cms.bool(False), extension=cms.bool(False), skipNonExistingSrc=cms.bool(True),
-    variables=cms.PSet(position,
-        ndof=Var("ndof", "float", precision=8, doc="number of degrees of freedom"),
-        chi2=Var("normalizedChi2", "float", precision=8, doc="chi2 / ndof"),
-        ntracks=Var("tracksSize", "uint16", doc="number of tracks"))))""")
-        if (
-            not pat
-            and inv.has("inclusiveSecondaryVertices", product_type="recoVertexs")
-            and self.need("SimpleVertexFlatTableProducer")
-        ):
-            rows.append("""
-table("svTable", cms.EDProducer("SimpleVertexFlatTableProducer", src=cms.InputTag("inclusiveSecondaryVertices"),
-    name=cms.string("SV"), doc=cms.string("inclusive secondary vertices"), cut=cms.string(""),
-    singleton=cms.bool(False), extension=cms.bool(False), skipNonExistingSrc=cms.bool(True),
-    variables=cms.PSet(position,
-        ntracks=Var("tracksSize", "uint16", doc="number of tracks"))))""")
+        rows += [self.constituents(jets, taus), self.jet_tags(jets)]
         if inv.has("offlineBeamSpot", product_type="recoBeamSpot") and self.need("SimpleBeamspotFlatTableProducer"):
             rows.append("""
 table("beamSpotTable", cms.EDProducer("SimpleBeamspotFlatTableProducer", src=cms.InputTag("offlineBeamSpot"),
@@ -582,31 +783,333 @@ table("beamSpotTable", cms.EDProducer("SimpleBeamspotFlatTableProducer", src=cms
         self.add(
             """
 # Physics objects from the reconstruction (no PAT step), named and laid out as standard NanoAOD writes them (a few
-# of its columns)
+# of its columns), uncut and in collection order
 kinematics = cms.PSet(
     pt=Var("pt", "float", precision=10, doc="pt [GeV]"),
     eta=Var("eta", "float", precision=12, doc="pseudorapidity"),
     phi=Var("phi", "float", precision=12, doc="azimuth"),
     mass=Var("mass", "float", precision=10, doc="mass [GeV]"),
-)
-position = cms.PSet(
-    x=Var("x", "float", precision=14, doc="x [cm]"),
-    y=Var("y", "float", precision=14, doc="y [cm]"),
-    z=Var("z", "float", precision=14, doc="z [cm]"),
 )"""
             + "".join(rows)
         )
 
+    def muon_tracks(self):
+        """(table, collection, reco::Muon's reference, index column) of the standalone and global muon tracks that are
+        written: only with their hits (CMSSW branch nanoaod-track-hits), through which they are drawn."""
+        if not BRANCHES[TRACK_HITS] <= self.release or "SimpleTrackFlatTableProducer" not in self.release:
+            return []
+        # A muon's outerTrack() points into standAloneMuons:UpdatedAtVtx, or into standAloneMuons where the update at
+        # the vertex failed, and the two collections stop lining up after such a track: its key does not give a row.
+        # So the standalone tracks get no expression (None, below): muon_track_links() writes their index.
+        tracks = [("StandaloneMuonTrack", "standAloneMuons:UpdatedAtVtx", None, None),
+                  ("GlobalMuonTrack", "globalMuons", "globalTrack()", "globalTrackIdx")]  # fmt: skip
+        return [t for t in tracks if self.inv.has(*t[1].split(":"), product_type="recoTracks")]
+
+    def muon_track_links(self):
+        """The muons' rows of their standalone track (CMSSW branch nanoaod-muon-track-links), extending the muon table:
+        the producer checks which collection the reference is in, which an expression cannot."""
+        standalone = [t for t in self.muon_tracks() if t[0] == "StandaloneMuonTrack"]
+        if not standalone or not self.inv.has("standAloneMuons", "", "recoTracks"):
+            return
+        if not self.branch(MUON_TRACK_LINKS, "the muons' standalone tracks"):
+            return
+        # every collection an outer track can be in must be given (else the producer throws): standAloneMuons too,
+        # whose table is not written (outerTrackNotAtVtxIdx, unused)
+        self.add("""
+# The muons' standalone tracks (CMSSW branch nanoaod-muon-track-links): the row in the StandaloneMuonTrack table
+# (standAloneMuons:UpdatedAtVtx), -1 if none or in standAloneMuons (the update at the vertex failed)
+table("muonTrackLinkTable", cms.EDProducer("MuonTrackLinkTableProducer", src=cms.InputTag("muons"), name=cms.string("Muon"),
+    tracks=cms.VPSet(
+        cms.PSet(name=cms.string("standaloneTrackIdx"), type=cms.string("outer"), src=cms.InputTag("standAloneMuons", "UpdatedAtVtx"),
+                 doc=cms.string("row in StandaloneMuonTrack (standAloneMuons:UpdatedAtVtx), -1 if none or not there")),
+        cms.PSet(name=cms.string("outerTrackNotAtVtxIdx"), type=cms.string("outer"), src=cms.InputTag("standAloneMuons"),
+                 doc=cms.string("index in standAloneMuons (not updated at the vertex), -1 if none or not there")))))""")
+
+    def muon_system(self, pat=False):
+        """DPGAnalysis/MuonTools' tables of the muon system's segments (DT, CSC, GEM) and of the GEM and RPC rechits,
+        with their global position (and direction), in collection order (by DetId); with the CMSSW branch
+        muontools-rechits-chambers, the DT and CSC rechits, the chambers in use and the muons' segments; the standalone
+        and global muon tracks (muon_tracks)."""
+        inv, parts = self.inv, []
+        segment = """
+    variables=cms.PSet(
+        chi2=Var("chi2", "float", precision=8, doc="chi2"),
+        ndof=Var("degreesOfFreedom", "int16", doc="number of degrees of freedom"),{}
+    ),
+    globalPosVariables=cms.PSet(
+        x=GlobGeomVar("x()", precision=14, doc="x [cm]"),
+        y=GlobGeomVar("y()", precision=14, doc="y [cm]"),
+        z=GlobGeomVar("z()", precision=14, doc="z [cm]"),
+    ),
+    globalDirVariables=cms.PSet(
+        dx=GlobGeomVar("x()", precision=10, doc="direction, x"),
+        dy=GlobGeomVar("y()", precision=10, doc="direction, y"),
+        dz=GlobGeomVar("z()", precision=10, doc="direction, z"),
+    ),"""
+        strips = (
+            '\n        bx=Var("BunchX()", "int16", doc="bunch crossing"),'
+            '\n        clusterSize=Var("clusterSize()", "int16", doc="number of strips"),'
+        )
+        hit = """
+    variables=cms.PSet({}
+    ),
+    globalPosVariables=cms.PSet(
+        x=GlobGeomVar("x()", precision=14, doc="x [cm]"),
+        y=GlobGeomVar("y()", precision=14, doc="y [cm]"),
+        z=GlobGeomVar("z()", precision=14, doc="z [cm]"),
+    ),"""
+        detid = lambda *names: "\n    detIdVariables=cms.PSet(" + "".join(
+            f'\n        {n}=DetIdVar("{n}()", "int16", doc="{n}"),' for n in names
+        ) + '\n        detId=DetIdVar("rawId()", "uint", doc="DetId"),\n    ),'  # fmt: skip
+        tables = [
+            ("dt4DSegments", "DTSegmentFlatTableProducer", "dtSegment", "DTSegment", "DT 4D segments",
+             segment.format('\n        time=Var("?hasPhi()?phiSegment().t0():-99", "float", precision=8, doc="t0 [ns]; '
+                            '-99: none"),') + detid("wheel", "station", "sector")),
+            ("cscSegments", "CSCSegmentFlatTableProducer", "cscSegment", "CSCSegment", "CSC segments",
+             segment.format('\n        nHits=Var("nRecHits", "int16", doc="number of hits"),\n        time=Var("time", '
+                            '"float", precision=8, doc="time [ns]"),') + detid("endcap", "station", "ring", "chamber")),
+            ("gemSegments", "GEMSegmentFlatTableProducer", "gemSegment", "GEMSegment", "GEM segments",
+             segment.format('\n        nHits=Var("nRecHits", "int16", doc="number of hits"),')
+             + detid("region", "station", "ring", "chamber")),
+            ("gemRecHits", "GEMRecHitFlatTableProducer", "gemRecHit", "GEMRecHit", "GEM rechits",
+             hit.format(strips) + detid("region", "station", "ring", "chamber", "layer", "roll")),
+            ("rpcRecHits", "RPCRecHitFlatTableProducer", "rpcRecHit", "RPCRecHit", "RPC rechits",
+             hit.format(strips + '\n        time=Var("time", "float", precision=8, doc="time [ns]"),')
+             + detid("region", "ring", "station", "sector", "layer", "roll")),
+        ]  # fmt: skip
+        # the branch's tables: the DT and CSC rechits (RECO), and the chambers and the muons' segments, which need only
+        # the segments (an AOD keeps them)
+        sources = {"dtSegmentSrc": "dt4DSegments", "cscSegmentSrc": "cscSegments", "gemSegmentSrc": "gemSegments",
+                   "dtRecHitSrc": "dt1DRecHits", "cscRecHitSrc": "csc2DRecHits", "rpcRecHitSrc": "rpcRecHits",
+                   "gemRecHitSrc": "gemRecHits"}  # fmt: skip
+        held = {k: src for k, src in sources.items() if inv.has(src)}
+        more = bool(held) and self.branch(
+            MUON_RECHITS, "the DT and CSC rechits, the muon chambers and the muons' segments"
+        )
+        # the chamber's DetId, which joins the MuonChamber table
+        chamber = '\n        chamberDetId=DetIdVar("chamberId().rawId()", "uint", doc="DetId of the chamber"),\n    ),'
+        tables += [
+            ("dt1DRecHits", "DTRecHitFlatTableProducer", "dtRecHit", "DTRecHit", "DT rechits (wire pairs)",
+             hit.format("")
+             + detid("wheel", "station", "sector", "superlayer", "layer").replace("\n    ),", chamber)),
+            ("csc2DRecHits", "CSCRecHitFlatTableProducer", "cscRecHit", "CSCRecHit", "CSC 2D rechits",
+             hit.format('\n        time=Var("tpeak", "float", precision=8, doc="peak time [ns]"),')
+             + detid("endcap", "station", "ring", "chamber", "layer").replace("\n    ),", chamber)),
+        ] * more  # fmt: skip
+        for src, plugin, cfi, name, doc, columns in tables:
+            if inv.has(src) and self.need(plugin):
+                parts.append(
+                    f"from DPGAnalysis.MuonTools.{cfi}FlatTableProducer_cfi import {cfi}FlatTableProducer\n"
+                    f'table("{cfi}Table", {cfi}FlatTableProducer.clone(src="{src}", name="{name}", doc="{doc}",'
+                    f"{columns}\n))\n"
+                )
+        if more:
+            # a collection the input lacks is "none" (the MuonTools convention), not a missing product every event
+            given = "".join(f'\n    {k}=cms.InputTag("{held.get(k, "none")}"),' for k in sources)
+            parts.append(
+                "# The chambers that hold a rechit or a segment (centre, axes, half sizes), and the muons' segments\n"
+                'table("muChamberTable", cms.EDProducer("MuChamberTableProducer", name=cms.string("MuonChamber"),'
+                f"{given}\n    precision=cms.int32(14)))\n"
+            )
+            for kind, src in (("DT", "dt4DSegments"), ("CSC", "cscSegments"), ("GEM", "gemSegments")):
+                if not pat and inv.has("muons", product_type="recoMuons") and inv.has(src):
+                    parts.append(
+                        f'table("mu{kind}SegmentMatchTable", cms.EDProducer("Mu{kind}SegmentMatchTableProducer",\n'
+                        f'    src=cms.InputTag("muons"), segmentSrc=cms.InputTag("{src}"), name=cms.string("Muon{kind}Segments"),\n'
+                        f'    doc=cms.string("muon <-> {kind} segment matches"), skipNonExistingSrc=cms.bool(True)))\n'
+                    )
+        tracks = "".join(
+            f'table("{n[0].lower()}{n[1:]}Table", cms.EDProducer("SimpleTrackFlatTableProducer", src=cms.InputTag("{src}"),\n'
+            f'    name=cms.string("{n}"), doc=cms.string("{src}"), cut=cms.string(""), singleton=cms.bool(False),\n'
+            f"    extension=cms.bool(False), skipNonExistingSrc=cms.bool(True), variables=cms.PSet(\n"
+            f'        pt=Var("pt", "float", precision=10, doc="pt [GeV]"),\n'
+            f'        eta=Var("eta", "float", precision=12, doc="pseudorapidity"),\n'
+            f'        phi=Var("phi", "float", precision=12, doc="azimuth"),\n'
+            f'        charge=Var("charge", "int16", doc="charge"),\n'
+            f'        vx=Var("vx", "float", precision=14, doc="x of the reference point [cm]"),\n'
+            f'        vy=Var("vy", "float", precision=14, doc="y of the reference point [cm]"),\n'
+            f'        vz=Var("vz", "float", precision=14, doc="z of the reference point [cm]"),\n'
+            f'        chi2=Var("normalizedChi2", "float", precision=8, doc="chi2 / ndof"))))\n'
+            for n, src, _, _ in self.muon_tracks()
+        )
+        self.track_tables += [(n, src) for n, src, _, _ in self.muon_tracks()]
+        if tracks:
+            parts.append(
+                "# The standalone and global muon tracks, drawn through their hits (track_hits below)\n" + tracks
+            )
+        if parts:
+            self.add(
+                """
+# The muon system (DPGAnalysis/MuonTools): segments, as a position and a direction, and the rechits, with their
+# global positions; DetId and its fields
+from DPGAnalysis.MuonTools.common_cff import DetIdVar, GlobGeomVar
+"""
+                + "".join(parts)
+            )
+
+    def calo_rechits(self):
+        """Every ECAL and HCAL rechit with the position of its cell, one table per collection (CMSSW branch
+        nanoaod-calo-rechits), instead of the PF rechits (a subset of them), when the release has the producers and the
+        input the rechits. Whether they are written."""
+        s, inv = self.s, self.inv
+        kinds = [
+            ("EB", "EcalRecHitTableProducer", "ecalRecHit", "EcalRecHitsEB", "ECAL barrel"),
+            ("EE", "EcalRecHitTableProducer", "ecalRecHit", "EcalRecHitsEE", "ECAL endcap"),
+            ("ES", "EcalRecHitTableProducer", "ecalPreshowerRecHit", "EcalRecHitsES", "preshower"),
+            ("HBHE", "HBHERecHitTableProducer", "hbhereco", "", "HCAL barrel and endcap"),
+            ("HF", "HFRecHitTableProducer", "hfreco", "", "HCAL forward"),
+            ("HO", "HORecHitTableProducer", "horeco", "", "HCAL outer"),
+        ]
+        kinds = [k for k in kinds if inv.has(k[2], k[3]) and not (s.phase2 and k[0] in ("EE", "ES"))]
+        if not kinds or not self.branch(CALO_RECHITS, "every calorimeter rechit (the PF rechits are written)"):
+            return False
+        text = """
+# Every ECAL and HCAL rechit, with the position of its cell (CaloGeometry): one table per collection of DetId, energy,
+# time, x, y, z (PhysicsTools/NanoAOD, CMSSW branch nanoaod-calo-rechits). The PF rechits are a subset: not written.
+"""
+        for k, plugin, module, instance, doc in kinds:
+            label = f"{k.lower()}RecHitTable"
+            text += (
+                f'table("{label}", cms.EDProducer("{plugin}", src=cms.InputTag("{module}", "{instance}"),\n'
+                f'    name=cms.string("RecHit{k}"), doc=cms.string("{doc} rechits"), precision=cms.int32(14),\n'
+                f"    skipNonExistingSrc=cms.bool(True)))\n"
+            )
+            self.hit_tables[label] = (f"TruthRecHit{k}", "detId")
+        self.add(text)
+        return True
+
+    def track_hits(self):
+        """The valid hits of the tracks of each table in track_tables, in track order (CMSSW branch
+        nanoaod-track-hits)."""
+        # an AOD keeps no hits of its tracks (TrackingRecHitsOwned), and the producer would fail on them
+        kept = [(n, src) for n, src in self.track_tables if self.inv.has(src.split(":")[0], "", "TrackingRecHitsOwned")]
+        if len(kept) < len(self.track_tables):
+            left = [n for n, _ in self.track_tables if (n, _) not in kept]
+            self.notes.append(f"the hits of {', '.join(left)}: the input does not keep them (AOD)")
+        self.track_tables = kept
+        if not self.track_tables or not self.branch(TRACK_HITS, "the hits of tracks"):
+            return
+        text = """
+# The valid hits of the tracks (PhysicsTools/NanoAOD, CMSSW branch nanoaod-track-hits): a count n<Name>Hits on each
+# track table, and a table <Name>Hits of DetId, global position and layer (the station in the muon system), in track
+# order. The tracker hits' positions come from their clusters, as the track fit sees them.
+process.load("RecoTracker.TransientTrackingRecHit.TTRHBuilders_cff")
+process.load("RecoLocalTracker.SiPixelRecHits.PixelCPEESProducers_cff")
+process.load("RecoLocalTracker.SiStripRecHitConverter.StripCPEfromTrackAngle_cfi")
+process.load("RecoLocalTracker.SiStripRecHitConverter.SiStripRecHitMatcher_cfi")
+"""
+        for name, src in self.track_tables:
+            text += (
+                f'table("{name[0].lower()}{name[1:]}HitsTable", cms.EDProducer("TrackHitsTableProducer",\n'
+                f'    src=cms.InputTag("{src}"), name=cms.string("{name}"), hitsName=cms.string("{name}Hits"),\n'
+                f'    hitsDoc=cms.string("valid hits of {src}"), precision=cms.int32(14), skipNonExistingSrc=cms.bool(True)))\n'
+            )
+        self.add(text)
+
+    def vertex_tracks(self):
+        """The (vertex, track) pairs of the primary and secondary vertices with the tracks' weights (CMSSW branch
+        nanoaod-vertex-tracks), as text for vertices()."""
+        pairs = [(name, src) for name, src in (("PV", "offlinePrimaryVertices"), ("SV", "inclusiveSecondaryVertices"))
+                 if self.inv.has(src, product_type="recoVertexs")]  # fmt: skip
+        if not pairs or "GeneralTrack" not in self.written:
+            return ""
+        if not self.branch(VERTEX_TRACKS, "the tracks of vertices"):
+            return ""
+        return (
+            "\n# The tracks of each vertex, with their weight in its fit (CMSSW branch nanoaod-vertex-tracks)\n"
+            + "".join(
+                f'table("{name.lower()}TrackTable", cms.EDProducer("VertexTrackTableProducer", src=cms.InputTag("{src}"),\n'
+                f'    tracks=cms.InputTag("generalTracks"), name=cms.string("{name}Tracks"), doc=cms.string("{src} <-> '
+                f'generalTracks"),\n    precision=cms.int32(10), skipNonExistingSrc=cms.bool(True)))\n'
+                for name, src in pairs
+            )
+        )
+
+    def pf_links(self, pat=False):
+        """The PF candidates' rows of their track, GSF track, muon and TICL candidate, and their PF clusters (CMSSW
+        branch nanoaod-pfcandidate-links), as text for pf_candidates(); "" without them."""
+        if not self.branch(PF_LINKS, "the PF candidates' TICL candidates and PF clusters"):
+            return ""
+        inv = self.inv
+        tag = lambda written, src: f'cms.InputTag("{src}")' if written else 'cms.InputTag("")'
+        ticl = self.s.phase2 and inv.has("pfTICL", product_type="recoPFCandidates") and self.ticl
+        blocks = inv.has("particleFlowBlock")  # the PF blocks hold the candidates' clusters (not in an AOD)
+        if self.pf_clusters and not blocks:
+            self.notes.append("the PF candidates' PF clusters: the input has no PF blocks (AOD)")
+        clusters = "".join(
+            f'\n        cms.PSet(src=cms.InputTag("{src}"), name=cms.string("PFCandidateClusters{name[9:]}"),'
+            f' doc=cms.string("PF candidate <-> {src}")),'
+            for name, src in self.pf_clusters * blocks
+        )
+        return f"""
+# Their tracks, GSF tracks, muons and TICL candidates (the HGCal ones, pfTICL, one per TICL candidate), and their PF
+# clusters from their PF blocks, one table of (candidate, cluster) pairs per collection (CMSSW branch
+# nanoaod-pfcandidate-links)
+table("pfCandidateLinkTable", cms.EDProducer("PFCandidateLinkTableProducer", src=cms.InputTag("particleFlow"),
+    name=cms.string("PFCandidates"), tracks={tag("GeneralTrack" in self.written, "generalTracks")},
+    gsfTracks={tag(self.gsf, "electronGsfTracks")},
+    muons={tag(not pat and inv.has("muons", product_type="recoMuons"), "muons")},
+    ticlCandidates={tag(ticl, "pfTICL")}, clusters=cms.VPSet({clusters}
+    )))"""
+
+    def constituents(self, jets, taus):
+        """The PF candidates of the RECO jets and taus (CMSSW branch nanoaod-reco-constituents), as text for physics():
+        `jets` (table, collection) pairs, `taus` whether the tau table is written."""
+        if not self.pf or not (jets or taus) or not self.branch(CONSTITUENTS, "the constituents of jets and taus"):
+            return ""
+        rows = [(f"{name}PFCands", "SimplePFJetConstituentTableProducer", src) for name, src in jets]
+        rows += [("TauPFCands", "SimplePFTauConstituentTableProducer", "hpsPFTauProducer")] * taus
+        return (
+            "\n# Their PF candidates (CMSSW branch nanoaod-reco-constituents): (object, PF candidate) pairs\n"
+            + "".join(
+                f'table("{name[0].lower()}{name[1:]}Table", cms.EDProducer("{plugin}", jets=cms.InputTag("{src}"),\n'
+                f'    candidates=cms.InputTag("particleFlow"), name=cms.string("{name}"), candIdxName=cms.string("pfCandIdx"),\n'
+                f'    candIdxDoc=cms.string("row in PFCandidates"), jetCut=cms.string(""), jetConstCut=cms.string("")))\n'
+                for name, plugin, src in rows
+            )
+        )
+
+    def jet_tags(self, jets):
+        """The b-tags of the CHS jets (CMSSW branch nanoaod-jet-tags), as text for physics()."""
+        chs = [name for name, src in jets if src == "ak4PFJetsCHS"]
+        tags = [("btagDeepCSVB", ["pfDeepCSVJetTags:probb", "pfDeepCSVJetTags:probbb"]),
+                ("btagJP", ["pfJetProbabilityBJetTags"])]  # fmt: skip
+        tags = [(c, t) for c, t in tags if all(self.inv.has(*x.split(":")) for x in t)]
+        if not chs or not tags or not self.branch(JET_TAGS, "the b-tags of the CHS jets"):
+            return ""
+        return f"""
+# The b-tags of the CHS jets, the jets they are computed on (CMSSW branch nanoaod-jet-tags), extending their table
+table("jetCHSTagTable", cms.EDProducer("JetTagTableProducer", src=cms.InputTag("ak4PFJetsCHS"), name=cms.string("{chs[0]}"),
+    variables=cms.PSet({"".join(f'{chr(10)}        {c}=cms.PSet(src=cms.VInputTag({", ".join(repr(x) for x in t)}), doc=cms.string("{" + ".join(t)}"), precision=cms.int32(10)),' for c, t in tags)}
+    )))"""
+
+    def mtd_rechits(self):
+        """Every BTL and ETL rechit (CMSSW branch nanoaod-mtd-rechits), Phase 2."""
+        inv = self.inv
+        parts = [(n, i) for n, i in (("BTL", "FTLBarrel"), ("ETL", "FTLEndcap")) if inv.has("mtdRecHits", i)]
+        if not parts or not self.branch(MTD_RECHITS, "the MTD rechits"):
+            return
+        self.add(
+            "\n# Every MTD rechit (BTL and ETL) with its time and position (CMSSW branch nanoaod-mtd-rechits), one table\n"
+            + "".join(
+                f'table("{n.lower()}RecHitTable", cms.EDProducer("MTDRecHitTableProducer",\n'
+                f'    src=cms.InputTag("mtdRecHits", "{i}"), name=cms.string("RecHit{n}"), doc=cms.string("{n} rechits"),\n'
+                f"    precision=cms.int32(14), skipNonExistingSrc=cms.bool(True)))\n"
+                for n, i in parts
+            )
+        )
+
     # Truth
 
-    def truth(self, associators, maps, drop):
+    def truth(self, associators, maps, drop, pat=False):
         """The truth graph's tables (PhysicsTools/TruthInfo, git cms-merge-topic mmarriot:truthgraph-nano-tables),
         when the release has their producers and the input the graph: particles, vertices, children; the simulated
         energy of each particle in each hit of the hit tables written above; the reco <-> truth associations of
-        particles (`maps`: table label -> (module, instance) of its map; the vertex ones are left out, as ember writes
-        only the leading vertex). An input with maps of its own (made with the associators in its reconstruction) gives
-        them, and no associator runs (they could need collections it lacks); else the associators run, unless
-        `associators` is false. The particles: the default selection plus every particle that entered the
+        particles and of vertices (`maps`: table label -> (module, instance) of its map). An input with maps of its own
+        (made with the associators in its reconstruction) gives them, and no associator runs (they could need
+        collections it lacks; its vertex maps are not read, as the truth vertices they match would have to be kept);
+        else the associators run, unless `associators` is false. With `pat`, no vertex association: the PV and SV
+        tables are standard NanoAOD's (the leading vertex; slimmedSecondaryVertices), not the collections the maps index. The particles: the default selection plus every particle that entered the
         calorimeter, which carry the hits' energy."""
         inv = self.inv
         if not inv.has("truthLogicalGraphProducer"):
@@ -614,20 +1117,26 @@ position = cms.PSet(
                 self.notes.append("truth: the input has no truth graph (truthLogicalGraphProducer)")
             return
         if not self.need("TruthGraphFlatTableProducer", "TruthGraphHitFlatTableProducer"):
-            self.notes[-1] += " (add them with git cms-merge-topic mmarriot:truthgraph-nano-tables)"
+            self.notes[-1] += (
+                f" (add them with git cms-merge-topic mmarriot:truthgraph-nano-tables, or every table at once with git "
+                f"cms-merge-topic mmarriot:{ALL})"
+            )
             return
         hits = ""
         if inv.has("truthLogicalGraphHitIndexProducer"):
             hits = "from PhysicsTools.TruthInfo.truthGraphHitFlatTable_cfi import truthGraphHitFlatTable\n" + "".join(
                 f'table("{name[0].lower()}{name[1:]}Table", truthGraphHitFlatTable.clone(\n'
-                f'    hitTable="{module}", hitIdColumn="rechit_ID", name="{name}"))\n'
-                for module, name in self.hit_tables.items()
+                f'    hitTable="{module}", hitIdColumn="{column}", name="{name}"))\n'
+                for module, (name, column) in self.hit_tables.items()
             )
         else:
             self.notes.append("truth of the hits: the input has no hit index (truthLogicalGraphHitIndexProducer)")
         # the maps the input holds (not those of a class this release cannot read, dropped on input)
         stored = {(p.module, p.instance) for p in inv.items if p not in drop}
-        held = sorted(label for label, key in maps.items() if key in stored)
+        vertex = lambda label: "Vertices" in label  # e.g. truthGraphOfflinePrimaryVerticesToTruthTable
+        if pat:
+            maps = {label: key for label, key in maps.items() if not vertex(label)}
+        held = sorted(label for label, key in maps.items() if key in stored and not vertex(label))
         names = lambda labels: ", ".join(sorted(re.sub(r"^truthGraph|Table$", "", label) for label in labels))
         tables = lambda labels: (
             f"for label in [{''.join(f'{chr(10)}    {k!r},' for k in sorted(labels))}\n]:\n"
@@ -640,7 +1149,7 @@ position = cms.PSet(
             if len(held) < len(maps):
                 self.notes.append(
                     f"reco <-> truth associations {names(set(maps) - set(held))}: the input's own maps do not have "
-                    "them (with maps of its own, no associator runs)"
+                    "them, or are of vertices (with maps of its own, no associator runs)"
                 )
             assoc = (
                 "# The input holds association maps of its own: the tables read them, and no associator runs (they\n"
@@ -656,19 +1165,22 @@ position = cms.PSet(
         else:
             self.notes.append("reco <-> truth associations: --no-truth-associators, and the input holds no maps")
             assoc = ""
+        # the truth vertices that the vertex maps match are kept, when the associators make those maps here
+        keep = (
+            ""
+            if associators and maps and not held and not pat
+            else "\n    keepVerticesMatchedBy=[], keepVerticesMatchedByTruthToReco=[]  # no vertex maps\n"
+        )
         self.add(
             f"""
 # The truth graph: its particles (the signal, the particles reco objects are matched to, every particle that entered
 # the calorimeter, and their ancestors), their vertices and children (PhysicsTools/TruthInfo,
 # SimGeneral/TruthGraphAssociatorProducers)
 process.load("SimGeneral.TruthGraphAssociatorProducers.truthGraphNanoTables_cff")
-process.truthGraphTable = process.truthGraphCaloBoundaryTable.clone(
-    keepVerticesMatchedBy=[], keepVerticesMatchedByTruthToReco=[]  # no vertex associations (below)
-)
+process.truthGraphTable = process.truthGraphCaloBoundaryTable.clone({keep})
 process.emberTables.add(process.truthGraphTable)
 # The simulated energy of each particle in each hit of the hit tables above
-{hits}# The reco <-> truth associations of particles (ember draws no vertex associations: it writes only the leading
-# primary vertex)
+{hits}# The reco <-> truth associations of particles and vertices
 {assoc}"""
         )
 

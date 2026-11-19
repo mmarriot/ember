@@ -73,6 +73,11 @@ def test_columns_are_8_byte_aligned():
             {"A": {"n": np.array([2, 0, 1])}, "L": {"i": np.array([4, 1, 3])}},
             ([0, 2, 2, 3], [4, 1, 3]),
         ),
+        (  # without a list: B holds A's children in A's order (the hits of tracks)
+            {"kind": "counts", "counts": "A.n"},
+            {"A": {"n": np.array([2, 0, 3])}, "L": {}},
+            ([0, 2, 2, 5], [0, 1, 2, 3, 4]),
+        ),
         (
             {"kind": "links", "fromIndex": "L.f", "toIndex": "L.t"},
             {"A": {}, "L": {"f": np.array([0, 0, 2]), "t": np.array([1, -1, 4])}},
@@ -86,6 +91,12 @@ def test_relation_normalisation(rel, cols, expected):
     out = build_relation(dict(rel, name="r", **{"from": "A", "to": "B"}), tables)
     np.testing.assert_array_equal(out["offsets"], expected[0])
     np.testing.assert_array_equal(out["indices"], expected[1])
+
+
+def test_children_counted_but_not_in_the_child_table_are_rejected():
+    tables = {"A": (2, {"n": np.array([2, 2])}), "B": (5, {})}
+    with pytest.raises(ValueError, match="4 children counted, table B has 5"):
+        build_relation({"name": "r", "kind": "counts", "from": "A", "to": "B", "counts": "A.n"}, tables)
 
 
 def test_relation_out_of_range_is_rejected():

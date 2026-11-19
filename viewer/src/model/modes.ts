@@ -9,7 +9,10 @@ import { factIn } from "./facts";
 export type ColourBy = NonNullable<DisplayLayer["colourBy"]>;
 
 /** The root tables: for truth, the truth layer with the most associations (the particles); for reco, the layer of the
- *  last reconstruction stage that holds the others of that stage (e.g. candidates, not their tracks). */
+ *  last reconstruction stage that holds the others of that stage (e.g. candidates, not their tracks), or the layer of
+ *  the profile's `view.colourRoot` kind (the PF candidates, so that every detector takes a candidate's colour), if it
+ *  holds that stage's layer (each PF candidate made from a TICL candidate points at it): without that link, the stage
+ *  would lose its colours. */
 export function modeRoots(header: Header): { truth?: string; reco?: string } {
   const links = (table: string) =>
     Object.values(header.relations).filter((r) => r.association && (r.from === table || r.to === table)).length;
@@ -22,7 +25,12 @@ export function modeRoots(header: Header): { truth?: string; reco?: string } {
   const last = header.display
     .filter((d) => d.stage !== undefined)
     .sort((a, b) => b.stage! - a.stage! || owns(b.table) - owns(a.table))[0];
-  return { ...(truth ? { truth: truth.table } : {}), ...(last ? { reco: last.table } : {}) };
+  const kind = header.view?.colourRoot,
+    root = kind ? header.display.find((d) => !d.truth && d.kind === kind) : undefined,
+    holds = (from: string, to: string) =>
+      Object.values(header.relations).some((r) => !r.association && r.from === from && r.to === to),
+    reco = root && (!last || holds(root.table, last.table)) ? root : last;
+  return { ...(truth ? { truth: truth.table } : {}), ...(reco ? { reco: reco.table } : {}) };
 }
 
 /** How each table follows the links to `root`: the root itself is "identity"; a table related to the root takes

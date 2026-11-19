@@ -324,6 +324,44 @@ def test_row_index_derive():
     assert tables["V"][1]["index"].tolist() == [0, 1, 2]
 
 
+def test_parent_row_lets_children_in_their_parents_order_be_split():
+    """parentRow: the hits of tracks (a count per track, the hits in track order) each name their track, so the
+    muon-system hits of global muon tracks can be split off and still be related to their track."""
+    profile = {
+        "derive": [
+            {"table": "Hit", "parentRow": "trackIdx", "counts": "Track.nHit"},
+            {"table": "Hit", "split": {"MuonHit": [["det", "==", 2]]}},
+        ],
+        "relations": [{"name": "trackMuonHits", "kind": "index", "from": "Track", "to": "MuonHit",
+                       "index": "MuonHit.trackIdx"}],
+    }  # fmt: skip
+    conv = converter({"Track": {"pt": F4, "nHit": I4}, "Hit": {**XYZE, "det": I4}}, profile)
+    hits = {"x": [0, 1, 2, 3, 4], "y": [0] * 5, "z": [0] * 5, "e": [0] * 5, "det": [1, 2, 1, 2, 2]}
+    _, tables, relations = one_event(conv, {"Track": {"pt": [5, 9], "nHit": [2, 3]}, "Hit": hits})
+    assert tables["MuonHit"][1]["trackIdx"].tolist() == [0, 1, 1] and tables["MuonHit"][1]["x"].tolist() == [1, 3, 4]
+    rel = relations["trackMuonHits"]
+    assert rel["offsets"].tolist() == [0, 1, 3] and rel["indices"].tolist() == [0, 1, 2]
+    with pytest.raises(ValueError, match="5 children counted"):
+        one_event(conv, {"Track": {"pt": [5, 9], "nHit": [2, 3]}, "Hit": {c: v[:4] for c, v in hits.items()}})
+
+
+def test_nan_unless_and_time_at_origin_derives():
+    """nanUnless: no time where a track has none (sigmat0 < 0 writes t0 = 0); timeAtOrigin: a hit's time minus the
+    flight from the origin, on the tracks' t0 scale."""
+    profile = {"derive": [
+        {"table": "Track", "nanUnless": ["sigmat0", ">", 0], "columns": ["t0"]},
+        {"table": "Hit", "timeAtOrigin": "t0", "time": "time", "position": ["x", "y", "z"]},
+    ]}  # fmt: skip
+    conv = converter({"Track": {"t0": F4, "sigmat0": F4}, "Hit": {**XYZE, "time": F4}}, profile)
+    assert "Track_t0" in conv.branches()  # still read: the derive only blanks it
+    event = {"Track": {"t0": [0.2, 0.0], "sigmat0": [0.03, -1]},
+             "Hit": {"x": [0, 30], "y": [0, 40], "z": [299.792458, 0], "e": [0, 0], "time": [10.5, 2.0]}}  # fmt: skip
+    _, tables, _ = one_event(conv, event)
+    t0 = tables["Track"][1]["t0"]
+    assert t0[0] == np.float32(0.2) and np.isnan(t0[1])
+    assert np.allclose(tables["Hit"][1]["t0"], [0.5, 2.0 - 50 / 29.9792458])
+
+
 def test_neighbour_distance_derive():
     derive = [
         {"table": "Hit", "column": "size", "neighbourDistance": ["x", "y"], "groupBy": "layer", "k": 1, "scale": 0.5}

@@ -51,6 +51,19 @@ with a message while an old one is set without its new name. `deploy.sh` links `
   - a start panel, shown when the site has no data yet;
   - a panel that says why a link did not open;
   - a share pop-up that shows the link and what it opens.
+- **The whole detector from a reconstruction file.** `ember FILE.root` now also writes, with the release alone: the
+  PF candidates (with their PUPPI weight and the rows of their track, GSF track, muon, electron and photon), the CHS
+  jets, the HPS taus, the GSF tracks, every primary vertex (with its truth match), the tracks' MTD time, and the muon
+  system's segments and GEM and RPC rechits. Electrons, photons and muons point at their superclusters and tracks.
+  For each CMSSW branch that adds more (every calorimeter and MTD rechit, the hits of tracks, the tracks of vertices,
+  the PF candidates' TICL candidates and PF clusters, jet and tau constituents, b-tags, the DT and CSC rechits and the
+  chambers), the configuration uses its producers when the release has them, and says which branch to merge when it
+  does not. Presets "All vertices", "Track time" and "What PUPPI removed".
+- **Viewer:** the PF candidates are the root of the "candidate type" colours (`view.colourRoot`), so that the whole
+  detector, not only HGCal, takes its candidates' colours: always in Run 3, and in Phase 2 once they hold the TICL
+  candidates (the branch `nanoaod-pfcandidate-links`); until then the TICL candidates stay the root.
+- **Converter:** `optional` relations (left out when a file lacks their index column), a `counts` relation without a
+  list (children stored in their parents' order), and presets that keep only what the bundle has.
 - **Bundles** record the CMSSW release that wrote their input (`source.cmssw`), and the version of the converter.
 - **Documentation:** a tutorial, how-to guides, the command reference, the CMSSW side, hosting, a page of
   questions, and the planned work (every hit and every object, the CMS site, a CMSSW external, example events).

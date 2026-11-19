@@ -44,6 +44,7 @@ import {
   theme,
   touring,
   view,
+  withRootLegend,
 } from "../model/store";
 import { colours, type LayerFor, type Legend, PALETTES, valueRange, type Pal, type Range } from "../render/colour";
 import { Engine, MIN_RADIUS } from "../render/engine";
@@ -336,6 +337,7 @@ export function startScene(canvas: HTMLCanvasElement): () => void {
     }
     const drawn: Record<string, Legend> = {};
     entries = build(wanted(b.header, ev), b.header, ev, drawn);
+    withRootLegend(b.header, ev, drawn, pal);
     builtFor = ev;
     lastPair = pairView.peek(); // built with its colours
     legends.value = drawn;
@@ -381,6 +383,7 @@ export function startScene(canvas: HTMLCanvasElement): () => void {
     }
     entries = [...entries, ...fresh];
     pinSelection();
+    withRootLegend(b.header, ev, drawn, PALETTES[theme.peek()]); // the root's layer may be among those just unticked
     legends.value = drawn;
     applyCuts(false);
   });

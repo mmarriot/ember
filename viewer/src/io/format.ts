@@ -35,7 +35,7 @@ export interface Header {
   replay?: { from?: [number, number, number]; direction?: [number, number, number]; order?: "random" };
   /** Camera hints: starting preset; smallest radius (cm) framed around objects, e.g. small for a test-beam stack;
    *  tour style, "beam" (collider: starts on the whole detector, never enters it) or "orbit" (default). */
-  view?: { start?: ViewName; minRadius?: number; tour?: "beam" | "orbit"; domain?: string };
+  view?: { start?: ViewName; minRadius?: number; tour?: "beam" | "orbit"; domain?: string; colourRoot?: string };
   summaries?: Summary[];
   /** Title of a run from its information (RunEntry.info), e.g. "{Beam} {Energy} GeV"; parts (between " · ") that
    *  name a field the run lacks are left out. */
@@ -151,7 +151,12 @@ export interface DisplayLayer {
   context?: boolean;
   dim?: number; // 0..1: how far its colours are mixed towards the background
   /** How to name an object in lists (related objects, tree): these columns, with value names, e.g. pdgId 211 -> "π+". */
-  describe?: { columns: string[]; names?: Record<string, Record<string, string>> };
+  /** How to name an object: its columns' values, by `names` if listed, else after their `prefix` (e.g. "St 4"). */
+  describe?: {
+    columns: string[];
+    names?: Record<string, Record<string, string>>;
+    prefix?: Record<string, string>;
+  };
   /** Expression applied as the layer's filter until the user changes it (e.g. "isSignal"). */
   filter?: string;
   /** `ellipsoids`: the surface drawn on the ellipsoid: "solid" (default, translucent), "shell" (outline), "cage"
@@ -233,6 +238,8 @@ export interface Preset {
   name: string;
   colour?: Record<string, string>;
   filters?: Record<string, string>;
+  /** Tables whose layers the preset ticks. */
+  show?: string[];
 }
 /** A part of the detector (header `domains`), with its region and the view that suits it. */
 export interface Domain {

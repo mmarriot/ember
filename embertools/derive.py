@@ -4,6 +4,10 @@ Kinds of derive, by the key that names them:
   lookup             columns copied from the row of another table (often a per-run table) named by an index column,
                      or from one fixed `row` of it (e.g. the leading primary vertex)
   rowIndex           the row's number in the event, before cuts
+  parentRow          the row of the parent, for children stored in their parents' order with a count on each parent
+                     (the hits of tracks), so that the children can be split and still name their parent
+  nanUnless          NaN in columns where a condition fails (a track's time where it has none)
+  timeAtOrigin       a hit's time minus the light's flight from the origin to it (comparable to tracks' t0)
   xyFromEtaPhiZ      x and y from eta, phi and z
   momentum           px, py and pz from pt, eta and phi (or pt and phi: pz 0, e.g. missing transverse momentum)
   bits               integer columns cut out of the bits of another (e.g. the subdetector of a DetId)
@@ -18,6 +22,10 @@ Tables here are an event's tables as the converter holds them: {name: (rows, {co
 import numpy as np
 
 from . import cells
+
+# The comparison operators of row conditions ([expression, operator, number]: cuts, splits, nanUnless).
+OPS = {"<": np.less, "<=": np.less_equal, ">": np.greater, ">=": np.greater_equal, "==": np.equal, "!=": np.not_equal}
+C = 29.9792458  # the speed of light [cm/ns]
 
 
 def derived_columns(d, tables):
@@ -52,6 +60,17 @@ def derived_columns(d, tables):
         }
     if "rowIndex" in d:
         return {d["rowIndex"]: (np.dtype("i4"), "row number in the event (0 first), e.g. the leading primary vertex")}
+    if "parentRow" in d:
+        return {d["parentRow"]: (np.dtype("i4"), f"row of the parent (from {d['counts']}, children in parents' order)")}
+    if "nanUnless" in d:
+        own = tables[d["table"]]["columns"]
+        col, op, _ = d["nanUnless"]
+        missing = [c for c in [col, *d["columns"]] if c not in own]
+        if missing or op not in OPS:
+            raise ValueError(f"nanUnless {d['table']}: no column {', '.join(missing)} or bad operator {op}")
+        return {c: own[c] for c in d["columns"]}
+    if "timeAtOrigin" in d:
+        return {d["timeAtOrigin"]: (np.dtype("f4"), f"{d['time']} minus the flight from the origin at c [ns]")}
 
     if "gather" in d:
         names = _gathered_columns(d)
@@ -82,6 +101,21 @@ def apply_derive(d, tables):
     n, cols = tables[d["table"]]
     if "rowIndex" in d:
         cols[d["rowIndex"]] = np.arange(n, dtype=np.int32)
+    elif "parentRow" in d:
+        parent, col = d["counts"].split(".")
+        counts = np.asarray(tables[parent][1][col], np.int64)
+        if counts.sum() != n:  # children of the wrong parents otherwise
+            raise ValueError(f"parentRow {d['table']}: {counts.sum()} children counted in {d['counts']}, {n} rows")
+        cols[d["parentRow"]] = np.repeat(np.arange(len(counts), dtype=np.int32), counts)
+    elif "nanUnless" in d:
+        col, op, value = d["nanUnless"]
+        fails = ~OPS[op](np.asarray(cols[col]), value)
+        for c in d["columns"]:
+            cols[c] = np.where(fails, np.nan, cols[c]).astype(cols[c].dtype)
+    elif "timeAtOrigin" in d:
+        x, y, z = (np.asarray(cols[c], np.float64) for c in d["position"])
+        flight = np.sqrt(x * x + y * y + z * z) / C
+        cols[d["timeAtOrigin"]] = (np.asarray(cols[d["time"]], np.float64) - flight).astype(np.float32)
     elif "lookup" in d:
         n_source, source = tables[d["lookup"]]
         idx = np.full(n, d["row"], np.int64) if "row" in d else np.asarray(cols[d["index"]], np.int64)

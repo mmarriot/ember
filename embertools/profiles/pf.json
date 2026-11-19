@@ -66,7 +66,7 @@
     "pfCandidate": {"label": "PF candidates", "domain": "Physics", "repr": "helix", "visible": false,
                     "colourBy": {"category": "pdgId", "abs": true, "names": [["211", "charged hadron"], ["22", "photon"], ["130", "neutral hadron"], ["11", "electron"], ["13", "muon"], ["1", "HF hadron"], ["2", "HF EM"]]},
                     "cut": {"group": "PF candidate pT", "label": "PF candidate pT", "unit": "GeV", "default": 0.0},
-                    "truthGap": {"reason": "no PF-candidate associator in CMSSW", "gap": 20}},
+                    "truthGap": {"reason": "the truth graph has no PF-candidate associator", "gap": 20}},
     "pfCluster": {"label": "PF clusters", "domain": "Calo", "repr": "markers", "palette": "cool", "visible": true,
                   "cut": {"group": "PF cluster energy", "label": "PF cluster energy", "unit": "GeV", "default": 1.0}}
   },
@@ -81,9 +81,9 @@
     {"table": "PFClustersHCAL", "kind": "pfCluster", "label": "HCAL barrel", "position": ["x", "y", "z"], "colour": "energy", "size": null,
      "time": "time", "cut": {"column": "energy"}, "describe": {"columns": ["energy"]}, "inspect": ["energy", "eta", "phi", "nHits", "depth"]},
     {"table": "PFClustersHO", "kind": "pfCluster", "label": "HCAL outer", "position": ["x", "y", "z"], "colour": "energy", "size": null,
-     "visible": false, "cut": {"column": "energy"}, "describe": {"columns": ["energy"]}, "truthGap": {"reason": "no PF-cluster associator for HF and HO is configured in CMSSW", "gap": 15}},
+     "visible": false, "cut": {"column": "energy"}, "describe": {"columns": ["energy"]}, "truthGap": {"reason": "the truth graph's PF-cluster associator is not configured for HF and HO", "gap": 15}},
     {"table": "PFClustersHF", "kind": "pfCluster", "label": "HCAL forward", "position": ["x", "y", "z"], "colour": "energy", "size": null,
-     "visible": false, "views": ["3d", "side", "rz"], "cut": {"column": "energy"}, "describe": {"columns": ["energy", "layer"], "names": {"layer": {"11": "EM", "12": "HAD"}}}, "truthGap": {"reason": "no PF-cluster associator for HF and HO is configured in CMSSW", "gap": 15}}
+     "visible": false, "views": ["3d", "side", "rz"], "cut": {"column": "energy"}, "describe": {"columns": ["energy", "layer"], "names": {"layer": {"11": "EM", "12": "HAD"}}}, "truthGap": {"reason": "the truth graph's PF-cluster associator is not configured for HF and HO", "gap": 15}}
   ],
   "presets": [
     {"name": "What PUPPI removed", "filters": {"PFCandidates": "puppiWeight == 0"}}

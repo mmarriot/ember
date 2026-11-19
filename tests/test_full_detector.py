@@ -82,9 +82,9 @@ BRANCHES = {
     "JetPFCands": {"jetIdx": I4, "pfCandIdx": I4}, "JetCHSPFCands": {"jetIdx": I4, "pfCandIdx": I4},
     "TauPFCands": {"tauIdx": I4, "pfCandIdx": I4},
     "DTRecHit": {"x": F4, "y": F4, "z": F4, "wheel": I2, "station": I2, "sector": I2, "superlayer": I2, "layer": I2,
-                 "detId": U4},
+                 "detId": U4, "chamberDetId": U4},
     "CSCRecHit": {"x": F4, "y": F4, "z": F4, "time": F4, "endcap": I2, "station": I2, "ring": I2, "chamber": I2,
-                  "layer": I2, "detId": U4},
+                  "layer": I2, "detId": U4, "chamberDetId": U4},
     "MuonChamber": {"detId": U4, **{c: F4 for c in ("x", "y", "z", "ux", "uy", "uz", "vx", "vy", "vz",
                     "halfWidthBottom", "halfWidthTop", "halfLength", "halfThickness")}},
     **{f"Muon{k}Segments": {"muonIdx": I4, "segmentIdx": I4, "mask": U4} for k in ("DT", "CSC", "GEM")},
@@ -110,7 +110,7 @@ def test_the_tables_of_every_cmssw_branch_are_drawn_and_linked():
             "CSCRecHit", "MuonChamber", "StandaloneMuonTrack", "GlobalMuonTrackHits"} <= drawn  # fmt: skip
     for name in ("trackHits", "gsfTrackHits", "vertexTracks", "trackVertex", "svTracks", "pfTicl", "pfClustersECAL",
                  "pfClustersHF", "jetConstituents", "jetCHSConstituents", "tauConstituents", "muonGlobalTrack",
-                 "standaloneTrackHits", "muonDTSegments", "dtSegmentChamber"):  # fmt: skip
+                 "standaloneTrackHits", "muonDTSegments", "dtSegmentChamber", "dtRecHitChamber", "cscRecHitChamber"):  # fmt: skip
         assert name in rels, name
     # the PF candidates hold the TICL candidates: they are the colour root, the whole detector takes their colours
     assert (rels["pfTicl"]["from"], rels["pfTicl"]["to"]) == ("PFCandidates", "TICLCandidates")

@@ -853,13 +853,15 @@ kinematics = cms.PSet(
         more = rechits and self.branch(
             MUON_RECHITS, "the DT and CSC rechits, the muon chambers and the muons' segments"
         )
+        # the chamber's DetId, which joins the MuonChamber table
+        chamber = '\n        chamberDetId=DetIdVar("chamberId().rawId()", "uint", doc="DetId of the chamber"),\n    ),'
         tables += [
             ("dt1DRecHits", "DTRecHitFlatTableProducer", "dtRecHit", "DTRecHit", "DT rechits (wire pairs)",
              hit.format("")
-             + detid("wheel", "station", "sector", "superlayer", "layer")),
+             + detid("wheel", "station", "sector", "superlayer", "layer").replace("\n    ),", chamber)),
             ("csc2DRecHits", "CSCRecHitFlatTableProducer", "cscRecHit", "CSCRecHit", "CSC 2D rechits",
              hit.format('\n        time=Var("tpeak", "float", precision=8, doc="peak time [ns]"),')
-             + detid("endcap", "station", "ring", "chamber", "layer")),
+             + detid("endcap", "station", "ring", "chamber", "layer").replace("\n    ),", chamber)),
         ] * more  # fmt: skip
         for src, plugin, cfi, name, doc, columns in tables:
             if inv.has(src) and self.need(plugin):
@@ -944,6 +946,12 @@ from DPGAnalysis.MuonTools.common_cff import DetIdVar, GlobGeomVar
     def track_hits(self):
         """The valid hits of the tracks of each table in track_tables, in track order (CMSSW branch
         nanoaod-track-hits)."""
+        # an AOD keeps no hits of its tracks (TrackingRecHitsOwned), and the producer would fail on them
+        kept = [(n, src) for n, src in self.track_tables if self.inv.has(src.split(":")[0], "", "TrackingRecHitsOwned")]
+        if len(kept) < len(self.track_tables):
+            left = [n for n, _ in self.track_tables if (n, _) not in kept]
+            self.notes.append(f"the hits of {', '.join(left)}: the input does not keep them (AOD)")
+        self.track_tables = kept
         if not self.track_tables or not self.branch(TRACK_HITS, "the hits of tracks"):
             return
         text = """
@@ -994,6 +1002,7 @@ process.load("RecoLocalTracker.SiStripRecHitConverter.SiStripRecHitMatcher_cfi")
             f'\n        cms.PSet(src=cms.InputTag("{src}"), name=cms.string("PFCandidateClusters{name[9:]}"),'
             f' doc=cms.string("PF candidate <-> {src}")),'
             for name, src in self.pf_clusters
+            if inv.has("particleFlowBlock")  # the PF blocks hold the candidates' clusters (not in an AOD)
         )
         return f"""
 # Their tracks, GSF tracks, muons and TICL candidates (the HGCal ones, pfTICL, one per TICL candidate), and their PF

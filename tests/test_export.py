@@ -211,6 +211,8 @@ PHASE2 = [
     "floatedmValueMap_puppi__RECO.",
     "floatedmValueMap_tofPID_t0_RECO.",
     "recoGsfTracks_electronGsfTracks__RECO.",
+    "TrackingRecHitsOwned_generalTracks__RECO.",
+    "TrackingRecHitsOwned_electronGsfTracks__RECO.",
     "recoPFTaus_hpsPFTauProducer__RECO.",
     "recoGsfElectrons_ecalDrivenGsfElectronsHGC__RECO.",
     "recoPhotons_gedPhotons__RECO.",
@@ -331,6 +333,9 @@ FULL = [
     "JetTagsAssociation_pfDeepCSVJetTags_probbb_RECO.",
     "JetTagsAssociation_pfJetProbabilityBJetTags__RECO.",
     "recoPFClusters_particleFlowClusterHCAL__RECO.",
+    "TrackingRecHitsOwned_standAloneMuons__RECO.",
+    "TrackingRecHitsOwned_globalMuons__RECO.",
+    "recoPFBlocks_particleFlowBlock__RECO.",
 ]
 
 
@@ -357,6 +362,12 @@ def test_each_cmssw_branch_s_producers_are_used_once_the_release_has_them():
         assert f'name=cms.string("{name}")' in text or f'name="{name}"' in text
     assert "JetTagTableProducer" in text and "'pfDeepCSVJetTags:probb', 'pfDeepCSVJetTags:probbb'" in text
     assert 'name=cms.string("MuonChamber")' in text and 'name=cms.string("MuonDTSegments")' in text
+    assert 'chamberDetId=DetIdVar("chamberId().rawId()"' in text
+    # an AOD: no hits of tracks, no PF blocks for the PF candidates' clusters
+    aod = [b for b in PHASE2 + FULL if "TrackingRecHitsOwned" not in b and "particleFlowBlock" not in b]
+    text, notes = configuration(s, aod, RELEASE | plugins)
+    assert "TrackHitsTableProducer" not in text and "PFCandidateClustersECAL" not in text
+    assert any("the input does not keep them (AOD)" in n for n in notes)
     # without them: the release's tables, and a note per branch naming it and the branch of all of them
     text, notes = configuration(s, PHASE2 + FULL, RELEASE)
     for branch in set(cmsrun.BRANCHES):

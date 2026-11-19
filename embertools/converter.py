@@ -23,7 +23,7 @@ import numpy as np
 
 from . import __version__
 from .bundle import type_code
-from .derive import apply_derive, derived_columns, gather
+from .derive import OPS, apply_derive, derived_columns, gather
 from .display import display_layers, less_preferred, named_columns
 from .profile import table_column
 from .relations import build_relation, compose_relations, cut_relation, owner_rows
@@ -48,7 +48,6 @@ PROFILE_KEYS = {
     "omit",
 }
 HEADER_KEYS = {"schema", "source", "profile", "tables"}  # written by the converter, never taken from the profile
-OPS = {"<": np.less, "<=": np.less_equal, ">": np.greater, ">=": np.greater_equal, "==": np.equal, "!=": np.not_equal}
 
 
 class Converter:
@@ -117,13 +116,18 @@ class Converter:
         for d in profile.get("derive", []):
             if d["table"] not in self.tables or d.get("lookup", d["table"]) not in self.tables:
                 continue
+            if "parentRow" in d and d["counts"].split(".")[0] not in self.tables:
+                continue
+            own = self.tables[d["table"]]["columns"]
+            if "nanUnless" in d and not {d["nanUnless"][0], *d["columns"]} <= set(own):
+                continue  # e.g. tracks without a time (no tofPID in the input): nothing to blank
             derives.append(d)
             if "split" in d:
                 self._resolve_split(d)
                 continue
             for c, meta in derived_columns(d, self.tables).items():
-                if d.get("missing") and c in self.tables[d["table"]]["columns"]:
-                    continue  # a gather that only fills the missing (NaN) values of a stored column: still read
+                if (d.get("missing") or "nanUnless" in d) and c in self.tables[d["table"]]["columns"]:
+                    continue  # a stored column that the derive only changes in places (NaN filled, or set): still read
                 self.tables[d["table"]]["columns"][c] = meta
                 self.derived.add((d["table"], c))
         return derives
@@ -452,6 +456,7 @@ class Converter:
                 and d["table"] in tables
                 and d["table"] not in skip
                 and d.get("lookup", d["table"]) in tables
+                and d.get("counts", d["table"]).split(".")[0] in tables
             ):
                 if "split" in d:
                     _split(d, tables)

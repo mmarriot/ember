@@ -34,17 +34,17 @@ What a reco object is compared with, the measures (purity, completeness) and the
 | in the viewer | from |
 |---|---|
 | Truth graph · Particles, Vertices; the Truth tab (parent → children) | `TruthParticles`, `TruthVertices`, `TruthParticleChildren` |
-| a reco object's "best match"; the pair view's choice of particle for a candidate | `<Key>ToTruth` (earlier export: `<collection>ToTruth`): the AdaptiveNominal working point, one particle per reco object, with `sharedEnergy` and `score` (0 is best) |
+| a reco object's "best match"; the pair view's particle for a selected reco object | `<Key>ToTruth` (earlier export: `<collection>ToTruth`): the AdaptiveNominal working point, one particle per reco object, with `sharedEnergy` and `score` (0 is best) |
 | a reco object's purity, and whether its match is clean (inspector, truth mode) | `ToTruth.sharedEnergy` over the object's own amount, as the relation's `match` hint says ([Truth](truth.md#measures)) |
 | a truth particle's matched reco objects (its card's "Reconstructed as"), a match's completeness | `TruthTo<Key>` (earlier export: `<collection>FromTruth`), with `sharedEnergyFraction` (earlier export: `sharedFraction`) and `score` |
-| "the particle" that colours and groups everything below it; the levels in the lineage | `TruthParticles.levelFlags` (truth::LevelFlag; bit 2 StableDecayProducts, bit 3 CaloBoundary) |
+| "the particle" that colours everything below it in the truth colours; the levels in the lineage | `TruthParticles.levelFlags` (truth::LevelFlag; bit 2 StableDecayProducts, bit 3 CaloBoundary) |
 | a hit's particle; "simulated energy in its hits, by particle" | `TruthHGCalRecHits`, `TruthPFRecHits` (earlier export: `TruthHGCalHits`, `TruthSoAHits{EE,HSi,HSci}`, and the barrel and forward ones of gap 12): per (particle, hit), the simulated energy of the particle's subgraph |
 
-**Worked out in Ember.** These are stand-ins, to be replaced when CMSSW provides the information:
+**Choices in Ember.** Ember derives no truth association where CMSSW has none: a layer cluster, a TICL candidate or a
+PF candidate is shown as a gap, not matched through its hits (until 2026-11, layer clusters took the particle with the
+most simulated energy in their hits; that stand-in is gone). What Ember does choose is how truth is grouped for the
+eye:
 
-- **Layer cluster → particle** (gap 1): the particle with the most simulated energy in the cluster's hits, each hit
-  weighted by the cluster's fraction (`contentPartners` in `viewer/src/model/relations.ts`). The legend labels it
-  "derived in Ember".
 - **One colour per generator particle** (gap 2): a particle takes the colour of its highest ancestor in the profile's
   `particle` level, the generator-level stable particles (`identities` in the same file; [Truth](truth.md)). So a π⁺
   that interacted in the tracker, its daughters' hits and its track share one colour. A shower secondary matched to a
@@ -119,7 +119,7 @@ Where each gap is:
 | 4 | Particles that deposit energy, but are neither signal nor matched by a calorimeter object, are not exported, so their hits have no particle. **Fixed in the truth tables** (and in the earlier export): `keepLevelMask`, opt-in, see [3–5. Unattributed energy](#35-unattributed-energy). | X | the selection of `TruthGraphFlatTableProducer`; with the default selection, particles that only deposit energy are not kept; pairs with particles that are not exported are dropped | high at pile-up |
 | 5 | Out-of-time pile-up has no particles at all (in the default configuration; where a sample has them, the `hgcal` profile drops them) | G | `truthGraphMixedDigi_cff.py:49` (`pileupBunchCrossings=[0]`) | medium |
 | 6 | First-stage tracksters of a non-v6 (CLUE3D) reconstruction. **Fixed**: the associator follows the scheduled labels (`truthGraphAssociationLabels_cff.py:170-189`), and so do the truth tables (they read `truthGraphAssociationLabels_cff`, so a stock release writes the association tables of `ticlTrackstersCLUE3DHigh`). The profile reads them (`clue3dTruth`, `truthClue3d` in `hgcal.json`), with the same `match` contract as the CLUEstering tracksters. | X | | done |
-| 7 | Candidate truth is calorimeter-only: a track-only candidate has no candidate match | A (by design) | `RecoHitAdapters.h:148-161`, traits `AllRecoToTruthBranchAssociatorsProducer.cc:217-224` | medium |
+| 7 | **TICL candidate ↔ truth association.** The release has no `TruthAssociationTraits<TICLCandidate>` (`AllRecoToTruthBranchAssociatorsProducer.cc` specialises only `reco::Track`, `reco::Vertex`, `reco::PFCluster` and `ticl::Trackster`). The `tracksters` domain does include the trackster collection that `TICLCandidateProducer` writes next to its candidates (`truthGraphAssociationLabels_cff.py`, `tracksterProducerTypes`), so each candidate's own trackster is matched, and a charged candidate's track is. An earlier development branch had a calorimeter-only candidate associator (`RecoHitAdapters.h`) | A | `AllRecoToTruthBranchAssociatorsProducer.cc:114-181` | medium |
 | 8 | Runner-up matches per reco object (Fixed working point: every branch that shares energy) | X | only `RecoToTruthAdaptiveNominal` was exported by the earlier export | low |
 | 9 | HLT tracksters, tracks and vertices (for offline vertices, see 14: exported) | X | `allVertexToTruthBranchAssociators` and `hlt*Associators` exist (cff `:89-114`, `:167-184`); the HLT ones are not exported | low |
 | 10 | SoA objects are never associated directly | A | covered only through legacy copies (`HGCalTrackstersFromSoAProducer` in `tracksterProducerTypes`, labels cff `:26-33`) and Ember's `sameRows` | low (works while SoA == legacy) |
@@ -147,16 +147,12 @@ Where each gap is:
   (`PhysicsTools/TruthInfo/interface/RecoHitAdapters.h:106-117`). `reco::PFCluster` uses it through its base class.
   What is missing: the traits specialisation for `reco::CaloCluster`, a `DEFINE_FWK_MODULE` alias, a
   `layerClusters=cms.vstring("hgcalMergeLayerClusters")` domain, and a module in the sequence. Checked both in the
-  local area and in the release: there is no `LayerCluster` domain anywhere in
+  local area and in the release (CMSSW_20_1_X_2026-11-17-2300): there is no `LayerCluster` domain anywhere in
   `SimGeneral/TruthGraphAssociatorProducers` or `Validation/TruthInfo` of the release.
-  [cms-sw/cmssw#52451](https://github.com/cms-sw/cmssw/pull/52451) adds the layer-cluster associator.
-- **In Ember today:** layer clusters reach the truth only through their hits.
-  - The colour (`contentPartners`, `viewer/src/model/relations.ts`) takes the particle with the largest sum of hit
-    fraction × `simEnergy`.
-  - The fact line on the hits' step of the card's chain (`linksOf`, `viewer/src/model/chain.ts`) sums `simEnergy`
-    over the object's hits, without fractions.
-
-  Neither knows the cell's total simulated energy, and both inherit gaps 2 to 4.
+- **In Ember today:** layer clusters have no truth of their own: the inspector and the Truth tab say so (gap 1), and
+  the truth colours leave them neutral. Their hits carry the simulated energy per particle (facts), and the card's
+  fact line on the hits' step lists the particles in them. The pair view draws a matched trackster's layer clusters
+  as part of the match, with no truth statement of their own.
 - **Check:** a producer alias such as `TruthBranchLayerClusterAssociatorsProducer` appears (or a `layerClusters` key in
   `truthGraphRecoLabelsPSet`), and the step3 file has `*_truthBranchLayerClusterAssociators_*`. The truth tables then
   need the layer-cluster maps in their configuration, and Ember needs one reco → truth and truth → reco relation pair
@@ -240,8 +236,9 @@ particles".
 
 - **6:** fixed. The truth tables read the label registry instead of a hard-coded list of v6 labels,
   so a TICL v5 / CLUE3D sample gets its `ticlTrackstersCLUE3DHigh*Truth` tables.
-- **7:** *measured* at 200 pile-up: 1307 of 1910 candidates have a match. The others include track-only candidates.
-  Their tracks carry a `generalTracksToTruth` match, which the card shows as the track's (no CMSSW change needed).
+- **7:** with the earlier development branch's candidate associator, *measured* at 200 pile-up: 1307 of 1910
+  candidates had a match (the others included track-only candidates). The current release has none: the card shows
+  the candidate's trackster's match and its track's, each named as theirs.
 - **8:** Ember's reco → truth relations have at most one entry per object (*measured*: the number of entries equals the
   number of matched objects in every relation). "Several truth matches" exists only in the truth → reco direction
   (`FromTruth`).

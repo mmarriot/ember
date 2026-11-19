@@ -114,8 +114,19 @@ function matchRelations(header: Header, truth: string) {
     return out;
   });
 }
+/** The reco kind a truth particle is compared with in detector `where` (a `match.in`): of the kinds with an
+ *  association to the truth particles there, the last reconstruction stage (HGCal: the candidates' tracksters, not
+ *  CLUE3D's), else the first drawn; undefined where none has one (HF, HO). */
+export function comparedKind(header: Header, truth: string, where: string): string | undefined {
+  const stageOf = (t: string) => header.display.find((d) => d.table === t)?.stage ?? -1,
+    order = (t: string) => header.display.findIndex((d) => d.table === t);
+  return [...matchRelations(header, truth)]
+    .filter(([, [, r]]) => r.match?.in === where)
+    .map(([t]) => t)
+    .sort((a, b) => stageOf(b) - stageOf(a) || order(a) - order(b))[0];
+}
 /** The truth -> reco association of `table` with a `best` hint (TruthToReco: each particle's best object). */
-function truthToReco(header: Header, truth: string, table: string) {
+export function truthToReco(header: Header, truth: string, table: string) {
   return Object.entries(header.relations).find(
     ([, r]) => r.association && r.from === truth && r.to === table && r.best,
   );
@@ -273,15 +284,8 @@ export function pairFor(ev: EventData, header: Header, focus: Ref, truth: string
   }
 
   // 3. Per detector: the kind compared with, its matches, and where the branch's simulated energy went.
-  const stageOf = (t: string) => header.display.find((d) => d.table === t)?.stage ?? -1;
-  const order = (t: string) => header.display.findIndex((d) => d.table === t);
-  const kindIn = (where: string) => {
-    if (from && matches.get(from.table)?.[1].match?.in === where) return from.table;
-    return [...matches]
-      .filter(([, [, r]]) => r.match?.in === where)
-      .map(([t]) => t)
-      .sort((a, b) => stageOf(b) - stageOf(a) || order(a) - order(b))[0];
-  };
+  const kindIn = (where: string) =>
+    from && matches.get(from.table)?.[1].match?.in === where ? from.table : comparedKind(header, truth, where);
   const bestOf = (kind: string, particles: number[]) => {
     const t2r = truthToReco(header, truth, kind);
     if (!t2r) return [];

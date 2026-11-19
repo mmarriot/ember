@@ -12,7 +12,8 @@ permissions:
   contents: read
 jobs:
   python:
-    runs-on: ubuntu-latest
+    # Not ubuntu-latest: setup-python has no Python 3.9 for Ubuntu 26.04, which ubuntu-latest became in November 2026.
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         # The oldest Python that ember supports (lxplus and CMSSW have it), and a recent one.

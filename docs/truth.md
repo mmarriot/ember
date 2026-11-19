@@ -86,7 +86,7 @@ For a reco object R and its matched truth branch B (a particle and everything be
 | | definition | tracks (`measure: "hits"`) | calorimeter objects (`measure: "energy"`) |
 |---|---|---|---|
 | **purity** | the share of R that comes from B | shared hits / track hits (nPixel + nOT, or nhits); equals 1 − score (for all but 1 of 7744 tracks at 200 pile-up) | shared energy / raw energy, both on the rechit scale (measured ≤ 1) |
-| **completeness** | the share of B that is in R | 1 − TruthToReco score = shared cells / all tracker cells of B's branch (its secondaries' cells included, so it dilutes) | TruthToReco `sharedEnergyFraction`: of B's **simulated** energy in R's detector only (the associator's "sim-normalised" fraction) |
+| **completeness** | the share of B that is in R | 1 − TruthToReco score = shared cells / all tracker cells of B's branch (its secondaries' cells included, so it dilutes) | TruthToReco `sharedEnergyFraction`: of B's energy in R's detector only, on the rechit scale: each cell's rechit energy split between the branches by the simulated energy they left in it (cells with simulated energy but no rechit count 0; `BranchHitAssociator.cc`) |
 | **score** | the associator's ranking, 0 is best | linear (1 − purity) | squared and energy weighted: not 1 − purity |
 | **clean** | purity ≥ `good` | 0.75 (CMS tracking validation: MultiTrackValidator) | 0.5 (the dominant particle) |
 
@@ -97,8 +97,8 @@ the colour), and the pair view (its own bars, from the hits: below).
 
 | energy | what it is | where |
 |---|---|---|
-| simulated | what the particles deposited in the sensors (Geant4), not calibrated: a 67 GeV pion leaves about 0.2 GeV in HGCal. A share within one detector only. | facts on hits; completeness; the pair's first bar |
-| rechit (reconstructed) | the reconstructed energy of hits; for a cluster or trackster its raw energy (the rechits', each by its fraction) | purity; the pair's second bar |
+| simulated | what the particles deposited in the sensors (Geant4), not calibrated: a 67 GeV pion leaves about 0.2 GeV in HGCal. A share within one detector only. | facts on hits; the pair's first bar |
+| rechit (reconstructed) | the reconstructed energy of hits; for a cluster or trackster its raw energy (the rechits', each by its fraction); a particle's rechit energy is each cell's, split by the simulated energy shares in it | purity; completeness; the pair's second bar |
 | generator | the particle's energy at generation | a truth particle's name ("e⁻ · 71.2 GeV") |
 
 ### The pair view
@@ -107,7 +107,8 @@ With a truth particle, a matched reco object or a hit selected, the view shows o
 (`viewer/src/model/pair.ts`):
 
 - **The truth side is one branch, exactly**: the particle selected; for a reco object, its best match (the
-  associator's, at the kind's target); for a hit, the particle that left the most simulated energy in it. The branch is
+  associator's, at the kind's target); for a hit, the particle that left the most simulated energy in it; for a part
+  drawn with its container (a track's hits), the container's best match. The branch is
   that particle and everything below it: never its siblings, its parent's other descendants, or the generator particle
   above it. Its lineage in the card goes up: select a parent there for a larger branch (a W, a B hadron, a top).
 - **The hits are the simulation's.** The file gives hits to the particles that entered the calorimeter (truth level
@@ -117,14 +118,19 @@ With a truth particle, a matched reco object or a hit selected, the view shows o
   - *its descendants'*, from particles made before the calorimeter: conversion electrons, the products of an
     interaction or of a decay in the tracker. A π⁺ that interacted in the tracker has none of its own;
   - when the selected particle is itself inside a shower (a brem photon, a shower secondary), the file has no hits of
-    its own for it: the pair shows the shower it is in, and says so.
+    its own for it: the pair shows the hits and energies of the shower it is in, says so, and the key says "the
+    shower's". Its matches are still its own first (the associator does match such particles, e.g. a brem photon to
+    its own ECAL cluster);
+  - a particle with no hits in the file at all (it never entered the calorimeter, and none of its descendants did)
+    still shows its matches, with no bars.
 
   Separating a brem photon's deposits from its electron's needs a direct-hits table from CMSSW
   ([Truth graph](truth-graph.md), gap 2).
 - **The reco side is per detector**: in each detector the branch left hits in, the kind the associator matches there
   (HGCal: the last trackster stage with a match, the candidates' tracksters; ECAL and HCAL: PF clusters; the
-  tracker: tracks), and its **matches**: the objects that the TruthToReco association rates best for the branch's
-  particles. A selected object that is not one of them (a fragment) shows as split off.
+  tracker: tracks), and its **matches**: the object that the TruthToReco association rates best for the selected
+  particle, and those it rates best for the branch's particles that entered the calorimeter. A selected object that is
+  not one of them (a fragment) shows as split off. A vertex, which only points at its tracks, opens no pair.
 - **A detector without an association is shown, not compared** (HF and HO hits: no PF-cluster associator, gap 15).
   Kinds made of matched objects (PF candidates, jets, TICL candidates, muons) have no association of their own and are
   not part of the pair; their parts are.

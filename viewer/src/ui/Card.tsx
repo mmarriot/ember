@@ -209,8 +209,9 @@ function TruthSide({ table, row }: { table: string; row: number }) {
         complete first.
       </p>
       <p>
-        <b>%</b>: the share of this particle that the object holds, by the associator: of its simulated energy in that
-        detector (calorimeters; deposited in the sensors, not calibrated), or of its tracker hits (tracks).{" "}
+        <b>%</b>: the share of this particle that the object holds, by the associator: of its energy in that detector
+        (calorimeters: each cell's rechit energy, split between the particles by the simulated energy they left in it),
+        or of its tracker hits (tracks).{" "}
         <span class="ok">★</span>: it is that object's own best match.
       </p>
       <p>
@@ -252,7 +253,7 @@ function TruthSide({ table, row }: { table: string; row: number }) {
                   ? `hits${r.in ? ` in the ${r.in}` : ""} (with its secondaries')`
                   : r.measure === "pt2"
                     ? "findable tracks (pT²)"
-                    : `simulated energy${r.in ? ` in ${r.in}` : ""}`;
+                    : `energy${r.in ? ` in ${r.in}` : ""}`;
               return (
                 <li class="rung below">
                   <div class="rhead">

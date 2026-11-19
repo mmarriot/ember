@@ -336,8 +336,10 @@ cluster, a trackster), or a hit shows its truth ↔ reco pair (`viewer/src/model
 [Truth](truth.md#the-pair-view) has the rules; in short:
 
 - **Truth: one branch.** The selected particle and everything below it. A reco object takes its best match (the
-  associator's), a hit the particle that left the most simulated energy in it. Never its siblings, never the generator
-  particle above it: to see a larger branch (a W's, a B hadron's), select the parent in the card's lineage.
+  associator's), a hit the particle that left the most simulated energy in it. Not its siblings, not the generator
+  particle above it: to see a larger branch (a W's, a B hadron's), select the parent in the card's lineage. A particle
+  inside another's shower (a brem photon) has no hits of its own in the file: the pair shows that shower's, and says
+  so; its matches stay its own.
 - **Reco: per detector.** In each detector the branch left hits in, the kind the associator matches there (HGCal: the
   candidates' tracksters; ECAL, HCAL: PF clusters; the tracker: tracks) and the branch's best matches among them. A
   detector whose reco has no association (HF, HO) is drawn, but not compared.

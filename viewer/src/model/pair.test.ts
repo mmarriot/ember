@@ -6,7 +6,8 @@ import { PAIR, pairFor, pairShows } from "./pair";
 // LC -> hits: LC0 -> H0, H1; LC1 -> H2; LC2 -> H3; LC3 -> H4. H5 is in no cluster.
 // Truth: P4 (e.g. a pion that interacted in the tracker, no hits of its own) -> P0, P2, its products that entered the
 // calorimeter; P1 -> P3 (inside P1's shower: no hits of its own). Hits: P0 left H0, H1, H4; P2 left H3; P1 left H2, H5. HF: hit F0 from P0, in an HF cluster without truth.
-// Tracker: track T0 is P2's (a daughter's track); its hits TH0, TH1. A candidate C holds K0 (no association).
+// Tracker: track T0 is P2's (a daughter's track); its hits TH0, TH1. A candidate C holds K0 (no association). A
+// vertex V points at T0 and back (it is no part of anything). P3, inside P1's shower, has its own best: K2.
 const csr = (rows: number[][], weights: Record<string, number[]> = {}) => ({
   offsets: Uint32Array.from(rows.reduce((o, r) => [...o, o[o.length - 1] + r.length], [0])),
   indices: Uint32Array.from(rows.flat()),
@@ -22,6 +23,7 @@ const ev = {
     HFC: { n: 1, columns: {} },
     F: { n: 2, columns: { energy: Float32Array.from([1, 1]) } },
     T: { n: 1, columns: { nhits: Float32Array.from([2]) } },
+    V: { n: 1, columns: {} },
     TH: { n: 2, columns: {} },
     P: { n: 5, columns: { energy: Float32Array.from([50, 20, 10, 5, 60]) } },
   },
@@ -31,11 +33,13 @@ const ev = {
     lcHits: csr([[0, 1], [2], [3], [4]]),
     hfHits: csr([[0]]),
     tHits: csr([[0, 1]]),
+    vTracks: csr([[0]]),
+    trackV: csr([[0]]),
     kids: csr([[], [3], [], [], [0, 2]]),
     truthHits: csr([[0, 1, 4], [2, 5], [3], [], []], { simEnergy: [1, 1, 1, 1, 1, 1] }),
     truthF: csr([[0], [], [], [], []], { simEnergy: [2] }),
     kTruth: csr([[0], [2], [0], []], { score: [0, 0, 0.5], shared: [2, 1, 1] }),
-    truthK: csr([[0, 2], [0], [1], [], []], { f: [0.6, 0.1, 0.3, 0.9] }),
+    truthK: csr([[0, 2], [0], [1], [2], []], { f: [0.6, 0.1, 0.3, 0.9, 0.2] }), // P3's own best: K2
     tTruth: csr([[2]], { score: [0], nShared: [2] }),
     truthT: csr([[], [], [0], [], []], { nShared: [2] }),
   },
@@ -50,6 +54,8 @@ const header = {
     lcHits: rel("LC", "Hit"),
     hfHits: rel("HFC", "F"),
     tHits: rel("T", "TH"),
+    vTracks: rel("V", "T"),
+    trackV: rel("T", "V", { inverseOf: "vTracks" }),
     kids: rel("P", "P"),
     truthHits: fact("P", "Hit", "HGCal"),
     truthF: fact("P", "F", "HF"),
@@ -77,6 +83,7 @@ const header = {
     { table: "C", repr: "ellipsoids", stage: 1, truthGap: { reason: "no candidate associator" } },
     { table: "T", repr: "helix" },
     { table: "TH", repr: "markers" },
+    { table: "V", repr: "markers" },
     { table: "P", repr: "segments", truth: true, colour: "energy" },
   ] as DisplayLayer[],
 } as unknown as Header;
@@ -123,11 +130,40 @@ describe("truth <-> reco pair", () => {
     expect(p.detectors.some((d) => d.in === "HF")).toBe(false); // its sibling P0's HF hit is not its own
     expect(cls(p, "P")).toEqual([other, other, matched, other, other]); // neither its parent nor its sibling
   });
-  it("for a particle inside another's shower, shows that shower's hits and says so", () => {
+  it("for a particle inside another's shower, shows that shower's hits, and its own match first", () => {
     const p = pair("P", 3);
     expect([p.particle, p.hitsOf]).toEqual([3, 1]);
     expect(cls(p, "P")).toEqual([other, branch, other, matched, other]);
     expect(cls(p, "Hit")).toEqual([contamination, contamination, matched, other, other, missed]);
+    expect(det(p, "HGCal").matches.sort()).toEqual([0, 2]); // its own best (K2) and its shower's (K0)
+    expect(cls(p, "K")).toEqual([matched, other, matched, other]); // K1 is not the branch's: never split
+  });
+  it("keeps a matched object's pair when its particle left no hits in the file", () => {
+    const oev = {
+      ...ev,
+      tables: { ...ev.tables, P: { n: 6, columns: { energy: Float32Array.from([50, 20, 10, 5, 60, 1]) } } },
+      relations: {
+        ...ev.relations,
+        kids: csr([[], [3], [], [], [0, 2], []]),
+        truthHits: csr([[0, 1, 4], [2, 5], [3], [], [], []], { simEnergy: [1, 1, 1, 1, 1, 1] }),
+        truthF: csr([[0], [], [], [], [], []], { simEnergy: [2] }),
+        kTruth: csr([[0], [2], [0], [5]], { score: [0, 0, 0.5, 0.1], shared: [2, 1, 1, 1] }),
+        truthK: csr([[0, 2], [0], [1], [2], [], [3]], { f: [0.6, 0.1, 0.3, 0.9, 0.2, 0.4] }),
+        truthT: csr([[], [], [0], [], [], []], { nShared: [2] }),
+      },
+    } as unknown as EventData;
+    const p = pairFor(oev, header, { table: "K", row: 3 }, "P")!;
+    expect([p.particle, p.hitsOf, pairShows(p)]).toEqual([5, -1, true]);
+    const hg = p.detectors.find((d) => d.in === "HGCal")!;
+    expect([hg.matches, hg.sim?.own, hg.sim?.descendants]).toEqual([[3], 0, 0]);
+    expect([...p.classes.get("K")!]).toEqual([other, other, other, matched]);
+  });
+  it("opens no pair for a vertex (it only points at its tracks) and survives an event without an association", () => {
+    expect(pairFor(ev, header, { table: "V", row: 0 }, "P")).toBeNull();
+    const { truthK: _, ...rels } = ev.relations;
+    const p = pairFor({ ...ev, relations: rels } as unknown as EventData, header, { table: "P", row: 4 }, "P")!;
+    expect(det(p, "HGCal").matches).toEqual([]);
+    expect(pairFor({ ...ev, relations: rels } as unknown as EventData, header, { table: "K", row: 0 }, "P")?.particle).toBe(0);
   });
   it("gives a reco object its best match's pair, and a fragment shows as split", () => {
     const p = pair("K", 2);
@@ -157,7 +193,7 @@ describe("truth <-> reco pair", () => {
         kids: csr([[], [3], [], [], [0, 2], []]),
         truthHits: csr([[0, 1, 4], [2, 5], [3], [], [], []], { simEnergy: [1, 1, 1, 1, 1, 1] }),
         truthF: csr([[0], [], [], [], [], []], { simEnergy: [2] }),
-        truthK: csr([[0, 2], [0], [1], [], [], []], { f: [0.6, 0.1, 0.3, 0.9] }),
+        truthK: csr([[0, 2], [0], [1], [2], [], []], { f: [0.6, 0.1, 0.3, 0.9, 0.2] }),
         truthT: csr([[], [], [0], [], [], []], { nShared: [2] }),
       },
     } as unknown as EventData;

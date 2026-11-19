@@ -189,7 +189,8 @@ export function HelpDialog() {
         particle it comes from, the same in every part of the detector (a conversion's electrons and an interacting
         pion's daughters take their particle's colour); a reco object takes its particle's colour only where it is a
         clean match (e.g. 75% of a track's hits), else grey. Selecting a truth particle, a matched reco object or a
-        hit shows its truth ↔ reco pair: the particle's branch (it and everything below it) and, in each detector, the
+        hit shows its truth ↔ reco pair: the particle's branch (it and everything below it; for a particle inside another's
+        shower, that shower's hits) and, in each detector, the
         reco objects the associator rates best for it, every hit coloured shared, contamination, split off or missed,
         with bars in the card that name the energy they count. A detector whose reco has no association is shown, not
         compared. Each step of the card's chain says what the truth graph has for it: match (the CMSSW associator's,

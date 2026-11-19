@@ -36,7 +36,8 @@ export function PairBars() {
       ))}
     </div>
   );
-  const kindName = (t: string) => labelOf(t).toLowerCase();
+  const kindName = (t: string) => labelOf(t).toLowerCase(),
+    shower = pair.hitsOf >= 0 && pair.hitsOf !== pair.particle;
   const detector = (d: PairDetector) => {
     const sim = d.sim,
       total = sim ? sim.own + sim.descendants : 0;
@@ -52,7 +53,7 @@ export function PairBars() {
     const who: Part[] = sim
       ? [
           [sim.own, pal.pair[PAIR.matched], pair.hitsOf === pair.particle ? "its own shower" : "the shower it is in"],
-          [sim.descendants, pal.pair[PAIR.branch], "its descendants'"],
+          [sim.descendants, pal.pair[PAIR.branch], "its descendants' showers"],
         ]
       : [];
     const reco = d.reco,
@@ -97,7 +98,9 @@ export function PairBars() {
         {sim && total > 0 && (
           <>
             <div class="pairhead">
-              <span class="muted">simulated energy of the branch: {short(total)} GeV, not calibrated</span>
+              <span class="muted">
+                simulated energy of {shower ? "the shower it is in" : "the branch"}: {short(total)} GeV, not calibrated
+              </span>
             </div>
             {bar(where, total)}
             {legend(where, total)}
@@ -105,10 +108,19 @@ export function PairBars() {
           </>
         )}
         {!sim && <p class="hint">No simulated energy per tracker hit in the file: the match's own numbers are under it.</p>}
+        {sim && total <= 0 && (
+          <p class="hint">
+            The file has no simulated hits of it here (only particles that entered the calorimeter have them): the match
+            is the associator's alone.
+          </p>
+        )}
         {reco && recoTotal > 0 && (
           <>
             <div class="pairhead">
-              <span class="muted">its match's rechit energy: {short(recoTotal)} GeV, each hit split by its simulated shares</span>
+              <span class="muted">
+                its match's hits, sum of their rechit energy: {short(recoTotal)} GeV, each hit split by its simulated
+                shares
+              </span>
             </div>
             {bar(recoParts, recoTotal)}
             {legend(recoParts, recoTotal)}
@@ -176,7 +188,8 @@ export function PairBars() {
       {pair.hitsOf >= 0 && pair.hitsOf !== pair.particle && (
         <p class="hint">
           {c(pair.truth, pair.particle)} is inside the shower of {c(pair.truth, pair.hitsOf)}, which entered the
-          calorimeter: the file has no hits of its own for it, so the hits shown are that shower's.
+          calorimeter: the file has no hits of its own for it, so the hits and energies shown are that whole shower's
+          (gap 2). Its matches are its own (the associator's) first.
         </p>
       )}
       {pair.particle >= 0 && pair.hitsOf < 0 && (

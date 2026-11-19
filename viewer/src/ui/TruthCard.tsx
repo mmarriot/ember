@@ -120,7 +120,7 @@ export function TruthCard({ table, row }: { table: string; row: number }) {
             ? "tracker hits, its secondaries' included,"
             : c.match.measure === "pt2"
               ? "findable tracks (pT²)"
-              : `simulated energy in ${c.match.in} (deposited in the sensors, not calibrated: the associator's sim-normalised fraction)`}{" "}
+              : `energy in ${c.match.in} (each cell's rechit energy, split between the particles by the simulated energy they left in it)`}{" "}
           that this object has.
         </p>
       )}
@@ -178,7 +178,7 @@ export function TruthCard({ table, row }: { table: string; row: number }) {
               <Meter
                 name="completeness"
                 value={c.value}
-                note={`of the ${particles ? "particle's" : "truth vertex's"} ${c.match.measure === "hits" ? "tracker hits" : c.match.measure === "pt2" ? "tracks (pT²)" : `simulated energy in ${c.match.in}`}`}
+                note={`of the ${particles ? "particle's" : "truth vertex's"} ${c.match.measure === "hits" ? "tracker hits" : c.match.measure === "pt2" ? "tracks (pT²)" : `energy in ${c.match.in}`}`}
               />
             )}
           </div>

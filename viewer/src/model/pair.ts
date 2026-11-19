@@ -14,7 +14,7 @@
 //   are not drawn as part of the pair: they have no truth of their own.
 import type { EventData, Header, RelationInfo } from "../io/format";
 import { facts } from "./facts";
-import { byHit } from "./match";
+import { byHit, truthStatus } from "./match";
 import { type ColourBy, modeColouring } from "./modes";
 import { backPointers, bestPartners, cached, contentPartners, identities, type Ref, type Related } from "./relations";
 
@@ -195,20 +195,24 @@ export function pairFor(ev: EventData, header: Header, focus: Ref, truth: string
     const info = header.relations[fact.name];
     particle = bestPartners(ev.relations[fact.name], info, false, ev.tables[focus.table]?.n ?? 0).partner[focus.row];
   } else {
-    // a matched kind's object, or a part drawn with one (a track's hits: the track)
+    // a matched kind's object, or a part drawn with what contains it (a track's hits: the track; not a vertex, which
+    // only points at its tracks: model/match.ts truthStatus)
     let ref: Ref | undefined = matches.has(focus.table) ? focus : undefined;
-    const gap = header.display.find((d) => d.table === focus.table)?.truthGap; // a kind with no truth of its own
-    if (!ref && !gap)
-      for (const [name, info] of Object.entries(header.relations)) {
-        const rel = ev.relations[name];
-        if (!rel || info.association || info.to !== focus.table || !matches.has(info.from)) continue;
-        const row = bestPartners(rel, info, false, ev.tables[focus.table]?.n ?? 0).partner[focus.row];
-        if (row >= 0) ref = { table: info.from, row };
-        break;
+    const status = ref ? undefined : truthStatus(header, focus.table);
+    if (status?.kind === "container") {
+      const info = header.relations[status.relation],
+        rel = ev.relations[status.relation],
+        up = info?.from === focus.table ? info.to : info?.from;
+      if (rel && up && matches.has(up)) {
+        const row = bestPartners(rel, info, info.from === focus.table, ev.tables[focus.table]?.n ?? 0).partner[
+          focus.row
+        ];
+        if (row >= 0) ref = { table: up, row };
       }
-    if (!ref) return null;
+    }
+    const [name, info] = (ref && matches.get(ref.table)) || [];
+    if (!ref || !name || !info || !ev.relations[name]) return null;
     from = ref;
-    const [name, info] = matches.get(ref.table)!;
     particle = bestPartners(ev.relations[name], info, true, ev.tables[ref.table]?.n ?? 0).partner[ref.row];
   }
   const classes = new Map<string, Uint8Array>();
@@ -288,7 +292,7 @@ export function pairFor(ev: EventData, header: Header, focus: Ref, truth: string
     from && matches.get(from.table)?.[1].match?.in === where ? from.table : comparedKind(header, truth, where);
   const bestOf = (kind: string, particles: number[]) => {
     const t2r = truthToReco(header, truth, kind);
-    if (!t2r) return [];
+    if (!t2r || !ev.relations[t2r[0]]) return [];
     const best = bestPartners(ev.relations[t2r[0]], t2r[1], true, nTruth).partner,
       out = new Set<number>();
     for (const p of particles) if (best[p] >= 0) out.add(best[p]);
@@ -302,7 +306,9 @@ export function pairFor(ev: EventData, header: Header, focus: Ref, truth: string
     const kind = kindIn(where),
       det: PairDetector = { in: where, kind, gaps: [], matches: [] };
     const sim = { own: 0, descendants: 0, inMatch: 0, inOthers: 0, inNone: 0 };
-    const inMatch = kind ? madeOf(ev, header, kind, (det.matches = bestOf(kind, top))) : new Map();
+    // Its matches: the particle's own best (the associator's answer for it, also below the calorimeter boundary, e.g.
+    // a brem photon's ECAL cluster), then those of its particles that entered the calorimeter.
+    const inMatch = kind ? madeOf(ev, header, kind, (det.matches = bestOf(kind, [particle, ...top]))) : new Map();
     for (const f of fs) {
       const info = header.relations[f.name],
         rel = ev.relations[f.name],
@@ -377,10 +383,12 @@ export function pairFor(ev: EventData, header: Header, focus: Ref, truth: string
   function markKind(kind: string, m: number[], parts: Related) {
     const c = classOf(kind),
       [name, info] = matches.get(kind)!,
-      best = bestPartners(ev.relations[name], info, true, ev.tables[kind]?.n ?? 0).partner,
+      rel = ev.relations[name],
+      best = rel ? bestPartners(rel, info, true, ev.tables[kind]?.n ?? 0).partner : new Int32Array(0),
       holder = (t: string) => header.display.some((d) => d.table === t && d.truth);
-    for (let i = 0; i < c.length; i++)
-      if (best[i] >= 0 && (inBranch[best[i]] || inHits[best[i]])) c[i] = PAIR.split;
+    // matched to a particle of the branch (not of the shower that stands in for it: an ancestor's other matches are
+    // not the branch's)
+    for (let i = 0; i < best.length; i++) if (best[i] >= 0 && inBranch[best[i]]) c[i] = PAIR.split;
     for (const [t, rows] of parts) {
       if (t === kind || holder(t) || allFacts.some((f) => f.to === t)) continue;
       const pc = classOf(t);

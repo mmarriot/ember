@@ -4,7 +4,7 @@
 //   only from its parts (beside: a secondary vertex whose tracks are all in the jet); each step with its link to the
 //   truth, in the words of docs/truth.md: matched by CMSSW, a simulation fact, or no truth for the kind;
 // - a truth object: per reco kind with an association, what was reconstructed from it (and where nothing was).
-// Nothing here is a new truth statement: the links are the associations, facts and stand-ins the bundle already has,
+// Nothing here is a new truth statement: the links are the associations and facts the bundle already has,
 // counted per step. A kind that gains an associator in CMSSW gets a relation with a `match` hint in its profile, and
 // its steps then show that match instead of "no truth" with no change here.
 import { type DisplayLayer, type EventData, type Header, kindName } from "../io/format";

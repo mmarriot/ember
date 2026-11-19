@@ -80,7 +80,14 @@ export function ColourKey() {
           {CLASSES.filter(([c]) => shown.has(c)).map(([c, name, what]) => (
             <li>
               <i style={{ background: pal.pair[c] }} />
-              <b>{name}</b>: <span>{c === PAIR.reco && pair.particle < 0 ? "no truth particle: nothing confirmed" : what}</span>
+              <b>{name}</b>:{" "}
+              <span>
+                {c === PAIR.reco && pair.particle < 0
+                  ? "no truth particle: nothing confirmed"
+                  : pair.hitsOf >= 0 && pair.hitsOf !== pair.particle
+                    ? what.replace("the branch's", "the shower's")
+                    : what}
+              </span>
             </li>
           ))}
           <li>

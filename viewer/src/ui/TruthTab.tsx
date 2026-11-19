@@ -316,7 +316,7 @@ function ByDetector({ table }: { table: string }) {
     const kind = comparedKind(b.header, table, w),
       t2r = kind ? truthToReco(b.header, table, kind) : undefined,
       rels = facts(b.header).filter((f) => f.from === table && f.in === w && ev.relations[f.name]);
-    const best = t2r ? bestPartners(ev.relations[t2r[0]], t2r[1], true, t.n) : undefined;
+    const best = t2r && ev.relations[t2r[0]] ? bestPartners(ev.relations[t2r[0]], t2r[1], true, t.n) : undefined;
     const has = (r: number) => rels.some((f) => ev.relations[f.name].offsets[r + 1] > ev.relations[f.name].offsets[r]);
     return { in: w, kind, best, weight: t2r?.[1].best?.weight, rel: t2r && ev.relations[t2r[0]], has };
   });

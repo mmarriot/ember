@@ -4,7 +4,6 @@
 // profile. Used by the "pid" colour mode (everything takes its candidate's colour) and by the pair view
 // (model/pair.ts: which candidate and which truth particle each object belongs to); the signals are in store/colours.ts.
 import type { DisplayLayer, Header, RelationInfo } from "../io/format";
-import { factIn } from "./facts";
 
 export type ColourBy = NonNullable<DisplayLayer["colourBy"]>;
 
@@ -96,12 +95,7 @@ export function modeColouring(header: Header, root: string, truthRoot = false): 
           !p.association &&
           p.from === table &&
           !inverse(p) &&
-          rels.some(
-            ([n, a]) =>
-              a.from === root &&
-              a.to === p.to &&
-              (truthRoot ? factIn(header, n) !== undefined : a.association || staged(table)),
-          ),
+          rels.some(([, a]) => a.from === root && a.to === p.to && (a.association || staged(table))),
       );
     if (content) {
       out[table] = { content: root };

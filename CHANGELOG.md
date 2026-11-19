@@ -107,7 +107,8 @@ with a message while an old one is set without its new name. `deploy.sh` links `
   superclusters their hits back in these files), and reads NanoAOD singleton tables.
 - A bundle without truth (data, standard NanoAOD) no longer opens a truth and reco pair.
 - **The truth and reco pair compares one branch, per detector.** Selecting a truth particle shows that particle and
-  everything below it (never its siblings or the generator particle above it), and in each detector the reco kind
+  everything below it (not its siblings or the generator particle above it; a particle inside another's shower, which
+  has no hits of its own in the file, shows that shower's, and says so), and in each detector the reco kind
   the associator matches there (HGCal tracksters, ECAL and HCAL PF clusters, tracks) with its best matches. A detector
   without an association (HF, HO) is shown, not compared; PF candidates, jets and TICL candidates open no pair. The
   card names each energy: simulated (not calibrated) or rechit. Before, with PF candidates as the colour root, no

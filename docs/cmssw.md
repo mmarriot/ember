@@ -43,10 +43,9 @@ events and the settings written in it. `cmsRun FILE.py` runs it again in the sam
 # Phase 2 simulation: era Phase2C22I13M9, geometry ExtendedRun4D104, conditions 201X_mcRun4_realistic_v1
 # Left out (not in the input, or not in this release):
 #   - the hits of clusters: this release has no CaloClusterHitsTableProducer, PFClusterHitsTableProducer,
-#     SuperClusterHitsTableProducer (in CMSSW after the pull request 'NanoAOD tables of the hits of calorimeter
-#     clusters')
-#   - this release has no TruthGraphFlatTableProducer, TruthGraphHitFlatTableProducer (the truth tables: in CMSSW
-#     after the pull request 'NanoAOD tables of the MC-truth graph')
+#     SuperClusterHitsTableProducer (add them with git cms-merge-topic mmarriot:nanoaod-cluster-hits)
+#   - this release has no TruthGraphFlatTableProducer, TruthGraphHitFlatTableProducer (add them with git
+#     cms-merge-topic mmarriot:truthgraph-nano-tables)
 import FWCore.ParameterSet.Config as cms
 
 ...
@@ -123,11 +122,12 @@ When your release has them and the input holds the graph, `ember_cfg.py` writes:
   left in each hit of `rechits` and `pfrechits`, from the graph's hit index;
 - `<Key>ToTruth` and `TruthTo<Key>`, with their `...Links` tables: the reco ↔ truth associations in both directions,
   for the collections that the release's label registry names: general tracks, the trackster collections, ECAL and
-  HCAL PF clusters, primary and secondary vertices. The `truth` profile draws all but the vertex ones, as `ember`
-  writes only the leading primary vertex.
+  HCAL PF clusters. The release also has vertex associations: `ember_cfg.py` leaves them out, as `ember` writes only
+  the leading primary vertex.
 
 The associations come from the maps the input holds, when it has them (the TICL v6 samples were made with the
-associators), and no associator runs. Otherwise CMSSW's associators run in the job. `--no-truth-associators` skips
+associators), and no associator runs; the header names the tables whose maps the input lacks. Otherwise CMSSW's
+associators run in the job. `--no-truth-associators` skips
 them: the bundle then has the graph and the hit energies, but no reco ↔ truth matches.
 
 **Which inputs have it.** The Phase-2 eras carry the process modifier `enableTruth`. With it, the DIGI step builds the
@@ -137,9 +137,11 @@ one). AOD, MiniAOD, NanoAOD, premixed pile-up, FastSim and Run 3 files have no t
 without it, the header of `ember_cfg.py` says so.
 
 **What it costs**, on Phase-2 ttbar at 200 pile-up (3 events, 4 threads): the job takes 3.1 s per event with the
-associators, 2.1 s without them (`--no-truth-associators`), and 0.7 s without truth. The associators take 1.8 s per
-event for the tracks, 1.0 s for the tracksters and 0.25 s for the PF clusters, and the truth tables 0.14 s; the rest is
-reading the stored graph and hit index. The bundle is 17.0 MB per event instead of 5.9 (both with the cluster hits).
+associators, 2.1 s without them (`--no-truth-associators`), and 0.7 s without truth. Summed over the threads, the
+associators take 1.8 s per event for the tracks, 1.0 s for the tracksters and 0.25 s for the PF clusters (3 s of CPU
+for 1 s of wall time, as they run beside the rest), and the truth tables 0.14 s; the rest is reading the stored graph
+and hit index. The bundle is 17.0 MB per event instead of 5.9 (both with the cluster hits), and 14.0 MB without the
+associators.
 Without pile-up, a job of 10 events takes 29 s with truth and 28 s without.
 
 ## The CMSSW branches
@@ -149,8 +151,8 @@ Add them to a CMSSW_20_1_X area with `git cms-merge-topic` ([How-to](how-to.md#g
 
 | branch | what it adds | state |
 |---|---|---|
-| `mmarriot:nanoaod-cluster-hits` (the pull request that `ember`'s messages call "NanoAOD tables of the hits of calorimeter clusters") | PhysicsTools/NanoAOD: `CaloClusterHitsTableProducer`, `PFClusterHitsTableProducer`, `SuperClusterHitsTableProducer`. For any `reco::CaloCluster`, `reco::PFCluster` or `reco::SuperCluster` collection, a hit count on the cluster table, and a table of `detId` and `fraction` (from `hitsAndFractions()`). At 200 pile-up, the layer-cluster hits take 0.006 s per event. | pushed; the pull request to CMSSW is not open yet |
-| `mmarriot:truthgraph-nano-tables` ("NanoAOD tables of the MC-truth graph") | PhysicsTools/TruthInfo and SimGeneral/TruthGraphAssociatorProducers: the truth graph tables above (`TruthGraphFlatTableProducer`, `TruthGraphHitFlatTableProducer`, `truthGraphNanoTables_cff`) | pushed; it builds on [cms-sw/cmssw#52451](https://github.com/cms-sw/cmssw/pull/52451) and contains its commits. Its pull request follows when #52451 is merged. |
+| `mmarriot:nanoaod-cluster-hits` | PhysicsTools/NanoAOD: `CaloClusterHitsTableProducer`, `PFClusterHitsTableProducer`, `SuperClusterHitsTableProducer`. For any `reco::CaloCluster`, `reco::PFCluster` or `reco::SuperCluster` collection, a hit count on the cluster table, and a table of `detId` and `fraction` (from `hitsAndFractions()`). At 200 pile-up, the layer-cluster hits take 0.006 s per event. | pushed; the pull request to CMSSW is not open yet |
+| `mmarriot:truthgraph-nano-tables` | PhysicsTools/TruthInfo and SimGeneral/TruthGraphAssociatorProducers: the truth graph tables above (`TruthGraphFlatTableProducer`, `TruthGraphHitFlatTableProducer`, `truthGraphNanoTables_cff`) | pushed; it builds on [cms-sw/cmssw#52451](https://github.com/cms-sw/cmssw/pull/52451) and contains its commits. Its pull request follows when #52451 is merged. |
 
 ## What it costs
 

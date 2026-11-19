@@ -37,7 +37,8 @@ and remembers it in this browser. Click "not you?" to make it forget.
 
 - An address with no data set in it opens the newest shared data set. If there is none, it opens your newest file.
 - A site with no data set at all shows a start panel. It says what the page is and gives the three ways to get
-  events in: publish a file, open a local file, or follow a link.
+  events in: convert a file with `ember` (published to the site only where the site is set up for it), open a local
+  file, or follow a link.
 - A link to a file that cannot be opened shows a panel. It says why: the file is gone (expired or removed), access
   was refused, the file could not be reached, or it is not a bundle. It also says whose file it was and what to do.
   If a data set is already on screen, it stays, and the reason appears as a message.

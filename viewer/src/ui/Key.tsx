@@ -125,6 +125,10 @@ function PidKey() {
         {roots.truth ? "Select anything for its truth ↔ reco pair " : "The reconstruction's particle type "}
         <Info title="Colour = candidate type">
           <p>The reconstruction's particle type: everything a candidate is made of takes its colour.</p>
+          <p>
+            One colour per type in every layer: PF and TICL candidates of a type look the same, and so do the
+            electrons, muons and photons of the physics objects.
+          </p>
         </Info>
       </p>
     </>

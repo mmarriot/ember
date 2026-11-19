@@ -37,6 +37,21 @@ export const PALETTES = {
     // Identity colouring with a `first` column (truth particles: signal first): keys without it (pile-up). A warm grey
     // between "other" and "unassigned" (no truth) in lightness, so that it differs from both by its tint too.
     pileup: "#bdb2a3",
+    // One colour per particle type, by name (`typeColour`): the same in every layer, whatever the order of a
+    // category's `names`. "jet" is the jets' kind. Charged hadron and electron, both tracks, are at least 50 CIEDE2000
+    // apart in both themes, also in simulated protan/deutan/tritan vision (Machado 2009); the weakest pairs are types
+    // apart in the detector (HF ones, |η| > 3: 10).
+    types: {
+      "charged hadron": "#C06A00",
+      electron: "#1565C0",
+      muon: "#C62828",
+      photon: "#5FA8D3",
+      "neutral hadron": "#0B8A5E",
+      "neutral pion": "#A8327F",
+      "HF hadron": "#4E7F6E",
+      "HF EM": "#6C8A9C",
+      jet: "#A898C8", // a cone is a large translucent area: as light as on the dark theme
+    },
     // The pair view (model/pair.ts), by class: other, matched, contamination, split, missed, reco (part of a match,
     // no truth statement of its own: neutral), branch (the branch's other particles), uncompared (the branch's hits
     // where no reco kind has an association).
@@ -66,6 +81,17 @@ export const PALETTES = {
     identity: ["#E69F00", "#56B4E9", "#009E73", "#D55E00", "#CC79A7", "#0072B2", "#F0E442"],
     other: "#68717c",
     pileup: "#625a50",
+    types: {
+      "charged hadron": "#E69F00",
+      electron: "#3D9BF0",
+      muon: "#E8414B",
+      photon: "#C2EBFF",
+      "neutral hadron": "#22C38E",
+      "neutral pion": "#E879C8",
+      "HF hadron": "#5E9C87",
+      "HF EM": "#7FA3B8",
+      jet: "#A898C8",
+    },
     pair: ["#3a424d", "#009E73", "#CC79A7", "#F0E442", "#D55E00", "#d9dde2", "#7fd6b0", "#8fa3c2"],
   },
 } as const;
@@ -132,6 +158,10 @@ export function valueRange(values: ArrayLike<number>): Range {
     : { scale: log ? "log" : "linear", lo: lo - 0.5, hi: lo + 0.5 };
 }
 
+/** The colour of a particle type by its name ("electron", "charged hadron"; "jet"), or undefined for another name. */
+export const typeColour = (pal: Pal, name: string | undefined): string | undefined =>
+  name !== undefined && Object.hasOwn(pal.types, name) ? (pal.types as Record<string, string>)[name] : undefined;
+
 /** Where a value lies on a range (0 at lo, 1 at hi; beyond them outside 0..1). */
 export const position = (r: Range, v: number) =>
   ((r.scale === "log" ? Math.log10(Math.max(v, 1e-12)) : v) - r.lo) / (r.hi - r.lo);
@@ -195,9 +225,9 @@ export function colours(
   const { range, layerFor = (table: string) => header.display.find((l) => l.table === table) } = opts;
   const out = new Float32Array(3 * t.n),
     cats = pal.categories.map(rgb);
-  // Named categories (e.g. a candidate's particle type) take the colour-blind-checked identity set first.
-  const named = [...pal.identity, ...pal.categories],
-    namedRgb = named.map(rgb);
+  // Named categories other than particle types (e.g. a hit's subdetector) take the colour-blind-checked identity set
+  // first.
+  const named = [...pal.identity, ...pal.categories];
   const set = (i: number, c: ArrayLike<number>, at = 0) => {
     out[3 * i] = c[at];
     out[3 * i + 1] = c[at + 1];
@@ -210,13 +240,15 @@ export function colours(
     return { rgb: out, legend: { kind: "category", text: "one colour per object" } };
   }
   // A kind's own colour (display hint `fixedColour`), also over "none", which bundles give as old viewers' fallback; the
-  // truth mode and a user's colour choice drop the hint (store/colours.ts shownLayer, custom.ts withColour).
+  // truth mode and a user's colour choice drop the hint (store/colours.ts shownLayer, custom.ts withColour). A kind
+  // named after a particle type (electrons, muons, photons; jets) takes that type's colour in this theme.
   if (d.fixedColour && (d.colourBy === undefined || d.colourBy === "none")) {
-    const c = rgb(d.fixedColour);
+    const colour = typeColour(pal, d.kind) ?? d.fixedColour,
+      c = rgb(colour);
     for (let i = 0; i < t.n; i++) set(i, c);
     return {
       rgb: out,
-      legend: { kind: "category", text: "its kind's colour", items: [{ label: d.label, colour: d.fixedColour }] },
+      legend: { kind: "category", text: "its kind's colour", items: [{ label: d.label, colour }] },
     };
   }
   if (d.colourBy === "none") {
@@ -253,25 +285,30 @@ export function colours(
     };
   }
   if (typeof d.colourBy === "object" && "category" in d.colourBy) {
-    // Colours follow the order of `names`, so a value keeps its colour from event to event. As an object, its integer
-    // keys come in increasing order (JavaScript orders them so, whatever the file says); as [value, name] pairs, as given.
+    // A value named after a particle type takes that type's colour (typeColour), so a PF and a TICL candidate of one
+    // type look the same. Other values follow the order of `names`, so a value keeps its colour from event to event. As
+    // an object, its integer keys come in increasing order (JavaScript orders them so, whatever the file says); as
+    // [value, name] pairs, as given.
     const { category: column, abs = false } = d.colourBy,
       col = t.columns[column];
     const list = Array.isArray(d.colourBy.names) ? d.colourBy.names : Object.entries(d.colourBy.names ?? {}),
-      names = Object.fromEntries(list);
+      names: Record<string, string> = Object.fromEntries(list);
     const order = list.map(([v]) => String(v)),
-      used = new Map<number, number>(); // value -> colour index
+      used = new Map<number, { k: number; colour: string; rgb: readonly number[] }>(); // value -> its place and colour
     for (let i = 0; i < t.n; i++) {
       const raw = col ? Number(col[i]) : 0,
         v = abs ? Math.abs(raw) : raw;
-      let k = used.get(v);
-      if (k === undefined)
-        used.set(v, (k = order.includes(String(v)) ? order.indexOf(String(v)) : order.length + used.size));
-      set(i, namedRgb[k % namedRgb.length]);
+      let u = used.get(v);
+      if (u === undefined) {
+        const k = order.includes(String(v)) ? order.indexOf(String(v)) : order.length + used.size,
+          colour = typeColour(pal, names[String(v)]) ?? named[k % named.length];
+        used.set(v, (u = { k, colour, rgb: rgb(colour) }));
+      }
+      set(i, u.rgb);
     }
     const items = [...used]
-      .sort((a, b) => a[1] - b[1])
-      .map(([v, k]) => ({ label: names[String(v)] ?? String(v), colour: named[k % named.length] }));
+      .sort((a, b) => a[1].k - b[1].k)
+      .map(([v, u]) => ({ label: names[String(v)] ?? String(v), colour: u.colour }));
     // Up to 16 values get a legend entry each; more (e.g. one colour per module) only tell neighbours apart.
     return {
       rgb: out,

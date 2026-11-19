@@ -120,7 +120,7 @@ console warning, and draws the others.
 | `axis`, `extent` | `ellipsoids`: principal-axis columns and eigenvalue columns |
 | `size` | `cells`: the column with the cell's half-width in cm (from centre to side), or null for 0.6 cm. The cell is drawn as a hexagon with its corners at that distance, so it fits inside the real cell and neighbours never overlap. `markers`: a column whose larger values draw larger discs (5 to 14 px over the bulk of its values; log scale when they are positive, as for `colour`). For example `sumPt2`, so that the primary vertex stands out among the pile-up vertices. |
 | `colour` | a numeric column for the colour scale over the bulk of the values: log scale when at least 95% of the finite values are positive (non-positive ones take the lowest colour), linear otherwise |
-| `fixedColour` | `"#rrggbb"`: one colour for every row, with no value scale, for example one per physics kind (jets amber, electrons green). It wins over `colourBy: "none"` (which a bundle may give as a fallback for an older viewer), but not over a colour mode's colouring or the user's colour choice. The truth colours ignore it. |
+| `fixedColour` | `"#rrggbb"`: one colour for every row, with no value scale, for example one per physics kind. A layer whose `kind` is named after a particle type (`electron`, `muon`, `photon`), or `jet`, takes the viewer's colour for it instead, in each theme (see the `category` value of `colourBy`), so an electron looks the same as a PF candidate that is an electron. It wins over `colourBy: "none"` (which a bundle may give as a fallback for an older viewer), but not over a colour mode's colouring or the user's colour choice. The truth colours ignore it. |
 | `palette` | the scale for `colour`: `heat` (default) or `cool` |
 | `colourBy` | a categorical colour, instead of `colour`. The values are listed below the table. |
 | `time` | the column with the arrival time in ns, used by the replay. Values ≤ -50 mean "no time". A column corrected for the time of flight (prompt particles near 0) is recognised and converted. |
@@ -174,7 +174,10 @@ console warning, and draws the others.
   `colour` if the relation is absent.
 - `{"category": column, "abs": bool, "names": {value: name}}`: one colour per value, in the order of `names`, which
   also label the legend. JavaScript puts the integer keys of an object in increasing order, so to keep another order,
-  give `names` as `[[value, name], ...]`.
+  give `names` as `[[value, name], ...]`. A value named after a particle type takes that type's colour instead,
+  whatever its place in `names`, so PF and TICL candidates of one type look the same: `charged hadron`, `electron`,
+  `muon`, `photon`, `neutral hadron`, `neutral pion`, `HF hadron`, `HF EM` (the viewer's table, one colour per theme,
+  `viewer/src/render/colour.ts`).
 
 **`grow`** (for `helix`): `{"parts": relation, "seed": n}`. The replay builds these paths from their parts, for
 example tracks from their hits (`trackHits`, whose `to` objects are stored in order along each path). This happens

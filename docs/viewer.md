@@ -303,7 +303,21 @@ explains it. [Truth](truth.md) gives the rules behind the truth colours and numb
 compared with.
 
 - **Reco** (the default for a bundle with candidates). Candidates are coloured by the particle type that the
-  reconstruction gave them. Everything they are made of takes the same colour: interpretations and tracks (their
+  reconstruction gave them, one colour per type in every layer: PF and TICL candidates of a type look the same, and
+  the physics objects (electrons, muons, photons) take their type's colour.
+
+  | type | dark theme | light theme |
+  |---|---|---|
+  | charged hadron | orange | orange |
+  | electron | blue | dark blue |
+  | muon | red | red |
+  | photon | pale blue | light blue |
+  | neutral hadron | green | green |
+  | neutral pion (TICL) | pink | magenta |
+  | HF hadron, HF EM | muted green, grey blue | muted green, grey blue |
+
+  Jets are lavender, a colour no type has, so the tracks inside a jet's cone stay visible. Everything candidates are
+  made of takes the same colour: interpretations and tracks (their
   candidate), tracksters and linked tracksters (the candidate that holds most of their layer clusters), layer
   clusters, and hits (their layer cluster's candidate). Objects in no candidate are small and grey. A layer that
   cannot reach a candidate (for example the vertices) is coloured by its colour column, or keeps its own categorical
@@ -376,9 +390,10 @@ The levels drawn on request are those of the matched object the pair comes from,
 
 ### Colour choices
 
-The colours are Okabe-Ito and Tol hues, checked for protan, deutan and tritan colour vision. Choosing a colour for one
-layer (in its **⋯**) overrides the particle type and the pair view for that layer. The replay keeps each candidate's
-colour throughout.
+The colours are Okabe-Ito and Tol hues, checked for protan, deutan and tritan colour vision. The particle types have
+fixed colours of their own, chosen so that charged hadrons and electrons, which both leave tracks, are far apart.
+Choosing a colour for one layer (in its **⋯**) overrides the particle type and the pair view for that layer. The
+replay keeps each candidate's colour throughout.
 
 ## The selection's card
 

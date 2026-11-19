@@ -34,9 +34,9 @@ export const PALETTES = {
     // "other", at least 17 CIELAB dE apart (dark set: 14.5; the categories above: 1.3).
     identity: ["#D55E00", "#2E8FCB", "#117733", "#CC6677", "#AA4499", "#332288", "#882255"],
     other: "#a3abb5",
-    // Identity colouring with a `first` column (truth particles: signal first): keys without it (pile-up), lighter
-    // than "other" and darker than "unassigned" (no truth).
-    pileup: "#b3bbc4",
+    // Identity colouring with a `first` column (truth particles: signal first): keys without it (pile-up). A warm grey
+    // between "other" and "unassigned" (no truth) in lightness, so that it differs from both by its tint too.
+    pileup: "#bdb2a3",
     // The pair view (model/pair.ts), by class: other, matched, contamination, split, missed, reco (part of a match,
     // no truth statement of its own: neutral), branch (the branch's other particles), uncompared (the branch's hits
     // where no reco kind has an association).
@@ -65,7 +65,7 @@ export const PALETTES = {
     ],
     identity: ["#E69F00", "#56B4E9", "#009E73", "#D55E00", "#CC79A7", "#0072B2", "#F0E442"],
     other: "#68717c",
-    pileup: "#4b535d",
+    pileup: "#625a50",
     pair: ["#3a424d", "#009E73", "#CC79A7", "#F0E442", "#D55E00", "#d9dde2", "#7fd6b0", "#8fa3c2"],
   },
 } as const;

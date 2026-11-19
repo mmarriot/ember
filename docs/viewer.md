@@ -320,7 +320,7 @@ compared with.
     neutral: Ember does not work out a particle for it from its hits;
   - layers with no link to the truth (vertices) are the "no truth" grey;
   - only signal generator particles get colours, by energy. The other signal particles are mid grey. Pile-up has its
-    own grey and is drawn small;
+    own warm grey and is drawn small;
   - hits in which no exported particle left energy are small and faint: noise, out-of-time pile-up, or a particle
     that was not exported.
 

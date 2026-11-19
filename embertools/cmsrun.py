@@ -134,7 +134,7 @@ def config(
     w.muon_system(pat)
     w.track_hits()
     w.mtd_rechits()
-    w.truth(associators, truth_maps or {}, set(drop))
+    w.truth(associators, truth_maps or {}, set(drop), pat)
     w.output(output, pat)
     return w.text(), w.notes
 
@@ -1052,14 +1052,15 @@ table("jetCHSTagTable", cms.EDProducer("JetTagTableProducer", src=cms.InputTag("
 
     # Truth
 
-    def truth(self, associators, maps, drop):
+    def truth(self, associators, maps, drop, pat=False):
         """The truth graph's tables (PhysicsTools/TruthInfo, git cms-merge-topic mmarriot:truthgraph-nano-tables),
         when the release has their producers and the input the graph: particles, vertices, children; the simulated
         energy of each particle in each hit of the hit tables written above; the reco <-> truth associations of
         particles and of vertices (`maps`: table label -> (module, instance) of its map). An input with maps of its own
         (made with the associators in its reconstruction) gives them, and no associator runs (they could need
         collections it lacks; its vertex maps are not read, as the truth vertices they match would have to be kept);
-        else the associators run, unless `associators` is false. The particles: the default selection plus every particle that entered the
+        else the associators run, unless `associators` is false. With `pat`, no vertex association: the PV and SV
+        tables are standard NanoAOD's (the leading vertex; slimmedSecondaryVertices), not the collections the maps index. The particles: the default selection plus every particle that entered the
         calorimeter, which carry the hits' energy."""
         inv = self.inv
         if not inv.has("truthLogicalGraphProducer"):
@@ -1084,6 +1085,8 @@ table("jetCHSTagTable", cms.EDProducer("JetTagTableProducer", src=cms.InputTag("
         # the maps the input holds (not those of a class this release cannot read, dropped on input)
         stored = {(p.module, p.instance) for p in inv.items if p not in drop}
         vertex = lambda label: "Vertices" in label  # e.g. truthGraphOfflinePrimaryVerticesToTruthTable
+        if pat:
+            maps = {label: key for label, key in maps.items() if not vertex(label)}
         held = sorted(label for label, key in maps.items() if key in stored and not vertex(label))
         names = lambda labels: ", ".join(sorted(re.sub(r"^truthGraph|Table$", "", label) for label in labels))
         tables = lambda labels: (
@@ -1116,7 +1119,7 @@ table("jetCHSTagTable", cms.EDProducer("JetTagTableProducer", src=cms.InputTag("
         # the truth vertices that the vertex maps match are kept, when the associators make those maps here
         keep = (
             ""
-            if associators and maps and not held
+            if associators and maps and not held and not pat
             else "\n    keepVerticesMatchedBy=[], keepVerticesMatchedByTruthToReco=[]  # no vertex maps\n"
         )
         self.add(

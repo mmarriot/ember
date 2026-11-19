@@ -592,6 +592,10 @@ def test_the_truth_tables_are_written_when_the_release_and_the_input_have_them()
     assert 'hitTable="recHitTable", hitIdColumn="rechit_ID", name="TruthHGCalRecHits"' in text
     assert 'hitTable="pfRecHitTable", hitIdColumn="rechit_ID", name="TruthPFRecHits"' in text
     assert "'truthGraphGeneralTracksToTruthTable'," in text and "truthGraphNanoAssociatorsTask" in text
+    # with --pat, PV and SV are standard NanoAOD's (not the collections the vertex maps index): no vertex association
+    text, _ = truth(PHASE2 + GRAPH, pat=True)
+    assert "VerticesToTruthTable" not in text and "keepVerticesMatchedBy=[]" in text
+    assert "'truthGraphGeneralTracksToTruthTable'," in text
     text, notes = truth(PHASE2 + GRAPH, associators=False)
     assert "truthGraphNanoAssociatorsTask" not in text and "ToTruthTable" not in text
     assert any("--no-truth-associators" in n for n in notes)

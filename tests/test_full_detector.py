@@ -121,6 +121,6 @@ def test_the_tables_of_every_cmssw_branch_are_drawn_and_linked():
     assert presets["Track time"]["colour"] == {
         "GeneralTrack": "t0",
         "PV": "t",
-        "RecHitBTL": "time",
-        "RecHitETL": "time",
+        "RecHitBTL": "t0",
+        "RecHitETL": "t0",
     }

@@ -589,7 +589,10 @@ table("gsfTrackTable", cms.EDProducer("SimpleGsfTrackFlatTableProducer", src=cms
         inv, rows = self.inv, []
         if pat:
             return
-        time = '\n        t=Var("t", "float", precision=10, doc="time [ns] (MTD)"),' if self.s.phase2 else ""
+        time = (
+            '\n        t=Var("t", "float", precision=10, doc="time [ns] (MTD)"),'
+            '\n        tError=Var("tError", "float", precision=8, doc="uncertainty of t [ns]; 0 or less: no time"),'
+        ) * self.s.phase2
         for label, name, src, doc, extra in [
             ("pvTable", "PV", "offlinePrimaryVertices", "offline primary vertices (row 0: the leading one)",
              '\n        ndof=Var("ndof", "float", precision=8, doc="number of degrees of freedom"),'

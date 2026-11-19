@@ -5,6 +5,10 @@
   "omit": ["rechits.rechit_radius"],
   "internal": ["linkedTracksters", "TICLCandidatesExtra", "TICLCandidatesTrackIdxs", "TICLCandidatesGsfTrackIdxs", "HGCalLayerClustersHits", "SuperClusterHGCalHits", "ticlTrackstersCLUE3DHighvertices", "ticlTrackstersCLUEsteringvertices", "ticlTracksterLinksvertices", "ticlTracksterLinksSuperclusteringDNNvertices", "ticlTracksterInterpretationsvertices", "ticlCandidatevertices"],
   "derive": [
+    {"table": "GeneralTrack", "nanUnless": ["sigmat0", ">", 0], "columns": ["t0"]},
+    {"table": "PV", "nanUnless": ["tError", ">", 0], "columns": ["t"]},
+    {"table": "RecHitBTL", "timeAtOrigin": "t0", "time": "time", "position": ["x", "y", "z"]},
+    {"table": "RecHitETL", "timeAtOrigin": "t0", "time": "time", "position": ["x", "y", "z"]},
     {"table": "rechits", "cell": "hgcal", "detId": "rechit_ID", "position": ["rechit_x", "rechit_y", "rechit_z"]},
     {"table": "pfrechits", "bits": {"det": ["rechit_ID", 28, 4], "subdet": ["rechit_ID", 25, 3]}},
     {"table": "pfrechits", "split": {"EBHits": [["det", "==", 3], ["subdet", "==", 1]], "HBHits": [["det", "==", 4], ["subdet", "==", 1]], "HOHits": [["det", "==", 4], ["subdet", "==", 3]], "HFHits": [["det", "==", 4], ["subdet", "==", 4]]}},
@@ -44,7 +48,7 @@
     "linkedTrackster": {"label": "Linked tracksters", "domain": "HGCal", "repr": "ellipsoids", "shape": "shell", "colourBy": "row", "visible": true},
     "interpretation": {"label": "Interpretations", "domain": "HGCal", "repr": "ellipsoids", "shape": "cage", "colourBy": "row", "visible": true},
     "candidateTrackster": {"label": "Candidate tracksters", "domain": "HGCal", "repr": "ellipsoids", "shape": "cage", "colourBy": "row", "visible": true},
-    "mtdHit": {"label": "MTD hits", "domain": "Tracker", "repr": "markers", "visible": false, "palette": "cool", "colour": "time", "time": "time", "size": null, "describe": {"columns": ["time"]}, "inspect": ["time", "timeError", "energy", "detId", "row", "column"], "truthGap": {"reason": "no truth table of MTD hits", "gap": 19}},
+    "mtdHit": {"label": "MTD hits", "domain": "Tracker", "repr": "markers", "visible": false, "palette": "cool", "colour": "t0", "time": "time", "size": null, "describe": {"columns": ["t0"]}, "inspect": ["t0", "time", "timeError", "energy", "detId", "row", "column"], "truthGap": {"reason": "no truth table of MTD hits", "gap": 19}},
     "candidate": {"label": "Candidates", "domain": "HGCal", "repr": "ellipsoids", "shape": "core", "visible": true, "colourBy": {"category": "pdgID", "abs": true, "names": {"22": "photon", "11": "electron", "13": "muon", "211": "charged hadron", "130": "neutral hadron", "111": "neutral pion"}}}
   },
   "display": [
@@ -88,7 +92,7 @@
     {"name": "Muon endcap", "r": [100, 700], "z": [565, 1080]}
   ],
   "presets": [
-    {"name": "Track time", "colour": {"GeneralTrack": "t0", "PV": "t", "RecHitBTL": "time", "RecHitETL": "time"}, "show": ["RecHitBTL", "RecHitETL"]}
+    {"name": "Track time", "colour": {"GeneralTrack": "t0", "PV": "t", "RecHitBTL": "t0", "RecHitETL": "t0"}, "show": ["RecHitBTL", "RecHitETL"]}
   ],
   "view": {"tour": "beam", "minRadius": 90}
 }

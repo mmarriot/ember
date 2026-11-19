@@ -137,14 +137,13 @@ export async function checkBundle(run, file, tag, state) {
       .innerText()
       .catch(() => "");
     // A bundle without truth opens no pair (src/model/store/selection.ts pairView), and neither does a kind with no
-    // truth of its own (src/model/match.ts truthStatus, opensPair): a truthGap and neither a match to a truth layer, a
-    // fact into it nor a derived match (e.g. a stock release's TICL candidates).
+    // truth of its own (src/model/pair.ts pairFor): a truthGap and neither a match to a truth layer nor a fact into it
+    // (e.g. a stock release's TICL candidates). Ember derives none (docs/truth.md).
     const rels = Object.values(h.relations),
       truthTables = new Set(h.display.filter((d) => d.truth).map((d) => d.table));
     const truthRoot = [...truthTables].some((t) => rels.some((r) => r.association && (r.from === t || r.to === t)));
     const ownTruth =
       !target.truthGap ||
-      !!target.truthGap.derived ||
       rels.some(
         (r) => (r.match && r.from === target.table && truthTables.has(r.to)) || (r.fact && r.to === target.table),
       );
@@ -501,34 +500,16 @@ async function checkLevels(page, h, target, fail, shot, tag) {
   await page.waitForTimeout(600);
   if ((await drawn()) !== before) fail("↑ did not go back to the focus's default layers");
   if ((await style()) !== style0) fail("↑ did not give the focus its own surface back");
-  // In the truth <-> reco pair view, the pair's particle shows the same picture as its candidate, with a level shown:
-  // the same layers, with the same surfaces.
+  // In the truth <-> reco pair view, the pair's particle opens its own pair (its branch, per detector): the card names
+  // it on the pair's truth line.
   const particle = page.locator(".inspector .truthline .chip").first();
   if (!(await page.locator(".pairline").count()) || !(await particle.count())) return;
-  const looks = () =>
-    page.evaluate(() =>
-      window.emberEngine.layers
-        .map((l) => {
-          const m = l.object.children?.[0]?.material;
-          return `${l.table}${m?.uniforms?.uStyle ? `/${m.uniforms.uStyle.value}/${m.transparent}` : ""}`;
-        })
-        .sort()
-        .join(),
-    );
-  // The level is built after the jump, from the particle's side.
-  await page.keyboard.press("ArrowDown");
-  await page.waitForTimeout(900);
-  const fromCandidate = await looks();
-  await page.keyboard.press("ArrowUp");
+  const name = (await particle.innerText()).replace(/\s+/g, " ");
   await particle.click();
   await page.waitForTimeout(1200);
-  await page.keyboard.press("ArrowDown");
-  await page.waitForTimeout(900);
-  const fromTruth = await looks();
-  log(
-    `${tag}: the pair from its particle, a level shown: ${fromTruth === fromCandidate ? "the same picture" : `differs: ${fromTruth} vs ${fromCandidate}`}`,
-  );
-  if (fromTruth !== fromCandidate) fail("the pair's particle and candidate draw different pictures");
+  const truthLine = (await page.locator(".inspector .pair .pairline").first().innerText().catch(() => "")).replace(/\s+/g, " ");
+  log(`${tag}: the pair from its particle: ${truthLine || "none"}`);
+  if (!truthLine.includes(name)) fail(`the particle ${name} does not open its own pair`);
   await page.locator(".inspector .looking .lookhead .link").click({ timeout: 120000 }); // stop looking at the particle
   await page.keyboard.press("ArrowUp");
   await page.waitForTimeout(600);

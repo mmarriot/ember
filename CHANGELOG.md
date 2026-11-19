@@ -81,8 +81,9 @@ with a message while an old one is set without its new name. `deploy.sh` links `
   once the release has the cluster-hits tables), lists what it left out, and is kept with `--config FILE.py`. `--pat`
   takes the physics objects from PAT and standard NanoAOD instead, at a cost. A MiniAOD gets standard NanoAOD.
   With the truth-graph NanoAOD tables in the release and the graph in the file (Phase 2 RECO and FEVT), the bundle
-  has the truth graph, the simulated energy of each particle in each hit, and the reco ↔ truth matches
-  (`--no-truth-associators` skips the associators the file's own maps do not replace).
+  has the truth graph, the simulated energy of each particle in each hit, and the reco ↔ truth matches: read from
+  the file's own association maps when it has them, else made by the associators (`--no-truth-associators` leaves
+  them out).
 - **`ember FILE.root` writes `NAME.ember` here**, to drop on the viewer at https://marriot-evd.web.cern.ch (nothing is
   uploaded). It publishes to a site only when one is set (`--site` or `EMBER_SITE_DIR`).
 - **Standard NanoAOD and NANO:@HGCAL open directly**, and `--profile auto` (now the default) picks the profile that

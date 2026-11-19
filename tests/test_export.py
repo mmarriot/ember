@@ -439,27 +439,70 @@ GRAPH = [
 ]
 
 
+def test_the_release_truth_maps_are_read_only_for_an_input_with_the_graph(monkeypatch):
+    calls = []
+
+    def output(command, env, what, data=None):
+        calls.append(command)
+        return '{"truthGraphGeneralTracksToTruthTable": ["allTrackToTruthBranchAssociators", "generalTracksRecoToTruthAdaptiveNominal"]}'
+
+    monkeypatch.setattr(export, "cmssw_output", output)
+    assert export.truth_maps(cmsrun.Inventory(cmsrun.products(PHASE2))) == {} and not calls
+    maps = export.truth_maps(cmsrun.Inventory(cmsrun.products(PHASE2 + GRAPH)), ("prefix",))
+    assert maps == {
+        "truthGraphGeneralTracksToTruthTable": ("allTrackToTruthBranchAssociators", "generalTracksRecoToTruthAdaptiveNominal")
+    }  # fmt: skip
+    assert calls[0][:2] == ["prefix", "python3"]
+
+
 def test_the_truth_tables_are_written_when_the_release_and_the_input_have_them():
     s = cmsrun.Settings(True, False, "Phase2C22I13M9", "ExtendedRun4D104", "auto:phase2_realistic_T35")
-    text, notes = configuration(s, PHASE2, RELEASE | TRUTH)
-    assert "truth: the input has no truth graph (truthLogicalGraphProducer)" in notes
-    assert "truthGraphCaloBoundaryTable" not in text
-    text, notes = configuration(s, PHASE2 + GRAPH, RELEASE)
-    assert "truthGraphCaloBoundaryTable" not in text and any("TruthGraphFlatTableProducer" in n for n in notes)
-    text, notes = configuration(s, PHASE2 + GRAPH, RELEASE | TRUTH)
-    assert "process.truthGraphTable = process.truthGraphCaloBoundaryTable.clone()" in text and not notes[1:]
+    maps = {
+        "truthGraphGeneralTracksToTruthTable": ("allTrackToTruthBranchAssociators", "generalTracksRecoToTruthAdaptiveNominal"),
+        "truthGraphTiclCandidateToTruthTable": ("truthBranchTracksterAssociators", "ticlCandidateRecoToTruthAdaptiveNominal"),
+    }  # fmt: skip
+
+    def truth(branches, release=RELEASE | TRUTH, **options):
+        text, notes = cmsrun.config(
+            s, ["file:/in.root"], 5, cmsrun.Inventory(cmsrun.products(branches)), release, truth_maps=maps, **options
+        )
+        ast.parse(text)
+        return text, notes
+
+    text, notes = truth(PHASE2)
+    assert "truth: the input has no truth graph (truthLogicalGraphProducer)" in notes and "truthGraph" not in text
+    text, notes = truth(PHASE2 + GRAPH, RELEASE)
+    assert "truthGraph" not in text and any("mmarriot:truthgraph-nano-tables" in n for n in notes)
+    text, notes = truth(PHASE2 + GRAPH)
+    assert "process.truthGraphTable = process.truthGraphCaloBoundaryTable.clone(" in text and not notes[1:]
+    # no vertex associations, so no vertex associator runs
+    assert "keepVerticesMatchedBy=[], keepVerticesMatchedByTruthToReco=[]" in text
     assert 'hitTable="recHitTable", hitIdColumn="rechit_ID", name="TruthHGCalRecHits"' in text
     assert 'hitTable="pfRecHitTable", hitIdColumn="rechit_ID", name="TruthPFRecHits"' in text
-    assert "storedMaps = {\n}" in text and "runAssociators = True and not storedMaps" in text
-    # maps of the input's own reconstruction (a TICL v6 sample) are read from it, from the process that made them
-    stored = "ticlAssociationMap_truthBranchTracksterAssociators_ticlTracksterLinksTruthToReco_RECO."
-    text, _ = cmsrun.config(
+    assert "'truthGraphGeneralTracksToTruthTable'," in text and "truthGraphNanoAssociatorsTask" in text
+    text, notes = truth(PHASE2 + GRAPH, associators=False)
+    assert "truthGraphNanoAssociatorsTask" not in text and "ToTruthTable" not in text
+    assert any("--no-truth-associators" in n for n in notes)
+    # an input with maps of its own (a TICL v6 sample): the tables read them, no associator runs, and the tables it
+    # has no map for are named
+    stored = "ticlAssociationMap_allTrackToTruthBranchAssociators_generalTracksRecoToTruthAdaptiveNominal_RECO."
+    text, notes = truth([*PHASE2, *GRAPH, stored])
+    assert "'truthGraphGeneralTracksToTruthTable'," in text and "truthGraphNanoAssociatorsTask" not in text
+    assert "'truthGraphTiclCandidateToTruthTable'" not in text  # named in a note only
+    assert any("associations TiclCandidateToTruth: the input's own maps do not have them" in n for n in notes)
+    # a stored map of a class this release cannot read is dropped on input, so not read
+    text, notes = cmsrun.config(
         s, ["file:/in.root"], 5, cmsrun.Inventory(cmsrun.products([*PHASE2, *GRAPH, stored])), RELEASE | TRUTH,
-        associators=False,
+        truth_maps=maps, drop=cmsrun.products([stored]),
     )  # fmt: skip
+    assert "truthGraphNanoAssociatorsTask" in text
+    # a release whose truth tables name no association tables
+    text, notes = cmsrun.config(
+        s, ["file:/in.root"], 5, cmsrun.Inventory(cmsrun.products([*PHASE2, *GRAPH])), RELEASE | TRUTH, truth_maps={}
+    )
     ast.parse(text)
-    assert "('truthBranchTracksterAssociators', 'ticlTracksterLinksTruthToReco'): 'RECO'," in text
-    assert "runAssociators = False and not storedMaps" in text
+    assert "truthGraphTable" in text and "ToTruthTable" not in text and "truthGraphNanoAssociatorsTask" not in text
+    assert any("name no association tables" in n for n in notes)
     run3 = cmsrun.Settings(False, True, "Run3_2025", "", "GT")
     text, notes = configuration(run3, RUN3, RELEASE | TRUTH)  # data: no truth, and nothing to say about it
     assert "truthGraph" not in text and not any("truth" in n for n in notes)

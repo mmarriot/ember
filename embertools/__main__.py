@@ -94,8 +94,9 @@ def parser():
     edm.add_argument(
         "--no-truth-associators",
         action="store_true",
-        help="simulation with the truth graph: do not run the reco <-> truth associators whose maps the file does not "
-        "hold (they take about 3.5 s per event at 200 pileup, little without pileup): no reco <-> truth matches then",
+        help="simulation with the truth graph: do not run the reco <-> truth associators (they run only when the file "
+        "holds no association maps of its own, and take about 1 s per event of wall time at 200 pileup, 3 s of CPU, "
+        "little without pileup): the bundle then has the truth graph and the hits' truth, but no reco <-> truth matches",
     )
 
     p = sub.add_parser("list", help="list your published bundles")

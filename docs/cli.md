@@ -79,7 +79,7 @@ Options for CMSSW files (reconstruction, MiniAOD) only:
 | `--nano FILE.root` | also keep the NanoAOD that `ember` made, as this file |
 | `--config FILE.py` | also keep the cmsRun configuration that made it (`cmsRun FILE.py` runs it again) |
 | `--pat` | for a reconstruction file: the physics objects of PAT and standard NanoAOD (corrected jets, IDs, b-tags, taus), from `cmsDriver.py -s PAT,NANO`, instead of `ember`'s own tables of the RECO collections; its hits, clusters and tracks are added to that job. It costs: at 200 pile-up PAT and NANO alone took 2.25 s per event, 8.6 GB of memory and 32 s to start, where the whole job takes 0.7 s per event, 3.3 GB and 19 s without it. |
-| `--no-truth-associators` | for simulation with the truth graph (Phase 2 RECO and FEVT): do not run the reco ↔ truth associators whose maps the file does not hold. They take about 1 s per event at 200 pile-up (3 s of CPU), little without pile-up; without them the bundle has the truth graph and the simulated energy in each hit, but no reco ↔ truth matches. |
+| `--no-truth-associators` | for simulation with the truth graph (Phase 2 RECO and FEVT): do not run the reco ↔ truth associators. They run only when the file holds no association maps of its own, and take about 1 s per event of wall time at 200 pile-up (3 s of CPU), little without pile-up; without them the bundle has the truth graph and the simulated energy in each hit, but no reco ↔ truth matches. |
 
 If you give these options for a NanoAOD input, `ember` ignores them and says so.
 
@@ -219,8 +219,7 @@ Any other message is a bug. Run the command again with `EMBER_DEBUG=1`, and repo
   0.25 s). Before it, finding the settings and checking the input's classes take a few seconds.
 
 **Measured sizes and times**, per event, on ttbar events with geometry `ExtendedRun4D104` (stock reconstruction) and
-the integration build CMSSW_20_1_X_2026-11-17-2300, 4 threads, without truth (the release has no NanoAOD tables of the
-truth graph yet):
+the integration build CMSSW_20_1_X_2026-11-17-2300, 4 threads, without truth (with it, see below the table):
 
 | per event | no pile-up | 200 pile-up |
 |---|---|---|
@@ -228,3 +227,8 @@ truth graph yet):
 | making it from a step3 file | 0.57 s | 0.71 s |
 | bundle (`.ember`) | 0.37 MB | 5.2 MB |
 | `ember`: NanoAOD to bundle | 0.06 s | 0.17 s |
+
+With the truth graph (a release with `git cms-merge-topic mmarriot:truthgraph-nano-tables` and
+`mmarriot:nanoaod-cluster-hits`, on a stock Phase-2 step3 file), the bundle is 0.66 MB per event without pile-up and
+17.0 MB at 200 pile-up (14.0 MB with `--no-truth-associators`), against 5.9 MB with the cluster hits alone. At 200
+pile-up the job then takes 3.1 s per event with the associators, 2.1 s without them.

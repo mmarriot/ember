@@ -107,6 +107,32 @@ def cmssw_output(command, env, what, data=None):
     return result.stdout
 
 
+# Runs in the CMSSW python: the release's reco <-> truth association tables of particles (not vertices), and the
+# module and instance of the map each reads; {} if the release has none.
+_TRUTH_MAPS = r"""
+import json
+try:
+    from SimGeneral.TruthGraphAssociatorProducers.truthGraphNanoTables_cff import truthGraphAssociationTables
+except ImportError:
+    truthGraphAssociationTables = {}
+print(json.dumps({
+    label: [m.src.getModuleLabel(), m.src.getProductInstanceLabel()]
+    for label, m in truthGraphAssociationTables.items()
+    if m.type_() != "TruthBranchVertexAssociationFlatTableProducer"
+}))
+"""
+
+
+def truth_maps(inv, prefix=(), env=None):
+    """{association table label: (module, instance) of its map} of the release (cmsrun.config), for an input with the
+    truth graph; {} otherwise. Cost: a python start and the import of the release's truth configuration, 0.2 s
+    with a warm file cache (more on a cold CVMFS cache)."""
+    if not inv.has("truthLogicalGraphProducer"):
+        return {}
+    out = cmssw_output([*prefix, "python3", "-c", _TRUTH_MAPS], env, "reading the release's truth tables")
+    return {label: tuple(key) for label, key in json.loads(out).items()}
+
+
 def tier(inv):
     """ "mini" for MiniAOD (packed PF candidates, no general tracks), else "reco" (RECO, AOD, FEVT)."""
     mini = inv.has("packedPFCandidates") and not inv.has("generalTracks", product_type="recoTracks")
@@ -357,7 +383,8 @@ def export(
     """Write the cmsRun configuration for the EDM files `inputs` in `workdir` (a copy to `config` if given), run it
     there, and return the NanoAOD file it wrote. `pat`: for a reconstruction file, the physics objects of PAT and
     standard NanoAOD instead of ember's own tables of the RECO collections (cmsrun.config); `associators`: run the
-    truth associators whose maps the input does not hold (3.5 s per event at 200 pileup). When the job fails, the
+    truth associators when the input holds no maps of its own (about 1 s per event of wall time at 200 pileup, 3 s of
+    CPU). When the job fails, the
     Problem raised shows the end of the job's output and where all of it was kept."""
     prefix, env = _environment(cmssw)
     inv = inventory(inputs[0])
@@ -376,6 +403,7 @@ def export(
         text, notes = cmsrun.config(
             s, list(map(_source, inputs)), events, inv, cmsrun.plugins(prefix, env), threads,
             made_by=f"embertools {__version__}", drop=unreadable(inv, prefix, env), pat=pat, associators=associators,
+            truth_maps=truth_maps(inv, prefix, env),
         )  # fmt: skip
         with open(path, "a" if pat else "w") as f:
             f.write(text)

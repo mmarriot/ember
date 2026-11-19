@@ -886,6 +886,9 @@ kinematics = cms.PSet(
             f'        eta=Var("eta", "float", precision=12, doc="pseudorapidity"),\n'
             f'        phi=Var("phi", "float", precision=12, doc="azimuth"),\n'
             f'        charge=Var("charge", "int16", doc="charge"),\n'
+            f'        vx=Var("vx", "float", precision=14, doc="x of the reference point [cm]"),\n'
+            f'        vy=Var("vy", "float", precision=14, doc="y of the reference point [cm]"),\n'
+            f'        vz=Var("vz", "float", precision=14, doc="z of the reference point [cm]"),\n'
             f'        chi2=Var("normalizedChi2", "float", precision=8, doc="chi2 / ndof"))))\n'
             for n, src, _, _ in self.muon_tracks()
         )

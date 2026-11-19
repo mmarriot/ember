@@ -1,12 +1,15 @@
 {
   "name": "reco",
   "note": "What Ember's own NanoAOD of a reconstruction file has in Phase 2 and in Run 3 alike (phase2.json and run3.json include it): general tracks as helices from their reference point to their outermost hit (high purity by default), the beam spot, PF clusters (ECAL, preshower, HCAL, HF, HO) and superclusters (ECAL barrel and endcap) as markers, and the kinds of the calorimeter hits that phase2.json and run3.json split by subdetector. A cluster's hits are found by DetId in the hit tables (relations of kind counts with toKey): the cluster-hits tables of the CMSSW branch mmarriot:nanoaod-cluster-hits, when the release has them; the hits below the PF thresholds are not written, and their links are dropped.",
-  "internal": ["PFClusterECALHits", "PFClusterPSHits", "PFClusterHCALHits", "PFClusterHFHits", "PFClusterHOHits", "SuperClusterEBHits", "SuperClusterEEHits"],
+  "internal": ["PFClusterECALHits", "PFClusterPSHits", "PFClusterHCALHits", "PFClusterHFHits", "PFClusterHOHits", "SuperClusterEBHits", "SuperClusterEEHits", "PVTracks", "SVTracks", "PFCandidateClustersECAL", "PFCandidateClustersPS", "PFCandidateClustersHCAL", "PFCandidateClustersHF", "PFCandidateClustersHO", "JetPFCands", "JetCHSPFCands", "TauPFCands"],
   "derive": [
     {"table": "GeneralTrack", "momentum": ["pt", "eta", "phi"]},
     {"table": "GsfTrack", "momentum": ["pt", "eta", "phi"]},
     {"table": "PFCandidates", "momentum": ["pt", "eta", "phi"]},
-    {"table": "PFCandidates", "missing": true, "gather": [{"relation": "pfTrack", "columns": {"endX": "outerX", "endY": "outerY", "endZ": "outerZ"}}]}
+    {"table": "PFCandidates", "missing": true, "gather": [{"relation": "pfTrack", "columns": {"endX": "outerX", "endY": "outerY", "endZ": "outerZ"}}]},
+    {"table": "GeneralTrack", "gather": [{"relation": "trackVertex", "columns": {"vertex": "index"}}], "fill": -1},
+    {"table": "GeneralTrackHits", "bits": {"subdet": ["detId", 25, 3]}},
+    {"table": "GsfTrackHits", "bits": {"subdet": ["detId", 25, 3]}}
   ],
   "relations": [
     {"name": "pfClusterECALHitsEB", "kind": "counts", "from": "PFClusterECAL", "to": "EBHits", "counts": "PFClusterECAL.nPFClusterECALHits", "indices": "PFClusterECALHits.detId", "toKey": "EBHits.rechit_ID", "weights": ["PFClusterECALHits.fraction"]},
@@ -18,6 +21,15 @@
     {"name": "pfClusterHOHits", "kind": "counts", "from": "PFClusterHO", "to": "HOHits", "counts": "PFClusterHO.nPFClusterHOHits", "indices": "PFClusterHOHits.detId", "toKey": "HOHits.rechit_ID", "weights": ["PFClusterHOHits.fraction"]},
     {"name": "superClusterEBHits", "kind": "counts", "from": "SuperClusterEB", "to": "EBHits", "counts": "SuperClusterEB.nSuperClusterEBHits", "indices": "SuperClusterEBHits.detId", "toKey": "EBHits.rechit_ID", "weights": ["SuperClusterEBHits.fraction"]},
     {"name": "superClusterEEHits", "kind": "counts", "from": "SuperClusterEE", "to": "EEHits", "counts": "SuperClusterEE.nSuperClusterEEHits", "indices": "SuperClusterEEHits.detId", "toKey": "EEHits.rechit_ID", "weights": ["SuperClusterEEHits.fraction"]},
+    {"name": "pfClusterECALRecHitsEB", "kind": "counts", "from": "PFClusterECAL", "to": "EBRecHits", "counts": "PFClusterECAL.nPFClusterECALHits", "indices": "PFClusterECALHits.detId", "toKey": "EBRecHits.detId", "weights": ["PFClusterECALHits.fraction"]},
+    {"name": "pfClusterECALRecHitsEE", "kind": "counts", "from": "PFClusterECAL", "to": "EERecHits", "counts": "PFClusterECAL.nPFClusterECALHits", "indices": "PFClusterECALHits.detId", "toKey": "EERecHits.detId", "weights": ["PFClusterECALHits.fraction"]},
+    {"name": "pfClusterPSRecHitsES", "kind": "counts", "from": "PFClusterPS", "to": "ESRecHits", "counts": "PFClusterPS.nPFClusterPSHits", "indices": "PFClusterPSHits.detId", "toKey": "ESRecHits.detId", "weights": ["PFClusterPSHits.fraction"]},
+    {"name": "pfClusterHCALRecHitsHB", "kind": "counts", "from": "PFClusterHCAL", "to": "HBRecHits", "counts": "PFClusterHCAL.nPFClusterHCALHits", "indices": "PFClusterHCALHits.detId", "toKey": "HBRecHits.detId", "weights": ["PFClusterHCALHits.fraction"]},
+    {"name": "pfClusterHCALRecHitsHE", "kind": "counts", "from": "PFClusterHCAL", "to": "HERecHits", "counts": "PFClusterHCAL.nPFClusterHCALHits", "indices": "PFClusterHCALHits.detId", "toKey": "HERecHits.detId", "weights": ["PFClusterHCALHits.fraction"]},
+    {"name": "pfClusterHFRecHitsHF", "kind": "counts", "from": "PFClusterHF", "to": "HFRecHits", "counts": "PFClusterHF.nPFClusterHFHits", "indices": "PFClusterHFHits.detId", "toKey": "HFRecHits.detId", "weights": ["PFClusterHFHits.fraction"]},
+    {"name": "pfClusterHORecHitsHO", "kind": "counts", "from": "PFClusterHO", "to": "HORecHits", "counts": "PFClusterHO.nPFClusterHOHits", "indices": "PFClusterHOHits.detId", "toKey": "HORecHits.detId", "weights": ["PFClusterHOHits.fraction"]},
+    {"name": "superClusterEBRecHits", "kind": "counts", "from": "SuperClusterEB", "to": "EBRecHits", "counts": "SuperClusterEB.nSuperClusterEBHits", "indices": "SuperClusterEBHits.detId", "toKey": "EBRecHits.detId", "weights": ["SuperClusterEBHits.fraction"]},
+    {"name": "superClusterEERecHits", "kind": "counts", "from": "SuperClusterEE", "to": "EERecHits", "counts": "SuperClusterEE.nSuperClusterEEHits", "indices": "SuperClusterEEHits.detId", "toKey": "EERecHits.detId", "weights": ["SuperClusterEEHits.fraction"]},
     {"name": "pfTrack", "kind": "index", "from": "PFCandidates", "to": "GeneralTrack", "index": "PFCandidates.trackIdx"},
     {"name": "pfGsfTrack", "kind": "index", "from": "PFCandidates", "to": "GsfTrack", "index": "PFCandidates.gsfTrackIdx"},
     {"name": "pfMuon", "kind": "index", "from": "PFCandidates", "to": "Muon", "index": "PFCandidates.muonIdx", "optional": true},
@@ -34,7 +46,20 @@
     {"name": "photonSuperClusterEE", "kind": "index", "from": "Photon", "to": "SuperClusterEE", "index": "Photon.superClusterEEIdx", "optional": true},
     {"name": "photonHGCSuperCluster", "kind": "index", "from": "PhotonHGC", "to": "SuperClusterHGCal", "index": "PhotonHGC.superClusterIdx", "optional": true},
     {"name": "muonTrack", "kind": "index", "from": "Muon", "to": "GeneralTrack", "index": "Muon.trackIdx", "optional": true},
-    {"name": "tauLeadCand", "kind": "index", "from": "Tau", "to": "PFCandidates", "index": "Tau.leadCandIdx", "optional": true}
+    {"name": "tauLeadCand", "kind": "index", "from": "Tau", "to": "PFCandidates", "index": "Tau.leadCandIdx", "optional": true},
+    {"name": "trackHits", "kind": "counts", "from": "GeneralTrack", "to": "GeneralTrackHits", "counts": "GeneralTrack.nGeneralTrackHits"},
+    {"name": "gsfTrackHits", "kind": "counts", "from": "GsfTrack", "to": "GsfTrackHits", "counts": "GsfTrack.nGsfTrackHits"},
+    {"name": "vertexTracks", "kind": "links", "from": "PV", "to": "GeneralTrack", "table": "PVTracks", "fromIndex": "PVTracks.vertexIdx", "toIndex": "PVTracks.trackIdx", "weights": ["PVTracks.weight"]},
+    {"name": "trackVertex", "kind": "links", "from": "GeneralTrack", "to": "PV", "table": "PVTracks", "fromIndex": "PVTracks.trackIdx", "toIndex": "PVTracks.vertexIdx", "weights": ["PVTracks.weight"], "inverseOf": "vertexTracks"},
+    {"name": "svTracks", "kind": "links", "from": "SV", "to": "GeneralTrack", "table": "SVTracks", "fromIndex": "SVTracks.vertexIdx", "toIndex": "SVTracks.trackIdx", "weights": ["SVTracks.weight"]},
+    {"name": "pfClustersECAL", "kind": "links", "from": "PFCandidates", "to": "PFClusterECAL", "table": "PFCandidateClustersECAL", "fromIndex": "PFCandidateClustersECAL.pfCandIdx", "toIndex": "PFCandidateClustersECAL.clusterIdx"},
+    {"name": "pfClustersPS", "kind": "links", "from": "PFCandidates", "to": "PFClusterPS", "table": "PFCandidateClustersPS", "fromIndex": "PFCandidateClustersPS.pfCandIdx", "toIndex": "PFCandidateClustersPS.clusterIdx"},
+    {"name": "pfClustersHCAL", "kind": "links", "from": "PFCandidates", "to": "PFClusterHCAL", "table": "PFCandidateClustersHCAL", "fromIndex": "PFCandidateClustersHCAL.pfCandIdx", "toIndex": "PFCandidateClustersHCAL.clusterIdx"},
+    {"name": "pfClustersHF", "kind": "links", "from": "PFCandidates", "to": "PFClusterHF", "table": "PFCandidateClustersHF", "fromIndex": "PFCandidateClustersHF.pfCandIdx", "toIndex": "PFCandidateClustersHF.clusterIdx"},
+    {"name": "pfClustersHO", "kind": "links", "from": "PFCandidates", "to": "PFClusterHO", "table": "PFCandidateClustersHO", "fromIndex": "PFCandidateClustersHO.pfCandIdx", "toIndex": "PFCandidateClustersHO.clusterIdx"},
+    {"name": "jetConstituents", "kind": "links", "from": "Jet", "to": "PFCandidates", "table": "JetPFCands", "fromIndex": "JetPFCands.jetIdx", "toIndex": "JetPFCands.pfCandIdx"},
+    {"name": "jetCHSConstituents", "kind": "links", "from": "JetCHS", "to": "PFCandidates", "table": "JetCHSPFCands", "fromIndex": "JetCHSPFCands.jetIdx", "toIndex": "JetCHSPFCands.pfCandIdx"},
+    {"name": "tauConstituents", "kind": "links", "from": "Tau", "to": "PFCandidates", "table": "TauPFCands", "fromIndex": "TauPFCands.tauIdx", "toIndex": "TauPFCands.pfCandIdx"}
   ],
   "kinds": {
     "caloHit": {"label": "Hits", "domain": "Calo", "repr": "cells", "palette": "heat", "colour": "rechit_energy", "size": null, "time": "rechit_time", "visible": true, "describe": {"columns": ["rechit_energy"]}, "inspect": ["rechit_energy", "rechit_time", "rechit_eta", "rechit_phi", "rechit_depth", "rechit_ID"]},
@@ -43,10 +68,13 @@
     "track": {"label": "Tracks", "domain": "Tracker", "repr": "helix", "visible": true, "colour": "pt", "size": null, "cut": {"group": "Track pT", "label": "track pT", "column": "pt", "unit": "GeV", "default": 1.0}, "describe": {"columns": ["pt", "eta"]}, "inspect": ["pt", "eta", "phi", "charge", "nhits", "highPurity"]},
     "beamSpot": {"label": "Beam spot", "domain": "Tracker", "repr": "markers", "visible": false, "size": null},
     "gsfTrack": {"label": "GSF tracks", "domain": "Tracker", "repr": "helix", "visible": true, "onSelection": true, "colour": "pt", "size": null, "describe": {"columns": ["pt", "eta"]}, "inspect": ["pt", "eta", "phi", "charge", "nhits"], "truthGap": {"reason": "no GSF-track associator in CMSSW (the track associator reads reco::Track collections only)", "gap": 23}},
+    "trackHit": {"label": "Track hits", "domain": "Tracker", "repr": "markers", "visible": true, "onSelection": true, "size": null, "colourBy": {"category": "subdet", "names": [["1", "pixel barrel"], ["2", "pixel endcap"], ["5", "outer tracker barrel"], ["4", "outer tracker endcap"], ["3", "inner tracker barrel"], ["6", "endcap"]]}, "describe": {"columns": ["subdet", "layer"], "names": {"subdet": {"1": "PXB", "2": "PXF", "3": "TIB", "4": "TID", "5": "TOB", "6": "TEC"}}}, "inspect": ["subdet", "layer", "detId"]},
     "pfCandidate": {"label": "PF candidates", "domain": "Physics", "repr": "helix", "visible": false, "size": null, "colourBy": {"category": "pdgId", "abs": true, "names": [["211", "charged hadron"], ["22", "photon"], ["130", "neutral hadron"], ["11", "electron"], ["13", "muon"], ["1", "HF hadron"], ["2", "HF EM"]]}, "cut": {"group": "PF candidate pT", "label": "PF candidate pT", "unit": "GeV", "default": 0.0}, "truthGap": {"reason": "no PF-candidate associator in CMSSW", "gap": 20}}
   },
   "display": [
-    {"table": "GeneralTrack", "kind": "track", "label": "General tracks", "position": ["vx", "vy", "vz"], "momentum": ["px", "py", "pz"], "charge": "charge", "end": ["outerX", "outerY", "outerZ"], "filter": "highPurity == 1"},
+    {"table": "GeneralTrack", "kind": "track", "label": "General tracks", "position": ["vx", "vy", "vz"], "momentum": ["px", "py", "pz"], "charge": "charge", "end": ["outerX", "outerY", "outerZ"], "filter": "highPurity == 1 && vertex < 1"},
+    {"table": "GeneralTrackHits", "kind": "trackHit", "label": "Hits on tracks", "position": ["x", "y", "z"]},
+    {"table": "GsfTrackHits", "kind": "trackHit", "label": "Hits on GSF tracks", "position": ["x", "y", "z"]},
     {"table": "OfflineBeamSpot", "kind": "beamSpot", "label": "Beam spot", "position": ["x", "y", "z"]},
     {"table": "PFClusterECAL", "kind": "pfCluster", "label": "ECAL", "position": ["x", "y", "z"]},
     {"table": "PFClusterPS", "kind": "pfCluster", "label": "Preshower", "position": ["x", "y", "z"], "visible": false, "cut": {"group": "Preshower cluster energy", "label": "preshower cluster energy", "default": 0.0}},
@@ -59,8 +87,8 @@
     {"table": "PFCandidates", "kind": "pfCandidate", "label": "Particle flow", "position": ["vx", "vy", "vz"], "momentum": ["px", "py", "pz"], "charge": "charge", "end": ["endX", "endY", "endZ"], "length": {"to": {"r": 129, "z": 320}}, "time": "time", "cut": {"column": "pt"}, "filter": "puppiWeight > 0", "describe": {"columns": ["pdgId", "pt"], "names": {"pdgId": {"211": "π⁺", "-211": "π⁻", "22": "γ", "130": "h⁰", "11": "e⁻", "-11": "e⁺", "13": "μ⁻", "-13": "μ⁺", "1": "HF had", "2": "HF EM"}}}, "inspect": ["pt", "eta", "phi", "energy", "ecalEnergy", "hcalEnergy", "time"]}
   ],
   "presets": [
-    {"name": "Primary vertex", "filters": {"PV": "index == 0"}},
-    {"name": "All vertices", "filters": {"PV": ""}, "colour": {"GeneralTrack": "rel:trackVertex"}},
+    {"name": "Primary vertex", "filters": {"PV": "index == 0", "GeneralTrack": "highPurity == 1 && vertex < 1"}},
+    {"name": "All vertices", "filters": {"PV": "", "GeneralTrack": "highPurity == 1"}, "colour": {"GeneralTrack": "rel:trackVertex"}},
     {"name": "What PUPPI removed", "filters": {"PFCandidates": "puppiWeight == 0"}}
   ],
   "view": {"colourRoot": "pfCandidate"},

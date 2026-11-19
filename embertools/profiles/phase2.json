@@ -11,6 +11,11 @@
     {"table": "HBHits", "cell": "hcal", "geometry": "phase2", "detId": "rechit_ID", "position": ["rechit_x", "rechit_y", "rechit_z"]},
     {"table": "HOHits", "cell": "hcal", "geometry": "phase2", "detId": "rechit_ID", "position": ["rechit_x", "rechit_y", "rechit_z"]},
     {"table": "HFHits", "cell": "hcal", "geometry": "phase2", "detId": "rechit_ID", "position": ["rechit_x", "rechit_y", "rechit_z"]},
+    {"table": "HBHERecHits", "bits": {"subdet": ["detId", 25, 3]}},
+    {"table": "HBHERecHits", "split": {"HBRecHits": [["subdet", "==", 1]]}},
+    {"table": "HBRecHits", "cell": "hcal", "geometry": "phase2", "detId": "detId", "position": ["x", "y", "z"]},
+    {"table": "HORecHits", "cell": "hcal", "geometry": "phase2", "detId": "detId", "position": ["x", "y", "z"]},
+    {"table": "HFRecHits", "cell": "hcal", "geometry": "phase2", "detId": "detId", "position": ["x", "y", "z"]},
     {"table": "TICLCandidates", "gather": [{"relation": "candidateTrackster", "columns": {"x": "barycenter_x", "y": "barycenter_y", "z": "barycenter_z", "axis_x": "eVector0_x", "axis_y": "eVector0_z", "axis_z": "eVector0_y", "ev1": "EV1", "ev2": "EV2", "ev3": "EV3"}}, {"relation": "candidateOwnTrackster", "columns": {"x": "barycenter_x", "y": "barycenter_y", "z": "barycenter_z", "axis_x": "eVector0_x", "axis_y": "eVector0_z", "axis_z": "eVector0_y", "ev1": "EV1", "ev2": "EV2", "ev3": "EV3"}}, {"relation": "candidateTrack", "columns": {"x": "hgcal_x", "y": "hgcal_y", "z": "hgcal_z"}}]}
   ],
   "relations": [
@@ -26,6 +31,7 @@
     {"name": "candidateTrack", "kind": "index", "from": "TICLCandidates", "to": "GeneralTrack", "index": "TICLCandidates.trackIdx"},
     {"name": "layerClusterHits", "kind": "counts", "from": "HGCalLayerClusters", "to": "rechits", "counts": "HGCalLayerClusters.nHGCalLayerClustersHits", "indices": "HGCalLayerClustersHits.detId", "toKey": "rechits.rechit_ID", "weights": ["HGCalLayerClustersHits.fraction"]},
     {"name": "superClusterHGCalHits", "kind": "counts", "from": "SuperClusterHGCal", "to": "rechits", "counts": "SuperClusterHGCal.nSuperClusterHGCalHits", "indices": "SuperClusterHGCalHits.detId", "toKey": "rechits.rechit_ID", "weights": ["SuperClusterHGCalHits.fraction"]},
+    {"name": "pfTicl", "kind": "index", "from": "PFCandidates", "to": "TICLCandidates", "index": "PFCandidates.ticlCandidateIdx", "optional": true},
     {"name": "candidateLCs", "kind": "compose", "from": "TICLCandidates", "to": "HGCalLayerClusters", "via": ["candidateTrackster", "interpretationLCs"]},
     {"name": "candidateOwnLCs", "kind": "compose", "from": "TICLCandidates", "to": "HGCalLayerClusters", "via": ["candidateOwnTrackster", "ownTracksterLCs"]}
   ],
@@ -38,6 +44,7 @@
     "linkedTrackster": {"label": "Linked tracksters", "domain": "HGCal", "repr": "ellipsoids", "shape": "shell", "colourBy": "row", "visible": true},
     "interpretation": {"label": "Interpretations", "domain": "HGCal", "repr": "ellipsoids", "shape": "cage", "colourBy": "row", "visible": true},
     "candidateTrackster": {"label": "Candidate tracksters", "domain": "HGCal", "repr": "ellipsoids", "shape": "cage", "colourBy": "row", "visible": true},
+    "mtdHit": {"label": "MTD hits", "domain": "Tracker", "repr": "markers", "visible": false, "palette": "cool", "colour": "time", "time": "time", "size": null, "describe": {"columns": ["time"]}, "inspect": ["time", "energy", "detId"], "truthGap": {"reason": "no truth table of MTD hits", "gap": 19}},
     "candidate": {"label": "Candidates", "domain": "HGCal", "repr": "ellipsoids", "shape": "core", "visible": true, "colourBy": {"category": "pdgID", "abs": true, "names": {"22": "photon", "11": "electron", "13": "muon", "211": "charged hadron", "130": "neutral hadron", "111": "neutral pion"}}}
   },
   "display": [
@@ -54,7 +61,13 @@
     {"table": "EBHits", "kind": "caloHit", "label": "ECAL barrel", "position": ["rechit_x", "rechit_y", "rechit_z"], "cell": {"shape": "tower", "face": "cylinder", "dEta": 0.0174, "dPhi": 0.01745, "depth": {"column": "rechit_energy", "scale": 22, "log": true, "min": 0.5, "max": 45}}, "cut": {"group": "ECAL barrel energy", "label": "ECAL barrel", "column": "rechit_energy", "unit": "GeV", "default": 1.0}},
     {"table": "HBHits", "kind": "caloHit", "label": "HCAL barrel", "position": ["rechit_x", "rechit_y", "rechit_z"], "cell": {"shape": "tower", "face": "cylinder", "dEta": "dEta", "dPhi": "dPhi", "depth": "depth"}, "cut": {"group": "HCAL barrel energy", "label": "HCAL barrel", "column": "rechit_energy", "unit": "GeV", "default": 1.0}},
     {"table": "HOHits", "kind": "caloHit", "label": "HCAL outer", "position": ["rechit_x", "rechit_y", "rechit_z"], "cell": {"shape": "tower", "face": "cylinder", "dEta": "dEta", "dPhi": "dPhi", "depth": {"column": "rechit_energy", "scale": 22, "log": true, "min": 0.5, "max": 45}}, "cut": {"group": "HCAL outer energy", "label": "HCAL outer", "column": "rechit_energy", "unit": "GeV", "default": 1.0}, "visible": false},
-    {"table": "HFHits", "kind": "caloHit", "label": "HCAL forward", "position": ["rechit_x", "rechit_y", "rechit_z"], "cell": {"shape": "tower", "face": "disc", "dEta": "dEta", "dPhi": "dPhi", "depth": "depth"}, "cut": {"group": "HCAL forward energy", "label": "HCAL forward", "column": "rechit_energy", "unit": "GeV", "default": 3.0}, "visible": false, "views": ["3d", "side", "rz"]}
+    {"table": "HFHits", "kind": "caloHit", "label": "HCAL forward", "position": ["rechit_x", "rechit_y", "rechit_z"], "cell": {"shape": "tower", "face": "disc", "dEta": "dEta", "dPhi": "dPhi", "depth": "depth"}, "cut": {"group": "HCAL forward energy", "label": "HCAL forward", "column": "rechit_energy", "unit": "GeV", "default": 3.0}, "visible": false, "views": ["3d", "side", "rz"]},
+    {"table": "EBRecHits", "kind": "caloHit", "label": "ECAL barrel", "position": ["x", "y", "z"], "colour": "energy", "time": "time", "describe": {"columns": ["energy"]}, "inspect": ["energy", "time", "detId"], "cell": {"shape": "tower", "face": "cylinder", "dEta": 0.0174, "dPhi": 0.01745, "depth": {"column": "energy", "scale": 22, "log": true, "min": 0.5, "max": 45}}, "cut": {"group": "ECAL barrel energy", "label": "ECAL barrel", "column": "energy", "unit": "GeV", "default": 1.0}},
+    {"table": "HBRecHits", "kind": "caloHit", "label": "HCAL barrel", "position": ["x", "y", "z"], "colour": "energy", "time": "time", "describe": {"columns": ["energy"]}, "inspect": ["energy", "time", "detId"], "cell": {"shape": "tower", "face": "cylinder", "dEta": "dEta", "dPhi": "dPhi", "depth": "depth"}, "cut": {"group": "HCAL barrel energy", "label": "HCAL barrel", "column": "energy", "unit": "GeV", "default": 1.0}},
+    {"table": "HORecHits", "kind": "caloHit", "label": "HCAL outer", "position": ["x", "y", "z"], "colour": "energy", "time": "time", "describe": {"columns": ["energy"]}, "inspect": ["energy", "time", "detId"], "cell": {"shape": "tower", "face": "cylinder", "dEta": "dEta", "dPhi": "dPhi", "depth": {"column": "energy", "scale": 22, "log": true, "min": 0.5, "max": 45}}, "cut": {"group": "HCAL outer energy", "label": "HCAL outer", "column": "energy", "unit": "GeV", "default": 1.0}, "visible": false},
+    {"table": "HFRecHits", "kind": "caloHit", "label": "HCAL forward", "position": ["x", "y", "z"], "colour": "energy", "time": "time", "describe": {"columns": ["energy"]}, "inspect": ["energy", "time", "detId"], "cell": {"shape": "tower", "face": "disc", "dEta": "dEta", "dPhi": "dPhi", "depth": "depth"}, "cut": {"group": "HCAL forward energy", "label": "HCAL forward", "column": "energy", "unit": "GeV", "default": 3.0}, "visible": false, "views": ["3d", "side", "rz"]},
+    {"table": "BTLRecHits", "kind": "mtdHit", "label": "BTL", "position": ["x", "y", "z"]},
+    {"table": "ETLRecHits", "kind": "mtdHit", "label": "ETL", "position": ["x", "y", "z"]}
   ],
   "domains": [
     {"name": "Calo", "region": {"rMax": 420, "zMax": 450}, "view": "front", "colourMode": "layers"},
@@ -75,7 +88,7 @@
     {"name": "Muon endcap", "r": [100, 700], "z": [565, 1080]}
   ],
   "presets": [
-    {"name": "Track time", "colour": {"GeneralTrack": "t0", "PV": "t", "MTDHits": "time"}}
+    {"name": "Track time", "colour": {"GeneralTrack": "t0", "PV": "t", "BTLRecHits": "time", "ETLRecHits": "time"}}
   ],
   "view": {"tour": "beam", "minRadius": 90}
 }

@@ -20,8 +20,9 @@ def load_profile(name_or_path, _within=()):
     """The profile `name_or_path` (a JSON file, or the name of a built-in profile) with its `include`s merged in.
 
     An included profile is looked up beside the profile that includes it, then among the built-in ones. The included
-    profiles are merged in order, and the profile's own keys over them (see _merge); an included profile's `name` is
-    not inherited. `_within` is the chain of profiles being loaded, to catch a profile that includes itself.
+    profiles are merged in order, and the profile's own keys over them (see _merge), except that its own `order`
+    replaces theirs; an included profile's `name` is not inherited. `_within` is the chain of profiles being loaded,
+    to catch a profile that includes itself.
     """
     path = _find_file(name_or_path, _within)
     builtin = BUILTIN.joinpath(f"{name_or_path}.json")
@@ -47,6 +48,8 @@ def load_profile(name_or_path, _within=()):
         included.pop("name", None)
         merged = _merge(merged, included)
     merged = _merge(merged, profile)
+    if "order" in profile:  # the profile's own order of kinds, not joined to those of its includes
+        merged["order"] = profile["order"]
     if not _within:  # once, on the whole profile: an included one may leave keys to the profile that includes it
         check_shape(merged, name_or_path)
     return merged

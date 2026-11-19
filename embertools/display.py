@@ -7,8 +7,8 @@ def display_layers(profile, tables, relations):
     """The display layers of the tables present in `tables`, in the order the viewer lists them.
 
     A layer with a `kind` takes that kind's style from the profile's `kinds` (the layer's own keys win, and `cut` is
-    merged key by key) and is grouped under the kind's label; kinds are listed in profile order, then the layers
-    without a kind.
+    merged key by key) and is grouped under the kind's label. Kinds are listed from the top down: those of the
+    profile's `order`, in that order, then the others in `kinds` order, then the layers without a kind.
 
     `tables` holds one source per kind: the converter leaves out the others first (less_preferred).
 
@@ -26,7 +26,8 @@ def display_layers(profile, tables, relations):
         if layer.get("colourBy") == "stage":
             _colour_by_stage(layer, with_kind, stages, relations)
 
-    order = list(kinds)
+    order = [k for k in profile.get("order", []) if k in kinds]
+    order += [k for k in kinds if k not in order]
     return sorted(layers, key=lambda layer: order.index(layer["kind"]) if layer.get("kind") in kinds else len(order))
 
 

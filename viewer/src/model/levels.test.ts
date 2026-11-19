@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { DisplayLayer } from "../io/format";
 import { focusLevels, levelLayers, mergeAcrossDomains, scopeLevels, stepLevel } from "./levels";
 
-// Display layers as a profile orders them, from the bottom up (hits first, candidates last), then truth.
+// Display layers as a profile orders them, from the top down (candidates first, hits last), then truth.
 const layer = (table: string, group: string, extra: Partial<DisplayLayer> = {}) =>
   ({
     table,
@@ -15,15 +15,15 @@ const layer = (table: string, group: string, extra: Partial<DisplayLayer> = {}) 
     ...extra,
   }) as DisplayLayer;
 const display = [
-  layer("Hit", "Hits", { repr: "cells", visible: true }),
-  layer("Readout", "Detector", { repr: "cells", context: true, visible: true }),
-  layer("LC", "Layer clusters", { repr: "markers", visible: true }),
-  layer("T", "Tracksters", { stage: 0 }),
-  layer("Link", "Linked tracksters", { stage: 1 }),
-  layer("DNN", "Linked tracksters", { stage: 1 }),
-  layer("I", "Interpretations", { stage: 2 }),
   layer("Cand", "Candidates", { stage: 3, visible: true }),
   layer("Track", "Tracks", { repr: "segments", stage: 3, visible: true }),
+  layer("I", "Interpretations", { stage: 2 }),
+  layer("Link", "Linked tracksters", { stage: 1 }),
+  layer("DNN", "Linked tracksters", { stage: 1 }),
+  layer("T", "Tracksters", { stage: 0 }),
+  layer("LC", "Layer clusters", { repr: "markers", visible: true }),
+  layer("Readout", "Detector", { repr: "cells", context: true, visible: true }),
+  layer("Hit", "Hits", { repr: "cells", visible: true }),
   layer("P", "Truth", { repr: "segments", truth: true, visible: true }),
 ];
 const rows = (r: Record<string, number[]>) => new Map(Object.entries(r).map(([t, v]) => [t, new Set(v)]));
@@ -55,7 +55,7 @@ describe("focusLevels", () => {
       "Layer clusters 3",
       "Hits 4",
     ]);
-    expect(lv[1].layers.map((d) => d.table)).toEqual(["DNN", "Link"]); // one level per kind, all its layers
+    expect(lv[1].layers.map((d) => d.table)).toEqual(["Link", "DNN"]); // one level per kind, all its layers
   });
   it("leaves out the focus's stage (its track), truth and background layers", () => {
     const tables = focusLevels(display, "Cand", candidate, own).flatMap((l) => l.layers.map((d) => d.table));
@@ -101,9 +101,9 @@ describe("focusLevels with relations", () => {
       "Linked tracksters",
       "Tracksters",
       "Layer clusters",
+      "Hits (leaf) (always)",
       "Tracks (always)",
       "Track hits (leaf) (always)",
-      "Hits (leaf) (always)",
     ]);
     expect(
       levelLayers(lv, null, () => false)
@@ -145,9 +145,9 @@ describe("focusLevels with relations", () => {
   });
   it("draws a vertex's tracks with their hits: lines do not hide them", () => {
     const vtx = [
-      layer("TH", "Track hits", { repr: "markers" }),
-      layer("Trk", "Tracks", { repr: "helix" }),
       layer("V", "Vertices", { repr: "markers" }),
+      layer("Trk", "Tracks", { repr: "helix" }),
+      layer("TH", "Track hits", { repr: "markers" }),
     ];
     const lv = focusLevels(vtx, "V", rows({ V: [0], Trk: [1, 2], TH: [3, 4, 5] }), () => true, {
       vTrk: rel("V", "Trk"),

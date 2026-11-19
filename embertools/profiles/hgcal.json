@@ -142,6 +142,7 @@
   "cuts": {"TICLCandidates": [{"defined": "x"}], "GeneralTrack": [{"reachedBy": "candidateTrack"}],
            "TruthParticles": [["bunchCrossing", "==", 0]], "TruthVertices": [{"reachedBy": ["truthProdVertex", "truthDecayVertex"]}]},
   "prefer": ["SoA", "legacy"],
+  "order": ["candidate", "candidateTrackster", "interpretation", "linkedTrackster", "trackster", "layerCluster", "rechit", "track"],
   "stages": ["trackster", "linkedTrackster", "interpretation", "candidateTrackster", "candidate"],
   "kinds": {
     "rechit": {"label": "Hits", "domain": "HGCal", "repr": "cells", "palette": "heat", "visible": true,

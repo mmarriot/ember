@@ -21,11 +21,12 @@ type Relations = Header["relations"];
 /** The levels below the focus (`focus`: its table) that `hl` (its highlight) has objects in, top first. `own`: whether
  *  a table is reached through the focus's own relations (what it is made of or contains), not only through an
  *  association (e.g. its truth particle). Left out: the focus's own kind and reconstruction stage (e.g. a candidate's
- *  track), truth and background layers. Ordered by reverse display order, as profiles list kinds from
- *  the bottom up (hits first, candidates last). With `relations`, a focus can have several branches (a candidate's
- *  tracksters and its track, each down to its own hits): a level that holds another (a chain of plain relations from
- *  one of its tables to the other's) comes before it, and the levels that hold none (the leaves: each branch's smallest objects)
- *  come last; without, the last level is the only leaf. */
+ *  track), truth and background layers. Ordered by display order, as profiles list kinds from the top down
+ *  (candidates first, hits last). With `relations`, a focus can have several branches (a candidate's tracksters and
+ *  its track, each down to its own hits): a level that holds another (a chain of plain relations from one of its tables
+ *  to the other's) comes before it, and the levels that hold none (the leaves: each branch's smallest objects) come
+ *  last; without, the last level is the only leaf. Kinds that only share objects (jets and taus) hold each other only
+ *  as reconstruction stages: the later holds the earlier. */
 export function focusLevels(
   display: DisplayLayer[],
   focus: string,
@@ -35,7 +36,7 @@ export function focusLevels(
 ): Level[] {
   const top = display.find((d) => d.table === focus);
   const levels: (Level & { tables: Set<string> })[] = [];
-  for (const d of [...display].reverse()) {
+  for (const d of display) {
     const rows = hl.get(d.table);
     if (!rows?.size || !own(d.table) || d.table === focus || d.context || d.truth) continue;
     if (top && (kindName(d) === kindName(top) || (d.stage !== undefined && d.stage === top.stage))) continue;
@@ -80,13 +81,14 @@ export function focusLevels(
   );
   const leads = (a: (typeof levels)[number], b: (typeof levels)[number]) =>
     a !== b && [...b.tables].some((t) => reach.get(a)!.has(t));
-  // Two levels of one branch that lead to the same objects without leading to each other (a hit's pair: its
-  // interpretations, linked tracksters and tracksters, each through layer clusters): the larger, first in display
-  // order (levels are listed top first), holds the other.
+  // Two reconstruction stages that lead to the same objects without leading to each other (a hit's pair: its
+  // interpretations, linked tracksters and tracksters, each through layer clusters): the later stage holds the other.
+  // Not other kinds that share objects (jets and taus, both made of PF candidates): nothing says one holds the other.
+  const stage = (l: (typeof levels)[number]) => Math.max(-1, ...l.layers.map((d) => d.stage ?? -1));
   const shares = (a: (typeof levels)[number], b: (typeof levels)[number]) =>
     [...reach.get(a)!].some((t) => reach.get(b)!.has(t));
   const holds = (a: (typeof levels)[number], b: (typeof levels)[number]) =>
-    leads(a, b) || (a !== b && !leads(b, a) && shares(a, b) && levels.indexOf(a) < levels.indexOf(b));
+    leads(a, b) || (stage(b) >= 0 && stage(a) > stage(b) && !leads(b, a) && shares(a, b));
   // Kahn's order: a level once every level holding it is placed; of several, the first in display order.
   const order: typeof levels = [],
     left = [...levels];

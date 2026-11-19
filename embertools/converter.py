@@ -45,6 +45,7 @@ PROFILE_KEYS = {
     "select",
     "display",
     "kinds",
+    "order",
     "prefer",
     "stages",
     "keepUnused",

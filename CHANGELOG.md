@@ -116,6 +116,8 @@ with a message while an old one is set without its new name. `deploy.sh` links `
 - **Ember derives no truth.** HGCal layer clusters no longer take the particle with the most simulated energy in
   their hits: like every kind without a CMSSW associator, they show their gap. The Truth tab compares each particle
   per detector (a barrel electron with its ECAL cluster, not as "not reconstructed").
+- **The side panel lists each part's kinds from the top down**, in an order the profile states (`order`): candidates,
+  their tracksters, layer clusters, hits. Bundles converted before keep their order until converted again.
 
 ### Fixed
 

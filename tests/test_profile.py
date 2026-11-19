@@ -66,6 +66,9 @@ def test_kinds_style_group_and_order():
     assert d[2]["group"] == "Misc"  # layers without a kind are unchanged
     legacy = converter({"LegacyHits": XYZE}, PROFILE).display[0]
     assert legacy["cut"]["default"] == 0.2  # the layer's own keys win
+    top_down = converter({"SoAHits": XYZE, "LegacyClusters": XYZE, "Other": XYZE}, {**PROFILE, "order": ["cluster"]})
+    assert [x["table"] for x in top_down.display] == ["LegacyClusters", "SoAHits", "Other"]  # `order` first
+    assert "order" not in top_down.header([], "t")  # a converter key, not a viewer setting
 
 
 def test_one_source_per_kind():
@@ -469,6 +472,10 @@ def test_include_merges_profiles(tmp_path):
         "track": {"repr": "helix"},
     }
     assert list(p["kinds"]) == ["hit", "track"]  # the order of first appearance (kinds order the layers)
+    write("ordered", {"include": ["a"], "order": ["hit"]})
+    write("reordered", {"include": ["ordered", "b"], "order": ["track", "hit"]})
+    assert load_profile(str(tmp_path / "reordered.json"))["order"] == ["track", "hit"]  # its own, not joined
+    assert load_profile(str(tmp_path / "top.json")).get("order") is None
     assert p["view"] == {"minRadius": 90, "start": "3d"}
     write("builtin", {"include": ["testbeam"], "name": "mine"})
     assert load_profile(str(tmp_path / "builtin.json"))["name"] == "mine"  # a built-in profile, by name

@@ -40,6 +40,7 @@
     {"name": "candidateOwnLCs", "kind": "compose", "from": "TICLCandidates", "to": "HGCalLayerClusters", "via": ["candidateOwnTrackster", "ownTracksterLCs"]}
   ],
   "cuts": {"TICLCandidates": [{"defined": "x"}]},
+  "order": ["jet", "electron", "muon", "photon", "tau", "met", "vertex", "secondaryVertex", "pfCandidate", "superCluster", "pfCluster", "caloHit", "candidate", "candidateTrackster", "interpretation", "linkedTrackster", "trackster", "layerCluster", "rechit", "track", "gsfTrack", "trackHit", "beamSpot", "mtdHit", "muonTrack", "standaloneTrackHit", "globalTrackHit", "muonSegment", "muonHit", "muonChamber"],
   "stages": ["trackster", "linkedTrackster", "interpretation", "candidateTrackster", "candidate"],
   "kinds": {
     "rechit": {"label": "HGCal hits", "domain": "HGCal", "repr": "cells", "palette": "heat", "visible": true, "cut": {"group": "Hit energy", "unit": "GeV", "default": 0.035}},

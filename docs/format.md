@@ -99,7 +99,8 @@ candidates of its tracks).
 
 ### Display hints
 
-`display` lists the layers to draw, in drawing order. `repr` is one of `cells`, `markers`, `ellipsoids`, `segments`,
+`display` lists the layers to draw, kinds from the top down (candidates before their tracksters, hits last), as the
+side panel lists them. `repr` is one of `cells`, `markers`, `ellipsoids`, `segments`,
 `helix`, `cones`, `polyline`. A viewer leaves out a layer whose `repr` it does not know (from a newer bundle), with a
 console warning, and draws the others.
 

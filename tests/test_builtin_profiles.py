@@ -363,6 +363,22 @@ def test_hgcal_profile_alone_keeps_its_bundles():
     assert not {"domains", "outlines"} & set(header) and [d["table"] for d in header["display"]] == ["HGCalHits"]
 
 
+@pytest.mark.parametrize("name", ["phase2", "run3", "cms", "hgcal"])
+def test_profiles_list_their_kinds_from_the_top_down(name):
+    """The profiles that put the parts together state the whole order of their kinds (`order`, top down: the side
+    panel's order), so it is not the accident of which include names a kind first; only truth is left to `kinds`.
+    Each TICL stage comes before the stages it is made from."""
+    p = load_profile(name)
+    order = p["order"]
+    assert len(order) == len(set(order)) and set(order) <= set(p["kinds"])
+    assert set(p["kinds"]) - set(order) <= {"truthParticle", "truthVertex"}
+    stages = [k for k in p.get("stages", []) if k in order]
+    assert sorted(stages, key=order.index) == stages[::-1]
+    if "jet" in order:
+        assert order.index("jet") < order.index("pfCandidate") < order.index("caloHit")
+        assert order.index("track") < order.index("trackHit")
+
+
 def test_every_cms_module_is_included_once():
     """cms = physics, hgcal, tracker, calo, pf, muon: each module's kinds are there once, domains in the contract order."""
     p = load_profile("cms")

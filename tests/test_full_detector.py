@@ -118,6 +118,8 @@ def test_the_tables_of_every_cmssw_branch_are_drawn_and_linked():
     assert (rels["pfTicl"]["from"], rels["pfTicl"]["to"]) == ("PFCandidates", "TICLCandidates")
     presets = {p["name"]: p for p in header["presets"]}
     assert presets["All vertices"]["colour"] == {"GeneralTrack": "rel:trackVertex"}
+    # the b-tags (jet tags branch), the CHS jets ticked; without the branch the preset is left out (above)
+    assert presets["b-tags"] == {"name": "b-tags", "colour": {"JetCHS": "btagDeepCSVB"}, "show": ["JetCHS"]}
     assert presets["Track time"]["colour"] == {
         "GeneralTrack": "t0",
         "PV": "t",

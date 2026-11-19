@@ -3,6 +3,7 @@
   "note": "What Ember's own NanoAOD of a reconstruction file has in Phase 2 and in Run 3 alike (phase2.json and run3.json include it): general tracks as helices from their reference point to their outermost hit (high purity by default), the beam spot, PF clusters (ECAL, preshower, HCAL, HF, HO) and superclusters (ECAL barrel and endcap) as markers, and the kinds of the calorimeter hits that phase2.json and run3.json split by subdetector. A cluster's hits are found by DetId in the hit tables (relations of kind counts with toKey): the cluster-hits tables of the CMSSW branch mmarriot:nanoaod-cluster-hits, when the release has them; the hits below the PF thresholds are not written, and their links are dropped.",
   "internal": ["PFClusterECALHits", "PFClusterPSHits", "PFClusterHCALHits", "PFClusterHFHits", "PFClusterHOHits", "SuperClusterEBHits", "SuperClusterEEHits", "PVTracks", "SVTracks", "PFCandidateClustersECAL", "PFCandidateClustersPS", "PFCandidateClustersHCAL", "PFCandidateClustersHF", "PFCandidateClustersHO", "JetPFCands", "JetCHSPFCands", "TauPFCands"],
   "derive": [
+    {"table": "JetCHS", "nanUnless": ["btagDeepCSVB", ">=", 0], "columns": ["btagDeepCSVB"]},
     {"table": "GeneralTrack", "momentum": ["pt", "eta", "phi"]},
     {"table": "GsfTrack", "momentum": ["pt", "eta", "phi"]},
     {"table": "PFCandidates", "momentum": ["pt", "eta", "phi"]},
@@ -89,7 +90,8 @@
   "presets": [
     {"name": "Primary vertex", "filters": {"PV": "index == 0", "GeneralTrack": "highPurity == 1 && vertex < 1"}},
     {"name": "All vertices", "filters": {"PV": "", "GeneralTrack": "highPurity == 1"}, "colour": {"GeneralTrack": "rel:trackVertex"}},
-    {"name": "What PUPPI removed", "filters": {"PFCandidates": "puppiWeight == 0"}, "show": ["PFCandidates"]}
+    {"name": "What PUPPI removed", "filters": {"PFCandidates": "puppiWeight == 0"}, "show": ["PFCandidates"]},
+    {"name": "b-tags", "colour": {"JetCHS": "btagDeepCSVB"}, "show": ["JetCHS"]}
   ],
   "view": {"colourRoot": "pfCandidate"},
   "domains": [{"name": "Tracker", "region": {"rMax": 120, "zMax": 280}, "view": "front", "colourMode": "layers", "minRadius": 15}],

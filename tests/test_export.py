@@ -379,6 +379,13 @@ def test_each_cmssw_branch_s_producers_are_used_once_the_release_has_them():
     aod = [b for b in PHASE2 + FULL if "TrackingRecHitsOwned" not in b and "particleFlowBlock" not in b]
     text, notes = configuration(s, aod, RELEASE | plugins)
     assert "TrackHitsTableProducer" not in text and "PFCandidateClustersECAL" not in text
+    assert any("no PF blocks (AOD)" in n for n in notes)
+    # an input with only the CHS jets: they are written as JetCHS (drawn as CHS jets), not in the Puppi jets' table
+    chs = [b for b in PHASE2 + FULL if "ak4PFJetsPuppi" not in b]
+    text, _ = configuration(s, chs, RELEASE | plugins)
+    assert (
+        'src=cms.InputTag("ak4PFJetsCHS"), name=cms.string("JetCHS")' in text and 'name=cms.string("Jet")' not in text
+    )
     assert any("the input does not keep them (AOD)" in n for n in notes)
     # without them: the release's tables, and a note per branch naming it and the branch of all of them
     text, notes = configuration(s, PHASE2 + FULL, RELEASE)

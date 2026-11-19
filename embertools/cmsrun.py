@@ -680,8 +680,9 @@ table("pfCandidateTable", cms.EDProducer("SimplePFCandidateFlatTableProducer", s
         ones (at 200 pileup, about 175 CHS jets, 118 taus and 43 muons per event).
         The rows of the objects an object was made from are index columns, from references (ref)."""
         inv, s, rows = self.inv, self.s, []
-        jets = [j for j in ("ak4PFJetsPuppi", "ak4PFJetsCHS") if not pat and inv.has(j, product_type="recoPFJets")]
-        jets = list(zip(["Jet", "JetCHS"], jets)) if jets and self.need("SimplePFJetFlatTableProducer") else []
+        names = {"ak4PFJetsPuppi": "Jet", "ak4PFJetsCHS": "JetCHS"}  # each collection its table (the profiles' names)
+        jets = [(n, j) for j, n in names.items() if not pat and inv.has(j, product_type="recoPFJets")]
+        jets = jets if jets and self.need("SimplePFJetFlatTableProducer") else []
         for name, src in jets:
             rows.append(f"""
 table("{name[0].lower()}{name[1:]}Table", cms.EDProducer("SimplePFJetFlatTableProducer",
@@ -1032,11 +1033,13 @@ process.load("RecoLocalTracker.SiStripRecHitConverter.SiStripRecHitMatcher_cfi")
         inv = self.inv
         tag = lambda written, src: f'cms.InputTag("{src}")' if written else 'cms.InputTag("")'
         ticl = self.s.phase2 and inv.has("pfTICL", product_type="recoPFCandidates") and self.ticl
+        blocks = inv.has("particleFlowBlock")  # the PF blocks hold the candidates' clusters (not in an AOD)
+        if self.pf_clusters and not blocks:
+            self.notes.append("the PF candidates' PF clusters: the input has no PF blocks (AOD)")
         clusters = "".join(
             f'\n        cms.PSet(src=cms.InputTag("{src}"), name=cms.string("PFCandidateClusters{name[9:]}"),'
             f' doc=cms.string("PF candidate <-> {src}")),'
-            for name, src in self.pf_clusters
-            if inv.has("particleFlowBlock")  # the PF blocks hold the candidates' clusters (not in an AOD)
+            for name, src in self.pf_clusters * blocks
         )
         return f"""
 # Their tracks, GSF tracks, muons and TICL candidates (the HGCal ones, pfTICL, one per TICL candidate), and their PF

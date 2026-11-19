@@ -1,0 +1,15 @@
+{
+  "name": "muonsystem",
+  "note": "Module: the muon system in Ember's own NanoAOD of a reconstruction file (Phase 2 and Run 3; phase2.json and run3.json include it, and declare its domain Muons). The release's DPGAnalysis/MuonTools tables: DT 4D, CSC and GEM segments, drawn as lines of 25 cm (about a chamber's depth) centred on their global position, along their global direction; GEM and RPC rechits as markers at their global position. Each detector is a layer of its own colour (the Muons part is coloured by layer). GE0 (GEM station 0, behind HGCal in Phase 2) is mostly neutron background: its rechits are filtered out by default (filter 'station != 0'). Tables are in collection order (by DetId), so that index columns of other tables address them. Truth: no muon-segment associator in CMSSW (truth-graph.md gap 17), and no truth table of muon hits (the truth graph's muon channel is keyed by detector unit, not by cell: gap 16).",
+  "kinds": {
+    "muonSegment": {"label": "Segments", "domain": "Muons", "repr": "segments", "visible": true, "width": 2, "size": null, "length": 25, "centred": true, "truthGap": {"reason": "no muon-segment associator in CMSSW", "gap": 17}},
+    "muonHit": {"label": "Muon hits", "domain": "Muons", "repr": "markers", "visible": true, "size": null, "truthGap": {"reason": "no truth table of muon hits: the truth graph's muon channel is keyed by detector unit, not by cell", "gap": 16}}
+  },
+  "display": [
+    {"table": "DTSegment", "kind": "muonSegment", "label": "DT", "fixedColour": "#e8a33d", "position": ["x", "y", "z"], "direction": ["dx", "dy", "dz"], "time": "time", "describe": {"columns": ["wheel", "station", "sector"]}, "inspect": ["wheel", "station", "sector", "chi2", "ndof", "time"]},
+    {"table": "CSCSegment", "kind": "muonSegment", "label": "CSC", "fixedColour": "#4f9de0", "position": ["x", "y", "z"], "direction": ["dx", "dy", "dz"], "time": "time", "describe": {"columns": ["station", "ring", "chamber"]}, "inspect": ["endcap", "station", "ring", "chamber", "nHits", "chi2", "ndof", "time"]},
+    {"table": "GEMSegment", "kind": "muonSegment", "label": "GEM", "fixedColour": "#5cc46a", "position": ["x", "y", "z"], "direction": ["dx", "dy", "dz"], "describe": {"columns": ["station", "chamber"]}, "inspect": ["region", "station", "ring", "chamber", "nHits", "chi2", "ndof"]},
+    {"table": "GEMRecHit", "kind": "muonHit", "label": "GEM", "fixedColour": "#5cc46a", "position": ["x", "y", "z"], "filter": "station != 0", "describe": {"columns": ["station", "layer", "roll"]}, "inspect": ["region", "station", "ring", "chamber", "layer", "roll", "bx", "clusterSize"]},
+    {"table": "RPCRecHit", "kind": "muonHit", "label": "RPC", "fixedColour": "#c070d0", "position": ["x", "y", "z"], "time": "time", "describe": {"columns": ["station", "ring", "roll"]}, "inspect": ["region", "ring", "station", "sector", "layer", "roll", "bx", "time", "clusterSize"]}
+  ]
+}

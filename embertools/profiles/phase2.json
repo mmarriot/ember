@@ -1,7 +1,7 @@
 {
   "name": "phase2",
   "note": "Ember's own NanoAOD of a Phase-2 reconstruction file (ember FILE.root: embertools/cmsrun.py), and NANO:@HGCAL files (DPGAnalysis/HGCalNanoAOD, whose tables it shares): HGCal rechits (PhysicsTools/TruthInfo table 'rechits': positions from TICLGeom; cell half widths from the DetId: the 0.403 / 0.604 cm apothems of high- and low-density silicon, r dphi / 2 of the 288 scintillator tiles), layer clusters, tracksters with their layer clusters, TICL candidates with their tracksters and tracks (legacy collections: offline RECO stores no SoA collections, and the release has no SoA table producers); ECAL barrel and HCAL PF rechits (TruthInfo table 'pfrechits', split here by the DetId's subdetector: Phase 2 has no ECAL endcap, preshower or HCAL endcap) drawn as towers, EB 0.0174 x 1 degree, HCAL from the DetId's ieta and depth (geometry sweep of D104), EB and HO showing energy as length; PF clusters, superclusters, tracks, physics objects (reco.json, nano.json). A cluster's hits are found by DetId (when the release writes cluster-hits tables). Truth (truth.json): the TruthInfo tables of the truth graph, when the release writes them and the input has the graph. Trackster axes are read as (x, z, y) because HGCalNanoAOD swaps eVector0_y/z.",
-  "include": ["nano", "reco", "truth"],
+  "include": ["nano", "reco", "muonsystem", "truth"],
   "omit": ["rechits.rechit_radius"],
   "internal": ["linkedTracksters", "TICLCandidatesExtra", "TICLCandidatesTrackIdxs", "TICLCandidatesGsfTrackIdxs", "HGCalLayerClustersHits", "SuperClusterHGCalHits", "ticlTrackstersCLUE3DHighvertices", "ticlTrackstersCLUEsteringvertices", "ticlTracksterLinksvertices", "ticlTracksterLinksSuperclusteringDNNvertices", "ticlTracksterInterpretationsvertices", "ticlCandidatevertices"],
   "derive": [
@@ -58,7 +58,8 @@
   ],
   "domains": [
     {"name": "Calo", "region": {"rMax": 420, "zMax": 450}, "view": "front", "colourMode": "layers"},
-    {"name": "HGCal", "region": {"rMax": 260, "zMax": 515}, "view": "3d"}
+    {"name": "HGCal", "region": {"rMax": 260, "zMax": 515}, "view": "3d"},
+    {"name": "Muons", "region": {"rMax": 760, "zMax": 1080}, "view": "rz", "colourMode": "layers"}
   ],
   "outlines": [
     {"name": "Tracker", "r": [2, 118], "z": [0, 270]},
@@ -67,7 +68,14 @@
     {"name": "HCAL barrel", "r": [181, 289], "z": [0, 433]},
     {"name": "Solenoid", "r": [295, 380], "z": [0, 630]},
     {"name": "HCAL outer", "r": [390, 414], "z": [0, 707]},
-    {"name": "HCAL forward", "r": [12, 130], "z": [1115, 1280]}
+    {"name": "HCAL forward", "r": [12, 130], "z": [1115, 1280]},
+    {"name": "MTD barrel", "r": [114, 118], "z": [0, 270]},
+    {"name": "MTD endcap", "r": [32, 118], "z": [296, 304]},
+    {"name": "Muon barrel", "r": [400, 740], "z": [0, 660]},
+    {"name": "Muon endcap", "r": [100, 700], "z": [565, 1080]}
+  ],
+  "presets": [
+    {"name": "Track time", "colour": {"GeneralTrack": "t0", "PV": "t", "MTDHits": "time"}}
   ],
   "view": {"tour": "beam", "minRadius": 90}
 }

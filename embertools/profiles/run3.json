@@ -1,7 +1,7 @@
 {
   "name": "run3",
   "note": "Ember's own NanoAOD of a Run 3 reconstruction file (data or simulation; ember FILE.root: embertools/cmsrun.py): ECAL, preshower and HCAL PF rechits (PhysicsTools/TruthInfo table 'pfrechits', remade in the job when the input keeps only the cleaned-away ones; positions from CaloGeometry), split here by the DetId's subdetector: ECAL barrel (towers 0.0174 x 1 degree), ECAL endcap (eta-phi bins with the area of the 2.862 cm crystal face), preshower (6.1 cm x 1.9 mm strips, along y in plane 1 and x in plane 2), HB, HE, HF and HO (towers from the DetId's ieta and depth, geometry sweep of Run 3); ECAL and HO show energy as length; PF clusters, superclusters, tracks and physics objects (reco.json, nano.json). A cluster's hits are found by DetId (when the release writes cluster-hits tables). Domain Calo: the barrel and endcap calorimeters (r <= 420 cm, |z| <= 580 cm), front view; the endcaps (ECAL, preshower, HCAL) and HF are not drawn in the front view, where they would sit over the barrel.",
-  "include": ["nano", "reco"],
+  "include": ["nano", "reco", "muonsystem"],
   "derive": [
     {"table": "pfrechits", "bits": {"det": ["rechit_ID", 28, 4], "subdet": ["rechit_ID", 25, 3]}},
     {"table": "pfrechits", "split": {"EBHits": [["det", "==", 3], ["subdet", "==", 1]], "EEHits": [["det", "==", 3], ["subdet", "==", 2]], "ESHits": [["det", "==", 3], ["subdet", "==", 3]], "HBHits": [["det", "==", 4], ["subdet", "==", 1]], "HEHits": [["det", "==", 4], ["subdet", "==", 2]], "HOHits": [["det", "==", 4], ["subdet", "==", 3]], "HFHits": [["det", "==", 4], ["subdet", "==", 4]]}},
@@ -22,7 +22,8 @@
     {"table": "HFHits", "kind": "caloHit", "label": "HCAL forward", "position": ["rechit_x", "rechit_y", "rechit_z"], "cell": {"shape": "tower", "face": "disc", "dEta": "dEta", "dPhi": "dPhi", "depth": "depth"}, "cut": {"group": "HCAL forward energy", "label": "HCAL forward", "column": "rechit_energy", "unit": "GeV", "default": 3.0}, "visible": false, "views": ["3d", "side", "rz"]}
   ],
   "domains": [
-    {"name": "Calo", "region": {"rMax": 420, "zMax": 580}, "view": "front", "colourMode": "layers"}
+    {"name": "Calo", "region": {"rMax": 420, "zMax": 580}, "view": "front", "colourMode": "layers"},
+    {"name": "Muons", "region": {"rMax": 760, "zMax": 1080}, "view": "rz", "colourMode": "layers"}
   ],
   "outlines": [
     {"name": "Tracker", "r": [2, 118], "z": [0, 270]},
@@ -33,7 +34,9 @@
     {"name": "HCAL endcap", "r": [40, 300], "z": [388, 568]},
     {"name": "Solenoid", "r": [295, 380], "z": [0, 630]},
     {"name": "HCAL outer", "r": [390, 414], "z": [0, 707]},
-    {"name": "HCAL forward", "r": [12, 130], "z": [1115, 1280]}
+    {"name": "HCAL forward", "r": [12, 130], "z": [1115, 1280]},
+    {"name": "Muon barrel", "r": [400, 740], "z": [0, 660]},
+    {"name": "Muon endcap", "r": [100, 700], "z": [565, 1080]}
   ],
   "view": {"minRadius": 90}
 }

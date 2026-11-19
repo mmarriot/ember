@@ -93,6 +93,12 @@ def test_relation_normalisation(rel, cols, expected):
     np.testing.assert_array_equal(out["indices"], expected[1])
 
 
+def test_children_counted_but_not_in_the_child_table_are_rejected():
+    tables = {"A": (2, {"n": np.array([2, 2])}), "B": (5, {})}
+    with pytest.raises(ValueError, match="4 children counted, table B has 5"):
+        build_relation({"name": "r", "kind": "counts", "from": "A", "to": "B", "counts": "A.n"}, tables)
+
+
 def test_relation_out_of_range_is_rejected():
     tables = {"A": (1, {"k": np.array([9])}), "B": (5, {})}
     with pytest.raises(ValueError):

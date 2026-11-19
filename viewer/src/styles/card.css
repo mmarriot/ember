@@ -109,8 +109,11 @@
 }
 .rung {
   position: relative;
-  padding: 2px 0 3px;
+  padding: 2px 0 3px calc(var(--indent, 0) * 12px); /* its depth among the list's branches (Chain.tsx) */
   font-size: 12px;
+}
+.rvia {
+  font-size: 11px;
 }
 .rung::before {
   content: "";

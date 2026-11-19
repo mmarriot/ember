@@ -9,7 +9,7 @@
 // its steps then show that match instead of "no truth" with no change here.
 import { type DisplayLayer, type EventData, type Header, kindName } from "../io/format";
 import { factIn, facts } from "./facts";
-import { focusLevels } from "./levels";
+import { chainOrder, focusLevels } from "./levels";
 import { bestPurities, simEnergyByParticle, type TruthStatus } from "./match";
 import { bestPartners, contentPartners, levelsOf, type Ref, type Related } from "./relations";
 
@@ -49,12 +49,15 @@ export interface Group {
   rows: number[];
   held?: [number, number];
 }
-/** One step of the ladder: the objects of one kind. */
+/** One step of the ladder: the objects of one kind. `indent` and `via`: where it sits in its list's branches, and
+ *  the other kinds that hold it (model/levels.ts chainOrder). */
 export interface Rung {
   kind: string;
   groups: Group[];
   count: number;
   links: Link[];
+  indent?: number;
+  via?: string[];
 }
 /** `other`: related rows of tables the bundle does not draw (a hit's digi), under their table's name. */
 export interface Ladder {
@@ -101,12 +104,16 @@ export function recoLadder(
       links: linksOf(ev, header, groups, statuses, rank),
     };
   };
-  // Holders before what they hold (model/levels.ts gives each kind its depth), so each list reads down the chain.
+  // Holders before what they hold, one branch at a time (model/levels.ts chainOrder), so each list reads down the
+  // chain.
   const rungs = (from: Related, rank: boolean) =>
-    focusLevels(header.display, sel.table, from, () => true, header.relations)
-      .map((l, i) => ({ l, i }))
-      .sort((a, b) => (a.l.depth ?? 0) - (b.l.depth ?? 0) || a.i - b.i)
-      .map(({ l }) => rung(l.name, [...new Set(l.layers.map((d) => d.table))], from, rank));
+    chainOrder(focusLevels(header.display, sel.table, from, () => true, header.relations)).map(
+      ({ level, indent, via }) => ({
+        ...rung(level.name, [...new Set(level.layers.map((d) => d.table))], from, rank),
+        indent,
+        via,
+      }),
+    );
   const own = layerOf(header, sel.table),
     self = rung(own ? kindName(own) : sel.table, [sel.table], new Map([[sel.table, new Set([sel.row])]]), true);
   // A table read only as a polyline's points (a global muon track's hits, tracker ones too) is its shape, not other

@@ -133,9 +133,20 @@ describe("recoLadder", () => {
   it("reads down the chain: what holds the object above it, what it is made of below, holders first", () => {
     expect(kinds(ladder("Cand", 0))).toEqual({
       above: ["Jets", "PF candidates"],
-      below: ["Interpretations 1", "Tracks 1", "Tracksters 1", "Layer clusters 2", "Hits 3"],
+      below: ["Interpretations 1", "Tracksters 1", "Layer clusters 2", "Hits 3", "Tracks 1"],
       beside: [],
     });
+  });
+  it("indents each step under the step it was reached from, and names its other holders", () => {
+    const l = ladder("Jet", 0);
+    expect(l.below.map((r) => `${r.indent} ${r.kind}${r.via?.length ? ` via ${r.via}` : ""}`)).toEqual([
+      "0 PF candidates",
+      "1 Candidates",
+      "2 Interpretations",
+      "2 Layer clusters via Interpretations",
+      "3 Hits",
+      "1 Tracks via Candidates",
+    ]);
   });
   it("never lists what contains the object as one of its parts (a PF candidate made of the candidate and its track)", () => {
     expect(ladder("Cand", 0).below.some((r) => r.kind === "PF candidates")).toBe(false);

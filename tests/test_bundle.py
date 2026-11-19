@@ -73,6 +73,11 @@ def test_columns_are_8_byte_aligned():
             {"A": {"n": np.array([2, 0, 1])}, "L": {"i": np.array([4, 1, 3])}},
             ([0, 2, 2, 3], [4, 1, 3]),
         ),
+        (  # without a list: B holds A's children in A's order (the hits of tracks)
+            {"kind": "counts", "counts": "A.n"},
+            {"A": {"n": np.array([2, 0, 3])}, "L": {}},
+            ([0, 2, 2, 5], [0, 1, 2, 3, 4]),
+        ),
         (
             {"kind": "links", "fromIndex": "L.f", "toIndex": "L.t"},
             {"A": {}, "L": {"f": np.array([0, 0, 2]), "t": np.array([1, -1, 4])}},

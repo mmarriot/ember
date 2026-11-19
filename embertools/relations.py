@@ -25,7 +25,8 @@ def build_relation(rel, tables):
         offsets, indices = column(rel["offsets"]), column(rel["indices"])
     elif kind == "counts":  # NanoAOD style: a count per `from` row and a flat list
         offsets = np.concatenate([[0], np.cumsum(column(rel["counts"]), dtype=np.int64)])
-        indices = column(rel["indices"])
+        # without a list, the `to` rows are the children of the `from` rows, in their order (the hits of tracks)
+        indices = column(rel["indices"]) if "indices" in rel else np.arange(offsets[-1], dtype=np.int64)
         if "toKey" in rel:  # the list holds keys (e.g. DetIds) of `to` rows, not their numbers
             offsets, indices, weights = _keys_to_rows(offsets, indices, column(rel["toKey"]), weights)
     elif kind == "links":  # one row per (from, to) pair; a `to` below 0 means no target

@@ -31,6 +31,7 @@ import {
   layerOf,
   legends,
   levelTop,
+  modes,
   noTruth,
   pairView,
   rawEvent,
@@ -299,6 +300,14 @@ export function startScene(canvas: HTMLCanvasElement): () => void {
     });
   };
 
+  // The candidate types' key (ui/Key.tsx) shows the legend of the colour root's layer, also when that layer is not
+  // drawn (the PF candidates start unticked): one pass over its rows, under a millisecond for 10k PF candidates.
+  const rootLegend = (header: Header, ev: EventData, drawn: Record<string, Legend>, pal: Pal) => {
+    const root = modes.peek().roots.reco,
+      d = root === undefined ? undefined : layerOf(root),
+      t = root === undefined ? undefined : ev.tables[root];
+    if (d && t && !(layerKey(d) in drawn)) drawn[layerKey(d)] = colours(d, t, ev, header, pal).legend;
+  };
   let builtFor: EventData | null = null; // the event the layers were built for
   let outlinesFor: unknown[] = []; // the bundle and palette the detector outlines were drawn for
   let lastPair = pairView.peek(); // the pair whose colours the layers have (recoloured when it changes)
@@ -336,6 +345,7 @@ export function startScene(canvas: HTMLCanvasElement): () => void {
     }
     const drawn: Record<string, Legend> = {};
     entries = build(wanted(b.header, ev), b.header, ev, drawn);
+    rootLegend(b.header, ev, drawn, pal);
     builtFor = ev;
     lastPair = pairView.peek(); // built with its colours
     legends.value = drawn;

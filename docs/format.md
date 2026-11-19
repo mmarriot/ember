@@ -204,6 +204,10 @@ All are optional. The converter copies them from the profile.
   - `tour`: `beam` for collider data (the camera stays outside the detector, and glides to each step's objects and
     back); `orbit` (default) frames the objects at their own scale and orbits them.
   - `domain`: the part of the detector that the viewer opens on (one of `domains`, for example `Physics`).
+  - `colourRoot`: the kind whose objects the "candidate type" colours start from (for example `pfCandidate`): every
+    reco layer whose chain of relations leads to them takes the colour of its candidate. Without it, or when the
+    bundle has reconstruction stages and no relation from that kind's layer to the last stage's layer (for example
+    PF candidates without their TICL candidates), the colours start from the last stage (the TICL candidates).
 - `summaries`: `[{"title", "table", "groupBy", "value", "op", "unit", "where"}]`: per-event charts of the rows of
   `table` that pass the cuts (and the expression `where`), grouped by the integer column `groupBy`. `op` is `count`,
   `sum` or `mean` (of `value`).

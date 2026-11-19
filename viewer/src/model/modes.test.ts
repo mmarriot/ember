@@ -44,6 +44,26 @@ describe("colour modes", () => {
     expect(modeRoots(header)).toEqual({ truth: "P", reco: "Cand" });
     expect(modeRoots({ ...header, display: header.display.filter((d) => !d.truth) })).toEqual({ reco: "Cand" });
   });
+  it("reco mode on the profile's colour root (PF candidates) when it holds the last stage, else on that stage", () => {
+    const pf = {
+      ...header,
+      view: { colourRoot: "pfCandidate" },
+      display: [...header.display, { table: "PF", repr: "helix", kind: "pfCandidate" }],
+      relations: { ...header.relations, pfTrack: rel("PF", "Track"), pfCand: rel("PF", "Cand") },
+    } as unknown as Header;
+    expect(modeRoots(pf)).toEqual({ truth: "P", reco: "PF" });
+    const c = modeColouring(pf, "PF");
+    expect([c.Cand, c.Interp, c.Track]).toEqual([
+      { relation: "pfCand" },
+      { relation: "candInterp" },
+      { relation: "pfTrack" },
+    ]);
+    // without the PF candidate -> candidate link (a release without it), the candidates stay the root
+    const { pfCand: _, ...unlinked } = pf.relations;
+    expect(modeRoots({ ...pf, relations: unlinked }).reco).toBe("Cand");
+    // without stages (Run 3: no HGCal), the PF candidates
+    expect(modeRoots({ ...pf, display: pf.display.map((d) => ({ ...d, stage: undefined })) }).reco).toBe("PF");
+  });
   it("truth mode: reco objects by their own best match, hits by particle, layer clusters from their hits", () => {
     expect(modeColouring(header, "P", true)).toEqual({
       P: "identity",

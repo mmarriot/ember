@@ -473,6 +473,8 @@ def test_the_truth_tables_are_written_when_the_release_and_the_input_have_them()
     assert "truth: the input has no truth graph (truthLogicalGraphProducer)" in notes and "truthGraph" not in text
     text, notes = truth(PHASE2 + GRAPH, RELEASE)
     assert "truthGraph" not in text and any("mmarriot:truthgraph-nano-tables" in n for n in notes)
+    header = text.replace("\n#     ", " ")  # the notes as one line each: the command is not split at a hyphen
+    assert "git cms-merge-topic mmarriot:truthgraph-nano-tables" in header
     text, notes = truth(PHASE2 + GRAPH)
     assert "process.truthGraphTable = process.truthGraphCaloBoundaryTable.clone(" in text and not notes[1:]
     # no vertex associations, so no vertex associator runs

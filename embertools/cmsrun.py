@@ -120,7 +120,9 @@ class _Writer:
         self.hit_tables = {}  # hit table module -> name of its truth table
 
     def text(self):
-        wrap = lambda n: textwrap.fill(n, 116, initial_indent="#   - ", subsequent_indent="#     ")
+        wrap = lambda n: textwrap.fill(
+            n, 116, initial_indent="#   - ", subsequent_indent="#     ", break_on_hyphens=False
+        )
         notes = "".join(wrap(n) + "\n" for n in self.notes) or "#   (nothing)\n"
         return "\n".join(self.parts).replace("#{NOTES}\n", notes)
 

@@ -17,6 +17,7 @@ Tables are held as {name: (rows, {column: numpy array})}; relations as in relati
 import datetime
 import fnmatch
 import os
+import re
 
 import numpy as np
 
@@ -245,6 +246,8 @@ class Converter:
             if (layer.get("points") or {}).get("relation", None) in (None, *self.relations)
         ]
         for layer in layers:
+            if "filter" in layer and not self._filterable(layer["table"], layer["filter"]):
+                del layer["filter"]  # e.g. puppiWeight > 0 for an input without PUPPI weights
             columns = self.tables[layer["table"]]["columns"]
             missing = [c for c in named_columns(layer) if c and c not in columns]
             if missing:
@@ -268,23 +271,35 @@ class Converter:
         return hints
 
     def _presets(self, presets):
-        """The presets, each with only the colours and filters of the tables written, and a colour "rel:<relation>"
-        only if that relation is (one profile serves files with and without, e.g., the vertices' tracks); a preset left
-        with nothing is dropped."""
+        """The presets, each with only the colours and filters of the tables written, a colour "rel:<relation>" only
+        if that relation is, and a filter only if its table has the columns it names (one profile serves files with and
+        without, e.g., the vertices' tracks or the PUPPI weights). A preset that this leaves with nothing is dropped;
+        one with nothing to begin with (the bundle's defaults, e.g. "Energy") is kept."""
         written = self.written()
         colour = lambda t, c: (
             t in written and (c[4:] in self.relations if c.startswith("rel:") else c in self.tables[t]["columns"])
         )
         out = []
         for p in presets:
-            p = {
+            kept = {
                 **p,
                 **({"colour": {t: c for t, c in p["colour"].items() if colour(t, c)}} if "colour" in p else {}),
-                **({"filters": {t: f for t, f in p["filters"].items() if t in written}} if "filters" in p else {}),
+                **(
+                    {"filters": {t: f for t, f in p["filters"].items() if self._filterable(t, f)}}
+                    if "filters" in p
+                    else {}
+                ),
             }
-            if p.get("colour") or p.get("filters"):
-                out.append({k: v for k, v in p.items() if v != {}})
+            if kept.get("colour") or kept.get("filters") or not (p.get("colour") or p.get("filters")):
+                out.append({k: v for k, v in kept.items() if v != {} or k not in ("colour", "filters")})
         return out
+
+    def _filterable(self, table, expr):
+        """Whether `table` is written and has the columns that the viewer filter expression `expr` names (its names
+        not followed by "(", which are functions)."""
+        return table in self.written() and set(re.findall(r"\b[A-Za-z_]\w*\b(?!\s*\()", expr)) <= set(
+            self.tables[table]["columns"]
+        )
 
     # What the bundle and the reader need to know.
 

@@ -230,7 +230,9 @@ The converter also reads:
 Every top-level key that is not described above (for example `replay`, `view`, `summaries`, `presets`, `runTitle`,
 `runFields`, `domains`, `field`) is a viewer setting. The converter copies it to the bundle header unchanged, except
 that `domains` none of whose layers is written are dropped, and so are the parts of `presets` that name a table, a
-column or a `rel:` relation that is not written (and a preset left with nothing). What
+column or a `rel:` relation that is not written (and a preset that this leaves with nothing; one that names nothing
+to begin with is kept). A layer's `filter` that names a column its table lacks is dropped too (`puppiWeight > 0` for
+an input without PUPPI weights). What
 they mean is in [Bundle format](format.md#viewer-settings). So a new viewer setting needs no change to the converter.
 
 Values used by the built-in profiles:

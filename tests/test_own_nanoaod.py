@@ -227,13 +227,19 @@ def test_presets_keep_only_the_tables_columns_and_relations_the_bundle_has():
     profile = {
         "display": [{"table": "PV", "repr": "markers", "position": ["x", "y", "z"]}],
         "presets": [
-            {"name": "Primary vertex", "filters": {"PV": "index == 0", "MTDHits": ""}},
+            {"name": "Defaults"},
+            {"name": "Primary vertex", "filters": {"PV": "abs(z) < 1 && ndof > 4", "MTDHits": ""}},
             {"name": "All vertices", "filters": {"PV": ""}, "colour": {"PV": "rel:vertexTracks"}},
             {"name": "Track time", "colour": {"PV": "t", "MTDHits": "time"}},
+            {"name": "Good vertices", "filters": {"PV": "chi2 < 3"}},
         ],
     }  # fmt: skip
-    conv = converter({"PV": {"x": F4, "y": F4, "z": F4}}, profile)
+    conv = converter({"PV": {"x": F4, "y": F4, "z": F4, "ndof": F4}}, profile)
     assert conv.viewer_hints["presets"] == [
-        {"name": "Primary vertex", "filters": {"PV": "index == 0"}},
+        {"name": "Defaults"},  # empty on purpose: kept
+        {"name": "Primary vertex", "filters": {"PV": "abs(z) < 1 && ndof > 4"}},
         {"name": "All vertices", "filters": {"PV": ""}},
-    ]  # PV has no time, and no relation to its tracks
+    ]  # PV has no time, no chi2, and no relation to its tracks
+    # a layer's default filter naming a column the file lacks (no PUPPI weights) is left out
+    layer = {"table": "PV", "repr": "markers", "position": ["x", "y", "z"], "filter": "puppiWeight > 0"}
+    assert "filter" not in converter({"PV": {"x": F4, "y": F4, "z": F4}}, {"display": [layer]}).display[0]

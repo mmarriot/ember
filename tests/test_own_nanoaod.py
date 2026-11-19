@@ -208,3 +208,32 @@ def test_truth_hits_are_found_by_detid_in_the_split_tables_and_momenta_derived()
     assert list(eb["offsets"]) == [0, 1, 1] and list(eb["weights"]["simEnergy"]) == [0.25]  # the EB hit, row 0
     assert list(hb["offsets"]) == [0, 0, 1] and list(hb["indices"]) == [0]  # the HB hit; the HF one is in neither
     assert np.allclose(tables["Truth"][1]["pz"], [0.0, -5.0]) and np.allclose(tables["Truth"][1]["px"], [10.0, 0.0])
+
+
+def test_an_optional_relation_is_left_out_of_a_file_whose_table_lacks_its_index_column():
+    # ember's own Electron table has the row of its GSF track; a PAT one (standard NanoAOD next to ember's GsfTrack)
+    # has none
+    relation = {"name": "electronGsfTrack", "kind": "index", "from": "Electron", "to": "GsfTrack",
+                "index": "Electron.gsfTrackIdx"}  # fmt: skip
+    own = {"Electron": {"pt": F4, "gsfTrackIdx": np.dtype("i4")}, "GsfTrack": {"pt": F4}}
+    pat = {"Electron": {"pt": F4}, "GsfTrack": {"pt": F4}}
+    assert "electronGsfTrack" in converter(own, {"relations": [{**relation, "optional": True}]}).relations
+    assert converter(pat, {"relations": [{**relation, "optional": True}]}).relations == {}
+    with pytest.raises(ValueError, match="relation electronGsfTrack: table Electron has no column gsfTrackIdx"):
+        converter(pat, {"relations": [relation]})
+
+
+def test_presets_keep_only_the_tables_columns_and_relations_the_bundle_has():
+    profile = {
+        "display": [{"table": "PV", "repr": "markers", "position": ["x", "y", "z"]}],
+        "presets": [
+            {"name": "Primary vertex", "filters": {"PV": "index == 0", "MTDHits": ""}},
+            {"name": "All vertices", "filters": {"PV": ""}, "colour": {"PV": "rel:vertexTracks"}},
+            {"name": "Track time", "colour": {"PV": "t", "MTDHits": "time"}},
+        ],
+    }  # fmt: skip
+    conv = converter({"PV": {"x": F4, "y": F4, "z": F4}}, profile)
+    assert conv.viewer_hints["presets"] == [
+        {"name": "Primary vertex", "filters": {"PV": "index == 0"}},
+        {"name": "All vertices", "filters": {"PV": ""}},
+    ]  # PV has no time, and no relation to its tracks

@@ -158,6 +158,10 @@ Optional keys of a relation:
   that give one table name to different associations. For example, `ticlCandidateToTruth` is the candidates' own
   association in a development export, but their tracksters' association in a stock release, which has the table
   `ticlCandidate`.
+- `"optional": true`: the relation is not built when one of its tables lacks a column it names (without it, the
+  conversion stops). This is for an index column that one export writes and another does not. For example, `ember`'s
+  own `Electron` table has `gsfTrackIdx`, the row of the electron's GSF track; a PAT electron table (`--pat`) next to
+  `ember`'s `GsfTrack` has none.
 - `"written": false`: the relation is built for derived columns and cuts, but not written. For example, jets → the
   vertex whose position they gather.
 - `"weights": ["T.col", ...]`: one weight per link, stored as f32.
@@ -223,7 +227,9 @@ The converter also reads:
 ### Viewer settings
 
 Every top-level key that is not described above (for example `replay`, `view`, `summaries`, `presets`, `runTitle`,
-`runFields`, `domains`, `field`) is a viewer setting. The converter copies it to the bundle header unchanged. What
+`runFields`, `domains`, `field`) is a viewer setting. The converter copies it to the bundle header unchanged, except
+that `domains` none of whose layers is written are dropped, and so are the parts of `presets` that name a table, a
+column or a `rel:` relation that is not written (and a preset left with nothing). What
 they mean is in [Bundle format](format.md#viewer-settings). So a new viewer setting needs no change to the converter.
 
 Values used by the built-in profiles:

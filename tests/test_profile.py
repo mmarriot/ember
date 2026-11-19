@@ -336,12 +336,13 @@ def test_neighbour_distance_derive():
 
 
 def test_viewer_hints_are_passed_to_the_header():
-    """Every top-level key the converter does not act on is a viewer setting, copied verbatim."""
+    """Every top-level key the converter does not act on is a viewer setting, copied verbatim (presets: for the tables
+    written)."""
     hints = {
         "replay": {"direction": [0, -1, 0]},
         "view": {"minRadius": 25},
         "summaries": [],
-        "presets": [{"name": "E"}],
+        "presets": [{"name": "E", "filters": {"A": "k > 0"}}],
         "runTitle": "{Beam}",
         "runFields": ["Beam"],
         "field": {"bz": 3.8, "rMax": 295, "zMax": 300},

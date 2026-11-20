@@ -401,16 +401,18 @@ function InView({ table }: { table: string }) {
       {text ?? ((layerOf(tab)?.truth && describe(tab, r)) || chipText(tab, r))}
     </button>
   );
-  const amount = (x: number, sim: boolean) =>
-    !sim ? `${short(x)} GeV` : x < 1 ? `${short(1000 * x)} MeV` : `${short(x)} GeV`;
-  const total = new Set(dets.flatMap((d) => d.rows.map((r) => r.particle))).size;
+  const amount = (x: number) => (x < 1 ? `${short(1000 * x)} MeV` : `${short(x)} GeV`);
+  const total = new Set(dets.flatMap((d) => d.rows.map((r) => r.particle))).size,
+    sims = new Set(dets.map((d) => d.by === "simEnergy")),
+    // what the first column sorts by: the energy deposited in a calorimeter, a track's particle's pT
+    amountName = sims.size > 1 ? "deposited energy or pT" : sims.has(true) ? "deposited energy" : "pT";
   return (
     <section class="outcome inview">
       <h3>
         Particles in this view{" "}
         <span class="count">
-          {total}
-          {dom ? ` · ${dom}` : ""}
+          · {total}
+          {dom ? ` in ${dom}` : ""}
         </span>{" "}
         <Info title="Particles in this view">
           <p>
@@ -434,7 +436,7 @@ function InView({ table }: { table: string }) {
         sort by
         {(
           [
-            ["amount", "energy (pT)"],
+            ["amount", amountName],
             ["completeness", "completeness"],
             ["split", "split"],
           ] as const
@@ -466,17 +468,25 @@ function InView({ table }: { table: string }) {
               <thead>
                 <tr>
                   <th>particle</th>
-                  <th class="num" title={sim ? "simulated energy, not calibrated" : "pT"}>
-                    {sim ? `sim E` : "pT"}
+                  {/* in the tracker, the particle's name already gives its pT */}
+                  {sim && (
+                    <th
+                      class="num"
+                      title={`Simulated energy the particle deposited in the ${d.in} sensors (hit index), not calibrated: not its energy`}
+                    >
+                      deposited in {d.in}
+                    </th>
+                  )}
+                  <th title="The best match, and its completeness: the share of the particle it holds">
+                    best match · % of it
                   </th>
-                  <th>best match</th>
                 </tr>
               </thead>
               <tbody>
                 {sorted.slice(0, LISTED).map((r) => (
                   <tr>
                     <td>{chip(table, r.particle, truthText(table, r.particle, sim))}</td>
-                    <td class="num">{amount(r.amount, sim)}</td>
+                    {sim && <td class="num">{amount(r.amount)}</td>}
                     <td>
                       {!d.kind ? (
                         <span class="muted">not compared</span>
@@ -484,23 +494,28 @@ function InView({ table }: { table: string }) {
                         <>
                           {chip(d.kind, r.best)}{" "}
                           <span class="muted" title="The best match's completeness: the share of the particle it holds">
-                            {r.completeness !== undefined ? `${percent(r.completeness)} of it` : ""}
+                            {r.completeness !== undefined ? percent(r.completeness) : ""}
                           </span>
                         </>
                       ) : (
                         <span class="muted">none</span>
                       )}
+                      {/* the spaces outside the spans: where a narrow column wraps */}
                       {r.split > 1 && (
-                        <span class="muted" title="Objects of the kind that hold part of it">
+                        <>
                           {" "}
-                          · split {r.split}
-                        </span>
+                          <span class="muted" title="Objects of the kind that hold part of it">
+                            · split {r.split}
+                          </span>
+                        </>
                       )}
                       {r.shares > 0 && (
-                        <span class="muted" title="Other particles of this list whose best match is the same object">
+                        <>
                           {" "}
-                          · shared +{r.shares}
-                        </span>
+                          <span class="muted" title="Other particles of this list whose best match is the same object">
+                            · shared +{r.shares}
+                          </span>
+                        </>
                       )}
                     </td>
                   </tr>

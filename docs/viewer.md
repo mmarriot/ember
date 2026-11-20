@@ -371,12 +371,13 @@ The tab is called **Tree** for a bundle with a tree but no truth layers. It hold
 - **Particles in this view**, the way into the truth: for the part of the detector looked at, detector by detector,
   the particles that left simulated energy in its hits (from the hit index), largest first; in the tracker, which has
   no simulated energy in the file, the particles a track is matched to, by pT. Each row gives the particle (by its
-  energy in a calorimeter, by pT and η in the tracker), its simulated energy there (MeV or GeV, not calibrated), its
-  best match among the kind compared there with that match's completeness ("51% of it"), "split n" when n objects of
+  energy in a calorimeter, by pT and η in the tracker), in a calorimeter the energy it deposited there (column
+  "deposited in HGCal": simulated, in MeV or GeV, not calibrated, and not the particle's energy), its best match among
+  the kind compared there with that match's completeness ("51%", the column's "% of it"), "split n" when n objects of
   the kind hold part of it, and "shared +n" when n other particles have the same best match (a merge). A detector
-  without an association (HF, HO) says "not compared". Sort by energy, completeness or split; click a particle or an
-  object to select it. Simulated energies of different detectors are never compared: a particle is listed in each
-  detector it reached. Physics and All list every detector;
+  without an association (HF, HO) says "not compared". Sort by deposited energy (pT in the tracker), completeness or
+  split; click a particle or an object to select it. Simulated energies of different detectors are never compared: a
+  particle is listed in each detector it reached. Physics and All list every detector;
 - **the event's reco ↔ truth scorecard.** For each reco kind that a CMSSW associator matches, it counts how many of
   the objects that pass their cuts and filters are a clean match, an impure match, or are not matched
   (`matchTally` in `viewer/src/model/chain.ts`). Click a count to unfold its objects, largest first. So the event's

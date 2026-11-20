@@ -673,16 +673,38 @@ table.inview th {
   font-weight: 600;
 }
 table.inview td {
-  padding: 1px 4px 1px 0;
+  padding: 1px 3px 1px 0;
   vertical-align: middle;
 }
 table.inview td:first-child,
 table.inview .chip {
   white-space: nowrap;
 }
+table.inview .chip {
+  padding: 0 5px; /* two chips and a share in the side panel's width */
+}
+/* the particle and its deposit as narrow as they are; the best match takes the rest */
+table.inview td:first-child,
+table.inview th:first-child,
+table.inview .num {
+  width: 1%;
+}
 table.inview td.num,
 table.inview th.num {
   text-align: right;
+}
+/* "94.4 MeV" on one line; the header ("deposited in HGCal") may take two */
+table.inview td.num {
+  white-space: nowrap;
+}
+table.inview th.num {
+  white-space: normal;
+}
+table.inview td > span {
+  white-space: nowrap;
+}
+.inview > h3 .count {
+  margin-left: 4px;
 }
 .inview details.indet {
   margin: 4px 0 6px;

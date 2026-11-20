@@ -91,6 +91,7 @@ It shows each control's key and whether it is on. The colour theme is there too.
 | go back to the normal view, or close a dialog | `Esc`, or click on empty space |
 | previous / next event | `←` / `→`, or the arrows at the top |
 | go to an event | type `run:lumi:event`, `run:event` or the event number in the box next to the arrows, then Enter |
+| find objects in the event | type a kind in the same box, optionally with a condition on its columns: `electron`, `jet pt > 50`. The largest that passes is selected |
 | resize the side panel | drag its edge; double-click the edge to reset it |
 
 **Parts of the detector.** Press `D` (`Shift+D` to go backwards), or use the **Look at** bar at the top: Physics ·

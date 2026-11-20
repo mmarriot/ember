@@ -1,22 +1,27 @@
 // The top bar: the data set chooser, the event's navigation (with a box to jump to an event), the parts of the
 // detector (or the views), the menu of every control, and the actions (show everything, share, help).
 import logo from "../../logo.svg";
-import { type Domain } from "../io/format";
+import { type Domain, kindName } from "../io/format";
 import {
   bundle,
   dialog,
   domain,
+  event,
   eventIndex,
+  largestFirst,
+  layerKey,
   loading,
   opening,
+  selection,
   showEvent,
   shownEntry,
   stepEvent,
   toast,
   touring,
+  visible,
 } from "../model/store";
 import { Chooser } from "./Chooser";
-import { findEvent, parseEventId } from "../model/find";
+import { findEvent, findObjects, parseEventId } from "../model/find";
 import { Menu } from "./Menu";
 import { chooseDomain, showWhole } from "../control/navigate";
 import { share } from "./Share";
@@ -29,12 +34,27 @@ export function Header() {
   // whole, its event included, until the new one's first event is read (store/open.ts openBundle).
   const b = bundle.value,
     e = shownEntry.value;
-  const goToEvent = (value: string) => {
+  // An event, else objects of the event shown: the largest of them is selected.
+  const find = (value: string) => {
     const id = parseEventId(value);
-    if (!id) return toast(`"${value}" is not an event: type run:lumi:event, run:event or the event number`, "error");
-    const i = b ? findEvent(b.events, id) : -1;
-    if (i >= 0) showEvent(i);
-    else toast(`Event ${value} is not in this file`, "error");
+    if (id) {
+      const i = b ? findEvent(b.events, id) : -1;
+      if (i >= 0) void showEvent(i);
+      else toast(`Event ${value} is not in this file`, "error");
+      return;
+    }
+    const ev = event.value;
+    if (!b || !ev || !value) return;
+    const ticked = visible.value,
+      layers = b.header.display.filter((d) => !d.truth && !d.context),
+      found = findObjects(value, [...layers.filter((d) => ticked[layerKey(d)]), ...layers], ev.tables);
+    if (typeof found === "string") return toast(found, "error");
+    const { layer, rows, where } = found,
+      kind = kindName(layer).toLowerCase(),
+      one = kind.replace(/ices$/, "ex").replace(/([^s])s$/, "$1"), // "jets" -> "jet", "vertices" -> "vertex"
+      cond = where ? ` with ${where}` : "";
+    selection.value = { table: layer.table, row: largestFirst(layer.table, rows)[0] };
+    toast(rows.length === 1 ? `1 ${one}${cond}: selected` : `${rows.length} ${kind}${cond}: the largest is selected`);
   };
   const parts = (b?.header.domains?.length ?? 0) >= 2; // the domain bar takes the views' place, which go on the canvas
 
@@ -87,11 +107,11 @@ export function Header() {
         </button>
         <input
           class="jump"
-          placeholder="run:lumi:event"
-          title="Go to an event: run:lumi:event, run:event or the event number"
+          placeholder="Event or object…"
+          title="Go to an event (run:lumi:event, run:event or the event number), or find objects of this one: a kind, then optionally a condition on its columns (electron, jet pt > 50)"
           onKeyDown={(ev) => {
             if (ev.key === "Enter") {
-              goToEvent((ev.target as HTMLInputElement).value.trim());
+              find((ev.target as HTMLInputElement).value.trim());
               (ev.target as HTMLInputElement).blur();
             }
           }}

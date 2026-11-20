@@ -54,3 +54,7 @@ export function factUnit(
 
 /** Whether `table` holds hits with simulation facts (the `to` of a fact relation). */
 export const isFactTable = (header: Header, table: string) => facts(header).some((f) => f.to === table);
+
+/** The unit of the simulated amount a fact relation holds in detector `where`: deposited energy in GeV, but
+ *  photoelectrons in HF (docs/truth.md "Each kind's contract"). The bundle does not name it. */
+export const simUnit = (where: string) => (where === "HF" ? "photoelectrons" : "GeV");

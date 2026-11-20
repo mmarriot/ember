@@ -10,6 +10,7 @@ import { inText, singular } from "../model/describe";
 import { chipText, kindOf, statement, stepName } from "../model/store";
 import { type CrossChoice, cross, crossChoices, crossTo, crossing } from "../control/navigate";
 import { chip } from "./chips";
+import { HitTruth } from "./HitTruth";
 import { Info } from "./Info";
 import { TruthCard } from "./TruthCard";
 import { WentTo } from "./Relations";
@@ -83,6 +84,7 @@ export function TruthBlock({ table, row }: { table: string; row: number }) {
         </p>
       )}
       {own?.kind === "container" && <p class="truthline nolink">Its truth is that of what contains it.</p>}
+      {own?.kind === "fact" && <HitTruth />}
       <Parts lines={st.parts.filter((l) => !l.beside)} own={own?.kind === "match"} table={table} />
       <Parts lines={st.parts.filter((l) => l.beside)} own={own?.kind === "match"} table={table} beside />
       <Chooser />

@@ -20,6 +20,7 @@ import { colourLevel } from "../truth";
 import { cached, levelsOf, type Related, relatedParts, sameRef, type Ref, type SlotRank } from "../relations";
 import { activeMode, modes, truthLevel, truthStatuses } from "./colours";
 import { truthStatement } from "../statement";
+import { isFactTable } from "../facts";
 import { bundle, event } from "./data";
 import { layerKey, layerOf } from "./names";
 import { domain, drawnLayers, inDomain, shared, visible } from "./view";
@@ -171,6 +172,10 @@ export function matchOf(table: string, row: number) {
 
 // ---- What the view highlights
 
+/** A hit opens its particle's pair only on request (the card's button): a click on a hit shows the hit. It is reset
+ *  with each new focus. */
+export const hitPair = signal(false);
+
 /** In the "pid" and "truth" modes with something focused: its truth <-> reco pair (model/pair.ts), which colours every
  *  layer. Null when the pair has nothing to show, for a kind with no association of its own (a jet, a PF candidate, a
  *  TICL candidate: their parts may open one), and in a bundle with no truth at all (data, a standard NanoAOD). */
@@ -181,6 +186,7 @@ export const pairView = computed<Pair | null>(() => {
     { roots } = modes.value;
   if (activeMode.value === "layers" || !f || !b || !ev || !roots.truth || f.row >= (ev.tables[f.table]?.n ?? 0))
     return null;
+  if (isFactTable(b.header, f.table) && !hitPair.value) return null;
   const pair = pairFor(ev, b.header, f, roots.truth);
   return pair && pairShows(pair) ? pair : null;
 });
@@ -322,6 +328,12 @@ effect(() => {
     focusLevel.value = null;
     if (focusHistory.peek().length) focusHistory.value = [];
   }
+});
+
+// A new focus starts without its hit pair.
+effect(() => {
+  focus.value;
+  hitPair.value = false;
 });
 
 // ---- The focus's levels

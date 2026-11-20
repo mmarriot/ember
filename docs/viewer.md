@@ -153,6 +153,9 @@ track's vertex, are not: a low-pT particle's helix can curl far from its track. 
 as closely as its tracks' part of the detector allows (the tracker's `minRadius`, 15 cm: about the pixel volume), not
 with the whole length of its tracks. Clicking an object does not move the camera.
 
+Clicking a **hit** shows the hit: its card names the simulated energy each particle deposited in it (not
+calibrated). Its particle's truth ↔ reco pair is one button away ("Show π⁻'s pair in the view"), not drawn at once.
+
 **Next object.** `N` selects the next object of the same kind, largest first. `Shift+N` goes back. The order is the
 order of the list that the row's count opens, for example the next jet by pT, or the next track. This works for every
 kind except hits. With nothing selected, `N` selects the leading object of the first layer with labels.
@@ -528,7 +531,9 @@ associations in the file:
   "Built from its parts", since no relation makes them its parts;
 - **Go to truth (X)**, and the chooser it opens for a kind with no truth of its own.
 
-It never gives a verdict for the object from its parts: a pion's track inside a photon's cluster is the story.
+It never gives a verdict for the object from its parts: a pion's track inside a photon's cluster is the story. For a
+hit, the block lists the simulated energy each particle deposited in it (in MeV or GeV, not calibrated; in HF,
+photoelectrons) and its share of the hit's, with a button for the particle's pair.
 
 **The physics block** (`viewer/src/ui/Physics.tsx`): what the object is made of and its main numbers.
 
@@ -617,7 +622,7 @@ When a kind gets an associator in CMSSW, it gets a `match` relation in the profi
 with no change to the viewer.
 
 **The levels in the view.** Sometimes the view is built around an object other than the selection: the pair's
-candidate for a hit or a truth particle, or the object in focus for one of its parts. Then a line under the chain
+candidate for a truth particle, or the object in focus for one of its parts. Then a line under the chain
 lists that object's levels, with the one drawn lit. Click another one, or press `↓` `↑`, to draw it.
 
 **The match**, in the truth block. For a reco object whose association has a `match` contract, the card shows:

@@ -58,8 +58,9 @@ The share button at the top right copies a link to what is on screen. It also li
 - the selected object, and the colours;
 - for a file in someone's user area, until when the link works.
 
-The link does not keep the cuts, the ticked collections or the camera. A local file has no link: the button says so,
-and explains how to publish the file.
+The link does not keep the cuts, the ticked collections or the camera. A link with a selection opens with the object
+framed beside its card. Without a part of the detector (`d`), it opens in the selected object's own part. A local
+file has no link: the button says so, and explains how to publish the file.
 
 The address bar always holds the same link. [The address](#the-address) lists what it keeps.
 
@@ -142,7 +143,7 @@ The selected object itself is always drawn, whatever the cut, but the hits of pa
 The selection's **card** opens on the right. It shows the object's chain, with what the truth says at every step
 (see [The selection's card](#the-selections-card)).
 
-**Framing.** `F`, a double click, the card's zoom button, `X` and back (`B`) frame the
+**Framing.** `F`, a double click, the card's zoom button, `X`, back (`B`) and a link with a selection frame the
 object in the part of the view the card leaves free (left of it, or below it on a narrow screen), so the card never
 covers it. What is framed is the object and its parts. Objects only linked to it, such as its truth particle or a
 track's vertex, are not: a low-pT particle's helix can curl far from its track. Clicking an object does not move the

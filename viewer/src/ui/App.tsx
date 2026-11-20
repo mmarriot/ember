@@ -24,6 +24,7 @@ import {
   eventIndex,
   focusLevel,
   labelsOn,
+  layerOf,
   openBundle,
   opened,
   opening,
@@ -115,14 +116,18 @@ function openFromAddress() {
       // chosen while the link's was on its way wins: openBundle then returns false (store/open.ts).
       if (!name || !(await openBundle(name, undefined, link?.event ?? 0)) || !link) return;
 
-      const { domain: d, view: v, only, selection: s, truth, level } = link;
-      if (d) chooseDomain(d === ALL ? null : d, false);
+      const { domain: d, view: v, only, selection: s0, truth, level } = link;
+      // A link made before the data set was converted again may name a row that no longer exists.
+      const s = s0 && s0.row < (event.peek()?.tables[s0.table]?.n ?? 0) ? s0 : null;
+      // Without a domain, a selection opens in its own part of the detector (its card's chain is about it).
+      const home = d ? (d === ALL ? null : d) : s ? layerOf(s.table)?.domain : undefined;
+      if (home !== undefined) chooseDomain(home, false);
       if (v && (Object.values(VIEW_KEYS) as string[]).includes(v)) view.value = v as ViewName;
       if (only && bundle.peek()?.header.display.some((l) => soloKey(l) === only)) lookAlone(only);
-      // A link made before the data set was converted again may name a row that no longer exists.
-      if (s && s.row < (event.peek()?.tables[s.table]?.n ?? 0)) selection.value = s;
+      if (s) selection.value = s;
       if (truth && truthColours.peek()) colourChoice.value = "truth";
       if (level && selection.peek()) focusLevel.value = level; // a level the focus does not have is ignored (store/selection.ts shownLevel)
+      if (s) requestAnimationFrame(() => frameFocus(0)); // beside its card, once the card is drawn (measured)
     })
     .finally(() => (restoring.value = null));
 }

@@ -28,8 +28,8 @@ import {
   bundleName,
   catalogue,
   keepShown,
-  openBundle,
   opened,
+  openSameEvent,
   opening,
   openLocal,
   refreshCatalogue,
@@ -202,7 +202,7 @@ function Panel({ close }: { close: () => void }) {
   const pick = (row: Row | undefined) => {
     if (!row || row.local) return;
     close();
-    if (row.file !== bundleName.value || !bundle.value) void openBundle(row.file);
+    if (row.file !== bundleName.value || !bundle.value) void openSameEvent(row.file);
     else keepShown(); // an open asked for meanwhile must not replace it
   };
   const step = (d: number) => {

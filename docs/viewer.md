@@ -22,6 +22,11 @@ chooser**. It has a filter and three kinds of list:
 
 Other people's files are in no list. You reach them only through a link.
 
+A data set chosen in the chooser opens on the event shown (the same run, lumi section and event) when it has it, so
+the same event can be compared in two data sets, for example TICL v5 and v6. It says which event it opened on either
+way: simulated samples all start at Run 1 · LS 1, so the same numbers in two of them need not be the same collision.
+When it does not have the event, it opens on its first event.
+
 In the chooser, type to filter. Use ↑ ↓ and Enter to open a data set, and Esc to close the chooser. **Open a local
 file…** at the bottom picks a `.ember` file (or a `.evdb` file, from before the project was called Ember) from your
 computer. Dropping a file on the page does the same.

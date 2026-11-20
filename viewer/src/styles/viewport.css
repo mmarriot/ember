@@ -274,6 +274,29 @@
   border: 2px solid var(--accent);
   box-shadow: 0 0 0 2px var(--overlay);
 }
+/* A truth object's label: the truth's violet and dashes (docs/truth.md "One look for truth"), never the reco blue. */
+.labels .label.truth span,
+.labels .label.truth.selected span {
+  background: var(--overlay);
+  border: 1px dashed #d7a6ff;
+  color: #d7a6ff;
+}
+.labels .label.truth.selected span {
+  border-width: 2px;
+}
+.labels .label.truth::before,
+.labels .label.truth.selected::before,
+.labels .label.truth.hover::before {
+  border-color: #d7a6ff;
+  border-style: dashed;
+}
+[data-theme="light"] .labels .label.truth span {
+  border-color: #7a3fb0;
+  color: #7a3fb0;
+}
+[data-theme="light"] .labels .label.truth::before {
+  border-color: #7a3fb0;
+}
 
 /* Without the fade for those who ask for less motion: after the rule that sets it, so that it wins. */
 @media (prefers-reduced-motion: reduce) {

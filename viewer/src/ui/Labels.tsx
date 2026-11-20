@@ -10,6 +10,7 @@ import type { Ref } from "../model/relations";
 import { filters } from "../model/custom";
 import {
   bundle,
+  caloView,
   cuts,
   describe,
   domain,
@@ -21,6 +22,7 @@ import {
   layerOf,
   selection,
   shared,
+  truthText,
 } from "../model/store";
 import { ranked } from "../control/navigate";
 import { engine } from "../control/scene";
@@ -130,11 +132,16 @@ export function Labels() {
   }, [list]);
   return (
     <div class="labels" ref={box} aria-hidden="true">
-      {list.map((item) => (
-        <div class={`label ${item.kind}`}>
-          <span>{item.text}</span>
-        </div>
-      ))}
+      {list.map((item) => {
+        // A truth object's label is the truth's: violet, dashed, "Truth · μ⁺ · pT 96.6 · η 1.11" (docs/truth.md).
+        const truth = !!layerOf(item.ref.table)?.truth,
+          name = truth && truthText(item.ref.table, item.ref.row, caloView.value);
+        return (
+          <div class={`label ${item.kind}${truth ? " truth" : ""}`}>
+            <span>{truth ? `Truth · ${name || item.text}` : item.text}</span>
+          </div>
+        );
+      })}
     </div>
   );
 }

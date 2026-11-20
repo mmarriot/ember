@@ -134,7 +134,7 @@ export function TickAll({ layers, name }: { layers: DisplayLayer[]; name: string
 const WORDS = {
   match: ["match", "matched by CMSSW's associator"],
   fact: ["sim", "a simulation fact: simulated energy per particle in each hit"],
-  none: ["no truth", ""],
+  none: ["no associator", "no CMSSW associator for this kind"],
 } as const;
 function TruthWord({ table }: { table: string }) {
   const s = truthStatuses.value.get(table);

@@ -5,6 +5,7 @@ import { computed, signal } from "@preact/signals";
 import type { DisplayLayer, EventData, Header } from "../../io/format";
 import { colours, describeNoLink, type Legend, type Pal } from "../../render/colour";
 import { colourBy, type ColourMode, withColour } from "../custom";
+import { inText } from "../describe";
 import { facts } from "../facts";
 import { truthStatus, type TruthStatus } from "../match";
 import { graphOf } from "../truth";
@@ -146,11 +147,7 @@ export const noTruth = (table: string) => truthStatuses.peek().get(table)?.kind 
 // truth stops").
 describeNoLink((d) => {
   const s = activeMode.peek() === "truth" ? truthStatuses.peek().get(d.table) : undefined;
-  if (s?.kind === "none")
-    return `no truth for ${truthName(d.table)
-      .split(" ")
-      .map((w) => (/^[A-Z][a-z]/.test(w) ? w.toLowerCase() : w))
-      .join(" ")}${s.gap !== undefined ? ` (gap ${s.gap})` : ""}`;
+  if (s?.kind === "none") return `no CMSSW associator for ${inText(truthName(d.table))}`; // the gap: behind the key's i and in the Truth tab
   if (s?.kind === "match") return "matched to truth, not to a particle: no particle colour (its card)";
   return "one colour: no link to the colour's source";
 });

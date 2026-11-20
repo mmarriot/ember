@@ -10,6 +10,7 @@ import { percent, TARGETS, type TruthStatus } from "../model/match";
 import { bestPartners, cached } from "../model/relations";
 import {
   bundle,
+  chipText,
   describe,
   domain,
   event,
@@ -26,6 +27,7 @@ import {
   truthText,
 } from "../model/store";
 import { Info } from "./Info";
+import { GapLink } from "./TruthBlock";
 import { Collections } from "./Layers";
 import { jump } from "../control/navigate";
 import { passing } from "./ObjectRows";
@@ -121,7 +123,7 @@ const CLASSES = [
   [
     "unmatched",
     "q-unmatched",
-    "no match from the associator: a fake, or an object the associator does not consider (e.g. a candidate without calorimeter energy)",
+    "not matched by the associator: a fake, or an object the associator does not consider (e.g. a candidate without calorimeter energy)",
   ],
 ] as const;
 
@@ -160,7 +162,7 @@ function Scorecard() {
           <tr>
             <th />
             {CLASSES.map(([name, , what]) => (
-              <th title={what}>{name === "unmatched" ? "no match" : name}</th>
+              <th title={what}>{name === "unmatched" ? "not matched" : name}</th>
             ))}
           </tr>
         </thead>
@@ -199,7 +201,7 @@ function Scorecard() {
                     <td colSpan={4}>
                       {list.slice(0, 40).map((r) => (
                         <button class={`chip q-${open}`} onClick={() => jump({ table: d.table, row: r })}>
-                          {describe(d.table, r) || `#${r}`}
+                          {chipText(d.table, r)}
                         </button>
                       ))}
                       {list.length > 40 && <span class="muted"> … {list.length - 40} more</span>}
@@ -230,7 +232,6 @@ function Coverage() {
     seen.add(kind);
     rows.push([kind, s]);
   }
-  const gap = (n?: number) => (n !== undefined ? ` (truth-graph.md gap ${n})` : "");
   const what = (s: TruthStatus) =>
     s.kind === "match"
       ? [
@@ -244,12 +245,13 @@ function Coverage() {
           ]
         : s.kind === "container"
           ? ["with what contains it", "no truth of its own: drawn in the colour of the object it belongs to"]
-          : ["no truth for this kind", `${s.reason}${gap(s.gap)}`];
-  // Folded to one line of counts (e.g. "7 matched · 9 no truth"): the list is long, and the collections come after it.
+          : ["no CMSSW associator", s.reason];
+  // Folded to one line of counts (e.g. "7 matched · 9 no associator"): the list is long, and the collections come
+  // after it.
   const counts = (["match", "fact", "container", "none"] as const)
     .map((k) => [k, rows.filter(([, st]) => st.kind === k).length] as const)
     .filter(([, n]) => n);
-  const SHORT = { match: "matched", fact: "sim", container: "via container", none: "no truth" };
+  const SHORT = { match: "matched", fact: "sim", container: "via container", none: "no associator" };
   return (
     <section class="coverage">
       <details>
@@ -258,7 +260,7 @@ function Coverage() {
         </summary>
         <p class="hint">
           What the truth graph says about each kind: matched by CMSSW's associator, or a simulation fact. Where it has
-          no answer, Ember builds none: the gap is listed, with its number in the truth-graph notes.
+          no answer, Ember builds none: the reason is listed, and its gap in the truth-graph notes behind the i.
         </p>
         <ul class="coverage">
           {rows.map(([kind, s]) => {
@@ -268,6 +270,13 @@ function Coverage() {
               <li class={s.kind === "none" ? "none" : undefined} title={detail}>
                 <span class="kindname">{kind}</span> {word}
                 {why && <span class="muted">: {detail}</span>}
+                {s.kind === "none" && s.gap !== undefined && (
+                  <Info title={`${kind}: no associator`}>
+                    <p>
+                      <GapLink gap={s.gap} />
+                    </p>
+                  </Info>
+                )}
               </li>
             );
           })}
@@ -319,7 +328,7 @@ function Outcome({ table }: { table: string }) {
     missed = withHits.filter((r) => best[r] < 0);
   const chip = (tab: string, r: number) => (
     <button class={sel?.table === tab && sel.row === r ? "chip selected" : "chip"} onClick={() => go(tab, r)}>
-      {describe(tab, r) || `#${r}`}
+      {(layerOf(tab)?.truth && describe(tab, r)) || chipText(tab, r)}
     </button>
   );
   return (
@@ -389,7 +398,7 @@ function InView({ table }: { table: string }) {
       order === "amount" ? r.amount : order === "completeness" ? (r.completeness ?? -1) : r.split;
   const chip = (tab: string, r: number, text?: string) => (
     <button class={sel?.table === tab && sel.row === r ? "chip selected" : "chip"} onClick={() => go(tab, r)}>
-      {text ?? (describe(tab, r) || `#${r}`)}
+      {text ?? ((layerOf(tab)?.truth && describe(tab, r)) || chipText(tab, r))}
     </button>
   );
   const amount = (x: number, sim: boolean) =>
@@ -450,7 +459,7 @@ function InView({ table }: { table: string }) {
               <span class="count">
                 {d.rows.length} {sim ? "with simulated energy" : "matched by a track"}
                 {d.kind ? ` · compared with ${stepName(d.kind).toLowerCase()}` : " · not compared"}
-                {none ? ` · ${none} no match` : ""}
+                {none ? ` · ${none} not matched` : ""}
               </span>
             </summary>
             <table class="inview">

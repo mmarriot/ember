@@ -250,15 +250,21 @@ Every drawn kind has one truth status. The viewer works it out from the bundle (
 3. **none**: the kind's `truthGap`, or else "no truth association exported for this kind";
 4. for a part drawn with what contains it (the hits of a track): its container's status.
 
-The same words appear in three places:
+The same words appear in three places, each saying which of three things it is: "no CMSSW associator" (the kind has
+no answer), "not matched" (an object of a matched kind the associator matched to nothing), or "no simulated energy"
+(a hit no exported particle left energy in). A gap number is never in the main text: it is behind an **i**, as a link
+to the [gap table](truth-graph.md#gap-table).
 
 - **the selection's card**, in its truth block at the top ([Viewer](viewer.md#the-selections-card)). For example "No
   CMSSW association for jets", and behind its **i**: "the truth graph has no jet associator, and no generator-jet
-  level (gap 21)", the gap as a link. Then each part's own match ([below](#constituents)). In the chain, a step with
+  level", with the gap as a link. Then each part's own match ([below](#constituents)). In the chain, a step with
   its own truth has a tag (match, sim); a run of steps of kinds without an associator is named in one grey line;
-- **the truth colour key**: "faint: no truth for that kind", with the kinds and the reason behind its **i**;
-- **the Truth tab**, which opens with the event's scorecard of the matched kinds (clean, impure, no match), and a
-  "Truth coverage" list of every drawn kind.
+- **the truth colour key**: "faint: no CMSSW associator for that kind", with the kinds behind its **i**; its
+  switch reads "Colour by: reco type | truth particle", and its grey reads "no simulated energy, or not cleanly
+  matched";
+- **the Truth tab**, which opens with the event's scorecard of the matched kinds (clean, impure, not matched), and a
+  "Truth coverage" list of every drawn kind ("no CMSSW associator" with its reason, the gap behind its **i**). The
+  side panel's heading of such a kind reads "no associator".
 
 In the truth mode, a kind with status none is drawn neutral and faint (cones as outlines), never in a particle's
 colour. An object of a matched kind without a clean match stays small and grey.

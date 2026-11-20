@@ -4,6 +4,7 @@
 // one table a colour each, and the objects linked to them the same colour. Computed once per event on the CPU, so
 // shaders and legend agree.
 import { type DisplayLayer, type EventData, type Header, kindName, type Table, toF32, unitOf } from "../io/format";
+import { kindLabel } from "../model/describe";
 import { bestPurities, percent } from "../model/match";
 import { bestPartners, contentPartners, identities, type SlotRank } from "../model/relations";
 import { ruleText } from "../model/truth";
@@ -291,7 +292,7 @@ export function colours(
     }
     // With a selection, the key lists only its own particles: the other colours are faded with what is not selected.
     const items = top
-      .map((row, j) => ({ label: `#${row}`, colour: pal.identity[j], ref: { table: d.table, row } }))
+      .map((row, j) => ({ label: `${kindLabel(d)} ${row + 1}`, colour: pal.identity[j], ref: { table: d.table, row } }))
       .slice(0, rank?.prefer ? preferred : undefined);
     return {
       rgb: out,

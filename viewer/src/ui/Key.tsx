@@ -1,7 +1,7 @@
 // The colour key, at the bottom of the side panel so it stays in sight from every tab. Colour has one meaning at a
 // time, and the key's title says which (docs/truth.md): the reconstruction (candidates by particle type, everything
 // they are made of in the same colour), the truth (everything by the generator particle it comes from), or, with
-// something selected, its truth <-> reco pair. The Reco | Truth switch (key T) chooses between the first two. Bundles
+// something selected, its truth <-> reco pair. The "Colour by: reco type | truth particle" switch (key T) chooses between the first two. Bundles
 // without candidates or truth, and a domain coloured layer by layer, have no key: each layer shows its own colours.
 import type { Header } from "../io/format";
 import { PAIR, type PairClass } from "../model/pair";
@@ -67,6 +67,7 @@ export function ColourKey() {
         {title}
         {truthColours.value && (
           <span class="switch" role="group" aria-label="What the colours show (T)" title="What the colours show (T)">
+            <span class="muted">Colour by:</span>
             {(["reco", "truth"] as const).map((c) => (
               <button
                 class={colourChoice.value === c ? "on" : undefined}
@@ -76,7 +77,7 @@ export function ColourKey() {
                   colourChoice.value = c;
                 }}
               >
-                {c === "reco" ? "Reco" : "Truth"}
+                {c === "reco" ? "reco type" : "truth particle"}
               </button>
             ))}
           </span>
@@ -174,8 +175,7 @@ function greyWhy() {
   if (pointed)
     return "Grey: the particles the selection's parts are matched to, or that left energy in its hits, are pile-up or outside the level chosen: they take no colour.";
   const parts = "and none of its parts is matched to a particle or holds simulated energy";
-  if (s?.kind === "none")
-    return `Grey: no CMSSW associator for ${kind}${s.gap !== undefined ? ` (gap ${s.gap})` : ""}, ${parts}.`;
+  if (s?.kind === "none") return `Grey: no CMSSW associator for ${kind}, ${parts}.`;
   if (s?.kind === "match") return `Grey: not matched by the associator, ${parts}.`;
   return `Grey: ${parts.replace(/^and /, "")}.`;
 }
@@ -289,11 +289,11 @@ function TruthKey() {
         </li>
         <li>
           <i class="small" style={{ background: pal.unassigned }} />
-          no truth, or no clean match
+          no simulated energy, or not cleanly matched
         </li>
       </ul>
       <p class="hint keyhelp">
-        {faint.length > 0 && <span class="faintkinds">faint: no truth for that kind </span>}
+        {faint.length > 0 && <span class="faintkinds">faint: no CMSSW associator for that kind </span>}
         <Info title="Colour = truth particle">
           <p>
             Hits and truth lines take the colour of the particle of the level chosen ("Group by") they come from
@@ -312,7 +312,7 @@ function TruthKey() {
             A reco object takes its particle's colour only when at least {[...rules.values()].join(", or ")} is from it;
             otherwise it is grey. Pile-up is drawn small.
           </p>
-          <p>No truth: noise, out-of-time pile-up, or a particle the export left out.</p>
+          <p>No simulated energy: noise, out-of-time pile-up, or a particle the export left out.</p>
           {faint.length > 0 && (
             <p>
               Faint: kinds the truth graph has no answer for ({faint.join(", ")}). They never take a particle's colour;

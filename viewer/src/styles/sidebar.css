@@ -827,8 +827,10 @@ ul.hard li {
   margin: 4px 0 0;
 }
 .colourkey .switch {
-  float: right;
-  display: inline-flex;
+  /* on its own line under the title: "Colour by: reco type | truth particle" is too wide to float beside it */
+  display: flex;
+  width: fit-content;
+  margin-top: 4px;
   border: 1px solid var(--line-strong);
   border-radius: 4px;
   overflow: hidden;
@@ -842,6 +844,10 @@ ul.hard li {
   font-size: 11px;
   padding: 1px 7px;
   cursor: pointer;
+}
+.colourkey .switch > .muted {
+  font-size: 11px;
+  padding: 1px 6px;
 }
 .colourkey .switch button.on {
   background: var(--line-strong);

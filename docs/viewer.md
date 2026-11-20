@@ -246,7 +246,7 @@ the barrel's.
 
 ### Colours
 
-Press `T`, or click Reco · Truth in the colour key or in the Menu. This switches between the reconstruction
+Press `T`, or click "Colour by: reco type | truth particle" in the colour key or in the Menu. This switches between the reconstruction
 (candidate types) and the truth (each generator particle in its own colour; a reco object only where it is a clean
 match). See [Colours and the truth ↔ reco pair](#colours-and-the-truth--reco-pair).
 
@@ -351,7 +351,7 @@ example MET). A selected object that does not pass is not counted, and the headl
 selected, below the electron pT cut)", or "left out by the filter" when the cut alone would keep it.
 
 **In the truth colours**, each kind's heading gets one word for what the truth graph says about it: match, sim,
-or no truth. Hover for the reason. Where a kind's layers differ, each row gets its own word. The rows of
+or no associator. Hover for the reason. Where a kind's layers differ, each row gets its own word. The rows of
 kinds without truth are faint.
 
 On a phone, the panel is a sheet under the view. It is folded to its tabs until you choose one.
@@ -373,11 +373,11 @@ The tab is called **Tree** for a bundle with a tree but no truth layers. It hold
   object to select it. Simulated energies of different detectors are never compared: a particle is listed in each
   detector it reached. Physics and All list every detector;
 - **the event's reco ↔ truth scorecard.** For each reco kind that a CMSSW associator matches, it counts how many of
-  the objects that pass their cuts and filters are a clean match, an impure match, or have no match
+  the objects that pass their cuts and filters are a clean match, an impure match, or are not matched
   (`matchTally` in `viewer/src/model/chain.ts`). Click a count to unfold its objects, largest first. So the event's
   merged, split and fake objects are one click away.
-- **the truth coverage**, folded to one line of counts, for example "9 matched · 2 sim · 18 no truth". Unfold it to
-  see each kind's answer and, where there is no truth, why.
+- **the truth coverage**, folded to one line of counts, for example "9 matched · 2 sim · 18 no associator". Unfold it
+  to see each kind's answer and, where there is no associator, why (the gap behind its **i**).
 - the truth collections, with their cuts;
 - for a tree that is not the truth's, what became of each of its objects that left hits;
 - objects linked to objects of the same table as a tree that you can fold, for example the truth-graph particles and
@@ -420,7 +420,7 @@ compared with.
   cannot reach a candidate (for example the vertices) is coloured by its colour column, or keeps its own categorical
   colours if it has none. The viewer works out how each layer reaches a candidate or a truth particle from the
   bundle's relations (`viewer/src/model/modes.ts`), so the profile needs no settings for this.
-- **Truth** (key `T`, or Reco · Truth in the key; for bundles with truth particles). Everything is coloured by the
+- **Truth** (key `T`, or "Colour by: reco type | truth particle" in the key; for bundles with truth particles). Everything is coloured by the
   generator particle it comes from (the profile's `particle` level), the same in every part of the detector:
   - a hit takes the colour of the particle that left the most simulated energy in it;
   - a truth line takes its generator particle's colour. A conversion's electrons and an interacting pion's
@@ -429,7 +429,7 @@ compared with.
     kind's `match.good`: 75% of a track's hits, or 50% of a trackster's energy. Otherwise the object is grey;
   - a kind with no association of its own (layer clusters, TICL candidates, PF candidates, jets) is drawn faint and
     neutral: Ember does not work out a particle for it from its hits;
-  - layers with no link to the truth (vertices) are the "no truth" grey;
+  - layers with no link to the truth (vertices) are the "no simulated energy, or not cleanly matched" grey;
   - seven signal particles get colours of their own, chosen by what you look at, and the line under the key's title
     says how ("top 7 by simulated energy in HGCal"; [Truth](truth.md#which-particles-get-a-colour)): with a selection,
     the particles its parts are matched to or left energy in its hits; in HGCal and Calo, by simulated energy there

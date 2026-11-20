@@ -17,6 +17,7 @@ import {
   labelOf,
   layerOf,
   modes,
+  nameOf,
   short,
   truthGraph,
   truthName,
@@ -61,7 +62,7 @@ function named(t: string, r: number) {
   if (v === undefined || typeof c !== "object" || !("category" in c) || !c.names) return "";
   const names = Array.isArray(c.names) ? Object.fromEntries(c.names) : c.names,
     name = names[String(v)];
-  return name ? `${name} #${r}` : "";
+  return name ? `${name} ${r + 1}` : "";
 }
 const chipAs = (t: string, r: number, text: string) => <ObjChip table={t} row={r} text={text} />;
 /** A collision's truth vertex, by whether it is the signal (the truth particles' `first` column, e.g. isSignal, on the
@@ -69,13 +70,15 @@ const chipAs = (t: string, r: number, text: string) => <ObjChip table={t} row={r
 function collision(truth: string, t: string, r: number) {
   const first = layerOf(truth)?.particle?.first,
     v = first ? event.value?.tables[t]?.columns[first]?.[r] : undefined;
-  return v === undefined ? `#${r}` : `${Number(v) ? "signal collision" : "pile-up collision"} #${r}`;
+  return v === undefined
+    ? nameOf({ table: t, row: r })
+    : `${Number(v) ? "signal collision" : "pile-up collision"} ${r + 1}`;
 }
 /** Any other truth vertex: its name (e.g. its reason, "decay"), marked when it belongs to a pile-up collision. */
 function vertexName(truth: string, t: string, r: number) {
   const first = layerOf(truth)?.particle?.first,
     v = first ? event.value?.tables[t]?.columns[first]?.[r] : undefined;
-  return `${describe(t, r) || named(t, r) || `#${r}`}${v !== undefined && !Number(v) ? " (pile-up)" : ""}`;
+  return `${describe(t, r) || named(t, r) || nameOf({ table: t, row: r })}${v !== undefined && !Number(v) ? " (pile-up)" : ""}`;
 }
 /** How far apart two objects are, from their layers' positions (cm); undefined without them. */
 function distance(a: string, ra: number, b: string, rb: number) {

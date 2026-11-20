@@ -266,8 +266,9 @@ to the [gap table](truth-graph.md#gap-table).
   "Truth coverage" list of every drawn kind ("no CMSSW associator" with its reason, the gap behind its **i**). The
   side panel's heading of such a kind reads "no associator".
 
-In the truth mode, a kind with status none is drawn neutral and faint (cones as outlines), never in a particle's
-colour. An object of a matched kind without a clean match stays small and grey.
+In the truth mode, a kind with status none is drawn neutral and faint (cones as outlines; markers made of calorimeter
+cells, such as layer clusters and superclusters, as small dots under the hits, also in the pair view, so the hits'
+colours show), never in a particle's colour. An object of a matched kind without a clean match stays small and grey.
 
 Such a kind never opens the truth ↔ reco pair; its parts may.
 

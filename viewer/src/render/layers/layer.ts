@@ -94,6 +94,8 @@ export interface LayerInput {
   rgb: Float32Array;
   /** Per object, 0 for objects drawn as background (markers: nothing to take a colour from). */
   emphasis?: Uint8Array;
+  /** Drawn first and under the other layers, as a background layer is (drawBehind; markers). */
+  behind?: boolean;
   /** Per object, the value compared with the cut's minimum; HIDDEN for objects never shown. */
   cut?: Float32Array;
   /** The solenoid field, for helices. */

@@ -433,7 +433,9 @@ compared with.
   - a reco object takes its matched particle's colour only for a clean match. Clean means a purity of at least its
     kind's `match.good`: 75% of a track's hits, or 50% of a trackster's energy. Otherwise the object is grey;
   - a kind with no association of its own (layer clusters, TICL candidates, PF candidates, jets) is drawn faint and
-    neutral: Ember does not work out a particle for it from its hits;
+    neutral: Ember does not work out a particle for it from its hits. Its markers made of calorimeter cells (layer
+    clusters, superclusters) are small dots drawn under the hits, so they never hide the hits' colours; muon and track
+    hits keep their size;
   - layers with no link to the truth (vertices) are the "no simulated energy, or not cleanly matched" grey;
   - seven signal particles get colours of their own, chosen by what you look at, and the line under the key's title
     says how ("top 7 by simulated energy in HGCal"; [Truth](truth.md#which-particles-get-a-colour)): with a selection,

@@ -7,6 +7,7 @@ import {
   baseUniforms,
   commonFields,
   CULL,
+  drawBehind,
   type Layer,
   type LayerInput,
   positions,
@@ -18,7 +19,8 @@ import {
  *  (e.g. layer clusters in no trackster) are small, rimless and faded, so they stay in the background. With a `size`
  *  column, larger values give larger discs (5 to 14 px over the bulk of the values, as the colour scale), e.g. the
  *  primary vertex (largest sum of pT^2) stands out among the pile-up vertices. Truth markers (truth vertices) are hollow
- *  dashed rings: the simulation's look (docs/truth.md "One look for truth"), never a filled reco vertex. */
+ *  dashed rings: the simulation's look (docs/truth.md "One look for truth"), never a filled reco vertex. `behind`:
+ *  drawn first, under the hits, e.g. layer clusters by truth (control/scene.ts underHits). */
 export function markers(input: LayerInput): Layer {
   const { d, t } = input;
   const [x, y, z] = positions(input);
@@ -85,6 +87,7 @@ export function markers(input: LayerInput): Layer {
   const points = new THREE.Points(g, material);
   points.frustumCulled = false;
   points.renderOrder = 2;
+  if (input.behind) drawBehind(points, material);
   return {
     ...commonFields(input, 9),
     object: points,

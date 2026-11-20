@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { EventData, Header } from "../io/format";
 import { bestPurities, completeness, NO_EXPORT, quality, simEnergyByParticle, truthStatus } from "./match";
 import cms from "./fixtures/cms_header.json";
-import { factUnit, facts } from "./facts";
+import { factUnit, facts, madeOfSimCells } from "./facts";
+import all from "./fixtures/all_header.json";
 
 const csr = (rows: number[][], weights: Record<string, number[]> = {}) => ({
   offsets: Uint32Array.from(rows.reduce((o, r) => [...o, o[o.length - 1] + r.length], [0])),
@@ -178,6 +179,16 @@ describe("truth status", () => {
       "container",
       "none",
     ]);
+  });
+  it("finds the kinds made of calorimeter cells with simulated energy, not muon or track hits", () => {
+    const h = all as unknown as Header,
+      made = ["HGCalSoALayerClusters", "EGammaSuperClusters", "PFClustersHF", "MuonHits", "MuonTrackHits"];
+    expect(made.filter((t) => madeOfSimCells(h, t))).toEqual([
+      "HGCalSoALayerClusters",
+      "EGammaSuperClusters",
+      "PFClustersHF",
+    ]);
+    expect(["GsfTrackHits", "TrackHits", "BeamSpot", "MTDHits"].some((t) => madeOfSimCells(h, t))).toBe(false);
   });
   it("takes a vertex's purity from its weight", () => {
     const vev = {

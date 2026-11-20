@@ -11,6 +11,7 @@ import { Color, LinearSRGBColorSpace } from "three";
 import type { DisplayLayer, EventData, Header, Table } from "../io/format";
 import { colourBy, filterMask, filters } from "../model/custom";
 import { cutMin, cutValues, HIDDEN, rescued } from "../model/cuts";
+import { madeOfSimCells } from "../model/facts";
 import { PAIR, type Pair, pairKey } from "../model/pair";
 import { identities, type SlotRank } from "../model/relations";
 import {
@@ -197,6 +198,7 @@ export function startScene(canvas: HTMLCanvasElement): () => void {
         pal,
         rgb: e.rgb,
         emphasis: e.emphasis,
+        behind: underHits(e.d),
         cut,
         field: b?.header.field,
         relation: relationOf(b?.header, event.peek()),
@@ -298,6 +300,7 @@ export function startScene(canvas: HTMLCanvasElement): () => void {
           pal,
           rgb,
           emphasis,
+          behind: underHits(s.d),
           field: header.field,
           relation: relationOf(header, ev),
         }),
@@ -558,6 +561,15 @@ const chosenColours =
     const d = header.display.find((l) => l.table === table);
     return d && shownLayer(d);
   };
+/** By truth, markers of a kind with no truth of its own made of calorimeter cells with simulated energy (layer
+ *  clusters, superclusters) are drawn small, rimless and under the hits (markers are otherwise drawn over everything):
+ *  as grey rings over the hits, they hid the hits' truth colours. Muon and track hits, themselves the hits, are not.
+ *  Also in the pair view, whatever the order the pair and the colour mode came in (the pair only recolours). */
+const underHits = (d: DisplayLayer) => {
+  const h = bundle.peek()?.header;
+  return activeMode.peek() === "truth" && d.repr === "markers" && noTruth(d.table) && !!h && madeOfSimCells(h, d.table);
+};
+
 /** Colours for the given layers, mixed towards the background by their `dim`. Layers that share a cut group and
  *  colour column (e.g. SoA and legacy rechit energies) share one colour scale, computed from the objects of the
  *  layers in `pool` that pass the cuts and filters, so equal values get equal colours in every layer. */
@@ -594,6 +606,7 @@ function colourEntries(
         : colours(e.d, e.t, ev, header, pal, { range: ranges.get(scale(e)), layerFor, rank: truthRank.peek() }),
       dim = e.d.dim;
     if (dim) for (let i = 0; i < out.rgb.length; i++) out.rgb[i] += (bg[i % 3] - out.rgb[i]) * dim;
+    if (underHits(e.d)) out.emphasis = new Uint8Array(e.t.n); // small and rimless
     return out;
   });
 }

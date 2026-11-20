@@ -58,3 +58,13 @@ export const isFactTable = (header: Header, table: string) => facts(header).some
 /** The unit of the simulated amount a fact relation holds in detector `where`: deposited energy in GeV, but
  *  photoelectrons in HF (docs/truth.md "Each kind's contract"). The bundle does not name it. */
 export const simUnit = (where: string) => (where === "HF" ? "photoelectrons" : "GeV");
+
+/** Whether the objects of `table` are made of hits with simulated energy drawn as cells (layer clusters, superclusters,
+ *  PF clusters): a plain relation (not an association) from it reaches the hit table of a fact. Muon hits, track hits
+ *  and the beam spot are not. */
+export function madeOfSimCells(header: Header, table: string): boolean {
+  const hits = new Set(facts(header).map((f) => f.to));
+  return Object.values(header.relations).some(
+    (r) => r.from === table && !r.association && hits.has(r.to) && layerOf(header, r.to)?.repr === "cells",
+  );
+}

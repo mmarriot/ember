@@ -45,6 +45,7 @@ import { back, cross, crossing, frameFocus } from "../control/navigate";
 import { PairBars } from "./PairBars";
 import { Lineage, ParticleFacts, TruthCard, Unassociated } from "./TruthCard";
 import { GapLink, TruthBlock } from "./TruthBlock";
+import { Physics } from "./Physics";
 import { Icon } from "./widgets";
 
 export function Card() {
@@ -92,6 +93,7 @@ export function Card() {
         ) : (
           <>
             <TruthBlock table={sel.table} row={sel.row} />
+            <Physics table={sel.table} row={sel.row} />
             <Chain />
           </>
         )}

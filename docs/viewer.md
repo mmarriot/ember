@@ -530,6 +530,22 @@ associations in the file:
 
 It never gives a verdict for the object from its parts: a pion's track inside a photon's cluster is the story.
 
+**The physics block** (`viewer/src/ui/Physics.tsx`): what the object is made of and its main numbers.
+
+- its energy fractions (layer hint `fractions`), as one bar in a neutral grey ramp (a reconstruction quantity, not
+  one of the view's colours);
+- its constituents by type, from a relation into a layer that names its objects by a column with `names` ("PF
+  candidates 7: γ 4 · π⁻ 2 · μ⁺ 1"), and how many their layer's filter keeps ("all kept by puppiWeight > 0", or "5
+  kept, 26 not" for a CHS jet at pile-up);
+- the objects holding it with a weight: "in Primary vertex 1 · weight 0.90" (a track), "in Secondary vertex 1";
+- its key columns (the layer's `inspect`), with units and named values ("decayMode h± π⁰ (1)" where the layer's
+  `describe.names` names them). Raw indices (`trackIdx`), components derived from others (px) and positions copied
+  in from another table (a jet's PV position) are left to **All columns**;
+- the layer's `inspectGroups`, each under its name (for example "b-tag": DeepCSV, JP). A group shows once the bundle
+  has its columns, with no change to the viewer;
+- for MET (a one-object kind with an azimuth): the other MET of the bundle and its Δφ, and Δφ to the leading jets
+  of the drawn jet layers.
+
 **Names of objects.** Every object name in the card is a button. A click looks at the object; a double click opens
 its card ([Following the chain](#following-the-chain)). For a kind that a CMSSW associator matches, each name has a
 dot for what the associator says about that object (`matchClass` in `viewer/src/model/chain.ts`):
@@ -647,9 +663,7 @@ what it is compared with, its matches, the branch's simulated energy (in its mat
 descendants') and the match's rechit energy (from the branch, from other particles, with no simulated energy). Each
 bar names its energy. The match's purity and completeness are the associator's, for the selected object.
 
-**The columns**: the layer's `inspect` columns (for example a jet's pT, η and φ). For a layer with `fractions`, its
-reconstructed energy fractions, as one bar in a neutral grey ramp (a reconstruction quantity, not one of the view's
-colours). Every other column is folded under them.
+**All columns**, folded, with units and sentinels as in the physics block.
 
 ## Expressions
 

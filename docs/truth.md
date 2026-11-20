@@ -22,7 +22,7 @@ study.
    candidates, jets, ...), the display says so, with the gap's number: what the truth is missing is shown as plainly
    as what it has.
 3. **Colour means one thing at a time.** The colour key's title says which: `Colour = candidate type (reco)`,
-   `Colour = generator particle (truth)` or `Colour = truth ↔ reco pair`. Truth is drawn dashed, reco solid.
+   `Colour = each layer's own`, `Colour = generator particle (truth)` or `Colour = truth ↔ reco pair`. Truth is drawn dashed, reco solid.
 4. **A reco object is never painted as truth.** It takes a particle's colour only when its match is clean: its
    purity is at or above its kind's threshold. Otherwise it is grey. An object without any truth is neutral, never the
    "shared" green. A kind with no truth of its own is drawn faint, so that it cannot be mistaken for an unmatched

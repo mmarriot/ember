@@ -143,7 +143,8 @@ You see the first event of the bundle. Press `?` at any time for the viewer's ow
    chain at a time. Click a name in the card to look at that object. Press `Esc` to go back.
 4. **Compare with the simulation**, when the bundle has truth. Press `T` to colour everything by the simulated
    particle it comes from. Select an object and press `X` to jump to its truth match, and `X` again to come back. The
-   card says how good the match is, as purity and completeness. [Truth](truth.md) explains these words.
+   card says how good the match is, as purity and completeness. Select a particle to see, detector by detector, where
+   its energy went: in the reco object matched to it, in others, or in none. [Truth](truth.md) explains these words.
 5. **Hide what you do not need.** In the side panel, each kind of object shows its cut, for example
    "pT ≥ 30 GeV". Click the cut to change it with a slider. Click **only** on a heading to show that kind alone.
    Click the count on a row to list its largest objects.

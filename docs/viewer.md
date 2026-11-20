@@ -289,7 +289,9 @@ The tab is called **Tree** for a bundle with a tree but no truth layers. It hold
 - **the truth coverage**, folded to one line of counts, for example "9 matched · 2 fact · 18 no truth". Unfold it to
   see each kind's answer and, where there is no truth, why.
 - the truth collections, with their cuts;
-- what became of each particle that left hits: its best candidate, or "not reconstructed";
+- what became of each particle that left hits: in each detector it left them in, its best match among the kind
+  compared there (HGCal: candidate tracksters; ECAL, HCAL: PF clusters), "none", or "not compared" where that
+  detector's reco has no association;
 - objects linked to objects of the same table as a tree that you can fold, for example the truth-graph particles and
   their children.
 

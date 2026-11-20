@@ -11,6 +11,7 @@ import {
   isCopied,
   isIndex,
   kindLabel,
+  labelName,
   objectName,
   plain,
   singular,
@@ -103,6 +104,27 @@ describe("names", () => {
     // a collection whose label adds nothing to its kind is named by its CMSSW collection
     expect(chipName(header, ele, 0, "pT 5.15 GeV")).toBe("gedGsfElectrons · pT 5.15 GeV");
     expect(objectName(header, ele, 0, "pT 5.15 GeV")).toBe("Electron 1 · gedGsfElectrons · pT 5.15 GeV");
+  });
+});
+
+describe("labels", () => {
+  it("name the collection only where another of the kind is labelled, by the words that tell them apart", () => {
+    expect(labelName(header, jet, 0, "pT 46 GeV", [jet, ele])).toBe("Jet 1 · pT 46 GeV");
+    expect(labelName(header, ele, 0, "pT 16 GeV", [jet, ele])).toBe("Electron 1 · pT 16 GeV");
+    // AK4 and AK4 CHS: "AK4" is in both, so the CHS jet is "CHS"; the other keeps its whole name, being only "AK4"
+    expect(labelName(header, chs, 0, "pT 52.8 GeV", [jet, chs])).toBe("Jet 1 · CHS · pT 52.8 GeV");
+    expect(labelName(header, jet, 0, "pT 46 GeV", [jet, chs])).toBe("Jet 1 · AK4 · pT 46 GeV");
+    expect(labelName(header, eleHGC, 1, "pT 15.4 GeV", [ele, eleHGC])).toBe("Electron 2 · HGCal · pT 15.4 GeV");
+    expect(labelName(header, ele, 0, "pT 16 GeV", [ele, eleHGC])).toBe("Electron 1 · gedGsfElectrons · pT 16 GeV");
+    expect(labelName(header, met, 0, "pT miss 27.6 GeV", [met, pmet])).toBe("Puppi MET · pT miss 27.6 GeV");
+  });
+  it("keep the words that differ, not those all the collections share", () => {
+    const puppi = layer("Jet", "Jets", "AK4 PUPPI (raw, no JEC)"),
+      chsRaw = layer("JetCHS", "Jets", "AK4 CHS (raw, no JEC)"),
+      h = { ...header, display: [puppi, chsRaw] } as Header;
+    expect(labelName(h, puppi, 0, "", [puppi, chsRaw])).toBe("Jet 1 · PUPPI");
+    expect(labelName(h, chsRaw, 0, "", [puppi, chsRaw])).toBe("Jet 1 · CHS");
+    expect(labelName(h, puppi, 0, "", [puppi])).toBe("Jet 1");
   });
 });
 

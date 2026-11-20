@@ -14,7 +14,9 @@
 // Which object it describes comes from the store: `subject` is the card's object and `selection` the object the view
 // shows. They are the same unless another object is looked at from the card; `anchor` then holds the card's object.
 import { percent } from "../model/match";
-import { bestFirst, sameRef } from "../model/relations";
+import { foldReco } from "../model/chain";
+import { sharedParts } from "../model/physics";
+import { bestFirst, type Ref, sameRef } from "../model/relations";
 import { plain } from "../model/describe";
 import {
   anchor,
@@ -44,10 +46,12 @@ import { keyColumns, Properties, Rows } from "./Properties";
 import { Info } from "./Info";
 import { back, cross, crossing, frameFocus } from "../control/navigate";
 import { PairBars } from "./PairBars";
-import { Lineage, ParticleFacts, TruthCard, Unassociated } from "./TruthCard";
+import { Lineage, ParticleFacts, TruthCard, unassociated } from "./TruthCard";
 import { GapLink, TruthBlock } from "./TruthBlock";
 import { Physics } from "./Physics";
 import { Icon } from "./widgets";
+
+const NONE = new Set<string>();
 
 export function Card() {
   const b = bundle.value,
@@ -201,11 +205,21 @@ function GoAcross() {
 function TruthSide({ table, row }: { table: string; row: number }) {
   const rec = reconstructed.value,
     root = modes.value.roots.truth;
-  const gaps = [...truthStatuses.value].filter(([, s]) => s.kind === "none") as [
-    string,
-    { kind: "none"; reason: string; gap?: number },
-  ][];
-  const found = rec?.reco.filter((r) => r.partners.length) ?? [],
+  // The kinds without an associator: those this particle could have reached; for another truth object, all of them.
+  const none = [...truthStatuses.value].flatMap(([t, s]) => (s.kind === "none" ? [{ t, gap: s.gap }] : [])),
+    unanswered =
+      table === root
+        ? unassociated(row)
+        : {
+            names: [...new Set(none.map(({ t }) => truthName(t)))],
+            gaps: [...new Set(none.flatMap(({ gap }) => (gap === undefined ? [] : [gap])))],
+          };
+  const b = bundle.value,
+    ev = event.value;
+  // The same objects at several levels (the same parts, e.g. a trackster's layer clusters) are one line.
+  const same = (x: Ref, y: Ref) =>
+    !!b && !!ev && sharedParts(ev, b.header, x.table, x.row, NONE).some((s) => s.same && sameRef(s, y));
+  const found = foldReco(rec?.reco.filter((r) => r.partners.length) ?? [], same),
     empty = rec?.reco.filter((r) => !r.partners.length) ?? [];
   const help = (
     <>
@@ -222,8 +236,15 @@ function TruthSide({ table, row }: { table: string; row: number }) {
       <p>
         <b>Click</b> an object to look at it in the view; <b>double click</b> to open its card.
       </p>
+      <p>
+        Under each kind, the objects that hold at least 5% of it, at most four; "+N" counts the others (all of them
+        under Every association, below). Kinds that show the same objects (the same parts) share one line.
+      </p>
       {empty.length > 0 && (
-        <p>"Not found in" is not by itself an inefficiency: the particle may never have reached that detector.</p>
+        <p>
+          Nothing holds any of it in: {empty.map((r) => stepName(r.table)).join(", ")}. That is not by itself an
+          inefficiency: the particle may never have reached that detector.
+        </p>
       )}
       {rec && !rec.hits.length && (
         <p>
@@ -232,16 +253,24 @@ function TruthSide({ table, row }: { table: string; row: number }) {
           (below) shows them.
         </p>
       )}
-      {gaps.length > 0 && (
+      {unanswered.names.length > 0 && (
         <p>
-          No CMSSW associator yet for: {[...new Set(gaps.map(([t]) => truthName(t)))].join(", ")} (the gaps:{" "}
-          {[...new Set(gaps.map(([, g]) => g.gap).filter((g) => g !== undefined))].map((g, i) => (
+          No CMSSW associator, so no answer, for {table === root ? "the kinds it could have reached" : "these kinds"}:{" "}
+          {unanswered.names.join(", ")}
+          {unanswered.gaps.length > 0 && (
             <>
-              {i > 0 && ", "}
-              <GapLink gap={g} />
+              {" "}
+              (the gaps:{" "}
+              {unanswered.gaps.map((g, i) => (
+                <>
+                  {i > 0 && ", "}
+                  <GapLink gap={g} />
+                </>
+              ))}
+              )
             </>
-          ))}
-          ).
+          )}
+          . Ember builds none.
         </p>
       )}
     </>
@@ -265,22 +294,30 @@ function TruthSide({ table, row }: { table: string; row: number }) {
           </h4>
           <ol>
             {found.map((r) => {
-              const of =
-                r.measure === "hits"
-                  ? `hits${r.in ? ` in the ${r.in}` : ""} (with its secondaries')`
-                  : r.measure === "pt2"
-                    ? "findable tracks (pT²)"
-                    : `energy${r.in ? ` in ${r.in}` : ""}`;
+              const t = r.tables[0],
+                of =
+                  r.measure === "hits"
+                    ? `hits${r.in ? ` in the ${r.in}` : ""} (with its secondaries')`
+                    : r.measure === "pt2"
+                      ? "findable tracks (pT²)"
+                      : `energy${r.in ? ` in ${r.in}` : ""}`;
               return (
                 <li class="rung below">
                   <div class="rhead">
-                    <span class="rkind">{stepName(r.table)}</span>
+                    <span
+                      class="rkind"
+                      title={
+                        r.tables.length > 1 ? "The same objects at each of these levels (the same parts)" : undefined
+                      }
+                    >
+                      {r.tables.map((x) => stepName(x)).join(", ")}
+                    </span>
                   </div>
                   <div class="rlink">
-                    {r.partners.slice(0, 4).map((p) => (
+                    {r.partners.map((p) => (
                       <span class="partner">
                         {chip(
-                          r.table,
+                          t,
                           p.row,
                           `${p.completeness !== undefined ? `it holds ${percent(p.completeness)} of this one's ${of}; ` : ""}${p.best ? "this is its own best match" : p.unmatched ? "it has no best match of its own" : "its own best match is another truth object"}`,
                         )}
@@ -299,9 +336,12 @@ function TruthSide({ table, row }: { table: string; row: number }) {
                         )}
                       </span>
                     ))}
-                    {r.partners.length > 4 && (
-                      <span class="muted" title="All of them: under Every association, below">
-                        +{r.partners.length - 4}
+                    {r.folded > 0 && (
+                      <span
+                        class="muted"
+                        title="The others, most holding under 5% of it: all of them under Every association, below"
+                      >
+                        +{r.folded}
                       </span>
                     )}
                   </div>
@@ -317,8 +357,7 @@ function TruthSide({ table, row }: { table: string; row: number }) {
               </li>
             ))}
           </ol>
-          {empty.length > 0 && <p class="hint">Not found in: {empty.map((r) => stepName(r.table)).join(", ")}</p>}
-          {table === root && <Unassociated row={row} />}
+          {!found.length && !rec.hits.length && <p class="hint">No reco object holds any of it.</p>}
         </section>
       )}
     </>

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { DisplayLayer, EventData, Header } from "../io/format";
-import { matchClass, matchTally, recoLadder, recoOfTruth, type Ladder } from "./chain";
+import { foldReco, matchClass, matchTally, recoLadder, recoOfTruth, type Ladder } from "./chain";
 import { truthStatus, type TruthStatus } from "./match";
 import { relatedParts } from "./relations";
 import { leadChoice, type PartLine, partChoices, truthStatement, whereItWent } from "./statement";
@@ -276,6 +276,75 @@ describe("recoOfTruth", () => {
   it("keeps an empty entry where nothing of a matched kind was reconstructed", () => {
     expect(recoOfTruth(ev, header, { table: "P", row: 1 }).reco).toEqual([
       { table: "Trk", measure: "hits", in: "tracker", partners: [] },
+    ]);
+  });
+});
+
+describe("foldReco", () => {
+  const p = (row: number, completeness?: number, best = false) => ({ row, completeness, best, unmatched: false });
+  const kind = (table: string, partners: ReturnType<typeof p>[], measure = "energy", within = "HGCal") => ({
+    table,
+    measure,
+    in: within,
+    partners,
+  });
+  // the same trackster at two levels: row r of "Cand" is row r + 10 of "Tks"
+  const same = (a: { table: string; row: number }, b: { table: string; row: number }) =>
+    a.table === b.table ? a.row === b.row : Math.abs(a.row - b.row) === 10;
+  it("folds the objects that hold under 5% of the particle into the count, and keeps at most four, best first", () => {
+    expect(
+      foldReco([kind("Cand", [p(0, 0.86, true), p(1, 0.3), p(2, 0.2), p(3, 0.1), p(4, 0.06), p(5, 0.02)])], same),
+    ).toEqual([
+      {
+        tables: ["Cand"],
+        measure: "energy",
+        in: "HGCal",
+        partners: [p(0, 0.86, true), p(1, 0.3), p(2, 0.2), p(3, 0.1)],
+        folded: 2,
+      },
+    ]);
+  });
+  it("keeps the objects of an association without completeness", () => {
+    expect(foldReco([kind("V", [p(0), p(1)], "pt2", undefined)], same)[0].partners).toEqual([p(0), p(1)]);
+  });
+  it("merges the levels that list the same objects, naming each, and counts what they fold once", () => {
+    expect(
+      foldReco(
+        [kind("Cand", [p(0, 0.86, true), p(1, 0.02)]), kind("Tks", [p(10, 0.86, true), p(11, 0.02), p(12, 0.01)])],
+        same,
+      ),
+    ).toEqual([{ tables: ["Cand", "Tks"], measure: "energy", in: "HGCal", partners: [p(0, 0.86, true)], folded: 2 }]);
+  });
+  it("always lists the objects whose own best match it is, under 5% or beyond four", () => {
+    // a pion's only track holds 0.8% of its hits with its secondaries', and the pion is its best match
+    expect(foldReco([kind("Trk", [p(0, 0.008, true)], "hits", "tracker")], same)[0]).toMatchObject({
+      partners: [p(0, 0.008, true)],
+      folded: 0,
+    });
+    // split into five tracksters, each best matched to it: all five, and no other beside them
+    const five = [0, 1, 2, 3, 4].map((r) => p(r, 0.3 - r * 0.05, true));
+    expect(foldReco([kind("Tks", [...five, p(5, 0.06)])], same)[0]).toMatchObject({ partners: five, folded: 1 });
+  });
+  it("keeps apart levels whose objects differ in their parts, completeness, best mark or detector", () => {
+    const n = (r: Parameters<typeof foldReco>[0]) => foldReco(r, same).length;
+    expect(n([kind("Cand", [p(0, 0.86)]), kind("Tks", [p(11, 0.86)])])).toBe(2); // other parts
+    expect(n([kind("Cand", [p(0, 0.86)]), kind("Tks", [p(10, 0.7)])])).toBe(2);
+    expect(n([kind("Cand", [p(0, 0.86, true)]), kind("Tks", [p(10, 0.86)])])).toBe(2);
+    expect(n([kind("Cand", [p(0, 0.86)]), kind("Tks", [p(10, 0.86)], "energy", "ECAL")])).toBe(2);
+  });
+  it("lists as one line the kinds of a detector whose objects all hold under 5% of a particle (a barrel one in HGCal)", () => {
+    expect(
+      foldReco(
+        [
+          kind("Cand", [p(0, 0.01)]),
+          kind("Tks", [p(10, 0.02), p(13, 0.01)]),
+          kind("Trk", [p(0, 0.3)], "hits", "tracker"),
+        ],
+        same,
+      ),
+    ).toEqual([
+      { tables: ["Cand", "Tks"], measure: "energy", in: "HGCal", partners: [], folded: 3 },
+      { tables: ["Trk"], measure: "hits", in: "tracker", partners: [p(0, 0.3)], folded: 0 },
     ]);
   });
 });

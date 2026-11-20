@@ -73,20 +73,26 @@ export function Shares({ table, row }: { table: string; row: number }) {
   const b = bundle.value!,
     ev = event.value!,
     above = new Set(ladder.value?.above.flatMap((r) => r.groups.map((g) => g.table)) ?? []);
+  // one line per wording, listing its objects: "same layer clusters as Trackster 4 · Candidate trackster 1"
+  const lines = new Map<string, { table: string; row: number }[]>();
+  for (const x of sharedParts(ev, b.header, table, row, above).slice(0, 4)) {
+    const what = inText(kindOf(x.parts)),
+      words = x.same ? `same ${x.n === 1 ? inText(singular(kindOf(x.parts))) : what} as` : `all its ${what} are in`;
+    lines.set(words, [...(lines.get(words) ?? []), x]);
+  }
   return (
     <>
-      {sharedParts(ev, b.header, table, row, above)
-        .slice(0, 4)
-        .map((x) => {
-          const what = inText(kindOf(x.parts)),
-            one = inText(singular(kindOf(x.parts)));
-          return (
-            <p class="physline" title="Exact: the relations in the file name the same parts (no matching in Ember)">
-              {x.same ? `same ${x.n === 1 ? one : what} as` : `all its ${what} are in`}{" "}
+      {[...lines].map(([words, xs]) => (
+        <p class="physline" title="Exact: the relations in the file name the same parts (no matching in Ember)">
+          {words}{" "}
+          {xs.map((x, i) => (
+            <>
+              {i > 0 && " · "}
               <ObjChip table={x.table} row={x.row} text={nameOf(x)} />
-            </p>
-          );
-        })}
+            </>
+          ))}
+        </p>
+      ))}
     </>
   );
 }

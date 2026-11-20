@@ -548,7 +548,8 @@ photoelectrons) and its share of the hit's, with a button for the particle's pai
 - the objects holding it with a weight: "in Primary vertex 1 · weight 0.90" (a track), "in Secondary vertex 1";
 - objects of other kinds with exactly the same parts, from the relations alone: "same supercluster as Photon 1" (and
   "same supercluster as Electron 2" on the photon's card), "same PF candidates as Jet 1 · AK4 CHS", "all its PF
-  candidates are in Jet 1 · AK4" (a tau);
+  candidates are in Jet 1 · AK4" (a tau). Several objects with the same wording share one line: "same layer clusters
+  as Trackster 4 · Candidate trackster 1";
 - its key columns (the layer's `inspect`), with units and named values ("decayMode h± π⁰ (1)" where the layer's
   `describe.names` names them). Raw indices (`trackIdx`), components derived from others (px) and positions copied
   in from another table (a jet's PV position) are left to **All columns**;

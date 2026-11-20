@@ -149,8 +149,9 @@ The selection's **card** opens on the right. It shows the object's chain, with w
 **Framing.** `F`, a double click, the card's zoom button, `X`, back (`B`) and a link with a selection frame the
 object in the part of the view the card leaves free (left of it, or below it on a narrow screen), so the card never
 covers it. What is framed is the object and its parts. Objects only linked to it, such as its truth particle or a
-track's vertex, are not: a low-pT particle's helix can curl far from its track. Clicking an object does not move the
-camera.
+track's vertex, are not: a low-pT particle's helix can curl far from its track. A vertex is framed at its own place,
+as closely as its tracks' part of the detector allows (the tracker's `minRadius`, 15 cm: about the pixel volume), not
+with the whole length of its tracks. Clicking an object does not move the camera.
 
 **Next object.** `N` selects the next object of the same kind, largest first. `Shift+N` goes back. The order is the
 order of the list that the row's count opens, for example the next jet by pT, or the next track. This works for every

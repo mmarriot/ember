@@ -337,9 +337,10 @@ export class Engine {
   }
 
   /** Fit the view to the drawn objects, or to the given rows per table; animated over `ms` if `animate`, swinging
-   *  `swing` radians around the vertical on the way (3D). */
-  frame(selection?: Rows, animate = false, ms = 450, swing = 0) {
-    this.fit(selection, animate, ms, swing);
+   *  `swing` radians around the vertical on the way (3D). `least`: the smallest radius framed (cm), instead of
+   *  minRadius. */
+  frame(selection?: Rows, animate = false, ms = 450, swing = 0, least?: number) {
+    this.fit(selection, animate, ms, swing, undefined, least);
   }
 
   /** Frame a cylinder around the beam axis (radius rMax, |z| up to zMax; cm), e.g. a part of the detector, from the
@@ -384,7 +385,14 @@ export class Engine {
   }
 
   /** frame(), looking along `dir` (3D; default: the current direction). */
-  private fit(selection: Rows | undefined, animate: boolean, ms: number, swing: number, dir?: THREE.Vector3) {
+  private fit(
+    selection: Rows | undefined,
+    animate: boolean,
+    ms: number,
+    swing: number,
+    dir?: THREE.Vector3,
+    min = this.minRadius,
+  ) {
     const box = this.box(selection);
     if (!box) return;
     const [lo, hi] = box;
@@ -393,10 +401,10 @@ export class Engine {
     if (this.view !== "3d") {
       // 2D: a margin, and at least the smallest radius framed, as in 3D (a jet's calorimeter part)
       const [w, h] = flatView(this.view).extent(size),
-        least = 2 * this.minRadius;
+        least = 2 * min;
       return this.aimFlat(ctr, Math.max(1.2 * w, least), Math.max(1.2 * h, least), animate, ms);
     }
-    const radius = Math.max(0.68 * size.length() + 0.22 * this.minRadius, this.minRadius); // cm: conservative
+    const radius = Math.max(0.68 * size.length() + 0.22 * min, min); // cm: conservative
     this.aim(ctr, radius, animate, ms, swing, dir);
   }
 

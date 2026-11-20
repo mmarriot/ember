@@ -39,8 +39,25 @@ import { engine } from "./scene";
 /** Frame the focus in the part of the view the card leaves free (engine.frame, store `framed`): `F`, a double click,
  *  the card's button, X, back, a link; `ms`: the glide's length (0: at once). */
 export function frameFocus(ms = 450) {
-  engine?.frame(framed.peek() ?? undefined, ms > 0, ms);
+  const rows = framed.peek(),
+    f = focus.peek(),
+    least = f && rows ? vertexRadius(f, rows) : undefined;
+  if (least !== undefined) engine?.frame(new Map([[f!.table, [f!.row]]]), ms > 0, ms, 0, least);
+  else engine?.frame(rows ?? undefined, ms > 0, ms);
 }
+
+/** For a vertex (profile kind "vertex", "secondaryVertex", ...: made of lines, its tracks), the radius it is framed
+ *  at: the smallest `minRadius` of its lines' parts of the detector (the tracker's: about the pixel volume), so the
+ *  view shows where its tracks start, not the whole tracker they cross. Undefined for anything else. */
+function vertexRadius(f: Ref, rows: Map<string, Set<number>>) {
+  const d = layerOf(f.table),
+    h = bundle.peek()?.header;
+  if (!h || !d || !/vertex$/i.test(d.kind ?? "")) return undefined;
+  const lines = [...rows.keys()].map(layerOf).filter((l) => l && l.table !== f.table && LINES.has(l.repr)),
+    radii = lines.flatMap((l) => h.domains?.find((x) => x.name === l!.domain)?.minRadius ?? []);
+  return radii.length ? Math.min(...radii) : undefined;
+}
+const LINES = new Set(["helix", "segments", "polyline"]);
 
 export function jump(ref: Ref) {
   focusOn(ref);

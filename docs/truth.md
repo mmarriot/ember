@@ -252,10 +252,10 @@ Every drawn kind has one truth status. The viewer works it out from the bundle (
 
 The same words appear in three places:
 
-- **the selection's card**, on the object's step of its chain ([Viewer](viewer.md#the-selections-card)). For example
-  the tag "no truth" on a jet, and behind it (click it): "the truth graph has no jet associator, and no generator-jet level in
-  the truth graph (gap 21)". It adds at most one constituent's own match ([below](#constituents)). Every other step
-  of the chain carries its own kind's status in the same way;
+- **the selection's card**, in its truth block at the top ([Viewer](viewer.md#the-selections-card)). For example "No
+  CMSSW association for jets", and behind its **i**: "the truth graph has no jet associator, and no generator-jet
+  level (gap 21)", the gap as a link. Then each part's own match ([below](#constituents)). In the chain, a step with
+  its own truth has a tag (match, sim); a run of steps of kinds without an associator is named in one grey line;
 - **the truth colour key**: "faint: no truth for that kind", with the kinds and the reason behind its **i**;
 - **the Truth tab**, which opens with the event's scorecard of the matched kinds (clean, impure, no match), and a
   "Truth coverage" list of every drawn kind.
@@ -275,14 +275,16 @@ fact in that layer's part of the detector. Bundles whose layer clusters still ca
 
 ### Constituents
 
-A composite object (jet, muon, PF candidate, electron) may show the **own** association of one constituent, named
-as the constituent's. For example: "its track #212 is matched to μ⁻ #301", with, behind its **i**, "the associator's
-answer for that track, not for this muon".
+A composite object (jet, muon, PF candidate, electron) shows the **own** associations of its parts in its card's
+truth block, each named as the part's: "Its parts' own matches (each the associator's answer for that part, not for
+this muon)", then "Track pT 95.3 GeV → μ⁺ · purity 100% · completeness 100% · associator · tracker hits". A step of
+one part names its particle, with the match's purity and completeness; a step of several counts them ("3 of 3
+matched (3 clean)"). The parts are the steps of what it is made of, and the objects built only from its parts (an
+electron's PF cluster inside its supercluster, marked "inside it"). `X` offers the parts' particles in a chooser.
 
-This happens only where a made-of relation gives exactly one part. It does not happen through an association, a
-pointer back up, or a "closest track" link. The card never adds up over several parts: "80% of its tracks are from
-the b" would be a match built in Ember. Instead, the card's chain counts each part's own match on the parts' step
-("9 of 9 matched"), and leaves the composite's step at "no truth".
+It never happens through an association, a pointer back up, or a "closest track" link. The card never adds up over
+several parts and never gives the composite a verdict: "80% of its tracks are from the b" would be a match built in
+Ember, and a pion's track inside a photon's cluster is the story, not a contradiction to resolve.
 
 A constituent's match never gives the composite its colour. In the truth colours, an object takes a colour only
 through its own association, or from the container it is part of, never from its parts. With a jet in focus, its

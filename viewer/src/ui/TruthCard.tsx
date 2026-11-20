@@ -9,11 +9,11 @@ import { signal } from "@preact/signals";
 import type { Header } from "../io/format";
 import { completeness, percent, quality, TARGETS } from "../model/match";
 import { bestPartners, identities } from "../model/relations";
+import { withUnit } from "../model/describe";
 import {
   bundle,
   describe,
   event,
-  kindOf,
   labelOf,
   layerOf,
   modes,
@@ -104,10 +104,7 @@ export function TruthCard({ table, row }: { table: string; row: number }) {
     truth = modes.value.roots.truth;
   if (!b || !ev || !truth) return null;
   const rels = matchRelations(b.header, table).filter(([name]) => ev.relations[name]);
-  if (!rels.length) {
-    const s = truthStatuses.value.get(table);
-    return s?.kind === "none" ? <Constituent table={table} row={row} truth={truth} /> : null; // why it has none: on its step of the chain
-  }
+  if (!rels.length) return null; // why it has none, and its parts' matches: the card's truth block (TruthBlock.tsx)
   const [name, info] = rels[0],
     rel = ev.relations[name],
     m = info.match!,
@@ -167,7 +164,7 @@ export function TruthCard({ table, row }: { table: string; row: number }) {
       <p class="truthline">
         <span class="badge truth">truth</span>{" "}
         {p < 0 ? (
-          <span class="q q-unmatched">no match</span>
+          <span class="q q-unmatched">not matched</span>
         ) : (
           <>
             match{" "}
@@ -181,13 +178,11 @@ export function TruthCard({ table, row }: { table: string; row: number }) {
           </>
         )}
         {p >= 0 && !particles && distance(table, row, target, p) !== undefined && (
-          <span class="muted">{short(distance(table, row, target, p)!)} cm away</span>
+          <span class="muted">{withUnit(distance(table, row, target, p)!, "cm")} away</span>
         )}
         <Info title="Truth match">{help}</Info>
       </p>
-      {p < 0 ? (
-        <Constituent table={table} row={row} truth={truth} />
-      ) : (
+      {p < 0 ? null : (
         <>
           <div class="meters">
             {q?.purity !== undefined && (
@@ -204,9 +199,9 @@ export function TruthCard({ table, row }: { table: string; row: number }) {
             )}
             {c && (
               <Meter
-                name="completeness"
+                name="completeness (associator)"
                 value={c.value}
-                note={`of the ${particles ? "particle's" : "truth vertex's"} ${c.match.measure === "hits" ? "tracker hits" : c.match.measure === "pt2" ? "tracks (pT²)" : `energy in ${c.match.in}`}`}
+                note={`of the ${particles ? "particle's" : "truth vertex's"} ${c.match.measure === "hits" ? "tracker hits, its descendants' included" : c.match.measure === "pt2" ? "tracks (pT²)" : `energy in ${c.match.in}, rechit scale`}`}
               />
             )}
           </div>
@@ -248,54 +243,6 @@ function Meter({ name, value, good, note }: { name: string; value: number; good?
       </span>
     </div>
   );
-}
-
-/** One object of `table`'s kind, in running text: "track", "PF candidate", "MET". */
-const one = (table: string) =>
-  kindOf(table)
-    .replace(/s$/, "")
-    .split(" ")
-    .map((w) => (/^[A-Z][a-z]/.test(w) ? w.toLowerCase() : w))
-    .join(" ");
-
-/** The own match of one constituent, named as the constituent's (docs/truth.md "Constituents"): only where a relation
- *  of what it is made of gives exactly one part (a muon's inner track, a candidate's track), never an association or a
- *  pointer back up, never aggregated over several parts; the first such part in the header's order. */
-function Constituent({ table, row, truth }: { table: string; row: number; truth: string }) {
-  const b = bundle.value!,
-    ev = event.value!;
-  for (const [relName, info] of Object.entries(b.header.relations)) {
-    const rel = ev.relations[relName];
-    if (
-      info.association ||
-      info.inverseOf ||
-      info.from !== table ||
-      info.to === table ||
-      !rel ||
-      row + 1 >= rel.offsets.length
-    )
-      continue;
-    if (rel.offsets[row + 1] - rel.offsets[row] !== 1) continue; // only a single part speaks for it
-    const part = rel.indices[rel.offsets[row]];
-    for (const [name, m] of matchRelations(b.header, info.to)) {
-      const r = ev.relations[name];
-      if (!r || m.to !== truth) continue;
-      const { partner } = bestPartners(r, m, true, ev.tables[info.to]?.n ?? 0);
-      if (partner[part] >= 0)
-        return (
-          <p class="hint">
-            its {one(info.to)} {chip(info.to, part)} is matched to {truthChip(truth, partner[part], m.match?.measure)}{" "}
-            <Info title={`Its ${one(info.to)}'s match`}>
-              <p>
-                This is the associator's answer for that {one(info.to)}, not for this {one(table)}: CMSSW has no match
-                for the {one(table)} itself, and Ember builds none from its parts.
-              </p>
-            </Info>
-          </p>
-        );
-    }
-  }
-  return null;
 }
 
 /** Whether truth row `row` is outside the particle level (e.g. a π⁰ or a B decayed by the generator). */

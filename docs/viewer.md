@@ -143,8 +143,8 @@ its tracks and their hits. Related objects are highlighted: a track shows its ve
 The parts are drawn even where a layer's default filter would hide them. Cuts and filters that you set still apply.
 The selected object itself is always drawn, whatever the cut, but the hits of parts that a cut hides are not.
 
-The selection's **card** opens on the right. It shows the object's chain, with what the truth says at every step
-(see [The selection's card](#the-selections-card)).
+The selection's **card** opens on the right. It shows what the truth says about the object first, then what it is
+made of and its chain (see [The selection's card](#the-selections-card)).
 
 **Framing.** `F`, a double click, the card's zoom button, `X`, back (`B`) and a link with a selection frame the
 object in the part of the view the card leaves free (left of it, or below it on a narrow screen), so the card never
@@ -214,11 +214,17 @@ for a moment what is drawn, for example "Drawing: Tracksters · 2 · step 3 of 5
   the object.
 - In All, steps of different parts at the same depth are drawn together, for example a jet's tracks and clusters.
 
-**Cross to the truth, and back.** Press `X`, or click the particle on a step's match line.
+**Cross to the truth, and back.** Press `X`, click **Go to truth (X)** in the card's truth block, or click the
+particle on a step's match line.
 
 - From a reco object, `X` goes to the associator's best match. For a hit, it goes to the particle that left the most
-  simulated energy in it. A kind with no truth of its own (a layer cluster, a TICL candidate) has none to go to: step
-  to one of its parts.
+  simulated energy in it.
+- An object of a kind with no truth of its own (an electron, a jet, a TICL candidate) has none to go to. `X` then
+  opens a small chooser in the card: the particles its parts are matched to, each named with its part ("π⁻ · its
+  track · purity 100%"). Pick one, or press `X` again for the first; `Esc` closes it. Objects only built from its
+  parts are not offered. With no matched part either, the button is off and says why.
+- While another object is looked at, `X` crosses from that object; the card's **Go to truth (X)** crosses from the
+  card's own object.
 - From a truth object, `X` goes to a reco object of the latest reconstruction step. It picks the object whose best
   match is this truth object. If there is none, it picks the object that holds most of the truth object.
 
@@ -500,9 +506,29 @@ More is behind small buttons:
 
 - the table's description is behind the **i** next to its title;
 - what the chain's words mean is behind the chain's **i**;
-- what a step's tag means on that step is behind the tag itself: click "match", "sim" or "no truth".
+- what a step's tag means on that step is behind the tag itself: click "match" or "sim";
+- gap numbers of the [truth-graph notes](truth-graph.md#gap-table) are behind the **i** of a "no CMSSW associator"
+  line, as links.
 
-The card holds these parts, in this order.
+The card puts the answer first and the evidence below. It holds these parts, in this order.
+
+**The header**: the object's one name ([Selecting an object](#selecting-an-object)), for example "Electron 2 ·
+gedGsfElectrons · pT 59.7 GeV · η 0.714".
+
+**The truth block** (`viewer/src/ui/TruthBlock.tsx`, `viewer/src/model/statement.ts`), built only from the
+associations in the file:
+
+- the kind's own association: its match (see **The match** below), or "No CMSSW association for electrons", with
+  the reason and the gap behind its **i**;
+- then one line per step of its parts that has an association of its own: a track, a PF cluster, a candidate
+  trackster. For one object, the part, its particle, and the match's purity and completeness, each named
+  ("Track pT 30.1 GeV → π⁻ · purity 100% · completeness 97%"). For several, how many are matched ("2 of 4 matched (2
+  clean)"). Each line names its source: "associator · tracker hits", "associator · energy in ECAL". Objects built only
+  from its parts (an electron's PF cluster, all of whose hits are in its supercluster) come under their own heading,
+  "Built from its parts", since no relation makes them its parts;
+- **Go to truth (X)**, and the chooser it opens for a kind with no truth of its own.
+
+It never gives a verdict for the object from its parts: a pion's track inside a photon's cluster is the story.
 
 **Names of objects.** Every object name in the card is a button. A click looks at the object; a double click opens
 its card ([Following the chain](#following-the-chain)). For a kind that a CMSSW associator matches, each name has a
@@ -567,18 +593,18 @@ with no change to the viewer.
 candidate for a hit or a truth particle, or the object in focus for one of its parts. Then a line under the chain
 lists that object's levels, with the one drawn lit. Click another one, or press `↓` `↑`, to draw it.
 
-**The match.** For a reco object whose association has a `match` contract, the card shows:
+**The match**, in the truth block. For a reco object whose association has a `match` contract, the card shows:
 
-- the associator's best match;
-- its purity and completeness, as linear bars with what they count under them ("21 of 21 hits · clean", "of the
-  particle's energy in HGCal"), and the clean threshold marked;
+- the associator's best match, or "not matched";
+- its purity and its completeness, named as the associator's, as linear bars with what they count under them ("21 of
+  21 hits · clean"; "completeness (associator) … of the particle's energy in HGCal, rechit scale"), and the clean
+  threshold marked. The pair's "in its match 59%" further down is another number: the share of the particle's
+  simulated energy in the match's hits;
 - the generator particle that the match belongs to;
 - the match's chain in the truth graph, on one line, from the collision down.
 
 Behind its **i**: what the kind reconstructs (for example "the particle that entered the calorimeter"), how purity
-and completeness are counted, and the associator's score ("0 best; not a fraction"). Without a match, the card says
-so. If the object has a single part with its own match (for example a track-only candidate's track), it gives that
-match as the part's.
+and completeness are counted, and the associator's score ("0 best; not a fraction").
 
 **A truth object** shows:
 
@@ -594,13 +620,14 @@ match as the part's.
   entry ("μ⁺ ×4 (status 23→1)"); a particle made from several partons says "from n partons", and the line follows the
   first;
 - **Reconstructed as**: for each reco kind with a truth → reco association, the objects that share hits or energy
-  with it, most complete first. Each shows the share of the particle that it holds, and a ★ where the particle is
-  that object's own best match. "none" means that nothing of that kind was reconstructed from it. This alone is not an
-  inefficiency: the particle may never have reached that detector. Hit-based association weights (tracks) are
-  counted in hits. Under it, apart, the kinds with **no CMSSW associator** that the particle could have reached:
-  those made of hits in a detector where its branch left simulated energy, of the tracker when a track holds part of
-  it, of the muon system for a muon, and a species' own kinds (electrons, photons, muons, taus) only for that species.
-  "None" (not matched) and "no associator" (no answer) stay two different statements;
+  with it, most complete first. Each shows "completeness 51%", the share of the particle that it holds, and "★ its
+  best" where the particle is that object's own best match. "Not found in: …" lists the kinds that nothing was
+  reconstructed in. This alone is not an inefficiency: the particle may never have reached that detector. Hit-based
+  association weights (tracks) are counted in hits. Under it, apart, the kinds with **no CMSSW associator** that the
+  particle could have reached: those made of hits in a detector where its branch left simulated energy, of the tracker
+  when a track holds part of it, of the muon system for a muon, and a species' own kinds (electrons, photons, muons,
+  taus) only for that species. "Not found in" (not matched) and "no associator" (no answer) stay two different
+  statements. **Go to reco (X)** crosses over;
 - the number of hits it left, per detector.
 
 **Every association**, folded: each object that an association in the file links to the selection, with the

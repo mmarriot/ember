@@ -1,12 +1,14 @@
 // The card of the selected object (the `.inspector` panel in styles/card.css): the one place that says where it sits
 // and what the truth says about it. It carries names and numbers; what each thing is, and how it is counted, is behind
 // an "i" or the tag itself (Info.tsx).
-// From the top:
-// - its chain (Chain.tsx), or for a truth object its lineage and what was reconstructed from it (TruthSide, below);
+// From the top, the answer first and the evidence below (docs/truth.md "The card"):
+// - its one name (model/describe.ts): "Electron 2 · gedGsfElectrons · pT 59.7 GeV · η 0.714";
+// - for a reco object, what the truth says (TruthBlock.tsx), then what it is made of and its main numbers
+//   (Physics.tsx), then its chain (Chain.tsx); for a truth object, its lineage and what was reconstructed from it
+//   (TruthSide, below);
 // - the levels drawn in the view, when they are not the chain's own steps (ViewLevels);
 // - the truth <-> reco pair the view is coloured by (PairBars.tsx);
-// - for a reco object, its truth match (TruthCard.tsx);
-// - every association it has, with the relation's weights (Associations), and its columns (Properties.tsx);
+// - every association it has, with the relation's weights (Associations), and all its columns (Properties.tsx);
 // - at the bottom edge, the object looked at from the card, while there is one (Looking).
 //
 // Which object it describes comes from the store: `subject` is the card's object and `selection` the object the view
@@ -39,9 +41,10 @@ import { Chain } from "./Chain";
 import { chip } from "./chips";
 import { keyColumns, Properties, Rows } from "./Properties";
 import { Info } from "./Info";
-import { back, frameFocus } from "../control/navigate";
+import { back, cross, crossing, frameFocus } from "../control/navigate";
 import { PairBars } from "./PairBars";
 import { Lineage, ParticleFacts, TruthCard, Unassociated } from "./TruthCard";
+import { GapLink, TruthBlock } from "./TruthBlock";
 import { Icon } from "./widgets";
 
 export function Card() {
@@ -84,14 +87,16 @@ export function Card() {
         </div>
       </header>
       <div class="navbody">
-        {truth ? <TruthSide table={sel.table} row={sel.row} /> : <Chain />}
+        {truth ? (
+          <TruthSide table={sel.table} row={sel.row} />
+        ) : (
+          <>
+            <TruthBlock table={sel.table} row={sel.row} />
+            <Chain />
+          </>
+        )}
         <ViewLevels />
         <PairBars />
-        {!truth && (
-          <section class="matchcard">
-            <TruthCard table={sel.table} row={sel.row} />
-          </section>
-        )}
         <Associations table={sel.table} row={sel.row} />
         <Properties table={table} name={sel.table} row={sel.row} />
       </div>
@@ -176,17 +181,25 @@ function ViewLevels() {
   );
 }
 
+/** The button across the reco <-> truth link (X), disabled with the reason when there is nothing across. */
+function GoAcross() {
+  const go = crossing.value,
+    can = !!go.to || go.choices.length > 0;
+  return (
+    <button class="gotruth" disabled={!can} title={can ? "Go across (X)" : go.why} onClick={() => cross(true)}>
+      Go to reco (X)
+    </button>
+  );
+}
+
 /** A truth object: where it sits in the truth graph, and what was reconstructed from it. */
 function TruthSide({ table, row }: { table: string; row: number }) {
   const rec = reconstructed.value,
     root = modes.value.roots.truth;
-  const gaps = [
-    ...new Set(
-      [...truthStatuses.value]
-        .filter(([, s]) => s.kind === "none")
-        .map(([t, s]) => `${truthName(t)}${s.kind === "none" && s.gap !== undefined ? ` (gap ${s.gap})` : ""}`),
-    ),
-  ];
+  const gaps = [...truthStatuses.value].filter(([, s]) => s.kind === "none") as [
+    string,
+    { kind: "none"; reason: string; gap?: number },
+  ][];
   const found = rec?.reco.filter((r) => r.partners.length) ?? [],
     empty = rec?.reco.filter((r) => !r.partners.length) ?? [];
   const help = (
@@ -196,15 +209,16 @@ function TruthSide({ table, row }: { table: string; row: number }) {
         complete first.
       </p>
       <p>
-        <b>%</b>: the share of this particle that the object holds, by the associator: of its energy in that detector
-        (calorimeters: each cell's rechit energy, split between the particles by the simulated energy they left in it),
-        or of its tracker hits (tracks). <span class="ok">★</span>: it is that object's own best match.
+        <b>completeness</b>: the share of this particle that the object holds, by the associator: of its energy in that
+        detector (calorimeters: each cell's rechit energy, split between the particles by the simulated energy they left
+        in it), or of its tracker hits (tracks, its descendants' hits included). <span class="ok">★ its best</span>: the
+        particle is that object's own best match; an object best matched to another particle merges this one into it.
       </p>
       <p>
         <b>Click</b> an object to look at it in the view; <b>double click</b> to open its card.
       </p>
       {empty.length > 0 && (
-        <p>"None" is not by itself an inefficiency: the particle may never have reached that detector.</p>
+        <p>"Not found in" is not by itself an inefficiency: the particle may never have reached that detector.</p>
       )}
       {rec && !rec.hits.length && (
         <p>
@@ -213,7 +227,18 @@ function TruthSide({ table, row }: { table: string; row: number }) {
           (below) shows them.
         </p>
       )}
-      {gaps.length > 0 && <p>No truth link yet for: {gaps.join(", ")}.</p>}
+      {gaps.length > 0 && (
+        <p>
+          No CMSSW associator yet for: {[...new Set(gaps.map(([t]) => truthName(t)))].join(", ")} (the gaps:{" "}
+          {[...new Set(gaps.map(([, g]) => g.gap).filter((g) => g !== undefined))].map((g, i) => (
+            <>
+              {i > 0 && ", "}
+              <GapLink gap={g} />
+            </>
+          ))}
+          ).
+        </p>
+      )}
     </>
   );
   return (
@@ -229,7 +254,7 @@ function TruthSide({ table, row }: { table: string; row: number }) {
           <h4>
             Reconstructed as{" "}
             <span class="lanes">
-              <span class="badge truth">truth</span>⇄<span class="badge reco">reco</span>
+              <GoAcross />
               <Info title="Reconstructed as">{help}</Info>
             </span>
           </h4>
@@ -254,10 +279,17 @@ function TruthSide({ table, row }: { table: string; row: number }) {
                           p.row,
                           `${p.completeness !== undefined ? `it holds ${percent(p.completeness)} of this one's ${of}; ` : ""}${p.best ? "this is its own best match" : p.unmatched ? "it has no best match of its own" : "its own best match is another truth object"}`,
                         )}
-                        {p.completeness !== undefined && <span class="muted">{percent(p.completeness)}</span>}
+                        {p.completeness !== undefined && (
+                          <span
+                            class="muted"
+                            title="completeness: the share of this particle the object holds (associator)"
+                          >
+                            completeness {percent(p.completeness)}
+                          </span>
+                        )}
                         {p.best && (
-                          <span class="ok" aria-label="its best match">
-                            ★
+                          <span class="ok" title="The particle is this object's own best match (associator)">
+                            ★ its best
                           </span>
                         )}
                       </span>
@@ -280,7 +312,7 @@ function TruthSide({ table, row }: { table: string; row: number }) {
               </li>
             ))}
           </ol>
-          {empty.length > 0 && <p class="hint">None: {empty.map((r) => stepName(r.table)).join(", ")}</p>}
+          {empty.length > 0 && <p class="hint">Not found in: {empty.map((r) => stepName(r.table)).join(", ")}</p>}
           {table === root && <Unassociated row={row} />}
         </section>
       )}

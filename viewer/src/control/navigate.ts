@@ -1,7 +1,7 @@
 // Moving the focus between objects from lists and links (e.g. a candidate and its truth-graph particle), with "back";
 // the camera glides to the new focus, conservatively. Moving between the parts of the detector (domains), keeping the
 // focus.
-import { batch } from "@preact/signals";
+import { batch, computed, effect, signal } from "@preact/signals";
 import { type DisplayLayer, kindName } from "../io/format";
 import { filterMask, filters } from "../model/custom";
 import { rowsInDomain, stepDomain, withFocus } from "../model/domains";
@@ -18,6 +18,7 @@ import {
   focusOn,
   framed,
   highlight,
+  kindOf,
   ladder,
   layerKey,
   layerOf,
@@ -28,12 +29,16 @@ import {
   selection,
   shared,
   sizeColumn,
+  statement,
+  subject,
   tabOfDomain,
   toast,
   unlook,
   view,
 } from "../model/store";
 import type { Ref } from "../model/relations";
+import { inText } from "../model/describe";
+import { partChoices, type PartMatch } from "../model/statement";
 import { engine } from "./scene";
 
 /** Frame the focus in the part of the view the card leaves free (engine.frame, store `framed`): `F`, a double click,
@@ -76,30 +81,74 @@ export function back() {
   frameFocus(800);
 }
 
-/** Across the reco ↔ truth link (keyboard: X): from a reco object to its best truth match (a hit or a layer cluster:
- *  the particle with the most simulated energy in it); from a truth object to the reco object of the latest
- *  reconstruction step whose own best match it is (else the one holding most of it). Says so when there is nothing on
- *  the other side; does nothing in a bundle without truth. */
-export function cross() {
-  if (!selection.peek() || !modes.peek().roots.truth) return;
-  if (anchor.peek()) openCard(selection.peek()!); // across from what the view shows: the object looked at
-  const l = ladder.peek(),
-    rec = reconstructed.peek();
+/** A particle X can go to from an object without a truth link of its own: one of its parts' own matches. */
+export type CrossChoice = PartMatch & { truth: string };
+/** The choices X opened (the card shows them), null while none are open. They close with the selection. */
+export const crossChoices = signal<CrossChoice[] | null>(null);
+effect(() => {
+  selection.value;
+  crossChoices.value = null;
+});
+
+/** Where X goes from the card's object: `to`, the other side of its own link (a reco object's match, the particle
+ *  with the most simulated energy in a hit; for a truth object, the reco object of the latest reconstruction step
+ *  whose own best match it is, else the one holding most of it); else `choices`, its parts' own matches; else
+ *  nothing, and `why`. */
+export const crossing = computed<{ to?: Ref; choices: CrossChoice[]; why?: string }>(() => {
+  const l = ladder.value,
+    rec = reconstructed.value,
+    st = statement.value,
+    sel = subject.value;
+  if (!sel || !modes.value.roots.truth) return { choices: [], why: "No truth in this data set" };
   if (l) {
     for (const x of l.self.links) {
-      if (x.kind === "match" && x.partners.length) return jump({ table: x.truth, row: x.partners[0][0] });
-      if (x.kind === "fact" && x.particles.length) return jump({ table: x.truth, row: x.particles[0][0] });
+      if (x.kind === "match" && x.partners.length)
+        return { to: { table: x.truth, row: x.partners[0][0] }, choices: [] };
+      if (x.kind === "fact" && x.particles.length)
+        return { to: { table: x.truth, row: x.particles[0][0] }, choices: [] };
     }
-    return toast(
-      l.self.links.some((x) => x.kind === "none" || x.kind === "container")
-        ? "No truth link for this kind: step to one of its parts"
-        : "No truth particle for this object",
-    );
+    const choices = st ? partChoices(st) : [];
+    if (choices.length) return { choices };
+    const own = st?.own,
+      kind = inText(kindOf(sel.table));
+    const why =
+      own?.kind === "match"
+        ? "Not matched: the associator found no truth for it, and none of its parts is matched"
+        : own?.kind === "fact"
+          ? "No simulated energy in this hit"
+          : own?.kind === "container"
+            ? "Its truth is that of what contains it"
+            : `No CMSSW associator for ${kind}, and none of its parts is matched`;
+    return { choices, why };
   }
   const all = (rec?.reco ?? []).filter((r) => r.partners.length),
     own = all.find((r) => r.partners.some((p) => p.best)) ?? all[0];
-  if (!own) return toast("Nothing reconstructed is linked to this truth object");
-  jump({ table: own.table, row: (own.partners.find((p) => p.best) ?? own.partners[0]).row });
+  if (!own) return { choices: [], why: "Nothing reconstructed is linked to this truth object" };
+  return { to: { table: own.table, row: (own.partners.find((p) => p.best) ?? own.partners[0]).row }, choices: [] };
+});
+
+/** Across the reco ↔ truth link (keyboard: X), see `crossing`; with no link of the object's own, a chooser of its
+ *  parts' matches opens in the card (X again takes the first). Says why when there is nothing on the other side;
+ *  does nothing in a bundle without truth. While another object is looked at, X crosses from that one; `fromCard`
+ *  (the card's button) crosses from the card's own object. */
+export function cross(fromCard = false) {
+  if (!selection.peek() || !modes.peek().roots.truth) return;
+  const open = crossChoices.peek();
+  if (open?.length) return crossTo(open[0]);
+  if (anchor.peek()) {
+    if (fromCard) unlook();
+    else openCard(selection.peek()!); // across from what the view shows: the object looked at
+  }
+  const c = crossing.peek();
+  if (c.to) return jump(c.to);
+  if (c.choices.length) crossChoices.value = c.choices;
+  else toast(c.why ?? "No truth link");
+}
+
+/** Go to one of X's choices: its particle. */
+export function crossTo(c: CrossChoice) {
+  crossChoices.value = null;
+  jump({ table: c.truth, row: c.particle });
 }
 
 /** Look at one domain (header `domains`): only its layers and those without a domain are drawn (those of shared

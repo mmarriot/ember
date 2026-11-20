@@ -52,7 +52,16 @@ import { Card } from "./Card";
 import { menuOpen } from "./Menu";
 import { Sidebar } from "./Sidebar";
 import { DropHint, Start } from "./Start";
-import { back, chooseDomain, cross, frameFocus, nextDomain, nextObject, showWhole } from "../control/navigate";
+import {
+  back,
+  chooseDomain,
+  cross,
+  crossChoices,
+  frameFocus,
+  nextDomain,
+  nextObject,
+  showWhole,
+} from "../control/navigate";
 import { stopTour, toggleTour } from "../control/tour";
 import { replayEvent } from "../control/scene";
 import { Viewport } from "./Viewport";
@@ -206,6 +215,8 @@ function onKey(e: KeyboardEvent) {
   if (e.key === "Escape") {
     // Close what is open; else back to the normal view: no selection, the whole event.
     if (chooserOpen.value) chooserOpen.value = false;
+    else if (crossChoices.value)
+      crossChoices.value = null; // X's chooser in the card
     else if (menuOpen.value) menuOpen.value = false;
     else if (dialog.value) dialog.value = null;
     else if (anchor.value)

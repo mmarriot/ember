@@ -3,6 +3,7 @@ import type { DisplayLayer, EventData, Header } from "../io/format";
 import { matchClass, matchTally, recoLadder, recoOfTruth, type Ladder } from "./chain";
 import { truthStatus, type TruthStatus } from "./match";
 import { relatedParts } from "./relations";
+import { partChoices, truthStatement } from "./statement";
 
 // jet 0 -> PF candidates 0, 1; PF 0 -> track 0 and candidate 0; PF 1 -> track 1; candidate 0 -> track 0,
 // interpretation 0 -> layer clusters 0, 2 -> hits 0, 1, 3; trackster 1 holds clusters 0, 2 (named by no relation of the
@@ -318,5 +319,33 @@ describe("matchTally", () => {
   it("has nothing to say without the association in the event, or without a match contract", () => {
     expect(matchTally({ ...tev, relations: {} } as unknown as EventData, header, "trkTruth", () => true)).toBeNull();
     expect(matchTally(tev, header, "truthHits", () => true)).toBeNull();
+  });
+});
+
+describe("truthStatement", () => {
+  it("gives a kind with no associator its gap, and each part's own match with purity and completeness", () => {
+    const st = truthStatement(ev, header, ladder("Jet", 0), statuses);
+    expect(st.own).toEqual({ kind: "none", reason: "no jet associator", gap: 21 });
+    expect(st.parts).toHaveLength(1);
+    const [tracks] = st.parts;
+    expect(tracks).toMatchObject({ table: "Trk", truth: "P", of: 2, matched: 1, clean: 1, rows: [0, 1] });
+    // track 0: 8 of its 10 hits from particle 0; the particle's completeness is the truth -> reco weight
+    expect(tracks.objects).toEqual([
+      { table: "Trk", row: 0, particle: 0, purity: 0.8, completeness: expect.closeTo(0.6, 5), clean: true },
+    ]);
+  });
+  it("offers X each matched part's particle once, never a particle ranked over the parts", () => {
+    expect(partChoices(truthStatement(ev, header, ladder("Jet", 0), statuses))).toEqual([
+      expect.objectContaining({ truth: "P", particle: 0, table: "Trk", row: 0 }),
+    ]);
+  });
+  it("never offers X the particle of an object only built from its parts", () => {
+    const st = truthStatement(ev, header, ladder("Jet", 0), statuses);
+    expect(partChoices({ ...st, parts: st.parts.map((l) => ({ ...l, beside: true })) })).toEqual([]);
+  });
+  it("gives a matched kind its own status and no parts it does not have", () => {
+    const st = truthStatement(ev, header, ladder("Trk", 0), statuses);
+    expect(st.own?.kind).toBe("match");
+    expect(st.parts).toEqual([]);
   });
 });

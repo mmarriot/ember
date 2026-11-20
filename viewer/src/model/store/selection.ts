@@ -19,6 +19,7 @@ import { simEnergyByParticle } from "../match";
 import { colourLevel } from "../truth";
 import { cached, levelsOf, type Related, relatedParts, sameRef, type Ref, type SlotRank } from "../relations";
 import { activeMode, modes, truthLevel, truthStatuses } from "./colours";
+import { truthStatement } from "../statement";
 import { bundle, event } from "./data";
 import { layerKey, layerOf } from "./names";
 import { domain, drawnLayers, inDomain, shared, visible } from "./view";
@@ -138,6 +139,15 @@ export const ladder = computed(() => {
     parts = subjectParts.value;
   if (!b || !ev || !sel || !parts || layerOf(sel.table)?.truth) return null;
   return recoLadder(ev, b.header, sel, parts, truthStatuses.value);
+});
+
+/** What the truth says about the card's reco object (model/statement.ts): its kind's own association, and its parts'
+ *  own matches; null for a truth object, and in a bundle without truth. */
+export const statement = computed(() => {
+  const b = bundle.value,
+    ev = event.value,
+    l = ladder.value;
+  return b && ev && l && modes.value.roots.truth ? truthStatement(ev, b.header, l, truthStatuses.value) : null;
 });
 
 /** For a truth object on the card: what was reconstructed from it, per reco kind, and the hits it left

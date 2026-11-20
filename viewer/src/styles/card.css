@@ -40,7 +40,8 @@
   letter-spacing: 0.04em;
 }
 .inspector h2 {
-  font-size: 18px;
+  font-size: 16px;
+  line-height: 1.3;
 }
 .inspector h2 .describe {
   font-weight: 500;
@@ -515,4 +516,108 @@ button.lk:hover {
   align-items: center;
   gap: 10px;
   white-space: nowrap;
+}
+
+/* The truth block (TruthBlock.tsx): the answer first, under the header. */
+.gotruth {
+  font-size: 11px;
+  padding: 1px 8px;
+  border: 1px solid #b58ae0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.gotruth:hover:not(:disabled) {
+  background: var(--surface-2);
+}
+.gotruth:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.truthline.nolink,
+.ladder li.nolink {
+  color: var(--muted);
+}
+.ladder li.nolink {
+  font-size: 11.5px;
+  padding: 1px 0 3px 16px;
+}
+ul.partlines {
+  list-style: none;
+  margin: 0 0 4px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+ul.partlines li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 5px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.physline {
+  margin: 0 0 4px;
+  font-size: 12px;
+  line-height: 1.7;
+  font-variant-numeric: tabular-nums;
+}
+.physline .rkind {
+  margin-right: 4px;
+}
+.src {
+  color: var(--muted);
+  font-size: 10.5px;
+}
+.chooser {
+  margin-top: 6px;
+  padding: 6px 8px;
+  border: 1px solid #b58ae0;
+  border-radius: 6px;
+  background: var(--surface-2);
+  font-size: 12px;
+}
+.chooser p {
+  margin: 0;
+}
+.chooser p .link {
+  float: right;
+}
+.chooser ul {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.chooser .choice {
+  font: inherit;
+  padding: 1px 7px;
+  border: 1px dashed #b58ae0;
+  border-radius: 10px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.physics .pgroup h5 {
+  margin: 6px 0 2px;
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+.hint.delegated {
+  border-top: 1px solid var(--line);
+  padding-top: 6px;
+}
+/* Under the truth block's own heading, the match line needs no second "truth" badge. */
+.truthblock .truthcard > .truthline > .badge.truth {
+  display: none;
 }

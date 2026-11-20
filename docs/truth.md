@@ -308,6 +308,26 @@ tracks show in their own particles' colours: each colour is that track's own sta
 - **Scope**: HGCal completeness counts HGCal only. A barrel particle's few MeV in HGCal are not an inefficiency. The
   key shows the amount, so you can see this.
 
+## Physics from the graph
+
+The particle card states what the truth graph itself says of a particle, read from its particles and vertices alone
+(`viewer/src/model/truth.ts`, unit-tested in `truth.test.ts`). These are summaries of the simulation, never
+associations: nothing is matched by ΔR or by hits.
+
+| line | for | how it is computed |
+|---|---|---|
+| made at | every particle | the production vertex of its first generator copy: R = √(x² + y²), z, and the vertex named as below |
+| last vertex with daughters | every particle | its last copy's `decayVertexIdx`. In the file this is only the latest in time of the vertices where its kept daughters were made, not necessarily where it stopped; its children are those of all those vertices. So what a particle did is read from each child's own production vertex, as in the lines below |
+| vertex name, "B⁰ decay · 3 charged" | every truth vertex | the parent of the first particle made there, the vertex's `reason` (truth::VertexReason), and the number of particles made there with a non-zero charge **that the graph keeps** (not every particle Geant4 made) |
+| copies, "×4 (status 23→1)" | generator particles | a particle's copy is its only child of the same pdgId, a generator particle (status > 0) with that one parent (a τ written again beside a photon it radiated is still one τ; a Geant4 electron's delta ray is not its copy) |
+| brem: n photons, ΣE, radius range | e⁻, e⁺ | the photons among its last copy's children made at a vertex of reason bremsstrahlung (a generator copy's radiated photons are not brem), their summed energy, and the smallest and largest R of those vertices. Only the photons the graph keeps count: those that reached the calorimeter, or that something is matched to, or that made such particles; very soft ones may be missing |
+| at the calorimeter, true fbrem | e⁻, e⁺ | its last copy's energy at its tracker–calorimeter boundary checkpoint (`boundaryE`), and 1 − boundaryE / E of that last copy at production. None without a checkpoint |
+| converted at R, z → e⁻ e⁺ | γ | the vertex of reason conversion among those where its last copy's daughters were made, and the e± made at that vertex (a Compton electron made earlier is not one); else "did not convert", and whether it reached the calorimeter |
+| from π⁰, with γ | γ | its parent, if a π⁰, and that π⁰'s other photons |
+| τ decays → …, visible E | τ | the children of its last copy, and the sum of their energies without the neutrinos (νe, νμ, ντ) |
+| flight, transverse | b and c hadrons (bits 8, 9) | the distance from its production vertex to its decay vertex (where its last copy's daughters were made by a decay), in 3D and in x–y |
+| decay vertex matched by SV k (completeness x%) | b and c hadrons | the truth → reco vertex association whose reverse matches decay vertices (`match.target` "decayVertex": `truthSecondaryVertices`), from its decay vertex and from the decay vertices of the b and c hadrons below it (a B → D cascade), with the association's `match.completeness` weight (the share of the truth vertex's tracks' pT² the reco vertex holds), best first, three shown. Never the associator's score. A bundle without that association says "no vertex associator for decay vertices" |
+
 ## One look for truth
 
 Truth and reco are told apart by one visual grammar, everywhere:

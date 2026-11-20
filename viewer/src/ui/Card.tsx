@@ -42,7 +42,7 @@ import { keyColumns, Properties, Rows } from "./Properties";
 import { Info } from "./Info";
 import { back, frameFocus } from "../control/navigate";
 import { PairBars } from "./PairBars";
-import { Lineage, TruthCard } from "./TruthCard";
+import { Lineage, ParticleFacts, TruthCard } from "./TruthCard";
 import { Icon } from "./widgets";
 
 const name = (r: Ref) => {
@@ -227,6 +227,7 @@ function TruthSide({ table, row }: { table: string; row: number }) {
     <>
       {table === root && (
         <section class="matchcard">
+          <ParticleFacts row={row} />
           <Lineage row={row} />
         </section>
       )}

@@ -7,8 +7,9 @@ import { colours, describeNoLink, type Legend, type Pal } from "../../render/col
 import { colourBy, type ColourMode, withColour } from "../custom";
 import { facts } from "../facts";
 import { truthStatus, type TruthStatus } from "../match";
+import { graphOf } from "../truth";
 import { modeColouring, modeRoots, recoColourOf } from "../modes";
-import { bundle } from "./data";
+import { bundle, event } from "./data";
 import { kindOf, labelOf, layerKey, layerOf } from "./names";
 import { domain } from "./view";
 
@@ -88,6 +89,26 @@ export const caloView = computed(() => {
       return l?.domain === dom && l.repr === "cells";
     })
   );
+});
+
+/** The truth particles as a graph (model/truth.ts): parents, children and vertices, once per event; null without truth
+ *  particles. Their vertex table is the other truth table a plain relation from them reaches. */
+export const truthGraph = computed(() => {
+  const b = bundle.value,
+    ev = event.value,
+    root = modes.value.roots.truth,
+    t = root ? ev?.tables[root] : undefined;
+  if (!b || !ev || !root || !t) return null;
+  const rels = Object.entries(b.header.relations).filter(
+      ([n, r]) => r.from === root && !r.association && ev.relations[n],
+    ),
+    kids = rels.find(([, r]) => r.to === root),
+    vtx = rels.find(([, r]) => r.to !== root && b.header.display.some((d) => d.table === r.to && d.truth))?.[1].to;
+  return {
+    graph: graphOf(t, kids && ev.relations[kids[0]], vtx ? ev.tables[vtx] : undefined),
+    particles: root,
+    vertices: vtx,
+  };
 });
 
 /** How far a kind with no truth is mixed towards the background in the truth mode. */

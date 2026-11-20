@@ -381,6 +381,26 @@ ul.matches li {
 .lineage {
   margin: 0 0 8px;
 }
+/* A truth particle's head (TruthCard.tsx ParticleFacts): kinematics, vertices, levels, physics from the graph. */
+.pfacts {
+  margin: 4px 0 8px;
+  font-size: 12px;
+}
+.pfacts p {
+  margin: 2px 0;
+}
+.pfacts .phead {
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+.pfacts .plevels .badge {
+  margin: 0 4px 0 0;
+}
+.pfacts .physics {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--line);
+}
 .lineage li.here > .chip {
   outline: 1px dashed currentColor;
 }

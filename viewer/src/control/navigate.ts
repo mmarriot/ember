@@ -42,13 +42,25 @@ import { partChoices, type PartMatch } from "../model/statement";
 import { engine } from "./scene";
 
 /** Frame the focus in the part of the view the card leaves free (engine.frame, store `framed`): `F`, a double click,
- *  the card's button, X, back, a link; `ms`: the glide's length (0: at once). */
+ *  the card's button, X, back, a link; `ms`: the glide's length (0: at once). In a part of the detector, what it has
+ *  there (partFrame), as when the part is chosen: a TICL candidate's shower, not the whole track from the vertex to
+ *  it, which would leave the shower a speck at the edge. */
 export function frameFocus(ms = 450) {
   const rows = framed.peek(),
     f = focus.peek(),
     least = f && rows ? vertexRadius(f, rows) : undefined;
   if (least !== undefined) engine?.frame(new Map([[f!.table, [f!.row]]]), ms > 0, ms, 0, least);
-  else engine?.frame(rows ?? undefined, ms > 0, ms);
+  else engine?.frame((rows && partFrame(domain.peek(), rows)) ?? rows ?? undefined, ms > 0, ms);
+}
+
+/** What to frame of the focus in domain `name`: its objects there (focusIn), with the focus itself (a jet's cone from
+ *  its vertex: its clusters alone would fill a 2D view), unless it is a line (an electron, a truth particle), which
+ *  runs from the vertex, outside the part. Null when it has nothing there. */
+function partFrame(name: string | null, hl: Map<string, Set<number>>) {
+  const part = focusIn(name, hl),
+    f = focus.peek();
+  if (!part || !f) return null;
+  return LINES.has(layerOf(f.table)?.repr ?? "") ? part : withFocus(part, f);
 }
 
 /** For a vertex (profile kind "vertex", "secondaryVertex", ...: made of lines, its tracks), the radius it is framed
@@ -165,9 +177,9 @@ export function chooseDomain(name: string | null, animate = true) {
     if (d) openTab.value = { name: tabOfDomain(h, d.name) }; // its tab in the side panel (choosing a tab does not change the view)
     view.value = d?.view ?? h.view?.start ?? "3d";
   });
-  const part = focusIn(d?.name ?? null, framed.peek()),
-    f = focus.peek();
-  if (part && f) engine?.frame(withFocus(part, f), animate, 700);
+  const hl = framed.peek(),
+    part = hl && partFrame(d?.name ?? null, hl);
+  if (part) engine?.frame(part, animate, 700);
   else if (d) engine?.frameRegion(d.region.rMax, d.region.zMax, animate);
   else engine?.frame(undefined, animate);
 }

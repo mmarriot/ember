@@ -151,7 +151,11 @@ object in the part of the view the card leaves free (left of it, or below it on 
 covers it. What is framed is the object and its parts. Objects only linked to it, such as its truth particle or a
 track's vertex, are not: a low-pT particle's helix can curl far from its track. A vertex is framed at its own place,
 as closely as its tracks' part of the detector allows (the tracker's `minRadius`, 15 cm: about the pixel volume), not
-with the whole length of its tracks. Clicking an object does not move the camera.
+with the whole length of its tracks. In a part of the detector, what is framed is the object and its parts in that
+part, as when the part is chosen: a TICL candidate in HGCal is framed by its shower, not by its track from the vertex.
+An object drawn as a line from the vertex (an electron, a truth particle) is framed by its parts there alone: a
+particle picked in the Truth tab by its hits in HGCal.
+Clicking an object does not move the camera.
 
 Clicking a **hit** shows the hit: its card names the simulated energy each particle deposited in it (not
 calibrated). Its particle's truth ↔ reco pair is one button away ("Show π⁻'s pair in the view"), not drawn at once.

@@ -532,7 +532,7 @@ export function Unassociated({ row }: { row: number }) {
 }
 
 /** The names of the truth vertices' reasons, from their layer's categories. */
-function vertexReasons(table: string | undefined): Record<string, string> {
+export function vertexReasons(table: string | undefined): Record<string, string> {
   const c = table ? layerOf(table)?.colourBy : undefined;
   if (typeof c !== "object" || !("category" in c) || !c.names) return {};
   return Array.isArray(c.names) ? Object.fromEntries(c.names) : c.names;

@@ -255,10 +255,13 @@ no answer), "not matched" (an object of a matched kind the associator matched to
 (a hit no exported particle left energy in). A gap number is never in the main text: it is behind an **i**, as a link
 to the [gap table](truth-graph.md#gap-table).
 
-- **the selection's card**, in its truth block at the top ([Viewer](viewer.md#the-selections-card)). For example "No
-  CMSSW association for jets", and behind its **i**: "the truth graph has no jet associator, and no generator-jet
-  level", with the gap as a link. Then each part's own match ([below](#constituents)). In the chain, a step with
-  its own truth has a tag (match, sim); a run of steps of kinds without an associator is named in one grey line;
+- **the selection's card**, in its truth block at the top ([Viewer](viewer.md#the-selections-card)). For a kind
+  without an association, one line: the match of its parts that are each the only one of their collection in their
+  step, when no other part is matched and they name one particle ("via its track · e⁻ … · purity 100%"), else "No
+  truth match for jets in CMSSW"; behind its **i**: "the truth graph has no jet
+  associator, and no generator-jet level", with the gap as a link. Each part's own match is folded below it
+  ([below](#constituents)). In the chain, a step with its own truth has a tag (match, sim); the kinds without an
+  associator are named behind the chain's **i**;
 - **the truth colour key**: "faint: no CMSSW associator for that kind", with the kinds behind its **i**; its
   switch reads "Colour by: reco type | truth particle", and its grey reads "no simulated energy, or not cleanly
   matched";
@@ -283,12 +286,15 @@ fact in that layer's part of the detector. Bundles whose layer clusters still ca
 ### Constituents
 
 A composite object (jet, muon, PF candidate, electron) shows the **own** associations of its parts in its card's truth
-block, each named as the part's: "Its parts' matches (associator, per part)", with behind its **i** that each line is
-the associator's answer for that part, not for this muon; then "Track pT 95.3 GeV → μ⁺ · purity 100% · completeness 100%
-· associator · tracker hits". A step of one part names its particle, with the match's purity and completeness; a step of
-several counts them ("3 of 3 matched (3 clean)"). The parts are the steps of what it is made of, and the objects built
-only from its parts (an electron's PF cluster inside its supercluster, under "Built from its parts: their matches"). `X`
-offers the parts' particles in a chooser.
+block, each named as the part's. Its line names one only when its matched parts are each the only one of their
+collection in their step and all name one particle: "via its track · μ⁺ · pT 95.3 · from W⁺ decay · purity 100%", the track's answer, which its
+**i** says is not a verdict for the muon. Under **Each part's match**, folded, every step with an association: a step
+of one part names its particle and the match's purity ("Track pT 95.3 GeV → μ⁺ · purity 100% · associator · tracker
+hits"), a step of several counts them ("3 of 3 matched (3 clean)"). The parts are the steps of what it is made of, and
+the objects built only from its parts (an electron's PF cluster inside its supercluster, under "Built from its parts").
+`X` goes to the particle the line names, else offers the parts' particles in a chooser, larger parts first among
+those whose matches count the same thing. Naming one part's match when the parts disagree, or ranking particles by
+size across a track's pT and a cluster's energy, would be a verdict built in Ember.
 
 It never happens through an association, a pointer back up, or a "closest track" link. The card never adds up over
 several parts and never gives the composite a verdict: "80% of its tracks are from the b" would be a match built in

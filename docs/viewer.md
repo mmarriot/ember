@@ -570,15 +570,15 @@ photoelectrons) and its share of the hit's, with a button for the particle's pai
   candidates 7: γ 4 · π⁻ 2 · μ⁺ 1"), and how many their layer's filter keeps ("all kept by puppiWeight > 0", or "5
   kept, 26 not" for a CHS jet at pile-up);
 - the objects holding it with a weight: "in Primary vertex 1 · weight 0.90" (a track), "in Secondary vertex 1";
+- its key columns (the layer's `inspect`) but those its title gives (pT, η), with units and named values
+  ("decayMode h± π⁰ (1)" where the layer's `describe.names` names them). Raw indices (`trackIdx`), components derived
+  from others (px) and positions copied in from another table (a jet's PV position) are left to **All columns**;
+- the layer's `inspectGroups`, each under its name (for example "b-tag": DeepCSV, JP). A group shows once the bundle
+  has its columns, with no change to the viewer;
 - objects of other kinds with exactly the same parts, from the relations alone: "same supercluster as Photon 1" (and
   "same supercluster as Electron 2" on the photon's card), "same PF candidates as Jet 1 · AK4 CHS", "all its PF
   candidates are in Jet 1 · AK4" (a tau). Several objects with the same wording share one line: "same layer clusters
   as Trackster 4 · Candidate trackster 1";
-- its key columns (the layer's `inspect`), with units and named values ("decayMode h± π⁰ (1)" where the layer's
-  `describe.names` names them). Raw indices (`trackIdx`), components derived from others (px) and positions copied
-  in from another table (a jet's PV position) are left to **All columns**;
-- the layer's `inspectGroups`, each under its name (for example "b-tag": DeepCSV, JP). A group shows once the bundle
-  has its columns, with no change to the viewer;
 - for MET (a one-object kind with an azimuth): the other MET of the bundle and its Δφ, and Δφ to the leading jets
   of the drawn jet layers.
 

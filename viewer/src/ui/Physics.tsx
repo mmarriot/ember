@@ -1,8 +1,9 @@
 // The card's physics block, under its truth (Card.tsx): what the object is made of and its main numbers, before the
 // chain. Its energy split by type (the layer's `fractions`), its constituents by type and what their layer's filter
 // keeps (a jet's PF candidates: PUPPI), its key columns and the profile's named groups of columns (`inspectGroups`:
-// b-tags, e/γ ID, ...; a group shows once the bundle has its columns), the objects holding it with a weight (a track in
-// its primary vertex), and for MET the other MET and the angle to the leading jets. Raw indices, copied positions
+// b-tags, e/γ ID, ...; a group shows once the bundle has its columns; not the values its title gives), the objects holding
+// it with a weight (a track in its primary vertex), the objects sharing its parts, and for MET the other MET and the
+// angle to the leading jets. Raw indices, copied positions
 // and derived components stay under "All columns" (Properties.tsx).
 import { kindName } from "../io/format";
 import { plain } from "../model/describe";
@@ -19,7 +20,7 @@ export function Physics({ table, row }: { table: string; row: number }) {
     d = layerOf(table),
     t = ev?.tables[table];
   if (!b || !ev || !d || !t || d.truth) return null;
-  const key = keyColumns(table, t),
+  const key = keyColumns(table, t).filter((c) => !d.describe?.columns.includes(c)), // the title says those
     groups = (d.inspectGroups ?? [])
       .map((g) => ({ ...g, columns: g.columns.filter((c) => c in t.columns) }))
       .filter((g) => g.columns.length);
@@ -68,7 +69,6 @@ export function Physics({ table, row }: { table: string; row: number }) {
           ))}
         </p>
       )}
-      <Shares table={table} row={row} />
       <Rows name={table} table={t} row={row} columns={key} />
       {groups.map((g) => (
         <div class="pgroup">
@@ -76,6 +76,7 @@ export function Physics({ table, row }: { table: string; row: number }) {
           <Rows name={table} table={t} row={row} columns={g.columns} />
         </div>
       ))}
+      <Shares table={table} row={row} />
       <Met table={table} row={row} />
     </section>
   );

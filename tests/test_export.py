@@ -246,6 +246,7 @@ RELEASE = {
     "SimplePFCandidateFlatTableProducer", "SimpleGsfTrackFlatTableProducer", "SimplePFTauCandidateFlatTableProducer",
     "DTSegmentFlatTableProducer", "CSCSegmentFlatTableProducer", "GEMSegmentFlatTableProducer",
     "GEMRecHitFlatTableProducer", "RPCRecHitFlatTableProducer",
+    "HGCalElectronIDValueMapProducer", "HGCalPhotonIDValueMapProducer", "RecHitMapProducer",
 }  # fmt: skip
 
 
@@ -280,6 +281,41 @@ def test_the_phase2_configuration_has_what_the_input_and_the_release_have():
     ]
     assert 'cms.EDProducer("CaloClusterHitsTableProducer",\n    src=cms.InputTag("hgcalMergeLayerClusters")' in text
     assert 'hitsName=cms.string("PFClusterECALHits")' in text
+
+
+def test_identification_impact_and_flight_columns():
+    """e/gamma ID (HGCal's shower shapes for the HGCal objects), what the converter needs for impact parameters and
+    flight distances."""
+    s = cmsrun.Settings(True, False, "Phase2C22I13M9", "ExtendedRun4D104", "auto:phase2_realistic_T35")
+    hgcal = [f"HGCRecHits_HGCalRecHit_{h}RecHits_RECO." for h in ("HGCHEF", "HGCHEB")]  # the value maps read all three
+    text, notes = configuration(s, PHASE2 + hgcal + ["recoPhotons_photonsHGC__RECO."])
+
+    def table(name):
+        return text.split(f'name=cms.string("{name}")')[1].split("\ntable(")[0]
+
+    electron, hgc, photon = table("Electron"), table("ElectronHGC"), table("PhotonHGC")
+    for column in ("sieie=", "r9=", "fbrem=", "deltaEtaInSeed=", "eInvMinusPInv=", "lostHits=", "pfIsoChg="):
+        assert column in electron
+    assert (
+        "sieie=" not in hgc
+        and "pfIsoChg=" not in hgc
+        and "fbrem=" in hgc
+        and 'sigmaUU=ExtVar("hgcElectronID:sigmaUU"' in hgc
+    )
+    assert 'sigmaUU=ExtVar("hgcPhotonID:sigmaUU"' in photon and "pixelSeed=" in photon
+    assert text.count('table("recHitMapProducer"') == 1 and 'electrons="ecalDrivenGsfElectronsHGC"' in text
+    track = text.split("process.generalTracksTable.variables")[1]
+    assert 'dxy0=Var("dxy"' in track and 'dz0Err=Var("dzError"' in track
+    assert 'dxdz=Var("dxdz"' in text and 'widthX=Var("BeamWidthX"' in text  # the beam line, for dxybs
+    sv = table("SV")
+    assert 'covXY=Var("covariance(0,1)"' in sv and 'mass=Var("p4(0.13957018,0.5).M()"' in sv and "xErr=" in table("PV")
+    assert "hgcElectronID" not in configuration(s, PHASE2)[0]  # without the CE-H rechits
+    text, notes = configuration(s, PHASE2 + hgcal, RELEASE - {"RecHitMapProducer"})
+    assert (
+        "hgcElectronID" not in text
+        and "this release has no HGCalElectronIDValueMapProducer, RecHitMapProducer" not in notes
+    )
+    assert any("RecHitMapProducer" in n for n in notes)
 
 
 def test_the_whole_detector_is_written_from_what_the_release_and_the_input_have():

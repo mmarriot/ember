@@ -23,7 +23,7 @@ import numpy as np
 
 from . import __version__
 from .bundle import type_code
-from .derive import OPS, apply_derive, derived_columns, gather
+from .derive import OPS, apply_derive, derived_columns, gather, inputs
 
 # The names that viewer filter expressions read as constants, not columns (viewer/src/model/expr.ts CONSTANTS).
 CONSTANTS = {"pi"}
@@ -89,6 +89,7 @@ class Converter:
 
         self.derive = self._resolve_derives(profile)
         self.relations = self._resolve_relations(profile)
+        self._drop_unreachable_gathers()
         self.cuts = self._resolve_cuts(profile)
         self.select = [s for s in profile.get("select", []) if s["table"] in self.tables]
         for s in self.select:
@@ -118,8 +119,11 @@ class Converter:
         A split adds its tables (which later derives may name) and leaves its source table out of the bundle."""
         derives = []
         for d in profile.get("derive", []):
-            if d["table"] not in self.tables or d.get("lookup", d["table"]) not in self.tables:
+            if d["table"] not in self.tables or _other_table(d) not in self.tables:
                 continue
+            reads = inputs(d)
+            if reads and not all(set(c) <= set(self.tables[t]["columns"]) for t, c in reads[1].items()):
+                continue  # e.g. a standard NanoAOD's vertices, which have no covariance (and their flight already)
             if "parentRow" in d and d["counts"].split(".")[0] not in self.tables:
                 continue
             own = self.tables[d["table"]]["columns"]
@@ -129,12 +133,25 @@ class Converter:
             if "split" in d:
                 self._resolve_split(d)
                 continue
-            for c, meta in derived_columns(d, self.tables).items():
+            relations = {r["name"]: r for r in profile.get("relations", []) if "name" in r}
+            for c, meta in derived_columns(d, self.tables, relations).items():
                 if (d.get("missing") or "nanUnless" in d) and c in self.tables[d["table"]]["columns"]:
                     continue  # a stored column that the derive only changes in places (NaN filled, or set): still read
                 self.tables[d["table"]]["columns"][c] = meta
                 self.derived.add((d["table"], c))
         return derives
+
+    def _drop_unreachable_gathers(self):
+        """Leave out the gathers none of whose relations the file serves, with the columns they would add (all NaN):
+        a standard NanoAOD's muons, which have no track row, keep only their own dxy, not empty dxybs columns. A gather
+        with a `fill` of its own still gives every row that value."""
+        for d in [d for d in self.derive if "gather" in d and "fill" not in d]:
+            if not any(src["relation"] in self.relations for src in d["gather"]):
+                self.derive.remove(d)
+                for c in _gathered_names(d):
+                    if (d["table"], c) in self.derived:
+                        self.derived.discard((d["table"], c))
+                        del self.tables[d["table"]]["columns"][c]
 
     def _resolve_split(self, d):
         """split: {new table: [conditions]}: each new table has the source's columns (as derived so far) and the rows
@@ -467,7 +484,7 @@ class Converter:
                 "gather" not in d
                 and d["table"] in tables
                 and d["table"] not in skip
-                and d.get("lookup", d["table"]) in tables
+                and _other_table(d) in tables
                 and d.get("counts", d["table"]).split(".")[0] in tables
             ):
                 if "split" in d:
@@ -557,13 +574,23 @@ def used_tables(profile):
         ]
         used |= {table_column(s)[0] for s in [*specs, *r.get("weights", [])] if isinstance(s, str)}
     for d in profile.get("derive", []):
-        used |= {d["table"], d.get("lookup")}
+        used |= {d["table"], _other_table(d)}
     used |= set(profile.get("cuts", {})) | {s["table"] for s in profile.get("select", [])}
     used |= {t for s in profile.get("sameRows", []) for t in (s["keep"], s["drop"])}
     used |= {s.get("table") for s in profile.get("summaries", [])}
     for preset in profile.get("presets", []):
         used |= set(preset.get("filters", {})) | set(preset.get("colour", {})) | set(preset.get("show", []))
     return used - {None}
+
+
+def _gathered_names(d):
+    """The columns a gather derive writes."""
+    return list(dict.fromkeys(c for src in d["gather"] for c in src["columns"]))
+
+
+def _other_table(d):
+    """The table a derive reads besides its own (a lookup's, or the point of an impact or flight derive)."""
+    return d.get("lookup") or d.get("impact") or d.get("flight") or d["table"]
 
 
 def _split(d, tables):

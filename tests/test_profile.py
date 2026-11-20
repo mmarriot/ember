@@ -10,6 +10,7 @@ import pytest
 from nanoaod import chunk, converter
 
 from embertools import Problem
+from embertools.converter import Converter
 from embertools.derive import gather
 from embertools.profile import load_profile
 from embertools.relations import compose_relations
@@ -261,7 +262,7 @@ def test_key_relation_and_gather_fill():
     _, tables, rels = one_event(conv, {"S": {"id": [30, 10, 99]}, "L": {"id": [10, 20, 30], "w": [0.4, 0.5, 0.6]}})
     assert rels["soaLegacy"]["offsets"].tolist() == [0, 1, 2, 2] and rels["soaLegacy"]["indices"].tolist() == [2, 0]
     np.testing.assert_allclose(tables["S"][1]["w"], [0.6, 0.4, 0.6])
-    assert conv.tables["S"]["columns"]["w"][1] == "copied through soaLegacy (first linked row)"
+    assert conv.tables["S"]["columns"]["w"][1] == "copied from w through soaLegacy (first linked row)"
 
 
 def test_reached_by_a_counts_relation_and_unsorted_links():
@@ -573,6 +574,72 @@ def test_gather_missing_fills_only_nan_values():
     assert out[:2].tolist() == [5, 8] and np.isnan(out[2])  # kept, filled, no track: still NaN
 
 
+def test_impact_parameters_are_cmssw_s_moved_to_a_point():
+    """impact: TrackBase::dxy(point) and dz(point) from the impact parameters to the origin (checked against the same
+    distances from a reference point and the momentum), their uncertainties with the point's, and the beam line at the
+    track's z with the beam spot's widths."""
+    rng = np.random.default_rng(1)
+    vx, vy, vz = rng.normal(0, 0.05, 20), rng.normal(0, 0.05, 20), rng.normal(0, 5, 20)
+    eta, phi = rng.uniform(-3, 3, 20), rng.uniform(-np.pi, np.pi, 20)
+    c, s, t = np.cos(phi), np.sin(phi), np.sinh(eta)
+
+    def ip(x0, y0, z0):  # TrackBase::dxy(point), dz(point), from the reference point
+        return -(vx - x0) * s + (vy - y0) * c, (vz - z0) - ((vx - x0) * c + (vy - y0) * s) * t
+
+    dxy0, dz0 = ip(0, 0, 0)
+    common = {"origin": ["dxy0", "dz0"], "errors": ["e0", "ez0"], "direction": ["eta", "phi"]}
+    profile = {"derive": [
+        {"table": "T", "impact": "PV", "row": 1, **common,
+         "columns": {"dxy": "dxy", "dz": "dz", "dxyErr": "dxyErr", "dzErr": "dzErr"}},
+        {"table": "T", "impact": "BS", "row": 0, "beamLine": "vz", **common, "columns": {"dxy": "dxybs", "dxyErr": "bsErr"}},
+    ]}  # fmt: skip
+    point = dict.fromkeys(("x", "y", "z", "xErr", "yErr", "zErr", "covXY"), F4)
+    beam = {**point, **dict.fromkeys(("dxdz", "dydz", "widthX", "widthY", "sigmaZ"), F4)}
+    track = dict.fromkeys(("dxy0", "dz0", "e0", "ez0", "eta", "phi", "vz"), F4)
+    conv = converter({"T": track, "PV": point, "BS": beam}, profile)
+    assert {"dxy", "dz", "dxyErr", "dzErr", "dxybs", "bsErr"} <= set(conv.tables["T"]["columns"])
+    tracks = {"dxy0": dxy0, "dz0": dz0, "e0": [0.003] * 20, "ez0": [0.004] * 20, "eta": eta, "phi": phi, "vz": vz}
+    pv = {"x": [9, 0.01], "y": [9, -0.02], "z": [9, 3.0], "xErr": [0, 0.001], "yErr": [0, 0.002], "zErr": [0, 0.003],
+          "covXY": [0, 0]}  # fmt: skip
+    bs = {"x": [0.01], "y": [-0.02], "z": [0.5], "xErr": [0], "yErr": [0], "zErr": [0], "covXY": [0], "dxdz": [1e-3],
+          "dydz": [0], "widthX": [0.0005], "widthY": [0.0005], "sigmaZ": [4.0]}  # fmt: skip
+    _, tables, _ = one_event(conv, {"T": tracks, "PV": pv, "BS": bs})
+    out = tables["T"][1]
+    want = ip(0.01, -0.02, 3.0)
+    assert np.allclose(out["dxy"], want[0], atol=1e-6) and np.allclose(out["dz"], want[1], atol=1e-5)
+    assert np.allclose(out["dxyErr"], np.sqrt(0.003**2 + (s * 0.001) ** 2 + (c * 0.002) ** 2), rtol=1e-5)
+    assert np.allclose(out["dzErr"], 0.005, rtol=1e-5)
+    # the beam line at the track's z: x moves by dxdz (vz - z0); its width in x grows by the tilted length, ~dxdz sigmaZ
+    xb = 0.01 + 1e-3 * (vz - 0.5)
+    assert np.allclose(out["dxybs"], -(vx - xb) * s + (vy + 0.02) * c, atol=1e-6)
+    wx2 = 0.0005**2 + (1e-3 * 4.0) ** 2
+    assert np.allclose(out["bsErr"], np.sqrt(0.003**2 + s * s * wx2 + c * c * 0.0005**2), rtol=1e-3)
+    _, tables, _ = one_event(conv, {"T": tracks, "PV": {k: v[:1] for k, v in pv.items()}, "BS": bs})  # no row 1
+    assert np.isnan(tables["T"][1]["dxy"]).all()
+
+
+def test_flight_of_a_secondary_vertex():
+    """flight: distances from the primary vertex, their significances with both covariances (as VertexDistance3D and
+    VertexDistanceXY), and the pointing angle; a file whose vertices have no covariance is left alone."""
+    cov = dict.fromkeys(("xErr", "yErr", "zErr", "covXY", "covXZ", "covYZ"), F4)
+    profile = {"derive": [{"table": "SV", "flight": "PV", "row": 0}]}
+    conv = converter({"SV": {**dict.fromkeys("xyz", F4), **cov, "px": F4, "py": F4, "pz": F4},
+                      "PV": {**dict.fromkeys("xyz", F4), **cov}}, profile)  # fmt: skip
+    zero = {"covXY": [0], "covXZ": [0], "covYZ": [0]}
+    event = {"SV": {"x": [0.3], "y": [0.4], "z": [1.2], "xErr": [0.03], "yErr": [0.04], "zErr": [0.12], **zero,
+                    "px": [0], "py": [0], "pz": [5]},
+             "PV": {"x": [0], "y": [0], "z": [0], "xErr": [0.04], "yErr": [0.03], "zErr": [0.05], **zero}}  # fmt: skip
+    _, tables, _ = one_event(conv, event)
+    sv = tables["SV"][1]
+    # transverse: d = (0.3, 0.4), |d| = 0.5; sigma^2 = (0.09 * (9 + 16) + 0.16 * (16 + 9)) e-4 / 0.25
+    assert sv["dxy"][0] == pytest.approx(0.5) and sv["dxySig"][0] == pytest.approx(0.5 / np.sqrt(25 * 0.25e-4 / 0.25))
+    var3 = (0.09 * 25 + 0.16 * 25 + 1.44 * (144 + 25)) * 1e-4 / 1.69
+    assert sv["dlen"][0] == pytest.approx(1.3) and sv["dlenSig"][0] == pytest.approx(1.3 / np.sqrt(var3), rel=1e-5)
+    assert sv["pAngle"][0] == pytest.approx(np.arccos(1.2 / 1.3), rel=1e-5)
+    conv = converter({"SV": dict.fromkeys(("x", "y", "z", "dlen"), F4), "PV": dict.fromkeys("xyz", F4)}, profile)
+    assert "dlenSig" not in conv.tables["SV"]["columns"]  # e.g. a standard NanoAOD's, which has its flight already
+
+
 def test_inspect_groups_keep_the_columns_the_table_has_and_a_label_follows_a_column():
     """inspectGroups: only the columns of the table written, and no empty group; labelWithout: the label of a table
     that lacks the column (ember's own uncorrected jets, which have no rawFactor)."""
@@ -586,6 +653,28 @@ def test_inspect_groups_keep_the_columns_the_table_has_and_a_label_follows_a_col
     conv = converter({"Jet": {**dict.fromkeys("xyz", F4), "rawFactor": F4}}, {"display": [layer]})
     (out,) = conv.display
     assert out["label"] == "AK4" and "inspectGroups" not in out
+
+
+def test_a_gather_whose_relation_the_file_lacks_adds_no_columns():
+    """ember's own muons gather their track's impact parameters; a standard NanoAOD's muons have dxy of their own and
+    no track row: the gather is left out, so they get no all-NaN dxybs, and their dxy is read as it is. A gathered
+    column's doc is its source's, so it keeps its unit."""
+    profile = {
+        "relations": [{"name": "muonTrack", "kind": "index", "from": "M", "to": "T", "index": "M.trackIdx",
+                       "optional": True}],
+        "derive": [{"table": "M", "missing": True, "gather": [
+            {"relation": "muonTrack", "columns": {"dxy": "dxy", "dxybs": "dxybs"}}]}],
+    }  # fmt: skip
+    conv = converter({"M": {"dxy": F4}, "T": {"dxy": F4, "dxybs": F4}}, profile)
+    assert "dxybs" not in conv.tables["M"]["columns"] and not conv.derive
+    _, tables, _ = one_event(conv, {"M": {"dxy": [0.01]}, "T": {"dxy": [0.5], "dxybs": [0.6]}})
+    assert tables["M"][1]["dxy"].tolist() == [np.float32(0.01)]
+    tables = {"M": {"doc": "M", "columns": {"trackIdx": (I4, "row of its track")}},
+              "T": {"doc": "T", "columns": {"dxy": (F4, "dxy [cm]"), "dxybs": (F4, "dxy to the beam spot [cm]")}}}  # fmt: skip
+    conv = Converter(tables, profile)
+    assert conv.tables["M"]["columns"]["dxybs"][1] == (
+        "dxy to the beam spot [cm]; copied from dxybs through muonTrack (first linked row)"
+    )
 
 
 def test_relation_names_must_be_unique():

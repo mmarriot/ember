@@ -109,6 +109,60 @@ BRANCHES = {
     MUON_TRACK_LINKS: {"MuonTrackLinkTableProducer"},
 }  # fmt: skip
 
+# The identification variables of electrons and photons: (column, reco::GsfElectron or reco::Photon accessor, type,
+# doc), named as standard NanoAOD names them where it has them. The ECAL shower shapes (sieie, r9) are computed on ECAL
+# hits only: the HGCal objects get HGCal's own shower shapes instead (EGAMMA_HGCAL).
+_ISOLATION = "PF isolation, cone 0.3: {}, sum of {} [GeV]"
+_ELECTRON_ID = [
+    ("fbrem", "fbrem", "float", "brem fraction: 1 - p at the outermost state / p at the vertex (GSF fit)"),
+    ("deltaEtaInSeed", "deltaEtaSeedClusterTrackAtVtx", "float", "delta eta, seed cluster - track from the vertex"),
+    ("deltaPhiIn", "deltaPhiSuperClusterTrackAtVtx", "float", "delta phi, supercluster - track from the vertex [rad]"),
+    ("eSCOverP", "eSuperClusterOverP", "float", "supercluster energy / track momentum at the vertex"),
+    ("eInvMinusPInv", "(1-eSuperClusterOverP())/ecalEnergy()", "float", "1/E - 1/p [1/GeV]"),
+    ("lostHits", "gsfTrack.hitPattern.numberOfLostHits('MISSING_INNER_HITS')", "uint8", "missing inner hits"),
+    # PAT's conversion veto needs the conversions and is not in RECO; this is the electron MVAs' input
+    ("convVtxFitProb", "convVtxFitProb", "float", "fit probability of a conversion with the closest track; -1: none"),
+    ("isEcalDriven", "ecalDrivenSeed", bool, "seeded from the calorimeter (ECAL-driven)"),
+    ("isTrackerDriven", "trackerDrivenSeed", bool, "seeded from a track (tracker-driven)"),
+]
+_ELECTRON_ISOLATION = [
+    ("pfIsoChg", "pfIsolationVariables().sumChargedHadronPt", "float", _ISOLATION.format("charged hadrons", "pT")),
+    ("pfIsoNeu", "pfIsolationVariables().sumNeutralHadronEt", "float", _ISOLATION.format("neutral hadrons", "ET")),
+    ("pfIsoPho", "pfIsolationVariables().sumPhotonEt", "float", _ISOLATION.format("photons", "ET")),
+]
+_PHOTON_ID = [("pixelSeed", "hasPixelSeed", bool, "has a pixel seed")]
+_PHOTON_ISOLATION = [
+    ("pfIsoChg", "chargedHadronIso", "float", _ISOLATION.format("charged hadrons", "pT")),
+    ("pfIsoNeu", "neutralHadronIso", "float", _ISOLATION.format("neutral hadrons", "ET")),
+    ("pfIsoPho", "photonIso", "float", _ISOLATION.format("photons", "ET")),
+]
+_ECAL_SHAPES = [
+    ("sieie", "full5x5_sigmaIetaIeta", "float", "sigma ieta ieta of the supercluster, full 5x5"),
+    ("hoe", "hadronicOverEm", "float", "H/E: hadronic over electromagnetic energy"),
+    ("r9", "full5x5_r9", "float", "R9 of the supercluster, full 5x5: E(3x3) / E(supercluster)"),
+]
+# The HGCal objects have no isolation: their producers (not the GED ones) leave the sums at 0.
+EGAMMA_ID = {"Electron": _ECAL_SHAPES + _ELECTRON_ID + _ELECTRON_ISOLATION, "ElectronHGC": _ELECTRON_ID,
+             "Photon": _ECAL_SHAPES + _PHOTON_ID + _PHOTON_ISOLATION, "PhotonHGC": _PHOTON_ID}  # fmt: skip
+
+
+def _egamma_id(name):
+    """The ID columns of the table `name` (EGAMMA_ID) as text: lazyEval, as the table producer is of reco::Candidate."""
+    out = ""
+    for column, expression, kind, doc in EGAMMA_ID.get(name, []):
+        kind = "bool" if kind is bool else f'"{kind}", precision=10' if kind == "float" else f'"{kind}"'
+        out += f'\n        {column}=Var("{expression}", {kind}, lazyEval=True,\n            doc="{doc}"),'
+    return out
+
+
+# HGCal's shower shapes of its electrons and photons: the value maps PAT makes of them (RecoEgamma/EgammaTools,
+# HGCalEgammaIDHelper), made here from the RECO collections. -1: not computed (no hits within 3 cm of the axis).
+EGAMMA_HGCAL = {"sigmaUU": "spread across the shower's axis, along its larger width [cm]",
+                "sigmaVV": "spread across the shower's axis, along its smaller width [cm]",
+                "sigmaEE": "spread in eta", "sigmaPP": "spread in phi",
+                "nLayers": "number of layers with energy", "firstLayer": "first layer with energy",
+                "depthCompatibility": "shower depth compared with an electromagnetic shower's, in sigmas"}  # fmt: skip
+
 
 def config(
     settings, inputs, events, inventory, release, threads=4, output=OUTPUT, made_by="", drop=(), pat=False,
@@ -159,6 +213,7 @@ class _Writer:
         self.gsf = False  # whether the GSF track table is written (electrons and PF candidates point into it)
         self.pf = False  # whether the PF candidate table is written (taus point into it)
         self.superclusters = {}  # supercluster table -> module of its collection
+        self.rechit_map = False  # whether the HGCal rechit map (of the e/gamma shower shapes) is made
 
     def text(self):
         wrap = lambda n: textwrap.fill(
@@ -542,6 +597,11 @@ table("generalTracksTable", generalTracksTable.clone())
     vx=Var("vx", "float", precision=14, doc="x of the reference point [cm]"),
     vy=Var("vy", "float", precision=14, doc="y of the reference point [cm]"),
     vz=Var("vz", "float", precision=14, doc="z of the reference point [cm]"),
+    dxy0=Var("dxy", "float", doc="transverse impact parameter to the origin (0, 0, 0) [cm]"),
+    dz0=Var("dz", "float", doc="longitudinal impact parameter to the origin (0, 0, 0) [cm]"),
+    dxy0Err=Var("dxyError", "float", precision=10, doc="uncertainty of dxy0, from the fit [cm]"),
+    dz0Err=Var("dzError", "float", precision=10, doc="uncertainty of dz0, from the fit [cm]"),
+    chi2=Var("normalizedChi2", "float", precision=8, doc="chi2 / ndof of the fit"),
     outerX=Var("outerX", "float", precision=14, doc="x of the outermost hit [cm]"),
     outerY=Var("outerY", "float", precision=14, doc="y of the outermost hit [cm]"),
     outerZ=Var("outerZ", "float", precision=14, doc="z of the outermost hit [cm]"),
@@ -597,7 +657,13 @@ table("gsfTrackTable", cms.EDProducer("SimpleGsfTrackFlatTableProducer", src=cms
             ("pvTable", "PV", "offlinePrimaryVertices", "offline primary vertices (row 0: the leading one)",
              '\n        ndof=Var("ndof", "float", precision=8, doc="number of degrees of freedom"),'
              '\n        chi2=Var("normalizedChi2", "float", precision=8, doc="chi2 / ndof"),' + time),
-            ("svTable", "SV", "inclusiveSecondaryVertices", "inclusive secondary vertices", ""),
+            ("svTable", "SV", "inclusiveSecondaryVertices", "inclusive secondary vertices",
+             '\n        ndof=Var("ndof", "float", precision=8, doc="number of degrees of freedom"),'
+             '\n        chi2=Var("normalizedChi2", "float", precision=8, doc="chi2 / ndof"),'
+             # the sum of its tracks' momenta, each a pion, weighted >= 0.5 in the fit (reco::Vertex::p4's defaults)
+             + "".join(f'\n        {c}=Var("p4(0.13957018,0.5).{f}()", "float", precision=10, doc="{d} of its tracks'
+                       f' (pions) [GeV]"),' for c, f, d in (("mass", "M", "mass"), ("pt", "Pt", "pT"), ("px", "Px", "px"),
+                                                          ("py", "Py", "py"), ("pz", "Pz", "pz")))),
         ]:  # fmt: skip
             if inv.has(src, product_type="recoVertexs") and self.need("SimpleVertexFlatTableProducer"):
                 rows.append(f"""
@@ -605,9 +671,15 @@ table("{label}", cms.EDProducer("SimpleVertexFlatTableProducer", src=cms.InputTa
     name=cms.string("{name}"), doc=cms.string("{doc}"), cut=cms.string(""),
     singleton=cms.bool(False), extension=cms.bool(False), skipNonExistingSrc=cms.bool(True),
     variables=cms.PSet(
-        x=Var("x", "float", precision=14, doc="x [cm]"),
-        y=Var("y", "float", precision=14, doc="y [cm]"),
-        z=Var("z", "float", precision=14, doc="z [cm]"),
+        x=Var("x", "float", doc="x [cm]"),
+        y=Var("y", "float", doc="y [cm]"),
+        z=Var("z", "float", doc="z [cm]"),
+        xErr=Var("xError", "float", precision=10, doc="uncertainty of x [cm]"),
+        yErr=Var("yError", "float", precision=10, doc="uncertainty of y [cm]"),
+        zErr=Var("zError", "float", precision=10, doc="uncertainty of z [cm]"),
+        covXY=Var("covariance(0,1)", "float", precision=10, doc="covariance of x and y [cm2]"),
+        covXZ=Var("covariance(0,2)", "float", precision=10, doc="covariance of x and z [cm2]"),
+        covYZ=Var("covariance(1,2)", "float", precision=10, doc="covariance of y and z [cm2]"),
         ntracks=Var("tracksSize", "uint16", doc="number of tracks"),{extra}
     )))""")
         if rows:
@@ -762,12 +834,14 @@ table("tauTable", cms.EDProducer("SimplePFTauCandidateFlatTableProducer", src=cm
                             f'\n        {column}=Var("{test}{r}.isNonnull()?{r}.key():-1", "int", lazyEval=True,'
                             f'\n            doc="row in {table}; -1: none"),'
                         )
-                rows.append(f"""
+                extra += _egamma_id(name)
+                setup, shapes = self.hgcal_shapes(label, src) if region == "hgcal" else ("", "")
+                rows.append(f"""{setup}
 table("{label}Table", cms.EDProducer("SimpleCandidateFlatTableProducer", src=cms.InputTag("{src}"),
     name=cms.string("{name}"), doc=cms.string("{src}"), cut=cms.string(""), singleton=cms.bool(False),
     extension=cms.bool(False), skipNonExistingSrc=cms.bool(True), variables=cms.PSet(kinematics,
         charge=Var("charge", "int16", doc="charge"),{extra}
-    )))""")
+    ){shapes}))""")
         rows += [self.constituents(jets, taus), self.jet_tags(jets)]
         if inv.has("offlineBeamSpot", product_type="recoBeamSpot") and self.need("SimpleBeamspotFlatTableProducer"):
             rows.append("""
@@ -777,7 +851,14 @@ table("beamSpotTable", cms.EDProducer("SimpleBeamspotFlatTableProducer", src=cms
         x=Var("x0", "float", precision=14, doc="x [cm]"),
         y=Var("y0", "float", precision=14, doc="y [cm]"),
         z=Var("z0", "float", precision=14, doc="z [cm]"),
-        sigmaZ=Var("sigmaZ", "float", precision=10, doc="width in z [cm]"))))""")
+        sigmaZ=Var("sigmaZ", "float", precision=10, doc="width in z [cm]"),
+        dxdz=Var("dxdz", "float", precision=10, doc="slope of the beam line, dx/dz"),
+        dydz=Var("dydz", "float", precision=10, doc="slope of the beam line, dy/dz"),
+        widthX=Var("BeamWidthX", "float", precision=10, doc="width in x [cm]"),
+        widthY=Var("BeamWidthY", "float", precision=10, doc="width in y [cm]"),
+        xErr=Var("x0Error", "float", precision=10, doc="uncertainty of x [cm]"),
+        yErr=Var("y0Error", "float", precision=10, doc="uncertainty of y [cm]"),
+        covXY=Var("covariance(0,1)", "float", precision=10, doc="covariance of x and y [cm2]"))))""")
         if not rows:
             return
         self.add(
@@ -792,6 +873,33 @@ kinematics = cms.PSet(
 )"""
             + "".join(rows)
         )
+
+    def hgcal_shapes(self, label, src):
+        """(setup, externalVariables) for the table `label` of the HGCal electrons or photons `src`: their shower
+        shapes, from the value maps PAT makes of them (RecoEgamma/EgammaTools), made here; ("", "") without them."""
+        kind = "Electron" if label.startswith("electron") else "Photon"
+        plugin = f"HGCal{kind}IDValueMapProducer"
+        sections = ("HGCEERecHits", "HGCHEFRecHits", "HGCHEBRecHits")  # the value maps read all three
+        if not all(self.inv.has("HGCalRecHit", s) for s in sections) or not self.need(plugin, "RecHitMapProducer"):
+            return "", ""
+        module = f"hgc{kind}ID"
+        setup = f"""
+# HGCal's shower shapes of {src} (the value maps PAT makes, RecoEgamma/EgammaTools), from the HGCal rechits
+from RecoEgamma.EgammaTools.hgcal{kind}IDValueMap_cff import hgcal{kind}IDValueMap
+table("{module}", hgcal{kind}IDValueMap.clone({kind.lower()}s="{src}"))"""
+        if not self.rechit_map:
+            self.rechit_map = True
+            setup = (
+                """
+from RecoLocalCalo.HGCalRecProducers.recHitMapProducer_cff import recHitMapProducer
+table("recHitMapProducer", recHitMapProducer.clone())"""
+                + setup
+            )
+        shapes = "".join(
+            f'\n        {v}=ExtVar("{module}:{v}", float, precision=10, doc="HGCal shower: {doc}; -1: not computed"),'
+            for v, doc in EGAMMA_HGCAL.items()
+        )
+        return setup, f",\n    externalVariables=cms.PSet({shapes}\n    )"
 
     def muon_tracks(self):
         """(table, collection, reco::Muon's reference, index column) of the standalone and global muon tracks that are

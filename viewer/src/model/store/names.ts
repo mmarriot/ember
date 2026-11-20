@@ -74,7 +74,8 @@ export function truthText(table: string, row: number, energy = false): string {
   if (!t || row >= t.n || !pdg || !pt || !eta) return describe(table, row);
   const id = String(pdg[row]),
     name = layerOf(table)?.describe?.names?.pdgId?.[id] ?? `pdgId ${id}`;
-  return energy && e
+  // A beam particle (pT 0, η "infinite" by the ROOT convention) is named by its energy too.
+  return e && (energy || !(Number(pt[row]) > 1e-6) || Math.abs(Number(eta[row])) > 20)
     ? `${name} · E ${short(Number(e[row]))} GeV`
     : `${name} · pT ${short(Number(pt[row]))} · η ${short(Number(eta[row]))}`;
 }

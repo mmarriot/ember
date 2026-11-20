@@ -334,9 +334,9 @@ describe("truthStatement", () => {
       { table: "Trk", row: 0, particle: 0, purity: 0.8, completeness: expect.closeTo(0.6, 5), clean: true },
     ]);
   });
-  it("offers X each matched part's particle once, never a particle ranked over the parts", () => {
+  it("offers X each matched part's particle once, with what its match counts, never a particle ranked over the parts", () => {
     expect(partChoices(truthStatement(ev, header, ladder("Jet", 0), statuses))).toEqual([
-      expect.objectContaining({ truth: "P", particle: 0, table: "Trk", row: 0 }),
+      expect.objectContaining({ truth: "P", particle: 0, table: "Trk", row: 0, measure: "hits" }),
     ]);
   });
   it("never offers X the particle of an object only built from its parts", () => {

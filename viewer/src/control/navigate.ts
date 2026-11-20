@@ -94,7 +94,7 @@ export function back() {
 }
 
 /** A particle X can go to from an object without a truth link of its own: one of its parts' own matches. */
-export type CrossChoice = PartMatch & { truth: string };
+export type CrossChoice = PartMatch & { truth: string; measure: string };
 /** The choices X opened (the card shows them), null while none are open. They close with the selection. */
 export const crossChoices = signal<CrossChoice[] | null>(null);
 effect(() => {

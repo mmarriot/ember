@@ -357,7 +357,9 @@ Truth and reco are told apart by one visual grammar, everywhere:
 
 A truth particle is named for what it is shown next to: by pT and η next to a track, a muon, a jet, an e/γ object or
 MET, and in the colour key of Physics, the tracker and All (`μ⁺ · pT 96.6 · η 1.11`); by its energy next to a
-calorimeter object or hits, and in the views of HGCal and Calo (`K⁻ · E 69.4 GeV`).
+calorimeter object or hits, and in the views of HGCal and Calo (`K⁻ · E 69.4 GeV`). A part's match in the card's
+truth block and in the choices of `X` is named as on the chain's step: a track's particle by pT and η, a trackster's or
+a PF cluster's by its energy, whatever the view.
 
 Violet is the truth's only: no category colour of the palettes is violet, and the profiles give RPC hits and taus,
 violet before, other colours. Bundles converted before that are drawn in the new colours by a shim

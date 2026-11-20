@@ -91,14 +91,15 @@ export function truthStatement(
 }
 
 /** The particles X can go to from an object without a match of its own: each matched part's own particle (at most
- *  `max`), in the statement's order; one entry per particle, with the part that names it. Not those of the objects
- *  only built from its parts (`beside`): no relation makes them its parts. */
-export function partChoices(st: Statement, max = 8): (PartMatch & { truth: string })[] {
-  const out: (PartMatch & { truth: string })[] = [];
+ *  `max`), in the statement's order; one entry per particle, with the part that names it and what its match counts
+ *  (`measure`: the particle is named by its energy next to a calorimeter object). Not those of the objects only built
+ *  from its parts (`beside`): no relation makes them its parts. */
+export function partChoices(st: Statement, max = 8): (PartMatch & { truth: string; measure: string })[] {
+  const out: (PartMatch & { truth: string; measure: string })[] = [];
   for (const line of st.parts.filter((l) => !l.beside))
     for (const o of line.objects)
       if (out.length < max && !out.some((x) => x.truth === line.truth && x.particle === o.particle))
-        out.push({ ...o, truth: line.truth });
+        out.push({ ...o, truth: line.truth, measure: line.match.measure });
   return out;
 }
 

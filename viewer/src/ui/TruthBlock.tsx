@@ -7,9 +7,9 @@ import { DOCS_URL } from "../model/library";
 import { measureWords, percent } from "../model/match";
 import type { PartLine } from "../model/statement";
 import { inText, singular } from "../model/describe";
-import { chipText, kindOf, pairView, statement, stepName } from "../model/store";
+import { chipText, kindOf, pairView, statement, stepName, truthText } from "../model/store";
 import { type CrossChoice, cross, crossChoices, crossTo, crossing } from "../control/navigate";
-import { chip } from "./chips";
+import { chip, truthChip } from "./chips";
 import { HitTruth } from "./HitTruth";
 import { Info } from "./Info";
 import { TruthCard } from "./TruthCard";
@@ -129,7 +129,7 @@ function Parts({ lines, own, table, beside }: { lines: PartLine[]; own: boolean;
                   {chip(l.table, l.rows[0])}{" "}
                   {o ? (
                     <>
-                      → {chip(l.truth, o.particle)}{" "}
+                      → {truthChip(l.truth, o.particle, l.match.measure)}{" "}
                       <Quality purity={o.purity} completeness={o.completeness} clean={o.clean} />
                     </>
                   ) : (
@@ -217,7 +217,7 @@ function Chooser() {
         {ch.map((c: CrossChoice, i: number) => (
           <li>
             <button class="choice" onClick={() => crossTo(c)} title={i === 0 ? "X again goes here" : undefined}>
-              {chipText(c.truth, c.particle)}
+              {truthText(c.truth, c.particle, c.measure === "energy")}
             </button>{" "}
             <span class="muted">
               its {inText(singular(kindOf(c.table)))} {chipText(c.table, c.row)}

@@ -36,6 +36,26 @@ with a message while an old one is set without its new name. `deploy.sh` links `
 
 ### Added
 
+- **Viewer, for every CMS group** (from a study of how HGCal, reco, EGamma, JetMET, Tau, Muon, Tracking/BTV, analysis
+  and truth-graph people would use it):
+  - the selection's card opens with the answer: one name per object ("Jet 1 · pT 46 GeV · η 0.606", collection on a
+    second line, numbered from 1), a truth block built only from CMSSW associations (each part's match, purity and
+    completeness labelled, never a combined verdict), and the object's physics from the profile's column groups
+    (`inspectGroups`): e/γ identification, impact parameters, secondary vertex flight, b-tags, PUPPI weights, MET and
+    its angle to the jets, tau decay modes by name;
+  - X opens a choice of the parts' matches when the object has none of its own, and "Go to truth (X)" is a button;
+  - a truth particle's card gives its kinematics, its vertices and their process, every level flag, and physics read
+    from the graph alone (bremsstrahlung, conversions, τ decays, b and c hadron flight and the secondary vertex matched
+    to it), each documented in `docs/truth.md`;
+  - the Truth tab opens on the hard process and the particles in the view, and searches the truth by name, pdgId,
+    level and process; the colour key has a level picker ("generator particle", "entered the calorimeter", ...);
+  - a title in the view (data or simulation, run, lumi section, event, the physics objects), "Save picture…" with a
+    caption, a hint line on a first visit, and one-click ticks for a kind or a part of the detector;
+  - the event box takes run:lumi:event and finds objects ("jet pt>50"); another data set opens on the same event;
+  - clicking a hit shows the hit, with its particles' simulated (deposited, not calibrated) energy.
+- **Converter:** e/γ identification and HGCal shower shapes, impact parameters to the leading vertex and the beam line
+  with their uncertainties, secondary vertex flight, vertex errors, and the profile hints `inspectGroups`, `missing`
+  and `labelWithout`; `--events` takes run:lumi:event and `--events-file` a list.
 - **The `ember` command.** `ember FILE.root` turns a NanoAOD file, or a CMSSW reconstruction file or MiniAOD, into a
   bundle (see below for how). `ember list` and `ember rm` manage what you published to a site. `-o FILE.ember` writes
   the bundle to a file of that name.
@@ -70,6 +90,23 @@ with a message while an old one is set without its new name. `deploy.sh` links `
 
 ### Changed
 
+- **Viewer:**
+  - The selection owns the view: it is framed in the part the card leaves free (also for links, X and F),
+    everything unrelated fades by the same amount (cones, MET and outlines too), a selected line has a halo, and
+    labels keep off the card.
+  - A part of the detector draws the physics objects only as an overlay ("Physics overlay"); a selection still draws
+    its own.
+  - Truth colours go to the particles that matter in the view (the selection's, else by simulated energy in that part
+    of the detector, else by pT), and the key says which rule is in force. Violet is only for truth and dashed only
+    for simulation; "no truth" became "no CMSSW associator", "not matched" or "no simulated energy".
+  - Truth particles are named by pT and η next to physics objects and by energy next to calorimeter ones; generator
+    copies are one line in the lineage.
+  - ↓ / ↑ step through what an object is made of (a jet's PF candidates, not its tau), and say on the view what they
+    draw. The pair view draws split-off showers as faint rims. A TICL candidate shows its candidate trackster's pair,
+    titled as the trackster's.
+- **Converter:** jets without corrections are named so ("AK4 PUPPI (raw, no JEC)"); muons start at their track's
+  reference point and jets at their own vertex; Phase 2 track hits are named after the Inner and Outer Tracker.
+- **Removed:** Live (following a growing data set), which did nothing for a data set that does not grow.
 - **A viewer of CMS events and their truth graph.** The README, the documentation and the command describe Ember as
   a viewer for reconstruction and truth studies, of the event and of CMSSW's truth graph. The name and the
   `embertools` package stay.
@@ -129,6 +166,10 @@ with a message while an old one is set without its new name. `deploy.sh` links `
 ### Fixed
 
 - **Viewer:**
+  - Messages are readable: they took the ⓘ button's 15 px width and showed one word per line.
+  - run:lumi:event in the event box read the lumi section as the event number.
+  - "only" on a kind drawn for the selection (track hits) left the view empty.
+  - Truth colours no longer go to beam remnants in the forward region, which left HGCal and the tracker grey.
   - Opening another data set changes the page in one step, once its first event is read. Before, the address and the
     share link could name the new data set with the previous one's event and selection while it loaded, and a new data
     set whose first event could not be read left the previous event on screen under its name.

@@ -45,7 +45,7 @@ const CHAIN_HELP = (
         <i class="qdot q-impure" /> impure, <i class="qdot q-unmatched" /> no match.
       </li>
       <li>
-        <b>fact</b>: from the simulation, the particles that left the energy in these hits.
+        <b>sim</b>: from the simulation, the particles that left the energy in these hits.
       </li>
       <li>
         <b>no truth</b>: CMSSW has no truth for this kind of object yet.
@@ -328,7 +328,7 @@ function LinkLine({
     );
     return (
       <div class="rlink fact">
-        <Tag word="fact">{help}</Tag>
+        <Tag word="sim">{help}</Tag>
         {label}
         {several && link.in && <span class="muted">{link.in}</span>}
         {link.unranked ? (

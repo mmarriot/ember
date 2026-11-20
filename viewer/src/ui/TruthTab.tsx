@@ -186,7 +186,7 @@ function Coverage() {
   const counts = (["match", "fact", "container", "none"] as const)
     .map((k) => [k, rows.filter(([, st]) => st.kind === k).length] as const)
     .filter(([, n]) => n);
-  const SHORT = { match: "matched", fact: "fact", container: "via container", none: "no truth" };
+  const SHORT = { match: "matched", fact: "sim", container: "via container", none: "no truth" };
   return (
     <section class="coverage">
       <details>

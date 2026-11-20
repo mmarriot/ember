@@ -322,7 +322,7 @@ its eight largest objects in the same way (for example the tracksters by energy)
 The tab opens with a headline: how many objects of each such layer pass, or the value of a one-object table (for
 example MET).
 
-**In the truth colours**, each kind's heading gets one word for what the truth graph says about it: match, fact,
+**In the truth colours**, each kind's heading gets one word for what the truth graph says about it: match, sim,
 or no truth. Hover for the reason. Where a kind's layers differ, each row gets its own word. The rows of
 kinds without truth are faint.
 
@@ -336,7 +336,7 @@ The tab is called **Tree** for a bundle with a tree but no truth layers. It hold
   the objects that pass their cuts and filters are a clean match, an impure match, or have no match
   (`matchTally` in `viewer/src/model/chain.ts`). Click a count to unfold its objects, largest first. So the event's
   merged, split and fake objects are one click away.
-- **the truth coverage**, folded to one line of counts, for example "9 matched · 2 fact · 18 no truth". Unfold it to
+- **the truth coverage**, folded to one line of counts, for example "9 matched · 2 sim · 18 no truth". Unfold it to
   see each kind's answer and, where there is no truth, why.
 - the truth collections, with their cuts;
 - what became of each particle that left hits: in each detector it left them in, its best match among the kind
@@ -467,7 +467,7 @@ More is behind small buttons:
 
 - the table's description is behind the **i** next to its title;
 - what the chain's words mean is behind the chain's **i**;
-- what a step's tag means on that step is behind the tag itself: click "match", "fact" or "no truth".
+- what a step's tag means on that step is behind the tag itself: click "match", "sim" or "no truth".
 
 The card holds these parts, in this order.
 
@@ -513,7 +513,7 @@ tables**.
 | tag | what the step shows |
 |---|---|
 | match | For one object: the associator's best match and its purity (green from the kind's clean threshold, amber below), or "no match" (a fake, or an object that the associator does not consider, such as a candidate without calorimeter energy). For several objects: their counts, in the colours of their dots, for example "11 clean · 4 impure · 1 no match". |
-| fact | The particles that left the simulated energy in the step's hits, with their shares, one line per detector (never summed across detectors). "per CSC layer" where the simulation records a coarser unit than the hit. "no exported particle" where none left energy (noise, out-of-time pile-up, or a particle the export left out): the tag says so. |
+| sim | The particles that left the simulated energy in the step's hits, with their shares, one line per detector (never summed across detectors). "per CSC layer" where the simulation records a coarser unit than the hit. "no exported particle" where none left energy (noise, out-of-time pile-up, or a particle the export left out): the tag says so. |
 | no truth | The tag alone. Behind it: why CMSSW has no truth for the kind, with the gap number of [Truth graph](truth-graph.md). A part with no truth of its own that goes with its container (the hits of a track) has no line. |
 
 Each line is the step's own statement. No match is built through the parts ([Truth](truth.md#constituents)):

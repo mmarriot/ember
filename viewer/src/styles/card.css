@@ -186,16 +186,17 @@
   color: #d7a6ff;
   white-space: nowrap;
 }
-.rlink.fact .lk,
 .rlink.derived .lk {
   border-style: dashed;
 }
 .rlink.derived .lk {
   opacity: 0.75;
 }
+/* No truth: plain grey text, no badge (dashed is the simulation's alone). */
 .rlink.none .lk {
   color: var(--muted);
-  border-style: dotted;
+  border-color: transparent;
+  padding: 0;
 }
 [data-theme="light"] .rlink .lk {
   color: #7a3fb0;

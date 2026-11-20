@@ -231,15 +231,17 @@
   font-weight: 500;
   letter-spacing: 0;
   text-transform: none;
-  padding: 0 4px;
+  padding: 0;
   border-radius: 3px;
-  border: 1px dashed var(--line-strong, var(--line));
+  border: 1px solid transparent;
   color: var(--muted);
   vertical-align: 1px;
 }
+/* A match or a simulation fact: a small solid tag; no truth stays plain grey text (dashed is the simulation's alone). */
 .truthword.match,
 .truthword.fact {
-  border-style: solid;
+  padding: 0 4px;
+  border-color: var(--line-strong, var(--line));
   color: var(--text);
 }
 /* Faint by colour, not opacity, so its text keeps a contrast of at least 4.5:1 (muted on the panel: about 5.6:1). */

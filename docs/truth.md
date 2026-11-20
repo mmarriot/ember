@@ -308,6 +308,22 @@ tracks show in their own particles' colours: each colour is that track's own sta
 - **Scope**: HGCal completeness counts HGCal only. A barrel particle's few MeV in HGCal are not an inefficiency. The
   key shows the amount, so you can see this.
 
+## One look for truth
+
+Truth and reco are told apart by one visual grammar, everywhere:
+
+| means | looks | used for |
+|---|---|---|
+| simulation (the truth graph, the hit index) | violet, dashed lines, hollow markers | truth particles and vertices, the TRUTH badge, truth labels in the view |
+| a CMSSW associator's answer | a small solid `match` tag, the associator named | the chain's and the card's match lines |
+| simulated energy on hits | a small solid `sim` tag | the chain's hit steps, the side panel's kind headings |
+| reco | solid lines, filled markers, type colours | all reco |
+| no information | plain grey text, no badge | "no truth" |
+
+Violet is the truth's only: no category colour of the palettes is violet, and the profiles give RPC hits and taus,
+violet before, other colours. Bundles converted before that are drawn in the new colours by a shim
+(`render/colour.ts` `RETIRED`).
+
 ## Words
 
 | word | meaning (the tooltips use these) |
@@ -328,7 +344,7 @@ tracks show in their own particles' colours: each colour is that track's own sta
 | no truth for this kind | the truth graph has no answer for the kind (no associator for it in the truth graph, or none exported). Drawn faint, with the reason in the Truth tab. Ember builds none in its place. |
 | simulated energy | energy deposited in the sensors (Geant4), not calibrated; a share within one detector only |
 | rechit energy | the reconstructed energy of hits (of a cluster or trackster: its raw energy) |
-| fact | a truth → hit relation of simulated energy per particle and cell, in one detector |
+| fact (tag "sim") | a truth → hit relation of simulated energy per particle and cell, in one detector |
 
 ## Samples
 

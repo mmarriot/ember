@@ -133,7 +133,7 @@ export function TickAll({ layers, name }: { layers: DisplayLayer[]; name: string
  *  matched, HF ones have none). Nothing in the reco colours. */
 const WORDS = {
   match: ["match", "matched by CMSSW's associator"],
-  fact: ["fact", "a simulation fact: simulated energy per particle in each hit"],
+  fact: ["sim", "a simulation fact: simulated energy per particle in each hit"],
   none: ["no truth", ""],
 } as const;
 function TruthWord({ table }: { table: string }) {

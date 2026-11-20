@@ -21,12 +21,12 @@ export const PALETTES = {
     categories: [
       "#1f77b4",
       "#2ca02c",
-      "#9467bd",
+      "#8c564b",
       "#17becf",
       "#e377c2",
       "#393b79",
       "#637939",
-      "#7b4173",
+      "#bcbd22",
       "#3182bd",
       "#31a354",
     ],
@@ -56,7 +56,9 @@ export const PALETTES = {
     },
     // Categories that are not particle types (e.g. a hit's subdetector) take these first: at least 15 CIEDE2000 from
     // every type colour and the greys (8 in each simulated colour vision), so a hit's colour never reads as a type.
-    others: ["#001100", "#CC7788", "#884400", "#554488", "#005544", "#776677", "#889955", "#333344"],
+    // Violet is the truth's (the TRUTH badge, truth labels): no category here or above is violet (CIELAB hue 260-350
+    // with chroma above 8 was replaced; the replacement is at least 19 CIEDE2000 from both themes' truth violet).
+    others: ["#001100", "#CC7788", "#884400", "#555500", "#005544", "#776677", "#889955", "#333344"],
     // The pair view (model/pair.ts), by class: other, matched, contamination, split, missed, reco (part of a match,
     // no truth statement of its own: neutral), branch (the branch's other particles), uncompared (the branch's hits
     // where no reco kind has an association).
@@ -74,12 +76,12 @@ export const PALETTES = {
     categories: [
       "#4ea1ff",
       "#5fd068",
-      "#b48cff",
+      "#e0b25c",
       "#3dd6e0",
       "#ff8fd1",
       "#8e95ff",
       "#b5d94c",
-      "#e08fd0",
+      "#c9a27e",
       "#76b8ff",
       "#7be39a",
     ],
@@ -97,7 +99,7 @@ export const PALETTES = {
       "HF EM": "#7FA3B8",
       jet: "#A898C8",
     },
-    others: ["#FFDDCC", "#007733", "#8855AA", "#99BB66", "#998866", "#EEAABB", "#BB6699", "#996655"],
+    others: ["#FFDDCC", "#007733", "#ff8855", "#99BB66", "#998866", "#EEAABB", "#BB6699", "#996655"],
     pair: ["#3a424d", "#009E73", "#CC79A7", "#F0E442", "#D55E00", "#d9dde2", "#7fd6b0", "#8fa3c2"],
   },
 } as const;
@@ -163,6 +165,11 @@ export function valueRange(values: ArrayLike<number>): Range {
     ? { scale: log ? "log" : "linear", lo, hi }
     : { scale: log ? "log" : "linear", lo: lo - 0.5, hi: lo + 0.5 };
 }
+
+/** A shim for bundles converted before the profiles stopped using violet, the truth's colour (docs/truth.md "One
+ *  look for truth"): their RPC hits (#c070d0) and taus (#a070e0) are drawn in the profiles' new colours. Remove it once
+ *  no such bundle is served. */
+const RETIRED: Record<string, string> = { "#c070d0": "#ff7799", "#a070e0": "#d4b44a" };
 
 /** The colour of a particle type by its name ("electron", "charged hadron"; "jet"), or undefined for another name. */
 export const typeColour = (pal: Pal, name: string | undefined): string | undefined =>
@@ -252,7 +259,8 @@ export function colours(
   // a layer that the profile gives the same colour (a global muon track: the muon's).
   if (d.fixedColour && (d.colourBy === undefined || d.colourBy === "none")) {
     const kin = header.display.find((l) => l.fixedColour === d.fixedColour && typeColour(pal, l.kind));
-    const colour = typeColour(pal, d.kind) ?? typeColour(pal, kin?.kind) ?? d.fixedColour,
+    const colour =
+        typeColour(pal, d.kind) ?? typeColour(pal, kin?.kind) ?? RETIRED[d.fixedColour.toLowerCase()] ?? d.fixedColour,
       c = rgb(colour);
     for (let i = 0; i < t.n; i++) set(i, c);
     return {

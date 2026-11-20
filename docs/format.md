@@ -220,8 +220,9 @@ All are optional. The converter copies them from the profile.
   `sum` or `mean` (of `value`).
 - `presets`: `[{"name", "colour": {table: column}, "filters": {table: expression}, "show": [table]}]`: named colour,
   filter and tick settings, shown as buttons when there are several. `show` ticks the layers of those tables (for
-  example the PF candidates, which start unticked, for "What PUPPI removed"); another preset puts them back to their
-  default tick.
+  example the PF candidates, which start unticked, for "What PUPPI removed"), and so does `colour` (the AK4 CHS jets
+  of "b-tags"); another preset puts them back to their default tick. The viewer does not offer a preset that names a
+  table or a colour column the bundle lacks.
   - A colour `"rel:<relation>"`, instead of a column, takes the colour of the related object through that relation,
     as the layer's "Related objects" colour choice does. For example `{"Tracks": "rel:trackVertex"}`: each track in
     its vertex's colour.

@@ -228,7 +228,8 @@ leptons with photons and missing momentum, b tagging. An event of the whole dete
 From top to bottom, the side panel has:
 
 1. the **Preset** list, when the bundle has more than one preset, with a button to apply the chosen preset again.
-   This undoes filters and colours that you changed by hand;
+   This undoes filters and colours that you changed by hand. A preset ticks the layers it colours. A preset that
+   needs a table or a column the bundle lacks is not offered;
 2. tabs;
 3. the colour key.
 

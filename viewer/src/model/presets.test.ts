@@ -4,7 +4,7 @@ import type { Bundle } from "../io/bundle";
 Object.assign(globalThis, { document: { documentElement: { dataset: {} } } });
 const { bundle, visible } = await import("./store");
 const { colourBy, filters } = await import("./custom");
-const { applyPreset } = await import("./presets");
+const { applyPreset, presetFits } = await import("./presets");
 
 const PF = { table: "PF", repr: "markers", visible: false },
   TRACKS = { table: "Trk", repr: "helix", visible: true },
@@ -36,5 +36,34 @@ describe("presets", () => {
     applyPreset(0); // the defaults: nothing a preset ticked stays ticked, no colour choice stays
     expect(visible.value).toEqual({ "PF:markers": false, "Trk:helix": true, "MTD:markers": false });
     expect(colourBy.value["Trk:helix"]).toBeUndefined();
+  });
+});
+
+describe("a preset that colours a hidden layer", () => {
+  it("ticks it, as b-tags does the AK4 CHS jets", () => {
+    bundle.value = {
+      header: {
+        display: [PF],
+        tables: {},
+        relations: {},
+        presets: [{ name: "none" }, { name: "types", colour: { PF: "pdgId" } }],
+      },
+      events: [],
+    } as unknown as Bundle;
+    visible.value = { "PF:markers": false };
+    applyPreset(1);
+    expect(visible.value).toEqual({ "PF:markers": true });
+    applyPreset(0);
+    expect(visible.value).toEqual({ "PF:markers": false });
+  });
+});
+
+describe("which presets are offered", () => {
+  const tables = { JetCHS: { doc: "", columns: { pt: {}, btagDeepCSVB: {} } }, Trk: { doc: "", columns: {} } } as never;
+  it("only those whose tables and colour columns the bundle has", () => {
+    expect(presetFits({ name: "b-tags", colour: { JetCHS: "btagDeepCSVB" }, show: ["JetCHS"] }, { tables })).toBe(true);
+    expect(presetFits({ name: "b-tags", colour: { JetCHS: "btagDeepJet" } }, { tables })).toBe(false);
+    expect(presetFits({ name: "time", show: ["MTD"] }, { tables })).toBe(false);
+    expect(presetFits({ name: "vertices", colour: { Trk: "rel:trackVertex" } }, { tables })).toBe(true);
   });
 });

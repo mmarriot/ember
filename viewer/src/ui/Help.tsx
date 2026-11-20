@@ -50,7 +50,7 @@ export function HelpDialog() {
         [
           ["X"],
           "",
-          "Across the link (the card's Go to truth button): from a reco object to its truth match, from a truth particle to what was reconstructed from it; for an object with no truth of its own, a chooser of its parts' particles (X again: the first)",
+          "Across the link (the card's Go to truth button): from a reco object to its truth match, from a truth particle to what was reconstructed from it, and X again back; for an object with no truth of its own, its part's particle, or a chooser of its parts' particles, largest part first (X again: the first)",
         ],
         [[], "i next to a title, or a tag (match, sim)", "What something is, and how its numbers are counted"],
         [

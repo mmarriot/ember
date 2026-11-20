@@ -38,7 +38,7 @@ import {
 } from "../model/store";
 import type { Ref } from "../model/relations";
 import { inText } from "../model/describe";
-import { partChoices, type PartMatch } from "../model/statement";
+import { leadChoice, partChoices, type PartChoice } from "../model/statement";
 import { engine } from "./scene";
 
 /** Frame the focus in the part of the view the card leaves free (engine.frame, store `framed`): `F`, a double click,
@@ -93,8 +93,31 @@ export function back() {
   frameFocus(800);
 }
 
+/** The last crossing (X, or a chooser's choice): from which object to which. X on the object it led to goes back, so X
+ *  is a round trip (an electron -> its track's e⁻ -> the electron, not the e⁻'s largest object). */
+const crossed = signal<{ from: Ref; to: Ref } | null>(null);
+effect(() => {
+  event.value; // rows of another event
+  crossed.value = null;
+});
+const same = (a: Ref | null | undefined, b: Ref | null | undefined) =>
+  !!a && !!b && a.table === b.table && a.row === b.row;
+
 /** A particle X can go to from an object without a truth link of its own: one of its parts' own matches. */
-export type CrossChoice = PartMatch & { truth: string; measure: string };
+export type CrossChoice = PartChoice;
+/** The card object's parts' particles, all of them, largest part first (model/statement.ts partChoices); X's chooser
+ *  lists the first CHOOSER. */
+export const partParticles = computed<CrossChoice[]>(() => {
+  const st = statement.value,
+    ev = event.value;
+  if (!st || !ev) return [];
+  return partChoices(st, Infinity, (table, row) => {
+    const t = ev.tables[table],
+      c = t && sizeColumn(table, t);
+    return c ? Number(t.columns[c][row]) || 0 : 0;
+  });
+});
+const CHOOSER = 8;
 /** The choices X opened (the card shows them), null while none are open. They close with the selection. */
 export const crossChoices = signal<CrossChoice[] | null>(null);
 effect(() => {
@@ -102,42 +125,54 @@ effect(() => {
   crossChoices.value = null;
 });
 
-/** Where X goes from the card's object: `to`, the other side of its own link (a reco object's match, the particle
- *  with the most simulated energy in a hit; for a truth object, the reco object of the latest reconstruction step
- *  whose own best match it is, else the one holding most of it); else `choices`, its parts' own matches; else
- *  nothing, and `why`. */
-export const crossing = computed<{ to?: Ref; choices: CrossChoice[]; why?: string }>(() => {
-  const l = ladder.value,
-    rec = reconstructed.value,
-    st = statement.value,
-    sel = subject.value;
-  if (!sel || !modes.value.roots.truth) return { choices: [], why: "No truth in this data set" };
-  if (l) {
-    for (const x of l.self.links) {
-      if (x.kind === "match" && x.partners.length)
-        return { to: { table: x.truth, row: x.partners[0][0] }, choices: [] };
-      if (x.kind === "fact" && x.particles.length)
-        return { to: { table: x.truth, row: x.particles[0][0] }, choices: [] };
+/** Where X goes from the card's object: `to`, the other side of its own link (a reco object's match, the particle with
+ *  the most simulated energy in a hit); else back to where X came from (`back`), when X led to it; else, for a reco
+ *  object, the particle of the part its card names (statement.ts leadChoice; `via`: that part's table) or its parts'
+ *  only particle, and for a truth object, the reco object of the latest reconstruction step whose own best match it is,
+ *  else the one holding most of it; else `choices`, its parts' own matches (the first CHOOSER); else nothing, and
+ *  `why`. */
+export const crossing = computed<{ to?: Ref; choices: CrossChoice[]; why?: string; back?: boolean; via?: string }>(
+  () => {
+    const l = ladder.value,
+      rec = reconstructed.value,
+      st = statement.value,
+      sel = subject.value;
+    if (!sel || !modes.value.roots.truth) return { choices: [], why: "No truth in this data set" };
+    const last = crossed.value,
+      back = last && same(last.to, sel) ? last.from : undefined;
+    if (l) {
+      // its own link first: a reco object reached from a particle it is not best matched to goes to its own match
+      for (const x of l.self.links) {
+        if (x.kind === "match" && x.partners.length)
+          return { to: { table: x.truth, row: x.partners[0][0] }, choices: [] };
+        if (x.kind === "fact" && x.particles.length)
+          return { to: { table: x.truth, row: x.particles[0][0] }, choices: [] };
+      }
+      if (back) return { to: back, choices: [], back: true };
+      const choices = partParticles.value,
+        lead = st?.own?.kind === "match" ? undefined : choices.length === 1 ? choices[0] : leadChoice(choices);
+      // the particle the card names (its track's), or the only one: X goes there, as for an object's own match
+      if (lead) return { to: { table: lead.truth, row: lead.particle }, choices: [], via: lead.table };
+      if (choices.length) return { choices: choices.slice(0, CHOOSER) };
+      const own = st?.own,
+        kind = inText(kindOf(sel.table));
+      const why =
+        own?.kind === "match"
+          ? "Not matched: the associator found no truth for it, and none of its parts is matched"
+          : own?.kind === "fact"
+            ? "No simulated energy in this hit"
+            : own?.kind === "container"
+              ? "Its truth is that of what contains it"
+              : `No CMSSW associator for ${kind}, and none of its parts is matched`;
+      return { choices, why };
     }
-    const choices = st ? partChoices(st) : [];
-    if (choices.length) return { choices };
-    const own = st?.own,
-      kind = inText(kindOf(sel.table));
-    const why =
-      own?.kind === "match"
-        ? "Not matched: the associator found no truth for it, and none of its parts is matched"
-        : own?.kind === "fact"
-          ? "No simulated energy in this hit"
-          : own?.kind === "container"
-            ? "Its truth is that of what contains it"
-            : `No CMSSW associator for ${kind}, and none of its parts is matched`;
-    return { choices, why };
-  }
-  const all = (rec?.reco ?? []).filter((r) => r.partners.length),
-    own = all.find((r) => r.partners.some((p) => p.best)) ?? all[0];
-  if (!own) return { choices: [], why: "Nothing reconstructed is linked to this truth object" };
-  return { to: { table: own.table, row: (own.partners.find((p) => p.best) ?? own.partners[0]).row }, choices: [] };
-});
+    if (back) return { to: back, choices: [], back: true };
+    const all = (rec?.reco ?? []).filter((r) => r.partners.length),
+      own = all.find((r) => r.partners.some((p) => p.best)) ?? all[0];
+    if (!own) return { choices: [], why: "Nothing reconstructed is linked to this truth object" };
+    return { to: { table: own.table, row: (own.partners.find((p) => p.best) ?? own.partners[0]).row }, choices: [] };
+  },
+);
 
 /** Across the reco ↔ truth link (keyboard: X), see `crossing`; with no link of the object's own, a chooser of its
  *  parts' matches opens in the card (X again takes the first). Says why when there is nothing on the other side;
@@ -152,7 +187,7 @@ export function cross(fromCard = false) {
     else openCard(selection.peek()!); // across from what the view shows: the object looked at
   }
   const c = crossing.peek();
-  if (c.to) return jump(c.to);
+  if (c.to) return crossJump(c.to);
   if (c.choices.length) crossChoices.value = c.choices;
   else toast(c.why ?? "No truth link");
 }
@@ -160,7 +195,14 @@ export function cross(fromCard = false) {
 /** Go to one of X's choices: its particle. */
 export function crossTo(c: CrossChoice) {
   crossChoices.value = null;
-  jump({ table: c.truth, row: c.particle });
+  crossJump({ table: c.truth, row: c.particle });
+}
+
+/** Cross to `to`, remembering where from (`crossed`). */
+function crossJump(to: Ref) {
+  const from = subject.peek();
+  jump(to);
+  crossed.value = from ? { from: { table: from.table, row: from.row }, to: { ...to } } : null;
 }
 
 /** Look at one domain (header `domains`): only its layers and those without a domain are drawn (those of shared

@@ -24,7 +24,7 @@ export function Hint() {
         {truth && (
           <>
             {" "}
-            · <kbd>X</kbd> its truth · <kbd>T</kbd> truth colours
+            · <kbd>X</kbd> its truth and back · <kbd>T</kbd> truth colours
           </>
         )}
         {parts && (

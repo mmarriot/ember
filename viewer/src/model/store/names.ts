@@ -62,6 +62,23 @@ export const full = (v: number | bigint) =>
         ? v.toExponential(3)
         : v.toFixed(3);
 
+/** A truth particle's name for its context (docs/truth.md): next to a track, muon, jet, e/γ or MET, by its pT and η
+ *  ("μ⁺ · pT 96.6 · η 1.11"); with `energy`, next to a calorimeter object, by its energy ("μ⁺ · E 162 GeV"). Its
+ *  `describe` name without pT and η columns. */
+export function truthText(table: string, row: number, energy = false): string {
+  const t = event.value?.tables[table],
+    pdg = t?.columns.pdgId,
+    pt = t?.columns.pt,
+    eta = t?.columns.eta,
+    e = t?.columns.energy;
+  if (!t || row >= t.n || !pdg || !pt || !eta) return describe(table, row);
+  const id = String(pdg[row]),
+    name = layerOf(table)?.describe?.names?.pdgId?.[id] ?? `pdgId ${id}`;
+  return energy && e
+    ? `${name} · E ${short(Number(e[row]))} GeV`
+    : `${name} · pT ${short(Number(pt[row]))} · η ${short(Number(eta[row]))}`;
+}
+
 /** A short name for one object, from its layer's `describe` hint (e.g. "π+ · E 88.9 GeV"), or "" without one. A
  *  number is named after its quantity (its `prefix`, else model/objects.ts columnName: "pT", "E", "E raw"), so a pT
  *  is never read as an energy. `skip`: columns to leave out (those shown next to it anyway, e.g. in object rows). */

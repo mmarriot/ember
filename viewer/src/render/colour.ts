@@ -5,7 +5,8 @@
 // shaders and legend agree.
 import { type DisplayLayer, type EventData, type Header, kindName, type Table, toF32, unitOf } from "../io/format";
 import { bestPurities, percent } from "../model/match";
-import { bestPartners, contentPartners, identities } from "../model/relations";
+import { bestPartners, contentPartners, identities, type SlotRank } from "../model/relations";
+import { ruleText } from "../model/truth";
 
 export const PALETTES = {
   light: {
@@ -209,10 +210,12 @@ interface Coloured {
 
 /** Options of `colours`. `range` shares one value scale between layers; without it the layer's own values set the
  *  scale. `layerFor` gives the colouring of related tables (default: their display hints), so colours follow chains:
- *  a hit takes its layer cluster's colour, which is its candidate's. */
+ *  a hit takes its layer cluster's colour, which is its candidate's. `rank`: how identity colours give their slots
+ *  (model/relations.ts identities: the domain, the selection, the truth level). */
 interface ColourOptions {
   range?: Range;
   layerFor?: LayerFor;
+  rank?: SlotRank;
 }
 
 /** Per-object RGB (n * 3), the legend describing it, and (for relation colouring) which objects to emphasise:
@@ -227,7 +230,7 @@ export function colours(
   opts: ColourOptions = {},
   seen: ReadonlySet<string> = new Set(),
 ): Coloured {
-  const { range, layerFor = (table: string) => header.display.find((l) => l.table === table) } = opts;
+  const { range, layerFor = (table: string) => header.display.find((l) => l.table === table), rank } = opts;
   const out = new Float32Array(3 * t.n),
     cats = pal.categories.map(rgb);
   // Named categories other than particle types (e.g. a hit's subdetector) take colours apart from the types first.
@@ -264,7 +267,7 @@ export function colours(
     return { rgb: out, legend: { kind: "category", text: noLinkText(d) } };
   }
   if (d.colourBy === "identity") {
-    const { key, used, top, others } = identities(d, t, ev, header, pal.identity.length);
+    const { key, used, top, others, rule, preferred } = identities(d, t, ev, header, pal.identity.length, rank);
     const slot = new Map(top.map((k, j) => [k, j])),
       ids = pal.identity.map(rgb),
       other = rgb(pal.other),
@@ -278,13 +281,20 @@ export function colours(
       set(i, !used[key[i]] ? none : j !== undefined ? ids[j] : background ? pileup : other);
       emphasis[i] = used[key[i]] && !background ? 1 : 0;
     }
-    const items = top.map((row, j) => ({ label: `#${row}`, colour: pal.identity[j], ref: { table: d.table, row } }));
+    // With a selection, the key lists only its own particles: the other colours are faded with what is not selected.
+    const items = top
+      .map((row, j) => ({ label: `#${row}`, colour: pal.identity[j], ref: { table: d.table, row } }))
+      .slice(0, rank?.prefer ? preferred : undefined);
     return {
       rgb: out,
       emphasis,
       legend: {
         kind: "category",
-        text: top.length === 1 ? "one colour for the largest" : `one colour each for the ${top.length} largest`,
+        text: d.truth
+          ? ruleText(rule, top.length)
+          : top.length === 1
+            ? "one colour for the largest"
+            : `one colour each for the ${top.length} largest`,
         items,
         ...(others ? { note: first ? `grey: the other ${others}; pile-up small` : `grey: the other ${others}` } : {}),
       },
@@ -333,7 +343,9 @@ export function colours(
       ot = ev.tables[otherTable],
       next = new Set(seen).add(d.table);
     const from =
-      od && ot && od.colourBy && !next.has(otherTable) ? colours(od, ot, ev, header, pal, { layerFor }, next) : null;
+      od && ot && od.colourBy && !next.has(otherTable)
+        ? colours(od, ot, ev, header, pal, { layerFor, rank }, next)
+        : null;
     const grey = rgb(pal.unassigned),
       emphasis = new Uint8Array(t.n);
     for (let i = 0; i < t.n; i++) {

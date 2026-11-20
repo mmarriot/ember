@@ -15,8 +15,10 @@ import type { DisplayLayer } from "../../io/format";
 import { matchClass, recoLadder, recoOfTruth } from "../chain";
 import { focusLevels, levelLayers, mergeAcrossDomains, scopeLevels, stepLevel } from "../levels";
 import { PAIR, type Pair, pairFor, pairShows } from "../pair";
-import { levelsOf, type Related, relatedParts, sameRef, type Ref } from "../relations";
-import { activeMode, modes, truthStatuses } from "./colours";
+import { simEnergyByParticle } from "../match";
+import { colourLevel } from "../truth";
+import { cached, levelsOf, type Related, relatedParts, sameRef, type Ref, type SlotRank } from "../relations";
+import { activeMode, modes, truthLevel, truthStatuses } from "./colours";
 import { bundle, event } from "./data";
 import { layerKey, layerOf } from "./names";
 import { domain, drawnLayers, inDomain, shared, visible } from "./view";
@@ -172,6 +174,46 @@ export const pairView = computed<Pair | null>(() => {
   const pair = pairFor(ev, b.header, f, roots.truth);
   return pair && pairShows(pair) ? pair : null;
 });
+
+/** How the truth colours give their slots (model/relations.ts identities), in the truth mode: the domain looked at, the
+ *  level chosen and, with a selection that has no pair of its own (a jet, an electron, a PF candidate), the particles
+ *  its parts are matched to (by pT), then those that left simulated energy in its hits (by energy, detector by
+ *  detector). Outside the truth mode, nothing: a truth particle drawn for a selection keeps the plain ranking. */
+export const truthRank = computed<SlotRank>(() => {
+  const b = bundle.value,
+    ev = event.value,
+    root = modes.value.roots.truth,
+    sel = selection.value;
+  if (activeMode.value !== "truth" || !b || !ev || !root) return {};
+  const level = truthLevel.value ?? undefined,
+    base = { domain: domain.value, level, only: level !== undefined && colourLevel(level).only };
+  const parts = relatives.value;
+  if (!sel || pairView.value || !parts) return base;
+  const pt = ev.tables[root]?.columns.pt,
+    matched = [...(parts.linked.get(root) ?? [])].sort((a, c) => (pt ? Number(pt[c]) - Number(pt[a]) : a - c));
+  const deposits = simEnergyByParticle(ev, b.header, parts.madeOf).flatMap((g) => g.particles.map(([p]) => p));
+  return { ...base, prefer: [...(sel.table === root ? [sel.row] : []), ...matched, ...deposits] };
+});
+
+/** In the truth mode with nothing selected, the truth particles drawn (the layer is otherwise drawn only for a
+ *  selection): the signal particles of the colour level with pT >= 1 GeV, so the event's truth shows before a click.
+ *  Pile-up stays off. Undefined in other modes, or for another layer. Once per event and level. */
+export function truthPreview(d: DisplayLayer): Set<number> | undefined {
+  const ev = event.peek(),
+    t = ev?.tables[d.table];
+  if (activeMode.peek() !== "truth" || !d.truth || !d.particle || !ev || !t) return undefined;
+  const mask = truthLevel.peek() ?? 2 ** d.particle.bit,
+    flags = t.columns[d.particle.flags],
+    first = d.particle.first ? t.columns[d.particle.first] : undefined,
+    pt = t.columns.pt;
+  if (!flags || !pt) return undefined;
+  return cached(ev, `preview|${d.table}|${mask}`, () => {
+    const rows = new Set<number>();
+    for (let i = 0; i < t.n; i++)
+      if (Number(flags[i]) & mask && (!first || Number(first[i])) && Number(pt[i]) >= 1) rows.add(i);
+    return rows;
+  });
+}
 
 /** What is drawn highlighted, per table: the focus, its levels and what is linked to it (e.g. its truth particle);
  *  in the pair view, the pair's objects. What contains the focus is listed on the card, not highlighted: big

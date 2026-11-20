@@ -244,6 +244,91 @@ describe("truth identities", () => {
     expect([...used]).toEqual([0, 1, 0, 1, 1, 1, 1]); // the K*⁰ owns nothing and is matched by nothing
     expect(top).toEqual([1, 5, 6, 4]); // signal generator particles, then the matched π⁰ above the level; pile-up takes none
   });
+  describe("colour slots by relevance", () => {
+    // 0 μ⁺ (pT 90, η 1) matched by track 0; 1 p (pT 2, η -5.2, E 180: a beam remnant); 2 K⁻ (pT 20) left 30 GeV in HGCal
+    // hits and 1 GeV in ECAL; 3 γ (pT 25) left 5 GeV in ECAL and 4 GeV in HCAL; 4 π⁺ (pT 10) left 8 GeV in HCAL; 5 a
+    // b hadron (pT 40, bits 8) -> 6 its π⁻ (pT 5, bit 2) matched by track 1
+    const pev = {
+      id: [1, 1, 1],
+      tables: {
+        P: {
+          n: 7,
+          columns: {
+            energy: Float32Array.from([162, 180, 69, 30, 12, 100, 6]),
+            pt: Float32Array.from([90, 2, 20, 25, 10, 40, 5]),
+            eta: Float32Array.from([1, -5.2, 1.8, 0.5, 0.3, 1, 1]),
+            flags: Uint32Array.from([4, 4, 4, 4, 4, 256, 4]),
+            signal: Uint8Array.from([1, 1, 1, 1, 1, 1, 1]),
+          },
+        },
+        HGC: { n: 2, columns: {} },
+        EB: { n: 2, columns: {} },
+        HB: { n: 2, columns: {} },
+        Trk: { n: 2, columns: {} },
+      },
+      relations: {
+        kids: csr([[], [], [], [], [], [6], []]),
+        hgc: { ...csr([[], [], [0, 1], [], [], [], []]), weights: { simE: Float32Array.from([20, 10]) } },
+        eb: { ...csr([[], [], [0], [1], [], [], []]), weights: { simE: Float32Array.from([1, 5]) } },
+        hb: { ...csr([[], [], [], [0], [1], [], []]), weights: { simE: Float32Array.from([4, 8]) } },
+        trkTruth: csr([[0], [6]]),
+      },
+    } as unknown as EventData;
+    const fact = (to: string) => ({
+      from: "P",
+      to,
+      weights: ["simE"],
+      association: true,
+      best: { weight: "simE", order: "max" },
+    });
+    const ph = {
+      domains: [{ name: "Physics", shared: true }, { name: "HGCal" }, { name: "Calo" }, { name: "Tracker" }],
+      relations: {
+        kids: { from: "P", to: "P", weights: [] },
+        hgc: { ...fact("HGC"), fact: { in: "HGCal" } },
+        eb: { ...fact("EB"), fact: { in: "ECAL" } },
+        hb: { ...fact("HB"), fact: { in: "HCAL" } },
+        trkTruth: { from: "Trk", to: "P", weights: [], association: true, match: { measure: "hits", in: "tracker" } },
+      },
+      display: [
+        { table: "HGC", repr: "cells", domain: "HGCal" },
+        { table: "EB", repr: "cells", domain: "Calo" },
+        { table: "HB", repr: "cells", domain: "Calo" },
+        { table: "Trk", repr: "helix", domain: "Tracker" },
+        { table: "P", repr: "helix", truth: true, colour: "energy" },
+      ],
+    } as unknown as Header;
+    const pd = { ...(ph.display[4] as DisplayLayer), particle: { flags: "flags", bit: 2, first: "signal" } };
+    const slots = (rank = {}) => identities(pd, pev.tables.P, pev, ph, 3, rank);
+    it("in Physics and All, by pT with |η| < 5 first (never by energy: no beam remnants)", () => {
+      expect(slots().top).toEqual([0, 3, 2]);
+      expect(slots({ domain: "Physics" }).rule.by).toBe("pt");
+    });
+    it("in a calorimeter's view, by simulated energy there, ranked in each detector and taken in turn", () => {
+      const h = slots({ domain: "HGCal" });
+      expect(h.top).toEqual([2]); // only particles with energy there
+      expect(h.rule).toMatchObject({ by: "simEnergy", in: "HGCal" });
+      // Calo: ECAL ranks γ (5), K⁻ (1); HCAL ranks π⁺ (8), γ (4). Energies of the two are never compared or added:
+      // ECAL's first, HCAL's first, ECAL's second.
+      expect(slots({ domain: "Calo" }).top).toEqual([3, 4, 2]);
+    });
+    it("without simulated energy in a view, by pT among the particles its objects are matched to", () => {
+      const t = slots({ domain: "Tracker" });
+      expect(t.top).toEqual([0, 6]);
+      expect(t.rule.by).toBe("matchedPt");
+    });
+    it("puts the selection's particles first, by their key", () => {
+      const s = slots({ domain: "HGCal", prefer: [4, 6] });
+      expect(s.top).toEqual([4, 6, 2]);
+      expect(s.preferred).toBe(2);
+      expect(s.rule.selection).toBe(true);
+    });
+    it("groups by the level chosen, and with `only` gives slots to its particles alone", () => {
+      const b = slots({ level: 256, only: true });
+      expect(b.key[6]).toBe(5); // the b hadron's π⁻ takes its colour
+      expect(b.top).toEqual([5]);
+    });
+  });
   it("keeps every reconstructed object its own key", () => {
     const { key, top } = identities({ ...d, truth: false }, tev.tables.P, tev, th, 10);
     expect([...key]).toEqual([0, 1, 2, 3, 4, 5]);

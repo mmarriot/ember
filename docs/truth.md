@@ -79,6 +79,34 @@ trackster that cleanly resolves one photon of a low-energy π⁰ a split. Bit 2 
 (CaloParticle, PF photons, GenJet constituents), and shows a merged π⁰ as merging two particles. The choice is one
 setting in the profile (`"particle": {"bit": 2}`). Bit 2 is the default until the owners decide otherwise.
 
+### Which particles get a colour
+
+The truth colours have seven colours of their own (one per particle, never repeated); every other signal particle is
+grey, and pile-up is a smaller warm grey. Which seven depends on what is looked at, and the colour key's line under its
+title always says which rule is in force (`model/relations.ts` `identities`):
+
+| looking at | the seven slots go to | key says |
+|---|---|---|
+| a selection with no pair of its own (a jet, an electron, a PF or TICL candidate) | first the particles its parts are matched to (by their pT), then those that left simulated energy in its hits (by energy, detector by detector). The key lists only these: the rest of the view is faded | "the selection's particles: …" |
+| a calorimeter's view (HGCal, Calo: simulated energy in hits drawn as cells) | the particles with the most simulated energy in that view's hits, summed per particle of the level within **one** detector. A view with several (Calo: ECAL, HCAL, HF, HO) ranks the particles in each detector on its own and gives the slots to each detector's next particle in turn (ECAL's first, HCAL's first, …): energies of different detectors are never compared or added (their sampling fractions differ, and HF counts photoelectrons). Particles with none there take no slot | "top 7 by simulated energy in HGCal"; "… within each of ECAL, HCAL, HF, HO, in turn" |
+| any other view of a detector (the tracker; a muon system, whose chamber deposits are no measure of a particle's size) | the particles its reco objects (tracks) are matched to, by pT; without such matches, the Physics rule | "top 7 by pT among the particles matched to Tracker objects" |
+| Physics, or everything | the signal particles by pT, those with \|η\| < 5 first | "top 7 signal particles by pT" |
+
+Only signal particles take a slot (never pile-up). Particles of the level come before those above it (a π⁰ that an
+object is matched to as a whole). Ranking by energy, as Ember did before, gave six of the seven slots to beam remnants
+at \|η\| ≈ 5 with pT 1–2 GeV in 8 of 10 ttbar events: they reach only HF, where nothing is compared. The simulated
+energy per particle is summed once per event, view and level (one pass over the hit-index relations), and the slot
+order is kept; a new selection only puts its particles first, and recolours the view only when the seven change.
+
+**The level picker.** The key's "Group by" chooses the level that is one colour: generator particle (bit 2,
+StableDecayProducts), entered the calorimeter (bit 3, CaloBoundary), reconstructable (bit 10,
+ReconstructableFinalState) or b / c hadron (bits 8 and 9; the particles outside every b or c hadron stay grey). Each
+option gives the number of signal particles in that level in the event. The profile's level is the default. The level
+changes the colours only: the lineage, the pair and the cards keep the profile's.
+
+**Before a selection.** In the truth colours the signal particles of the level with pT ≥ 1 GeV are drawn as dashed
+lines (the truth layer is otherwise drawn only for a selection). Pile-up stays off.
+
 ## Measures
 
 For a reco object R and its matched truth branch B (a particle and everything below it), in R's detector:

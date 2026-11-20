@@ -3,24 +3,33 @@
 // they are made of in the same colour), the truth (everything by the generator particle it comes from), or, with
 // something selected, its truth <-> reco pair. The Reco | Truth switch (key T) chooses between the first two. Bundles
 // without candidates or truth, and a domain coloured layer by layer, have no key: each layer shows its own colours.
+import type { Header } from "../io/format";
+import { facts } from "../model/facts";
 import { PAIR, type PairClass } from "../model/pair";
 import { percent } from "../model/match";
+import { cached } from "../model/relations";
+import { COLOUR_LEVELS, colourLevel } from "../model/truth";
 import { PALETTES } from "../render/colour";
 import {
   activeMode,
   bundle,
   colourChoice,
-  describe,
+  domain,
   drawnLayers,
+  event,
   layerKey,
   layerOf,
   legends,
   modes,
   pairView,
+  selection,
   theme,
   truthColours,
+  truthLevel,
   truthName,
+  truthRank,
   truthStatuses,
+  truthText,
 } from "../model/store";
 import { Info } from "./Info";
 import { jump } from "../control/navigate";
@@ -45,13 +54,14 @@ export function ColourKey() {
   if (!b || (!truthColours.value && mode !== "pid")) return null;
   const shown = new Set<number>();
   for (const cls of pair?.classes.values() ?? []) for (const c of cls) shown.add(c);
-  const title = pair
-    ? "Colour = truth ↔ reco pair"
-    : mode === "truth"
-      ? "Colour = generator particle (truth)"
-      : mode === "pid"
-        ? "Colour = candidate type (reco)"
-        : "Colour = each layer's own";
+  const level = truthLevelOf(b.header),
+    title = pair
+      ? "Colour = truth ↔ reco pair"
+      : mode === "truth"
+        ? `Colour = ${level.name} (truth)`
+        : mode === "pid"
+          ? "Colour = candidate type (reco)"
+          : "Colour = each layer's own";
   return (
     <details class="colourkey" open>
       <summary>
@@ -74,6 +84,7 @@ export function ColourKey() {
         )}
       </summary>
       {!pair && mode === "pid" && <PidKey />}
+      {!pair && mode === "truth" && <LevelPicker />}
       {!pair && mode === "truth" && <TruthKey />}
       {pair && ( // the pair itself and its numbers are in the selection's card; here only what each colour means
         <ul class="key">
@@ -135,6 +146,78 @@ function PidKey() {
   );
 }
 
+/** The colour level the truth colours use: the one chosen in the key, else the profile's (the truth particles'
+ *  `particle` bit). */
+function truthLevelOf(header: Header) {
+  const root = modes.value.roots.truth,
+    d = root ? header.display.find((l) => l.table === root) : undefined;
+  return colourLevel(truthLevel.value ?? 2 ** (d?.particle?.bit ?? 2));
+}
+
+/** Why the view is grey in the truth colours with a selection whose particles take no colour, from what the truth
+ *  says of its kind (model/match.ts truthStatus) and of its parts. */
+function greyWhy() {
+  const sel = selection.value,
+    s = sel ? truthStatuses.value.get(sel.table) : undefined,
+    pointed = (truthRank.value.prefer?.length ?? 0) > 0,
+    kind = sel ? truthName(sel.table) : "";
+  if (pointed)
+    return "Grey: the particles the selection's parts are matched to, or that left energy in its hits, are pile-up or outside the level chosen: they take no colour.";
+  const parts = "and none of its parts is matched to a particle or holds simulated energy";
+  if (s?.kind === "none")
+    return `Grey: no CMSSW associator for ${kind}${s.gap !== undefined ? ` (gap ${s.gap})` : ""}, ${parts}.`;
+  if (s?.kind === "match") return `Grey: not matched by the associator, ${parts}.`;
+  return `Grey: ${parts.replace(/^and /, "")}.`;
+}
+
+/** The level picker: the levels the colours can group the particles by, each with the number of signal particles in
+ *  it in this event; the profile's level is the default. */
+function LevelPicker() {
+  const b = bundle.value!,
+    ev = event.value,
+    root = modes.value.roots.truth,
+    d = root ? layerOf(root) : undefined,
+    t = root ? ev?.tables[root] : undefined;
+  if (!d?.particle || !t) return null;
+  const flags = t.columns[d.particle.flags],
+    first = d.particle.first ? t.columns[d.particle.first] : undefined,
+    profile = 2 ** d.particle.bit,
+    current = truthLevelOf(b.header).mask;
+  const levels = COLOUR_LEVELS.some((l) => l.mask === profile)
+    ? COLOUR_LEVELS
+    : [colourLevel(profile), ...COLOUR_LEVELS];
+  // Per level, its signal particles in the event: one pass, once per event (not at each render of the key).
+  const counts = cached(ev!, `levelCounts|${root}|${d.particle.flags}|${levels.map((l) => l.mask).join(",")}`, () => {
+    const out = levels.map(() => 0);
+    for (let i = 0; flags && i < t.n; i++)
+      if (!first || Number(first[i])) levels.forEach((l, j) => (out[j] += Number(flags[i]) & l.mask ? 1 : 0));
+    return out;
+  });
+  const count = (mask: number) => counts[levels.findIndex((l) => l.mask === mask)];
+  return (
+    <label
+      class="levelpick"
+      title="Which truth level is one colour: everything below a particle of the level shares its colour"
+    >
+      Group by{" "}
+      <select
+        value={String(current)}
+        onChange={(e) => {
+          const m = Number((e.target as HTMLSelectElement).value);
+          truthLevel.value = m === profile ? null : m;
+        }}
+      >
+        {levels.map((l) => (
+          <option value={String(l.mask)}>
+            {l.name} ({count(l.mask)}) · {l.flag}
+            {l.mask === profile ? " · default" : ""}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 /** Everything by the generator particle it comes from; reco objects only where they are a clean match. */
 function TruthKey() {
   const { roots } = modes.value,
@@ -163,22 +246,30 @@ function TruthKey() {
         `${percent(info.match.good)} of its ${info.match.measure === "hits" ? "hits" : "energy"} (${[...w].join(", ")})`,
       );
     }
+  // In a calorimeter's view the particles are named by their energy, elsewhere by pT and η (docs/truth.md).
+  const dom = domain.value,
+    calo = !!dom && facts(b.header).some((f) => layerOf(f.to)?.domain === dom);
+  const items = legend?.kind === "category" ? (legend.items ?? []) : [],
+    selected = truthRank.value.prefer !== undefined;
   return (
     <>
+      <p class="keyrule" title="Which particles have a colour of their own">
+        {legend?.kind === "category" ? legend.text : ""}
+      </p>
+      {selected && !items.length && <p class="hint">{greyWhy()}</p>}
       <ul class="key inline">
-        {legend?.kind === "category" &&
-          legend.items?.map((it) => (
-            <li>
-              <i style={{ background: it.colour }} />
-              {it.ref ? (
-                <button class="chip" onClick={() => jump(it.ref!)}>
-                  {describe(it.ref.table, it.ref.row) || it.label}
-                </button>
-              ) : (
-                it.label
-              )}
-            </li>
-          ))}
+        {items.map((it) => (
+          <li>
+            <i style={{ background: it.colour }} />
+            {it.ref ? (
+              <button class="chip" onClick={() => jump(it.ref!)}>
+                {truthText(it.ref.table, it.ref.row, calo) || it.label}
+              </button>
+            ) : (
+              it.label
+            )}
+          </li>
+        ))}
         <li>
           <i style={{ background: pal.other }} />
           other signal
@@ -194,11 +285,20 @@ function TruthKey() {
       </ul>
       <p class="hint keyhelp">
         {faint.length > 0 && <span class="faintkinds">faint: no truth for that kind </span>}
-        <Info title="Colour = generator particle">
+        <Info title="Colour = truth particle">
           <p>
-            Hits and truth lines take the colour of the generator particle they come from (secondaries, conversions and
-            decays in the detector included). A hit takes the particle that left the most simulated energy in it.
+            Hits and truth lines take the colour of the particle of the level chosen ("Group by") they come from
+            (secondaries, conversions and decays in the detector included). A hit takes the particle that left the most
+            simulated energy in it.
           </p>
+          <p>
+            Seven particles have a colour of their own, as the line under the title says: with a selection, the
+            particles its parts are matched to or that left simulated energy in its hits come first; in a calorimeter's
+            view, the particles with the most simulated energy in its hits, each detector's in turn (never compared
+            across detectors); in the tracker, the particles its tracks are matched to, by pT; in Physics and All, the
+            signal particles by pT (|η| &lt; 5 first). The other signal particles are grey.
+          </p>
+          <p>Before a selection, the signal particles of the level with pT ≥ 1 GeV are drawn as dashed lines.</p>
           <p>
             A reco object takes its particle's colour only when at least {[...rules.values()].join(", or ")} is from it;
             otherwise it is grey. Pile-up is drawn small.

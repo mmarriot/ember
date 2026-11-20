@@ -387,8 +387,15 @@ compared with.
   - a kind with no association of its own (layer clusters, TICL candidates, PF candidates, jets) is drawn faint and
     neutral: Ember does not work out a particle for it from its hits;
   - layers with no link to the truth (vertices) are the "no truth" grey;
-  - only signal generator particles get colours, by energy. The other signal particles are mid grey. Pile-up has its
-    own warm grey and is drawn small;
+  - seven signal particles get colours of their own, chosen by what you look at, and the line under the key's title
+    says how ("top 7 by simulated energy in HGCal"; [Truth](truth.md#which-particles-get-a-colour)): with a selection,
+    the particles its parts are matched to or left energy in its hits; in HGCal and Calo, by simulated energy there
+    (in Calo, ECAL's, HCAL's, HF's and HO's leading particles in turn, never compared across detectors);
+    in the tracker, by pT among the particles its tracks are matched to; in Physics and All, by pT. The other signal
+    particles are mid grey. Pile-up has its own warm grey and is drawn small;
+  - **Group by** in the key chooses the level that is one colour: generator particle (the default, the profile's),
+    entered the calorimeter, reconstructable, or b / c hadron, each with its truth flag and its count in the event;
+  - before anything is selected, the signal particles of that level with pT ≥ 1 GeV are drawn as dashed lines;
   - hits in which no exported particle left energy are small and faint: noise, out-of-time pile-up, or a particle
     that was not exported.
 

@@ -12,6 +12,7 @@ import type { DisplayLayer, EventData, Header, Table } from "../io/format";
 import { colourBy, filterMask, filters } from "../model/custom";
 import { cutMin, cutValues, HIDDEN, rescued } from "../model/cuts";
 import { PAIR, type Pair, pairKey } from "../model/pair";
+import { identities, type SlotRank } from "../model/relations";
 import {
   activeMode,
   bundle,
@@ -31,6 +32,7 @@ import {
   legends,
   levelTop,
   noTruth,
+  modes,
   pairView,
   parentRows,
   rawEvent,
@@ -43,6 +45,9 @@ import {
   lookAlone,
   theme,
   touring,
+  truthLevel,
+  truthPreview,
+  truthRank,
   view,
   withRootLegend,
 } from "../model/store";
@@ -303,6 +308,7 @@ export function startScene(canvas: HTMLCanvasElement): () => void {
   let builtFor: EventData | null = null; // the event the layers were built for
   let outlinesFor: unknown[] = []; // the bundle and palette the detector outlines were drawn for
   let lastPair = pairKeyOf(pairView.peek()); // the pair whose colours the layers have (recoloured when it changes)
+  let lastRank = ""; // the truth colours' slots the layers have (slotsKey; recoloured when it changes)
   // What every layer was built with: a change rebuilds them all. Which layers are drawn (ticks, domain, focus) is not
   // in it: those changes only build or free the layers concerned (stopForced).
   const settings = () => [
@@ -313,6 +319,7 @@ export function startScene(canvas: HTMLCanvasElement): () => void {
     activeMode.peek(),
     filters.peek(),
     replaying.peek(),
+    truthLevel.peek(),
   ];
   let builtWith: unknown[] = [];
   const stopLayers = effect(() => {
@@ -322,6 +329,7 @@ export function startScene(canvas: HTMLCanvasElement): () => void {
     colourBy.value;
     activeMode.value;
     filters.value;
+    truthLevel.value; // the truth particles drawn before a selection, and every truth colour
     replaying.value; // any change rebuilds every layer
     builtWith = settings();
     if (!b || !ev) return;
@@ -340,6 +348,7 @@ export function startScene(canvas: HTMLCanvasElement): () => void {
     withRootLegend(b.header, ev, drawn, pal);
     builtFor = ev;
     lastPair = pairKeyOf(pairView.peek()); // built with its colours
+    lastRank = slotsKey(b.header, ev, truthRank.peek());
     legends.value = drawn;
     eng.setLayers(entries.map((e) => e.layer));
     applyCuts(false);
@@ -423,6 +432,26 @@ export function startScene(canvas: HTMLCanvasElement): () => void {
     applyCuts(false);
     showFocus(touring.peek() ? 900 : 250);
   });
+  // The truth colours' slots follow the domain and the selection (model/store truthRank): when they change, every layer
+  // is recoloured in place, as for a new pair.
+  const stopRank = effect(() => {
+    const rank = truthRank.value,
+      b = bundle.peek(),
+      ev = event.peek();
+    if (!b || !ev || ev !== builtFor) return;
+    const key = slotsKey(b.header, ev, rank);
+    if (key === lastRank) return; // e.g. a new selection whose particles hold no other slots
+    lastRank = key;
+    const recolour = entries.filter((e) => !e.d.context && !e.uncoloured),
+      drawn = { ...legends.peek() };
+    colourEntries(recolour, ev, b.header, cuts.peek(), PALETTES[theme.peek()]).forEach(({ rgb, legend }, i) => {
+      recolour[i].layer.setColours(rgb);
+      recolour[i].rgb = rgb;
+      drawn[recolour[i].key] = legend;
+    });
+    legends.value = drawn;
+    eng.requestRender();
+  });
   // A level shown inside the focus turns the focus into an outline around it (see isEnvelope).
   const stopEnvelope = effect(() => {
     shownLevel.value;
@@ -441,6 +470,7 @@ export function startScene(canvas: HTMLCanvasElement): () => void {
     stopCuts();
     stopFocus();
     stopEnvelope();
+    stopRank();
     stopView();
   };
 }
@@ -472,7 +502,7 @@ const onlyFor = (d: DisplayLayer, key: string, hl: Map<string, Set<number>> | nu
   if (parents) return parents; // a shared part's layer drawn only for what the focus is part of
   if (!d.onSelection || showAll.peek()[key] || replayOnly(d, key, hl)) return undefined;
   const rows = hl?.get(d.table);
-  if (!rows) return new Set<number>();
+  if (!rows) return (!hl && truthPreview(d)) || new Set<number>(); // before a selection, the truth colours' particles
   const cut = belowCut(d.table, hl!);
   return cut.size ? new Set([...rows].filter((r) => !cut.has(r))) : rows;
 };
@@ -561,7 +591,7 @@ function colourEntries(
     const cls = e.d.context || chosen[e.key] ? undefined : pair?.classes.get(e.d.table); // a layer's own choice wins
     const out = cls
         ? pairColours(cls, classRgb)
-        : colours(e.d, e.t, ev, header, pal, { range: ranges.get(scale(e)), layerFor }),
+        : colours(e.d, e.t, ev, header, pal, { range: ranges.get(scale(e)), layerFor, rank: truthRank.peek() }),
       dim = e.d.dim;
     if (dim) for (let i = 0; i < out.rgb.length; i++) out.rgb[i] += (bg[i % 3] - out.rgb[i]) * dim;
     return out;
@@ -569,6 +599,20 @@ function colourEntries(
 }
 
 const pairKeyOf = (p: Pair | null) => (p ? pairKey(p) : null);
+
+/** The truth colours' slots under `rank`, as a string: the truth particles' top keys, how many of them the selection
+ *  holds, and the rule the key names ("" without identity colours on the truth particles). The layers' colours change
+ *  only when it does. */
+function slotsKey(header: Header, ev: EventData, rank: SlotRank) {
+  const root = modes.peek().roots.truth,
+    d0 = root ? layerOf(root) : undefined,
+    t = root ? ev.tables[root] : undefined;
+  if (!d0 || !t) return "";
+  const d = shownLayer(d0);
+  if (d.colourBy !== "identity") return "";
+  const r = identities(d, t, ev, header, PALETTES[theme.peek()].identity.length, rank);
+  return `${r.top.join(",")}|${r.preferred}|${JSON.stringify(r.rule)}`;
+}
 
 /** The pair view's colours: one per class (model/pair.ts); objects outside the pair drawn small. */
 function pairColours(cls: Uint8Array, classRgb: number[][]) {

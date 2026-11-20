@@ -27,6 +27,10 @@ export const modes = computed(() => {
  *  truth. Not remembered: a bundle opens on the reconstruction. */
 export const colourChoice = signal<"reco" | "truth">("reco");
 
+/** The truth level the truth colours group the particles by (a mask of level-flag bits, model/truth.ts
+ *  COLOUR_LEVELS), as chosen in the colour key; null: the profile's (the truth particles' `particle` bit). */
+export const truthLevel = signal<number | null>(null);
+
 /** Whether the bundle can colour by truth: its truth particles say which level is "the particle" (display hint
  *  `particle`). Bundles made before that hint have none, and their truth colours would follow other rules than the
  *  key describes. */

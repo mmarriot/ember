@@ -74,6 +74,9 @@ export interface Layer {
   /** Shower objects: draw as outlines (e.g. the reco objects matched to a truth particle); `envelope`: as a
    *  full-size outline, also for compact cores (the focus around the level shown inside it). */
   setOutline?(on: boolean, envelope?: boolean): void;
+  /** Showers in the pair view, per row (null: none): 1 a faint thin rim (a shower holding only a split-off part of the
+   *  particle), 2 brighter (its match), so the match is the one shower that reads as filled. */
+  setPairStyle?(rows: Uint8Array | null): void;
   /** The view drawn, for layers that draw differently in the 2D views (cone outlines as wedges). */
   setView?(view: ViewName): void;
   /** Free the GPU buffers and shader programs. */

@@ -608,6 +608,11 @@ const isEnvelope = (layer: Layer) => !!shownLevel.peek() && layer.table === leve
 function dress(layer: Layer, hl: Map<string, Set<number>> | null, truth = truthOutline()) {
   layer.setHighlight(hl ? (hl.get(layer.table) ?? new Set()) : null);
   outline(layer, truth);
+  if (layer.setPairStyle) {
+    // The pair view: a shower holding only a split-off part of the particle is a faint rim, its match stands out.
+    const cls = pairView.peek()?.classes.get(layer.table);
+    layer.setPairStyle(cls ? cls.map((c) => (c === PAIR.split ? 1 : c === PAIR.matched ? 2 : 0)) : null);
+  }
 }
 
 /** Whether a layer is drawn as outlines (truthOutline, sharedOutline, faintOutline), and whether its focus object is an

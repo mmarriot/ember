@@ -425,7 +425,9 @@ Every layer is coloured by where its objects ended up:
 | branch | other particles of the branch that entered the calorimeter on their own (a conversion's electrons, an interaction's products) |
 | not compared | the branch's hits in a detector whose reco has no association |
 
-Everything else fades. The colour key lists only the classes in view.
+Everything else fades. The colour key lists only the classes in view. A shower that is split off (another trackster
+holding part of the branch) is drawn as a faint thin rim and its match brighter, so the match is the one shower that
+reads as filled.
 
 The selection's card names the branch (and, when the selected particle is inside another particle's shower, which
 shower's hits stand for it), then gives one block per detector:

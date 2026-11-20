@@ -10,8 +10,11 @@ const SHOWER_STYLES = { solid: 0, shell: 1, cage: 2, core: 3 } as const;
 // Instanced unit spheres scaled and rotated per shower; normals use the inverse transpose, so the shading and the
 // rim follow the ellipsoid's real surface.
 const SHOWER_VERTEX = /* glsl */ `
+  attribute float ipair;
   varying vec3 vN, vV, vP, vCol;
+  varying float vPair;
   void main() {
+    vPair = ipair;
     mat4 mv = modelViewMatrix * instanceMatrix;
     vec4 p = mv * vec4(position, 1.0);
     vN = normalize(transpose(inverse(mat3(mv))) * normal);
@@ -29,16 +32,18 @@ const SHOWER_VERTEX = /* glsl */ `
 const SHOWER_FRAGMENT = /* glsl */ `
   uniform float uStyle;
   varying vec3 vN, vV, vP, vCol;
+  varying float vPair;
   void main() {
+    float style = uStyle;
     vec3 n = normalize(vN), v = normalize(vV);
     if (!gl_FrontFacing) n = -n;
     float facing = abs(dot(n, v)), rim = 1.0 - facing;
     vec3 l = normalize(vec3(0.35, 0.65, 0.7));
     float diffuse = 0.55 + 0.45 * max(dot(n, l), 0.0);
     vec3 col; float a;
-    if (uStyle < 0.5) { col = vCol * diffuse + 0.18 * pow(rim, 2.0); a = 0.22 + 0.5 * pow(rim, 2.5); }
-    else if (uStyle < 1.5) { col = mix(vCol, vec3(1.0), 0.15); a = 0.03 + 0.85 * pow(rim, 4.0); }
-    else if (uStyle < 2.5) {
+    if (style < 0.5) { col = vCol * diffuse + 0.18 * pow(rim, 2.0); a = 0.22 + 0.5 * pow(rim, 2.5); }
+    else if (style < 1.5) { col = mix(vCol, vec3(1.0), 0.15); a = 0.03 + 0.85 * pow(rim, 4.0); }
+    else if (style < 2.5) {
       vec3 w = 1.5 * fwidth(vP); // rings about 1.5 pixels wide on screen, whatever the ellipsoid's size
       vec3 r = 1.0 - smoothstep(0.5 * w, w, abs(vP));
       float ring = max(max(r.x, r.y), r.z);
@@ -47,6 +52,9 @@ const SHOWER_FRAGMENT = /* glsl */ `
       float spec = pow(max(dot(reflect(-l, n), v), 0.0), 28.0);
       col = vCol * (0.35 + 0.75 * diffuse) + 0.45 * spec + 0.12 * pow(rim, 3.0); a = 1.0;
     }
+    // The pair view (setPairStyle): a split-off shower is a faint thin rim; the match is brighter and more opaque.
+    if (vPair > 1.5) { col = mix(col, vec3(1.0), 0.15); a = min(1.0, 1.8 * a + 0.15); }
+    else if (vPair > 0.5) { col = vCol; a = 0.6 * pow(rim, 8.0); }
     gl_FragColor = vec4(col, a);
   }`;
 
@@ -73,6 +81,9 @@ export function ellipsoids(input: LayerInput): Layer {
   });
   let core = shape === "core" ? 0.55 : 1; // a candidate is a compact core inside the shower it stands for
   let pinned = -1; // the selected row
+  const pair = new Float32Array(Math.max(t.n, 1)); // per shower: its pair-view style (setPairStyle)
+  let paired = false; // some shower has one
+  geometry.setAttribute("ipair", new THREE.InstancedBufferAttribute(pair, 1));
   const mesh = new THREE.InstancedMesh(geometry, material, Math.max(t.n, 1));
   mesh.count = t.n;
   mesh.frustumCulled = false;
@@ -130,7 +141,7 @@ export function ellipsoids(input: LayerInput): Layer {
         end[0][i] = p.x;
         end[1][i] = p.y;
         end[2][i] = p.z;
-        if (!hasAxis || hidden || !drawAxis) continue;
+        if (!hasAxis || hidden || !drawAxis || pair[i] === 1) continue;
         project(p);
         const o = 6 * i + 3 * e;
         seg[o] = p.x;
@@ -194,6 +205,14 @@ export function ellipsoids(input: LayerInput): Layer {
       if (!envelope && !on) material.side = shape === "shell" || shape === "cage" ? THREE.DoubleSide : THREE.FrontSide;
       material.needsUpdate = true; // transparency and depth writes are compiled into the shader program's state
       core = envelope || shape !== "core" ? 1 : 0.55;
+      update();
+    },
+    setPairStyle(rows) {
+      if (!rows && !paired) return; // the usual case: nothing to undo, no pass over the showers
+      pair.fill(0);
+      if (rows) pair.set(rows.subarray(0, t.n));
+      paired = !!rows;
+      geometry.getAttribute("ipair").needsUpdate = true;
       update();
     },
     setHighlight(rows) {

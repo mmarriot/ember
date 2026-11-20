@@ -163,9 +163,26 @@ view. A label sits at the far end of a line or cone (where a jet meets the calor
 never sits under the card: it moves to the left of its object instead. Where labels would overlap, the less important
 one moves left or hides: the selection's label goes first, then the focus's, the object you point at in the side
 panel, and the leading objects, largest first.
-Labels, chips and lists name the quantity of every number: "Jets · pT 49.7 GeV" (transverse momentum),
-"π⁺ · E 88.9 GeV" (a truth particle's energy), "E raw 178 GeV" (a TICL candidate's raw energy). Pointing at an
-object's row in the side panel rings the object in the view.
+
+**One name everywhere** (`viewer/src/model/describe.ts`). An object has the same name in its label, its card's
+header, its chip in a list, the side panel's row and the shared link's description: "Jet 1 · AK4 · pT 99.6 GeV". It
+reads:
+
+- the kind, in the singular ("Jet", "Primary vertex", "Puppi MET");
+- its number, from 1 (the address keeps `s=Jet:0`, from 0). A one-object table such as MET has none;
+- its collection, where the kind has several ("AK4" and "AK4 CHS"; "Standalone" and "Global" muon tracks). Where
+  the layer's label adds nothing to the kind (the electrons beside "Electrons (HGCal)"), the CMSSW collection named
+  in the table's description stands for it ("gedGsfElectrons"). The card's header also names the CMSSW collection;
+- its values, each named after its quantity: "pT 49.7 GeV" (transverse momentum), "E raw 178 GeV" (a TICL
+  candidate's raw energy). A truth particle is named by its pT and η ("π⁺ · pT 30.1 · η 0.714"), or by its energy
+  next to a calorimeter object ("π⁺ · E 88.9 GeV").
+
+Numbers are written in a unit that suits their size, never in e-notation: lengths in µm below 1 mm and in mm below
+1 cm ("6.57 µm"), energies in MeV below 0.1 GeV ("35 MeV"). A value that means "not set" reads as words: "no time"
+for a time of -99, "not set" for an unset width of -1, "none" for an index of -1. The bundle's column description
+("-99: none") or the layer's `missing` hint says which value that is.
+
+Pointing at an object's row in the side panel rings the object in the view.
 
 ### Following the chain
 
@@ -492,7 +509,7 @@ dot for what the associator says about that object (`matchClass` in `viewer/src/
 
 - filled green: a clean match;
 - half amber: an impure match;
-- hollow grey: no match.
+- hollow grey: not matched.
 
 So an unfolded step shows at a glance which of its objects are which. A kind that is matched without a clean
 threshold gets no dot and no green, because nothing says how good its match is.

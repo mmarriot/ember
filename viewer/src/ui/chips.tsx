@@ -7,11 +7,11 @@ import { sameRef } from "../model/relations";
 import {
   anchor,
   caloView,
-  describe,
-  labelOf,
+  chipText,
   layerOf,
   look,
   matchOf,
+  nameOf,
   openCard,
   selection,
   truthText,
@@ -19,10 +19,11 @@ import {
 import { rowHover } from "./Labels";
 import { frameFocus } from "../control/navigate";
 
-const WORDS = { clean: "clean match", impure: "impure match", unmatched: "no truth match", matched: "matched" };
+const WORDS = { clean: "clean match", impure: "impure match", unmatched: "not matched", matched: "matched" };
 const glide = () => frameFocus(800);
 
-/** The chip of row `r` of table `t`, named as its kind describes it; `title`: more to say on hover. */
+/** The chip of row `r` of table `t`, named as in a list of its kind ("AK4 CHS · pT 52.8 GeV"); `title`: more to say on
+ *  hover, after its one name. */
 export const chip = (t: string, r: number, title = "") => <ObjChip table={t} row={r} title={title} />;
 /** The chip of truth particle `r`, named for what it is shown next to (docs/truth.md): by its energy next to a
  *  calorimeter object or hits (`measure` "energy"), else by pT and η ("μ⁺ · pT 96.6 · η 1.11"). */
@@ -56,7 +57,7 @@ export function ObjChip({
     <button
       class={`chip${q ? ` q-${q}` : ""}${viewing ? " viewing" : ""}`}
       aria-pressed={viewing}
-      title={`${labelOf(table)} #${row}${q ? ` · ${WORDS[q]}` : ""}${title && ` · ${title}`}\nClick: look at it · double click: open its card`}
+      title={`${nameOf(ref, [], true)}${q ? ` · ${WORDS[q]}` : ""}${title && ` · ${title}`}\nClick: look at it · double click: open its card`}
       onClick={() => {
         look(ref);
         glide();
@@ -68,7 +69,7 @@ export function ObjChip({
       onMouseEnter={() => (rowHover.value = ref)}
       onMouseLeave={() => (rowHover.value = null)}
     >
-      {text ?? ((layerOf(table)?.truth && truthText(table, row, caloView.value)) || describe(table, row) || `#${row}`)}
+      {text ?? ((layerOf(table)?.truth && truthText(table, row, caloView.value)) || chipText(table, row))}
     </button>
   );
 }

@@ -12,21 +12,20 @@
 // Which object it describes comes from the store: `subject` is the card's object and `selection` the object the view
 // shows. They are the same unless another object is looked at from the card; `anchor` then holds the card's object.
 import { percent } from "../model/match";
-import { bestFirst, sameRef, type Ref } from "../model/relations";
+import { bestFirst, sameRef } from "../model/relations";
+import { plain } from "../model/describe";
 import {
   anchor,
   bundle,
-  describe,
   event,
   focusBar,
   focusHistory,
   focusLevel,
-  full,
-  kindOf,
   labelOf,
   layerOf,
   levelTop,
   modes,
+  nameOf,
   openCard,
   reconstructed,
   selection,
@@ -45,11 +44,6 @@ import { PairBars } from "./PairBars";
 import { Lineage, ParticleFacts, TruthCard, Unassociated } from "./TruthCard";
 import { Icon } from "./widgets";
 
-const name = (r: Ref) => {
-  const n = describe(r.table, r.row);
-  return `${kindOf(r.table)}${n ? ` · ${n}` : ` #${r.row}`}`;
-};
-
 export function Card() {
   const b = bundle.value,
     ev = event.value,
@@ -59,30 +53,25 @@ export function Card() {
     table = ev.tables[sel.table];
   const d = layerOf(sel.table),
     truth = !!d?.truth,
-    text = describe(sel.table, sel.row),
     prev = !anchor.value && focusHistory.value.at(-1);
   return (
     <div class="inspector" role="dialog" aria-label="Selected object">
       <header>
         <div>
           {prev && (
-            <button class="link backlink" onClick={back} title={`Back to ${name(prev)} (B)`}>
-              ← {name(prev)}
+            <button class="link backlink" onClick={back} title={`Back to ${nameOf(prev)} (B)`}>
+              ← {nameOf(prev)}
             </button>
           )}
-          <div class={truth ? "kind truth" : "kind"}>
-            {labelOf(sel.table)}
-            {truth && " (simulation)"}{" "}
+          {truth && <div class="kind truth">simulation</div>}
+          <h2>
+            {nameOf(sel, [], true)}{" "}
             {(info.doc || d?.doc) && (
               <Info title={labelOf(sel.table)}>
                 {d?.doc && <p>{d.doc}</p>}
                 {info.doc && <p>{info.doc}</p>}
               </Info>
             )}
-          </div>
-          <h2>
-            #{sel.row}
-            {text && <span class="describe"> · {text}</span>}
           </h2>
         </div>
         <div class="actions">
@@ -125,7 +114,7 @@ function Looking() {
     <section class="looking" aria-label="Looking at">
       <h4>Looking at</h4>
       <div class="lookhead">
-        <b class={truth ? "kind truth" : undefined}>{name(sel)}</b>
+        <b class={truth ? "kind truth" : undefined}>{nameOf(sel)}</b>
         <span>
           <button class="link" title="Back to this card's object (Esc)" onClick={back}>
             ✕ stop
@@ -162,7 +151,7 @@ function ViewLevels() {
   return (
     <section class="viewlevels" aria-label="Levels in the view">
       <h4 title="The view is built around this object: its smallest parts are always drawn, one of the other levels on request (↓ ↑)">
-        In the view <span class="lanes">{name(top)}</span>
+        In the view <span class="lanes">{nameOf(top)}</span>
       </h4>
       <div class="levelrow">
         {bar.map((l) => {
@@ -297,7 +286,7 @@ function TruthSide({ table, row }: { table: string; row: number }) {
 
 const weightsText = (w: Record<string, number>) =>
   Object.entries(w)
-    .map(([k, v]) => `${k} ${Math.abs(v) < 5e-4 ? "0" : full(v)}`)
+    .map(([k, v]) => `${k} ${plain(v)}`)
     .join(" · ");
 
 /** Every object an association relation (e.g. reco <-> truth) links to this one, with the relation's weights as

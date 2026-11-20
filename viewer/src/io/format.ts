@@ -201,6 +201,13 @@ export interface DisplayLayer {
   list?: { columns: string[]; sort?: string; max?: number; headline?: "count" | "value" };
   /** The columns the inspector's summary shows first (e.g. pt, eta, phi for a jet, instead of its position). */
   inspect?: string[];
+  /** The card's physics block, under its truth: named groups of columns (e.g. {"name": "b-tag", "columns":
+   *  ["btagDeepCSVB", "btagJP"]}), in order. Columns the table lacks are left out, so a group lights up once a newer
+   *  converter writes them. */
+  inspectGroups?: { name: string; columns: string[] }[];
+  /** Per column, the value that means "not set" (e.g. -99 for no time, -1 for an unset width); the column's doc may
+   *  say it too ("-99: none"). The card writes it as words. */
+  missing?: Record<string, number>;
   /** The inspector's energy-fraction bar (reconstruction): columns holding fractions (0..1) of the object's energy,
    *  with their names, e.g. a jet's charged and neutral hadron, photon, electron and muon fractions. */
   fractions?: Record<string, string>;

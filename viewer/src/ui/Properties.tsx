@@ -1,8 +1,9 @@
 // An object's columns in the selection's card (Card.tsx): its main ones, then all of them folded, and for a reco
 // object with energy fractions (e.g. a jet) those as one bar.
-import { type Table, unitOf } from "../io/format";
+import type { Table } from "../io/format";
 import { colourBy, customColumns, customDoc } from "../model/custom";
-import { bundle, full, layerKey, layerOf, sizeColumn } from "../model/store";
+import { cellText } from "../model/describe";
+import { bundle, layerKey, layerOf, sizeColumn } from "../model/store";
 
 /** The summary's columns of an object: its layer's `inspect` columns (e.g. a jet's pT, η, φ), else what colours, places
  *  and sizes it; then its custom columns. */
@@ -15,20 +16,26 @@ export function keyColumns(name: string, table: Table) {
     ...new Set([...(d?.inspect ?? [category, colour, ...(d?.position ?? []), sizeColumn(name, table)]), ...custom]),
   ].filter((c): c is string => !!c && c in table.columns);
 }
-/** Columns of one row as a table of name, value, unit. */
+/** Columns of one row as a table of name, value, unit: units scaled to the value (µm, MeV), a sentinel as words ("no
+ *  time"), a value with a name by it (model/describe.ts cellText). */
 export function Rows({ name, table, row, columns }: { name: string; table: Table; row: number; columns: string[] }) {
-  const info = bundle.value!.header.tables[name],
+  const h = bundle.value!.header,
+    info = h.tables[name],
+    d = layerOf(name),
     custom = customColumns.value.filter((c) => c.table === name).map((c) => c.name);
   return (
     <table class="kv">
       <tbody>
-        {columns.map((c) => (
-          <tr title={info.columns[c]?.doc ?? customDoc(name, c)}>
-            <td>{custom.includes(c) ? <i>{c}</i> : c}</td>
-            <td>{full(table.columns[c][row])}</td>
-            <td class="unit">{unitOf(info.columns[c]?.doc)}</td>
-          </tr>
-        ))}
+        {columns.map((c) => {
+          const [value, unit] = cellText(h, d, name, table, c, row);
+          return (
+            <tr title={info.columns[c]?.doc ?? customDoc(name, c)}>
+              <td>{custom.includes(c) ? <i>{c}</i> : c}</td>
+              <td>{value}</td>
+              <td class="unit">{unit}</td>
+            </tr>
+          );
+        })}
       </tbody>
     </table>
   );

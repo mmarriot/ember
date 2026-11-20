@@ -4,18 +4,8 @@
 import { type DisplayLayer, kindName, unitOf } from "../io/format";
 import { filterMask, filters } from "../model/custom";
 import { columnName, passes, topRows } from "../model/objects";
-import {
-  bundle,
-  cuts,
-  describe,
-  event,
-  labelOf,
-  layerKey,
-  selection,
-  short,
-  sizeColumn,
-  visible,
-} from "../model/store";
+import { plain } from "../model/describe";
+import { bundle, cuts, describe, event, layerKey, nameOf, selection, sizeColumn, visible } from "../model/store";
 import { rowHover } from "./Labels";
 import { jump } from "../control/navigate";
 
@@ -39,7 +29,7 @@ export function headline(layers: DisplayLayer[]): [string, string][] {
         col = p.t.columns[c];
       if (!col || !p.t.n) continue;
       const unit = unitOf(bundle.value!.header.tables[d.table]?.columns[c]?.doc);
-      parts.set(d.label, `${short(Number(col[0]))}${unit ? ` ${unit}` : ""}`);
+      parts.set(d.label, `${plain(Number(col[0]))}${unit ? ` ${unit}` : ""}`);
       continue;
     }
     let n = 0;
@@ -89,18 +79,19 @@ export function ObjectRows({ d, list = d.list! }: { d: DisplayLayer; list?: NonN
         </tr>
       </thead>
       <tbody>
-        {rows.map((r, k) => (
+        {rows.map((r) => (
           <tr
             class={sel?.table === d.table && sel.row === r ? "selected" : undefined}
             onClick={() => jump({ table: d.table, row: r })}
             onMouseEnter={() => (rowHover.value = { table: d.table, row: r })}
             onMouseLeave={() => (rowHover.value = null)}
-            title={`${labelOf(d.table)} #${r}: select it (pointed at in the view)`}
+            title={`${nameOf({ table: d.table, row: r })}: select it (pointed at in the view)`}
           >
-            {/* its name without the columns shown next to it (a jet: none, so its rank; a PF candidate: its type) */}
-            <td>{describe(d.table, r, cols) || `${k + 1}`}</td>
+            {/* its name without the columns shown next to it (a jet: none, so its number, from 1 as everywhere; a PF
+                candidate: its type) */}
+            <td>{describe(d.table, r, cols) || `${r + 1}`}</td>
             {cols.map((c) => (
-              <td>{short(Number(p.t.columns[c][r]))}</td>
+              <td>{plain(Number(p.t.columns[c][r]))}</td>
             ))}
           </tr>
         ))}

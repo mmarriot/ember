@@ -1,7 +1,7 @@
 // How tables, layers, objects and numbers are named in the page, from the open bundle's display hints. Plain
 // functions: they read the signals when called, so a component that calls them re-renders when those change.
-import { type DisplayLayer, kindName, type Table, unitOf } from "../../io/format";
-import { columnName } from "../objects";
+import { type DisplayLayer, kindName, type Table } from "../../io/format";
+import { chipName, describeRow, objectName } from "../describe";
 import { bundle, event } from "./data";
 
 /** The key of a display layer, unique in a bundle: "table:repr". Signals keyed per layer use it. */
@@ -80,24 +80,27 @@ export function truthText(table: string, row: number, energy = false): string {
     : `${name} · pT ${short(Number(pt[row]))} · η ${short(Number(eta[row]))}`;
 }
 
-/** A short name for one object, from its layer's `describe` hint (e.g. "π+ · E 88.9 GeV"), or "" without one. A
- *  number is named after its quantity (its `prefix`, else model/objects.ts columnName: "pT", "E", "E raw"), so a pT
- *  is never read as an energy. `skip`: columns to leave out (those shown next to it anyway, e.g. in object rows). */
+/** A short name for one object's values, from its layer's `describe` hint (e.g. "π+ · E 88.9 GeV"), or "" without
+ *  one (model/describe.ts describeRow). `skip`: columns to leave out (those shown next to it anyway, e.g. in object
+ *  rows). */
 export function describe(table: string, row: number, skip: string[] = []): string {
+  const b = bundle.value;
+  return b ? describeRow(b.header, layerOf(table), event.value?.tables[table], row, skip) : "";
+}
+
+/** An object's one name (model/describe.ts objectName): "Jet 1 · AK4 · pT 99.6 GeV"; `skip`: values to leave out;
+ *  `cmssw`: with the CMSSW collection (the card's header). A table without a layer: its name and number. */
+export function nameOf(ref: { table: string; row: number }, skip: string[] = [], cmssw = false) {
   const b = bundle.value,
-    t = event.value?.tables[table],
-    hint = layerOf(table)?.describe;
-  if (!b || !t || !hint || row >= t.n) return "";
-  return hint.columns
-    .filter((c) => c in t.columns && !skip.includes(c))
-    .map((c) => {
-      const v = Number(t.columns[c][row]),
-        name = hint.names?.[c]?.[String(v)];
-      if (name) return name;
-      // e.g. "St 4" for a muon segment's station, "pT 65.5 GeV"; an empty prefix gives the bare number
-      const prefix = hint.prefix?.[c] ?? columnName(c),
-        unit = unitOf(b.header.tables[table]?.columns[c]?.doc);
-      return `${prefix ? `${prefix} ` : ""}${short(v)}${unit ? ` ${unit}` : ""}`;
-    })
-    .join(" · ");
+    d = layerOf(ref.table);
+  return b && d
+    ? objectName(b.header, d, ref.row, describe(ref.table, ref.row, skip), cmssw)
+    : `${ref.table} ${ref.row + 1}`;
+}
+
+/** An object's name in a list of its kind (model/describe.ts chipName): "AK4 CHS · pT 52.8 GeV". */
+export function chipText(table: string, row: number) {
+  const b = bundle.value,
+    d = layerOf(table);
+  return b && d ? chipName(b.header, d, row, describe(table, row)) : `${table} ${row + 1}`;
 }

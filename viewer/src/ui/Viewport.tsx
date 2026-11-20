@@ -12,7 +12,6 @@ import {
   activeMode,
   anchor,
   bundle,
-  describe,
   domain,
   event,
   focus,
@@ -22,8 +21,8 @@ import {
   hover,
   inFocus,
   isHitLayer,
-  labelOf,
   layerOf,
+  nameOf,
   overlay,
   replayCaption,
   selection,
@@ -259,13 +258,11 @@ function Tooltip() {
   if (!h || !ev || !b || !ev.tables[h.table]) return null;
   const d0 = layerOf(h.table),
     d = d0 && shownLayer(d0, activeMode.value, colourBy.value);
-  const t = ev.tables[h.table],
-    name = describe(h.table, h.row);
+  const t = ev.tables[h.table];
   const value = d?.colour && t.columns[d.colour] ? Number(t.columns[d.colour][h.row]) : null;
   return (
     <div class="tooltip" style={{ left: h.x + 14, top: h.y + 14 }}>
-      <b>{labelOf(h.table)}</b> #{h.row}
-      {name && ` · ${name}`}
+      <b>{nameOf(h)}</b>
       {h.stacked > 1 && <div class="muted">{h.stacked} objects here · click again for the next</div>}
       {value !== null && (
         <div>

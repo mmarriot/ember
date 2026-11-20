@@ -5,14 +5,13 @@
 // where labels would overlap, the less important one hides (see place).
 import { computed, signal } from "@preact/signals";
 import { useEffect, useRef } from "preact/hooks";
-import { kindName, type DisplayLayer } from "../io/format";
+import type { DisplayLayer } from "../io/format";
 import type { Ref } from "../model/relations";
 import { filters } from "../model/custom";
 import {
   bundle,
   caloView,
   cuts,
-  describe,
   domain,
   drawnLayers,
   event,
@@ -20,6 +19,7 @@ import {
   labelsOn,
   layerKey,
   layerOf,
+  nameOf,
   selection,
   shared,
   truthText,
@@ -37,11 +37,10 @@ interface Item {
   kind: Kind;
 }
 
-/** A label's text: its kind and the first value of its `describe` ("Jets · pT 49.7 GeV"); `full`: all of it. */
+/** A label's text: the object's one name (model/describe.ts) with the first value of its `describe` ("Jet 1 · AK4 ·
+ *  pT 49.7 GeV"); `full`: all of them. */
 function text(d: DisplayLayer, row: number, full = false) {
-  const skip = full ? [] : (d.describe?.columns.slice(1) ?? []);
-  const name = describe(d.table, row, skip);
-  return name ? `${kindName(d)} · ${name}` : `${kindName(d)} #${row}`;
+  return nameOf({ table: d.table, row }, full ? [] : (d.describe?.columns.slice(1) ?? []));
 }
 
 const items = computed<Item[]>(() => {

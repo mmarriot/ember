@@ -1,14 +1,12 @@
 // The top bar: the data set chooser, the event's navigation (with a box to jump to an event), the parts of the
-// detector (or the views), Live, the menu of every control, and the actions (show everything, share, help).
+// detector (or the views), the menu of every control, and the actions (show everything, share, help).
 import logo from "../../logo.svg";
 import { type Domain } from "../io/format";
 import {
   bundle,
-  catalogue,
   dialog,
   domain,
   eventIndex,
-  following,
   loading,
   opening,
   showEvent,
@@ -19,7 +17,6 @@ import {
 } from "../model/store";
 import { Chooser } from "./Chooser";
 import { findEvent, parseEventId } from "../model/find";
-import { toggleLive } from "../control/live";
 import { Menu } from "./Menu";
 import { chooseDomain, showWhole } from "../control/navigate";
 import { share } from "./Share";
@@ -102,15 +99,6 @@ export function Header() {
       </nav>
       {!parts && <Views />}
       <Domains />
-      <button
-        class={following.value ? "live on" : "live"}
-        aria-pressed={following.value}
-        onClick={toggleLive}
-        title={`Live: play new data as it arrives, event by event${catalogue.value.updated ? `; index updated ${new Date(catalogue.value.updated).toLocaleString()}` : ""}`}
-      >
-        <i class="dot" />
-        Live
-      </button>
       <Menu />
       <div class="actions">
         <button class="icon-button" title="Show the whole event (Home)" onClick={() => showWhole()}>

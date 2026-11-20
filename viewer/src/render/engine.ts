@@ -222,7 +222,7 @@ export class Engine {
       this.replayClock = null;
       this.onReplayTick(null);
     }
-    // Layers retired without a draw since (a background tab draws nothing, e.g. in Live mode) go now, so at most one
+    // Layers retired without a draw since (a background tab draws nothing) go now, so at most one
     // event's layers wait.
     for (const l of this.retired.splice(0)) l.dispose();
     for (const l of this.layers) {

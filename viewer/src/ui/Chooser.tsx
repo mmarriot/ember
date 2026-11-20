@@ -34,7 +34,6 @@ import {
   openLocal,
   refreshCatalogue,
 } from "../model/store";
-import { stopLive } from "../control/live";
 import { Icon, usePressOutside } from "./widgets";
 
 /** Open or closed; the start panels open it too (ui/Start.tsx). */
@@ -46,7 +45,6 @@ export function pickLocalFile() {
   input.onchange = () => {
     const file = input.files?.[0];
     if (!file) return;
-    stopLive(); // Live would open the newest file over this one
     chooserOpen.value = false;
     void openLocal(file);
   };
@@ -203,7 +201,6 @@ function Panel({ close }: { close: () => void }) {
 
   const pick = (row: Row | undefined) => {
     if (!row || row.local) return;
-    stopLive(); // Live would open the newest file over the one chosen
     close();
     if (row.file !== bundleName.value || !bundle.value) void openBundle(row.file);
     else keepShown(); // an open asked for meanwhile must not replace it

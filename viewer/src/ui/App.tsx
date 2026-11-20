@@ -51,7 +51,6 @@ import { menuOpen } from "./Menu";
 import { Sidebar } from "./Sidebar";
 import { DropHint, Start } from "./Start";
 import { back, chooseDomain, cross, nextDomain, nextObject, showWhole } from "../control/navigate";
-import { stopLive } from "../control/live";
 import { stopTour, toggleTour } from "../control/tour";
 import { engine, replayEvent } from "../control/scene";
 import { Viewport } from "./Viewport";
@@ -242,7 +241,6 @@ function listenForDrops() {
     dropping.value = false;
     const file = e.dataTransfer?.files[0];
     if (file) {
-      stopLive();
       stopTour();
       void openLocal(file);
     }

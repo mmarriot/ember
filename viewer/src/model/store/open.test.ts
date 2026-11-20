@@ -166,7 +166,7 @@ describe("openBundle", () => {
     expect(recent.value).toEqual([]);
   });
 
-  // Review, finding 1: opens overlap (a slow link, then a choice in the chooser; Live; two quick picks).
+  // Review, finding 1: opens overlap (a slow link, then a choice in the chooser; two quick picks).
   it("does not let an earlier, slower open replace the data set chosen after it", async () => {
     let arrive!: () => Promise<void>;
     const slow = () =>

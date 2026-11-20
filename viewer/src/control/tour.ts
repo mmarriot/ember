@@ -35,7 +35,6 @@ import { related, type Ref } from "../model/relations";
 import { isShower, type Caption } from "../render/replay";
 import { startDomain } from "../model/domains";
 import { stepMs, tourPlan } from "../model/tourPlan";
-import { stopLive } from "./live";
 import { chooseDomain, ranked } from "./navigate";
 import { engine, growTables, replayEvent } from "./scene";
 
@@ -86,7 +85,6 @@ async function startTour() {
   const me = ++generation,
     e = engine;
   if (!e) return;
-  stopLive();
   touring.value = true;
   solo.value = null; // the tour builds the whole event up, not one kind
   view.value = "3d";

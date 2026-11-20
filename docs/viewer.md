@@ -206,8 +206,6 @@ leptons with photons and missing momentum, b tagging. An event of the whole dete
 - Planned: a speed control in the tour bar (1×, 1.5×, 2×, remembered in this browser), and → to go to the next
   step.
 
-**Live** (the Live button) plays new files as they appear in the site's index.
-
 ## Side panel
 
 From top to bottom, the side panel has:

@@ -66,8 +66,6 @@ export const opening = signal<string | null>(null);
 export const openFailure = signal<Failure | null>(null);
 /** Start-up is over: the lists were read and the first data set, if any, was asked for (set by ui/App.tsx). */
 export const started = signal(false);
-/** Live mode (control/live.ts): new data sets are opened as they appear. */
-export const following = signal(false);
 
 /** Re-read index.json, bypassing caches (it changes as new data arrive). Only well-formed entries are kept
  *  (library.ts cleanList). An index whose `updated` time has not changed changes nothing, so that nothing that depends
@@ -92,7 +90,7 @@ let opens = 0;
 /** Open a bundle and show its event `start` (a shared link's event: only that one is read, not event 0 first).
  *  `local`: a file from this computer (read through `open`), which the address bar and the recent list cannot open
  *  again. `asked`, when not local, is a file of this site or an address elsewhere (library.ts locate); anything else
- *  is refused. An old link to a site file `x.evdb` that is gone opens `x.ember`, its name since the rename. Opens may overlap (a slow link and a choice made meanwhile, Live, two quick picks): the last one asked for
+ *  is refused. An old link to a site file `x.evdb` that is gone opens `x.ember`, its name since the rename. Opens may overlap (a slow link and a choice made meanwhile, two quick picks): the last one asked for
  *  wins, whatever order they finish in, and one that was overtaken changes nothing and says nothing. Returns whether
  *  this open is the one on screen with its event read (then a link's view and selection can be applied). */
 export async function openBundle(

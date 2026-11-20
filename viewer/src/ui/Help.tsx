@@ -113,7 +113,6 @@ export function HelpDialog() {
           "the play button; any key or touch stops it",
           "Tour: each event built up step by step, out from the collision point and from hits to physics objects, then its leading objects",
         ],
-        [[], "the Live button", "Live: play new data as it arrives"],
       ],
     ],
     [

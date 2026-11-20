@@ -375,7 +375,8 @@ has none: the view's title gives that line.
 
 **In the truth colours**, each kind's heading gets one word for what the truth graph says about it: match, sim,
 or no associator. Hover for the reason. Where a kind's layers differ, each row gets its own word. The rows of
-kinds without truth are faint.
+kinds without truth are faint, with no line of their own under them: the colour key says it once ("faint: no CMSSW
+associator for that kind", the kinds behind its **i**).
 
 On a phone, the panel is a sheet under the view. It is folded to its tabs until you choose one.
 

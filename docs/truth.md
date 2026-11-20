@@ -258,11 +258,12 @@ to the [gap table](truth-graph.md#gap-table).
 - **the selection's card**, in its truth block at the top ([Viewer](viewer.md#the-selections-card)). For a kind
   without an association, one line: the match of its parts that are each the only one of their collection in their
   step, when no other part is matched and they name one particle ("via its track · e⁻ … · purity 100%"), else "No
-  truth match for jets in CMSSW"; behind its **i**: "the truth graph has no jet
-  associator, and no generator-jet level", with the gap as a link. Each part's own match is folded below it
+  truth match for jets in CMSSW"; behind its **i**: "the truth graph has no jet associator, and no generator-jet
+  level", with the gap as a link. Each part's own match is folded below it
   ([below](#constituents)). In the chain, a step with its own truth has a tag (match, sim); the kinds without an
   associator are named behind the chain's **i**;
-- **the truth colour key**: "faint: no CMSSW associator for that kind", with the kinds behind its **i**; its
+- **the truth colour key**: "faint: no CMSSW associator for that kind", once, with the kinds behind its **i** (the
+  side panel's rows of those kinds carry no line of their own); its
   switch reads "Colour by: reco type | truth particle", and its grey reads "no simulated energy, or not cleanly
   matched";
 - **the Truth tab**, which opens on the hard process, with folded under it the event's scorecard of the matched kinds

@@ -3,19 +3,35 @@
 import { type DisplayLayer } from "../io/format";
 import { colourBy, customColumns, RELATION } from "../model/custom";
 import { PALETTES, relatedColourText, type Legend } from "../render/colour";
-import { activeMode, bundle, event, layerKey, modes, pairView, short, shownLayer, theme } from "../model/store";
+import {
+  activeMode,
+  bundle,
+  event,
+  layerKey,
+  modes,
+  pairView,
+  short,
+  shownLayer,
+  theme,
+  truthStatuses,
+} from "../model/store";
 import { ExprForm } from "./ExprForm";
 import { Icon } from "./widgets";
 
 /** Whether the colour key at the bottom of the panel explains the layer's colours (particle type, generator
- *  particle, or the pair view), so its own legend would only repeat it. */
+ *  particle, or the pair view), so its own legend would only repeat it. In the truth colours, a kind with no CMSSW
+ *  associator is the key's one "faint" line (and its heading's word), not a line under each of its collections. */
 export function explainedByKey(d: DisplayLayer) {
   const mode = activeMode.value;
   if (mode === "layers" || d.context || colourBy.value[layerKey(d)]) return false;
   if (pairView.value?.classes.has(d.table)) return true;
   if (mode === "truth") {
     const c = shownLayer(d).colourBy;
-    return d.table === modes.value.roots.truth || (c !== d.colourBy && c !== "none");
+    return (
+      d.table === modes.value.roots.truth ||
+      truthStatuses.value.get(d.table)?.kind === "none" ||
+      (c !== d.colourBy && c !== "none")
+    );
   }
   return !d.truth && (d.table === modes.value.roots.reco || shownLayer(d).colourBy !== d.colourBy);
 }

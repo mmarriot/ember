@@ -52,7 +52,7 @@ eye:
   and its lineage.
 - **Small, faint grey hits** mean that no exported particle left energy in them: noise, or a particle that was not
   exported (gaps 3 to 5). The export cannot tell which. The larger mid grey means something else: a particle beyond
-  the seven that get a colour.
+  the seven that get a colour (the key says which seven: [Truth](truth.md#which-particles-get-a-colour)).
 
 ## How truth reaches Ember
 

@@ -25,7 +25,20 @@ import { colourChoice } from "./colours";
 import { bundle, bundleName, eventIndex, loadMs, loading, rawEvent, shownEntry, shownOf } from "./data";
 import { layerKey } from "./names";
 import { selection } from "./selection";
-import { cutGroups, cuts, domain, hover, lookAlone, openTab, showAll, tabOfDomain, toast, view, visible } from "./view";
+import {
+  cutGroups,
+  cuts,
+  domain,
+  hover,
+  lookAlone,
+  openTab,
+  overlay,
+  showAll,
+  tabOfDomain,
+  toast,
+  view,
+  visible,
+} from "./view";
 
 export type { Listed };
 
@@ -144,6 +157,7 @@ export async function openBundle(
     batch(() => {
       bundle.value = b;
       lookAlone(null);
+      overlay.value = false; // not in the address: each bundle opens without the physics overlay
       colourChoice.value = "reco";
       bundleName.value = name;
       openedAs.value = { local, external };

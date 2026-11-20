@@ -19,7 +19,7 @@ import { levelsOf, type Related, relatedParts, sameRef, type Ref } from "../rela
 import { activeMode, modes, truthStatuses } from "./colours";
 import { bundle, event } from "./data";
 import { layerKey, layerOf } from "./names";
-import { domain, drawnLayers, shared } from "./view";
+import { domain, drawnLayers, inDomain, shared, visible } from "./view";
 
 // ---- The selection and the focus
 
@@ -222,6 +222,18 @@ export const framed = computed(() => {
   return out;
 });
 
+/** What the focus is part of (e.g. a muon's jet), per table; null without a focus. */
+const focusParents = computed(() => focusParts.value?.partOf ?? null);
+/** For a layer of a shared part (e.g. Physics: jets) that the domain looked at does not draw (no overlay): the rows
+ *  drawn for the focus, alone: its own (a selected jet) and, if the layer is ticked, what it is part of (a muon's
+ *  jet), so a selection brings its physics objects along (control/scene.ts); else undefined. */
+export const parentRows = (d: DisplayLayer) => {
+  if (!d.domain || !shared.value.has(d.domain) || inDomain(d)) return undefined;
+  const parents = visible.value[layerKey(d)] ? (focusParents.value?.get(d.table) ?? []) : [],
+    rows = new Set([...(highlight.value?.get(d.table) ?? []), ...parents]);
+  return rows.size ? rows : undefined;
+};
+
 /** Objects linked to the focus through an association (its truth; a truth particle's reco objects): a click on one
  *  moves the focus there. */
 export const focusLinked = computed(() => focusParts.value?.linked ?? null);
@@ -328,8 +340,13 @@ const focusKeys = computed(() => {
   const { draw, hide: levelHide } = levelLayers(lv, focusLevel.value, ticked),
     hide = levelHide.filter((d) => !own(d));
   const others = b.header.display.filter((d) => !inLevels.has(d) && hl.get(d.table)?.size);
+  // A shared part's layers the domain does not draw (no overlay) that hold what the focus is part of (its jet).
+  const held = b.header.display.filter((d) => parentRows(d)?.size);
   const keys = (ds: DisplayLayer[]) => ds.map(layerKey).sort().join("|");
-  return { shown: keys([...others, ...draw].filter((d) => !ticked(d))), hidden: keys(hide.filter(ticked)) };
+  return {
+    shown: keys([...others, ...draw, ...held].filter((d) => !ticked(d))),
+    hidden: keys(hide.filter(ticked)),
+  };
 });
 const shownKeys = computed(() => focusKeys.value.shown),
   hiddenKeys = computed(() => focusKeys.value.hidden);

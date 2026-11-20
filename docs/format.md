@@ -231,9 +231,9 @@ All are optional. The converter copies them from the profile.
 - `domains`: `[{"name", "region": {"rMax", "zMax"}, "view", "colourMode", "minRadius", "shared"}]`: the parts of the
   detector, in order (cm; z is |z|, so a region covers both ends). With two or more, the viewer offers `<name>` ·
   `<name>` · All.
-  - A part's view draws its layers (display hint `domain`), the layers of `shared` parts, and the layers without a
-    part. A `shared` part (for example the physics objects) has its layers drawn in every part's view. Its own view
-    draws only its layers and the layers without a part.
+  - A part's view draws its layers (display hint `domain`) and the layers without a part. The layers of a `shared`
+    part (for example the physics objects) are drawn over the other parts' views as an overlay the user turns on, and
+    for what a selection is part of. Its own view draws only its layers and the layers without a part.
   - The view frames the cylinder `rMax`, `zMax` (in the front and side views, its section through the beam line,
     which then fills the view), and switches to `view` (`3d`, `front`, `side`, `rz`).
   - A layer of another part is still drawn when a selection has objects in it (for example a track's calorimeter

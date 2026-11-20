@@ -11,12 +11,14 @@ const header = {
 };
 
 describe("domains", () => {
-  it("draws a domain's own layers, those without a domain and those of a shared domain", () => {
+  it("draws a domain's own layers, those without a domain and, as an overlay, those of a shared domain", () => {
     const shared = sharedDomains(header);
     expect(shared).toEqual(new Set(["Physics"]));
     expect(drawsLayer({ domain: "Tracker" }, "Tracker", shared)).toBe(true);
     expect(drawsLayer({ domain: "Calo" }, "Tracker", shared)).toBe(false);
-    expect(drawsLayer({ domain: "Physics" }, "Tracker", shared)).toBe(true); // jets in the tracker view
+    expect(drawsLayer({ domain: "Physics" }, "Tracker", shared)).toBe(false); // no jets in the tracker view
+    expect(drawsLayer({ domain: "Physics" }, "Tracker", shared, true)).toBe(true); // unless the overlay is on
+    expect(drawsLayer({ domain: "Calo" }, "Tracker", shared, true)).toBe(false); // which adds only shared layers
     expect(drawsLayer({}, "Tracker", shared)).toBe(true); // truth
     expect(drawsLayer({ domain: "Tracker" }, "Physics", shared)).toBe(false); // the Physics view: only its own
     expect(drawsLayer({ domain: "Calo" }, null, shared)).toBe(true); // All

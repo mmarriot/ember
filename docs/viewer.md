@@ -99,8 +99,10 @@ It shows each control's key and whether it is on. The colour theme is there too.
 Tracker · … · All. The bar appears for a bundle whose header has `domains`. Below 1100 px of width it becomes a
 drop-down list. Looking at one part:
 
-- draws that part's layers, the layers of shared parts (for example the physics objects) and the layers of no part
-  (truth);
+- draws that part's layers and the layers of no part (truth). The layers of shared parts (the physics objects: jets,
+  MET, leptons) are drawn over it only when the **Physics overlay** chip, above the view buttons, is on (off again
+  for each data set; links do not keep it). A selected
+  object still brings what it is part of (a muon's jet), drawn faded with everything else not related to it;
 - frames the part's region, in the part's own view;
 - opens the part's tab in the side panel. Choosing a tab yourself does not change the view.
 

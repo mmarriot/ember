@@ -85,9 +85,9 @@ export function cross() {
   jump({ table: own.table, row: (own.partners.find((p) => p.best) ?? own.partners[0]).row });
 }
 
-/** Look at one domain (header `domains`): only its layers, those of shared domains and those without a domain are
- *  drawn, in its view and colour mode (store/colours.ts activeMode), and its layers' tab opens in the side panel; null:
- *  everything, in the bundle's starting view. A selection is kept: the view frames its objects in the domain (e.g. a
+/** Look at one domain (header `domains`): only its layers and those without a domain are drawn (those of shared
+ *  domains as an overlay, store/view.ts `overlay`), in its view and colour mode (store/colours.ts activeMode), and its
+ *  layers' tab opens in the side panel; null: everything, in the bundle's starting view. A selection is kept: the view frames its objects in the domain (e.g. a
  *  jet's calorimeter clusters), else the domain's region (All: the objects). `animate`: glide there. */
 export function chooseDomain(name: string | null, animate = true) {
   const h = bundle.peek()?.header,

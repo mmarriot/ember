@@ -10,6 +10,7 @@ import {
   anchor,
   bundle,
   describe,
+  domain,
   event,
   focusLinked,
   hover,
@@ -17,8 +18,10 @@ import {
   isHitLayer,
   labelOf,
   layerOf,
+  overlay,
   replayCaption,
   selection,
+  shared,
   short,
   shownLayer,
   subject,
@@ -138,6 +141,7 @@ export function Viewport() {
       <ReplayCaption />
       <TitleBox />
       {(bundle.value?.header.domains?.length ?? 0) >= 2 && <Views />}
+      <OverlayChip />
       <Hint />
     </div>
   );
@@ -165,6 +169,26 @@ export function Views() {
         </button>
       ))}
     </div>
+  );
+}
+
+/** In a detector part's view, the chip that draws the shared parts' layers (e.g. Physics: jets, MET) over it. A
+ *  selection draws its own objects of those parts whatever the chip (store/selection.ts focusLayers). */
+function OverlayChip() {
+  const d = domain.value,
+    names = [...shared.value];
+  if (!d || !names.length || shared.value.has(d)) return null;
+  const on = overlay.value,
+    name = names.join(" · ");
+  return (
+    <button
+      class={on ? "overlaychip on" : "overlaychip"}
+      aria-pressed={on}
+      title={`${on ? "Stop drawing" : "Draw"} the ${name} objects over this part of the detector`}
+      onClick={() => (overlay.value = !on)}
+    >
+      {name} overlay
+    </button>
   );
 }
 

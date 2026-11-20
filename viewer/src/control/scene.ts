@@ -6,7 +6,7 @@
 // - a cut only sets a uniform per layer (stopCuts), and the focus a byte per object (stopFocus), plus a rebuild of the
 //   layers drawn only for the selection, which upload only the focus's rows.
 // The layers drawn now are `entries`. replayEvent and growTables animate them (the replay, the tour).
-import { effect, signal } from "@preact/signals";
+import { effect, signal, untracked } from "@preact/signals";
 import { Color, LinearSRGBColorSpace } from "three";
 import type { DisplayLayer, EventData, Header, Table } from "../io/format";
 import { colourBy, filterMask, filters } from "../model/custom";
@@ -32,6 +32,7 @@ import {
   levelTop,
   noTruth,
   pairView,
+  parentRows,
   rawEvent,
   replayCaption,
   selection,
@@ -361,6 +362,10 @@ export function startScene(canvas: HTMLCanvasElement): () => void {
       ev = event.peek();
     // Something every layer depends on changed too (e.g. a domain with its own colour mode): stopLayers rebuilds them.
     if (!b || !ev || ev !== builtFor || settings().some((v, i) => v !== builtWith[i])) return;
+    // A layer drawn only for the focus's rows that now draws all of them, or the reverse (a shared part's layer when
+    // the overlay is turned on or off): rebuilt.
+    const hl = highlight.peek();
+    if (entries.some((e) => e.limited !== !!onlyFor(e.d, e.key, hl))) rebuildForFocus(false);
     const keep = new Set(wanted(b.header, ev).map(layerKey)),
       have = new Set(entries.map((e) => e.key));
     const gone = entries.filter((e) => !keep.has(e.key)),
@@ -373,7 +378,6 @@ export function startScene(canvas: HTMLCanvasElement): () => void {
     }
     entries = entries.filter((e) => keep.has(e.key));
     const fresh = build(added, b.header, ev, drawn, entries),
-      hl = highlight.peek(),
       truth = truthOutline();
     for (const { layer } of fresh) {
       eng.addLayer(layer);
@@ -464,6 +468,8 @@ const replayOnly = (d: DisplayLayer, key: string, hl: Map<string, Set<number>> |
 /** For a layer that shows only the focus's objects: the rows to keep (none without a focus), less those reached only
  *  from objects a cut hides (the hits and truth of a vertex's tracks below the pT cut); else undefined. */
 const onlyFor = (d: DisplayLayer, key: string, hl: Map<string, Set<number>> | null) => {
+  const parents = untracked(() => parentRows(d));
+  if (parents) return parents; // a shared part's layer drawn only for what the focus is part of
   if (!d.onSelection || showAll.peek()[key] || replayOnly(d, key, hl)) return undefined;
   const rows = hl?.get(d.table);
   if (!rows) return new Set<number>();

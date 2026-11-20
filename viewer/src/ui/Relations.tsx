@@ -8,8 +8,8 @@ import { percent } from "../model/match";
 import { sharedParts } from "../model/physics";
 import { bestPartners } from "../model/relations";
 import { whereItWent } from "../model/statement";
-import { bundle, event, kindOf, ladder, nameOf } from "../model/store";
-import { chip, ObjChip } from "./chips";
+import { bundle, event, kindOf, ladder, layerOf, nameOf } from "../model/store";
+import { chip, namedChip, ObjChip, truthChip } from "./chips";
 
 /** Where the object's particle went among the objects of its kind, and the other particles whose best object it is
  *  (model/statement.ts whereItWent): a split and a merge, in the associator's own answers. Shown when there is more
@@ -30,7 +30,9 @@ export function WentTo({ table, row, relation }: { table: string; row: number; r
     <div class="went">
       {others.length > 0 && (
         <p class="physline">
-          <span class="rkind">Where {chip(info.to, p)} went</span>
+          <span class="rkind">
+            Where {layerOf(info.to)?.particle ? truthChip(info.to, p, info.match?.measure) : namedChip(info.to, p)} went
+          </span>
           {objects.slice(0, SHOWN).map((o, i) => (
             <span>
               {i > 0 && " · "}
@@ -57,7 +59,7 @@ export function WentTo({ table, row, relation }: { table: string; row: number; r
           {merges.slice(0, 3).map((q, i) => (
             <>
               {i > 0 && " · "}
-              {chip(info.to, q)}
+              {namedChip(info.to, q)}
             </>
           ))}
           {merges.length > 3 && <span class="muted"> +{merges.length - 3}</span>}

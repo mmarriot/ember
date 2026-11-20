@@ -8,9 +8,12 @@ import {
   anchor,
   caloView,
   chipText,
+  describe,
+  event,
   layerOf,
   look,
   matchOf,
+  modes,
   nameOf,
   openCard,
   selection,
@@ -72,4 +75,24 @@ export function ObjChip({
       {text ?? ((layerOf(table)?.truth && truthText(table, row, caloView.value)) || chipText(table, row))}
     </button>
   );
+}
+
+/** An object's chip; a truth particle's is named by pT and η, or by energy in a calorimeter's view (chips.tsx), a truth
+ *  vertex by its reason ("decay 240"), as in its match (TruthCard.tsx; Relations.tsx names merges so too). */
+export const namedChip = (t: string, r: number) => (
+  <ObjChip
+    table={t}
+    row={r}
+    text={t === modes.peek().roots.truth ? undefined : describe(t, r) || named(t, r) || undefined}
+  />
+);
+/** An object's name from its layer's categorical colouring (e.g. a truth vertex's reason: "decay"), for layers without
+ *  a `describe` hint. */
+export function named(t: string, r: number) {
+  const c = layerOf(t)?.colourBy,
+    v = typeof c === "object" && "category" in c ? event.value?.tables[t]?.columns[c.category]?.[r] : undefined;
+  if (v === undefined || typeof c !== "object" || !("category" in c) || !c.names) return "";
+  const names = Array.isArray(c.names) ? Object.fromEntries(c.names) : c.names,
+    name = names[String(v)];
+  return name ? `${name} ${r + 1}` : "";
 }

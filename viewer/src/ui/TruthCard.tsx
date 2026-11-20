@@ -39,31 +39,13 @@ import {
   unassociatedKinds,
   vertexText,
 } from "../model/truth";
-import { ObjChip, truthChip } from "./chips";
+import { named, namedChip as chip, ObjChip, truthChip } from "./chips";
 import { Info } from "./Info";
 
 const ANCESTORS = 4; // ancestors listed above the particle; higher ones are folded into one line, unfolded on a click
 /** The lineage's folded ancestors are shown (kept from one particle to the next). */
 const unfolded = signal(false);
 
-/** An object's chip; a truth particle's is named by pT and η, or by energy in a calorimeter's view (chips.tsx). */
-const chip = (t: string, r: number) => (
-  <ObjChip
-    table={t}
-    row={r}
-    text={t === modes.peek().roots.truth ? undefined : describe(t, r) || named(t, r) || undefined}
-  />
-);
-/** An object's name from its layer's categorical colouring (e.g. a truth vertex's reason: "decay"), for layers without
- *  a `describe` hint. */
-function named(t: string, r: number) {
-  const c = layerOf(t)?.colourBy,
-    v = typeof c === "object" && "category" in c ? event.value?.tables[t]?.columns[c.category]?.[r] : undefined;
-  if (v === undefined || typeof c !== "object" || !("category" in c) || !c.names) return "";
-  const names = Array.isArray(c.names) ? Object.fromEntries(c.names) : c.names,
-    name = names[String(v)];
-  return name ? `${name} ${r + 1}` : "";
-}
 const chipAs = (t: string, r: number, text: string) => <ObjChip table={t} row={r} text={text} />;
 /** A collision's truth vertex, by whether it is the signal (the truth particles' `first` column, e.g. isSignal, on the
  *  vertex table too): what a primary vertex's match means, not its generator step (e.g. "shower branching"). */

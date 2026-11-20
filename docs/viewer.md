@@ -548,11 +548,13 @@ threshold gets no dot and no green, because nothing says how good its match is.
   first, then their TICL candidates down to the HGCal hits, then their tracks down to the track hits. A step comes
   right after the last step that holds it, indented under it, with its other holders named: "also via PF
   candidates" on tracks listed under a jet's TICL candidates;
-- what is **also inside it**, listed apart: objects built only from its parts that are not parts of it. For example
-  a secondary vertex whose tracks are all in the jet, or a tau made of its PF candidates.
+- what is **built from its parts**, listed apart: objects built only from its parts that are not parts of it. For
+  example a secondary vertex whose tracks are all in the jet, or a tau made of its PF candidates.
 
 A step names its objects when there are three or fewer. Otherwise it counts them and unfolds to a list, largest
-first. Every object is a button that moves the selection there.
+first. Every object is a button that moves the selection there. A step of a kind with several collections names
+each object's collection ("AK4 · pT 52.8 GeV", "AK4 CHS · pT 52.8 GeV"), and its match lines are one per collection
+("Trackster links", "Superclustering DNN").
 
 Each kind's name says, on hover, what that kind of object is, where the bundle's profile explains it (the same text
 is behind the kind's **i** in the side panel). For example, the TICL kinds: tracksters (CLUE3D), linked tracksters
@@ -567,13 +569,19 @@ contains the selection is never listed among its parts.
 Related rows of tables that the bundle does not draw (for example a hit's digi) are listed last, as **other
 tables**.
 
-**Every step says what the truth graph has for it**, in the words of [Truth](truth.md#where-truth-stops):
+**A step with a truth statement of its own has a tag**, in the words of [Truth](truth.md#where-truth-stops). The
+selected object's own statement is in the truth block, not repeated on its step.
 
 | tag | what the step shows |
 |---|---|
-| match | For one object: the associator's best match and its purity (green from the kind's clean threshold, amber below), or "no match" (a fake, or an object that the associator does not consider, such as a candidate without calorimeter energy). For several objects: their counts, in the colours of their dots, for example "11 clean · 4 impure · 1 no match". |
-| sim | The particles that left the simulated energy in the step's hits, with their shares, one line per detector (never summed across detectors). "per CSC layer" where the simulation records a coarser unit than the hit. "no exported particle" where none left energy (noise, out-of-time pile-up, or a particle the export left out): the tag says so. |
-| no truth | The tag alone. Behind it: why CMSSW has no truth for the kind, with the gap number of [Truth graph](truth-graph.md). A part with no truth of its own that goes with its container (the hits of a track) has no line. |
+| match | For one object: the associator's best match and its purity (green from the kind's clean threshold, amber below), or "not matched" (a fake, or an object that the associator does not consider, such as a candidate without calorimeter energy). For several objects: their counts, in the colours of their dots, for example "11 clean · 4 impure · 1 not matched". On a step that holds the object (its vertex), the line says it is that step's own match: "the vertex's own: …". |
+| sim | The particles that left the simulated energy in the step's hits, with their shares, one line per detector (never summed across detectors). "per CSC layer" where the simulation records a coarser unit than the hit. "no simulated energy" where no exported particle left any (noise, out-of-time pile-up, or a particle the export left out): the tag says so. |
+
+Steps of kinds that CMSSW has no associator for have no tag. A run of them is named in one grey line after it, for
+example "Jets, Taus, PF candidates: no CMSSW associator", with each kind's reason and gap behind its **i**. "no
+truth" is never used: the card says which of three things it is, "no CMSSW associator" (the kind), "not matched"
+(this object of a matched kind), or "no simulated energy" (a hit). A part with no truth of its own that goes with its
+container (the hits of a track) has no line.
 
 Each line is the step's own statement. No match is built through the parts ([Truth](truth.md#constituents)):
 
@@ -583,7 +591,7 @@ Each line is the step's own statement. No match is built through the parts ([Tru
   hits would be a match through hits.
 - One part alone speaks for itself (for example a candidate's track).
 - Under a kind with truth of its own (a trackster, a PF cluster, a track), the particles are listed.
-- Where a step's collections differ in truth (muon rechits: fact; hits on muon tracks: none), each line names its
+- Where a step's collections differ in truth (muon rechits: sim; hits on muon tracks: none), each line names its
   collection.
 
 When a kind gets an associator in CMSSW, it gets a `match` relation in the profile. Its steps then show the match,

@@ -366,8 +366,9 @@ violet before, other colours. Bundles converted before that are drawn in the new
 | found / not from it / in another object / in no object / not compared | the pair view's classes ([above](#the-pair-view)) |
 | merges | a match above the particle level: the object holds several generator particles |
 | pile-up | particles from other collisions of the same bunch crossing |
-| no truth | energy that no exported particle left: noise, out-of-time pile-up, or not exported |
-| no truth for this kind | the truth graph has no answer for the kind (no associator for it in the truth graph, or none exported). Drawn faint, with the reason in the Truth tab. Ember builds none in its place. |
+| no simulated energy | a hit in which no exported particle left energy: noise, out-of-time pile-up, or not exported |
+| not matched | an object of a matched kind that the associator matched to nothing (a fake, or not considered) |
+| no CMSSW associator | the truth graph has no answer for the kind (no associator for it in the truth graph, or none exported). Drawn faint, with the reason behind an **i**. Ember builds none in its place. |
 | simulated energy | energy deposited in the sensors (Geant4), not calibrated; a share within one detector only |
 | rechit energy | the reconstructed energy of hits (of a cluster or trackster: its raw energy) |
 | fact (tag "sim") | a truth → hit relation of simulated energy per particle and cell, in one detector |

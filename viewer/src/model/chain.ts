@@ -201,6 +201,8 @@ function linksOf(
   >();
   const several = groups.reduce((s, g) => s + g.rows.length, 0) > 1,
     listed = rank || !several;
+  // A step of several matched collections (linked tracksters: Trackster links, Superclustering DNN) has a line each.
+  const split = groups.filter((g) => statuses.get(g.table)?.kind === "match").length > 1;
   const none = (table: string, reason: string, gap?: number) => {
     const same = out.find((l) => l.kind === "none" && l.reason === reason);
     if (same) same.tables.push(table);
@@ -219,7 +221,8 @@ function linksOf(
       }
       const { partner } = bestPartners(rel, info, true, n),
         purity = bestPurities(ev, header, s.relation);
-      const m = matches.get(info.to) ?? {
+      const key = split ? `${info.to}|${g.table}` : info.to;
+      const m = matches.get(key) ?? {
         link: {
           kind: "match" as const,
           truth: info.to,
@@ -243,7 +246,7 @@ function linksOf(
         if (purity && !Number.isNaN(purity[r])) m.link.purity = purity[r];
         m.counts.set(p, (m.counts.get(p) ?? 0) + 1);
       }
-      matches.set(info.to, m);
+      matches.set(key, m);
     } else if (s.kind === "fact") factRows.set(g.table, new Set(g.rows));
     else if (s.kind === "none") none(g.table, s.reason, s.gap);
     else if (s.kind === "container") {
@@ -278,8 +281,8 @@ function linksOf(
       tables: [...new Set(fs.map((f) => f.to))],
     });
   }
-  // Where the step's collections differ in truth, each line names its own.
-  const differ = new Set(groups.map((g) => statuses.get(g.table)?.kind)).size > 1;
+  // Where the step's collections differ in truth, or each has its own line, each line names its own.
+  const differ = split || new Set(groups.map((g) => statuses.get(g.table)?.kind)).size > 1;
   return out.map(({ tables, ...l }) =>
     differ ? { ...l, label: [...new Set(tables.map((t) => layerOf(header, t)?.label ?? t))].join(", ") } : l,
   );

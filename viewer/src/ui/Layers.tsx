@@ -243,7 +243,7 @@ function LayerRow({ d, cut, here }: { d: DisplayLayer; cut?: string; here: Displ
             }
             onClick={() => (showAll.value = { ...showAll.value, [key]: !showAll.value[key] })}
           >
-            {showAll.value[key] ? "all" : "selected"}
+            {showAll.value[key] ? "all" : "with selection"}
           </button>
         )}
         {!on && focusLayers.value.has(key) && (
@@ -260,7 +260,7 @@ function LayerRow({ d, cut, here }: { d: DisplayLayer; cut?: string; here: Displ
             show
           </button>
         )}
-        {cut && <CutChip name={cut} here={here} />}
+        {cut && <CutChip name={cut} here={here} row={d.label} />}
         {canList ? (
           <button
             class="count listbtn"

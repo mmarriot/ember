@@ -43,3 +43,20 @@ export function rescued(keep: Float32Array | null, focus?: Set<number>): string 
 /** The minimum an object's cut value must reach for the layer to show it. */
 export const cutMin = (d: DisplayLayer, values: Float32Array | undefined, cuts: Record<string, number>) =>
   d.cut ? (cuts[d.cut.group] ?? 0) : values ? NO_CUT : -Infinity;
+
+/** What a cut is on, in words: the profile's `label`, else its group's name ("Hit energy" -> "hit energy"), never
+ *  the raw column. On a collection's own row, the part of it that repeats the row's name goes ("ECAL barrel energy"
+ *  on the ECAL barrel row -> "energy"). */
+export function cutName(cut: { group: string; label?: string }, row?: string): string {
+  const name = cut.label ?? cut.group.charAt(0).toLowerCase() + cut.group.slice(1);
+  if (!row) return name;
+  if (name === row) return cut.group.startsWith(`${row} `) ? cut.group.slice(row.length + 1) : "";
+  return name.startsWith(`${row} `) ? name.slice(row.length + 1) : name;
+}
+
+/** A cut's minimum with its unit, energies below 1 GeV in MeV: "35 MeV", "1 GeV". */
+export function cutAmount(v: number, unit: string): string {
+  const [x, u] = unit === "GeV" && v > 0 && v < 1 ? [v * 1000, "MeV"] : [v, unit];
+  const s = Number.isInteger(x) || Math.abs(x) >= 100 ? x.toFixed(0) : String(Number(x.toPrecision(3)));
+  return u ? `${s} ${u}` : s;
+}

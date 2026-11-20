@@ -118,7 +118,7 @@
 }
 .dataset .tag {
   flex: none;
-  font-size: 10px;
+  font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--muted);

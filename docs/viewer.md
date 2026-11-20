@@ -255,10 +255,12 @@ accent colour when the cut differs from the profile's. Click it to open a slider
 
 - the slider has a log scale over the values of the group in the event shown. Its lowest position means no cut;
 - it applies to every layer of the group, including layers listed elsewhere (the pop-up names them);
-- it is named after the cut's `label`, or else its column;
+- it is named after the cut's `label`, or else its group ("hit energy ≥ 35 MeV"), never the raw column. Energies
+  below 1 GeV are given in MeV;
 - the pop-up opens beside the panel, so the counts of the rows it cuts stay in sight.
 
-A kind with several cuts (one per calorimeter) shows each cut on the first row it cuts.
+A kind with several cuts (one per calorimeter) shows each cut on the first row it cuts, without the row's name
+("energy ≥ 1 GeV" on the ECAL barrel row). A long name wraps onto a second line instead of being cut short.
 
 Clicking a kind's heading folds it. The folded heading says how many of its collections are drawn. This lasts for
 the life of the page. A slider shared with a later kind moves to that kind.
@@ -269,7 +271,7 @@ there is its colour scale, if the colour key does not already explain it. The ch
 | chip | meaning |
 |---|---|
 | **filter** | the layer has a filter. Click to see the expression and remove it. |
-| **selected** / **all** | for an `onSelection` layer: drawn only for the selected object, or all of its objects. Click to switch. |
+| **with selection** / **all** | for an `onSelection` layer: drawn only with the selected object, or all of its objects. Click to switch. |
 | **show** | the layer is hidden while something is selected, because only one of the selection's levels is drawn at a time. Click to draw this one. |
 | **shown** | the layer is not ticked, but it is drawn because it holds objects of the selection |
 

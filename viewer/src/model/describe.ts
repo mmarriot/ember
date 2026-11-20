@@ -74,6 +74,24 @@ export function objectName(header: Header, d: DisplayLayer, row: number, values:
   return [`${kindLabel(d)}${one ? "" : ` ${row + 1}`}`, where, values].filter(Boolean).join(" · ");
 }
 
+/** A label's text in the view: "Jet 1 · pT 46 GeV", its collection named only where objects of another collection of
+ *  its kind are labelled too (`labelled`: the layers of the labels shown), and then by the words that tell the
+ *  collections apart: "PUPPI" and "CHS" of "AK4 PUPPI (raw, no JEC)" and "AK4 CHS (raw, no JEC)". The card's subtitle
+ *  names the collection in full. */
+export function labelName(header: Header, d: DisplayLayer, row: number, values: string, labelled: DisplayLayer[]) {
+  const others = labelled.filter((l) => l.table !== d.table && !l.truth && kindName(l) === kindName(d)),
+    own = others.length ? which(header, d) : "",
+    shared = (w: string) => others.every((l) => which(header, l).split(" ").includes(w)),
+    word =
+      own
+        .split(" ")
+        .filter((w) => !shared(w))
+        .join(" ") || own;
+  return [`${kindLabel(d)}${d.list?.headline === "value" ? "" : ` ${row + 1}`}`, word, values]
+    .filter(Boolean)
+    .join(" · ");
+}
+
 /** The card's header in two lines: the object's name without its collection ("Jet 1 · pT 46 GeV · η 0.606"), and, small
  *  below it, where it comes from: its collection and its CMSSW collection ("AK4 PUPPI (raw, no JEC) · ak4PFJetsPuppi",
  *  "gedGsfElectrons"); "" when the layer's label only names its kind and the table's doc names no other CMSSW

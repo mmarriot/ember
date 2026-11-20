@@ -1,7 +1,7 @@
 // How tables, layers, objects and numbers are named in the page, from the open bundle's display hints. Plain
 // functions: they read the signals when called, so a component that calls them re-renders when those change.
 import { type DisplayLayer, kindName, type Table } from "../../io/format";
-import { cardName, chipName, describeRow, objectName } from "../describe";
+import { cardName, chipName, describeRow, labelName, objectName } from "../describe";
 import { bundle, event } from "./data";
 
 /** The key of a display layer, unique in a bundle: "table:repr". Signals keyed per layer use it. */
@@ -95,6 +95,16 @@ export function nameOf(ref: { table: string; row: number }, skip: string[] = [],
     d = layerOf(ref.table);
   return b && d
     ? objectName(b.header, d, ref.row, describe(ref.table, ref.row, skip), cmssw)
+    : `${ref.table} ${ref.row + 1}`;
+}
+
+/** An object's label in the view (model/describe.ts labelName): "Jet 1 · pT 46 GeV"; `labelled`: the layers of the
+ *  labels shown, which say whether its collection must be named. */
+export function labelText(ref: { table: string; row: number }, skip: string[], labelled: DisplayLayer[]) {
+  const b = bundle.value,
+    d = layerOf(ref.table);
+  return b && d
+    ? labelName(b.header, d, ref.row, describe(ref.table, ref.row, skip), labelled)
     : `${ref.table} ${ref.row + 1}`;
 }
 

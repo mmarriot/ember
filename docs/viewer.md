@@ -180,7 +180,9 @@ reads:
 - its collection, where the kind has several ("AK4" and "AK4 CHS"; "Standalone" and "Global" muon tracks). Where
   the layer's label adds nothing to the kind (the electrons beside "Electrons (HGCal)"), the CMSSW collection named
   in the table's description stands for it ("gedGsfElectrons"). The card names the collection and the CMSSW
-  collection on a small line under its header, so the header stays short;
+  collection on a small line under its header, so the header stays short. A label in the view names it only while
+  objects of another collection of the kind are labelled too, and then by the words that tell them apart ("Jet 1 ·
+  PUPPI" and "Jet 1 · CHS" of "AK4 PUPPI (raw, no JEC)" and "AK4 CHS (raw, no JEC)");
 - its values, each named after its quantity: "pT 49.7 GeV" (transverse momentum), "E raw 178 GeV" (a TICL
   candidate's raw energy). A truth particle is named by its pT and η ("π⁺ · pT 30.1 · η 0.714"), or by its energy
   next to a calorimeter object ("π⁺ · E 88.9 GeV").

@@ -5,7 +5,6 @@
 // where labels would overlap, the less important one hides (see place).
 import { computed, signal } from "@preact/signals";
 import { useEffect, useRef } from "preact/hooks";
-import type { DisplayLayer } from "../io/format";
 import type { Ref } from "../model/relations";
 import { filters } from "../model/custom";
 import {
@@ -17,9 +16,9 @@ import {
   event,
   focus,
   labelsOn,
+  labelText,
   layerKey,
   layerOf,
-  nameOf,
   selection,
   shared,
   truthText,
@@ -37,12 +36,6 @@ interface Item {
   kind: Kind;
 }
 
-/** A label's text: the object's one name (model/describe.ts) with the first value of its `describe` ("Jet 1 · AK4 ·
- *  pT 49.7 GeV"); `full`: all of them. */
-function text(d: DisplayLayer, row: number, full = false) {
-  return nameOf({ table: d.table, row }, full ? [] : (d.describe?.columns.slice(1) ?? []));
-}
-
 const items = computed<Item[]>(() => {
   const b = bundle.value,
     ev = event.value,
@@ -53,28 +46,37 @@ const items = computed<Item[]>(() => {
   cuts.value;
   filters.value; // the leading objects follow the cuts and filters
   if (!b || !ev) return [];
-  const out: Item[] = [],
+  // `full`: with all its values (the selection, the focus, the row pointed at), else with the first of its `describe`
+  const out: (Omit<Item, "text"> & { full: boolean })[] = [],
     seen = new Set<string>(),
-    add = (item: Item) => {
-      const k = `${item.ref.table}:${item.ref.row}`;
-      if (!seen.has(k)) {
+    add = (ref: Ref, kind: Kind, full = true) => {
+      const k = `${ref.table}:${ref.row}`;
+      if (layerOf(ref.table) && !seen.has(k)) {
         seen.add(k);
-        out.push(item);
+        out.push({ ref, kind, full });
       }
     };
-  if (h && layerOf(h.table)) add({ ref: h, text: text(layerOf(h.table)!, h.row, true), kind: "hover" });
+  if (h) add(h, "hover");
   // The selected object, marked so it is found at once, whatever the labels (L): every kind gets this mark, also those
   // the renderer cannot make stand out (a line one pixel wide).
-  if (sel && layerOf(sel.table)) add({ ref: sel, text: text(layerOf(sel.table)!, sel.row, true), kind: "selected" });
-  if (!labelsOn.value) return out;
-  // The focus, when the selection is one of its parts.
-  if (f && layerOf(f.table)) add({ ref: f, text: text(layerOf(f.table)!, f.row, true), kind: "focus" });
-  // The leading objects: in a shared domain's view, or in a bundle without domains; not while a focus is shown elsewhere.
-  const lead = (domain.value ? shared.value.has(domain.value) : !b.header.domains?.length) && !f;
-  if (lead)
-    for (const d of b.header.display.filter((l) => l.labels && drawn[layerKey(l)]))
-      for (const row of ranked(d, d.labels)) add({ ref: { table: d.table, row }, text: text(d, row), kind: "lead" });
-  return out;
+  if (sel) add(sel, "selected");
+  if (labelsOn.value) {
+    // The focus, when the selection is one of its parts.
+    if (f) add(f, "focus");
+    // The leading objects: in a shared domain's view, or in a bundle without domains; not while a focus is shown
+    // elsewhere.
+    const lead = (domain.value ? shared.value.has(domain.value) : !b.header.domains?.length) && !f;
+    if (lead)
+      for (const d of b.header.display.filter((l) => l.labels && drawn[layerKey(l)]))
+        for (const row of ranked(d, d.labels)) add({ table: d.table, row }, "lead", false);
+  }
+  // A label's text: the object's name (model/describe.ts labelName), with the first value of its `describe` ("Jet 1 ·
+  // pT 49.7 GeV") or, `full`, all of them; its collection only where another of its kind is labelled too.
+  const labelled = [...new Set(out.map((x) => x.ref.table))].map((t) => layerOf(t)!);
+  return out.map(({ ref, kind, full }) => {
+    const d = layerOf(ref.table)!;
+    return { ref, kind, text: labelText(ref, full ? [] : (d.describe?.columns.slice(1) ?? []), labelled) };
+  });
 });
 
 /** Where an object's label goes: the end of a line or a cone (its far end, e.g. where a jet meets the calorimeter),

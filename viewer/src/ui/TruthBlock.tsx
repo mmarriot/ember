@@ -7,7 +7,7 @@ import { DOCS_URL } from "../model/library";
 import { measureWords, percent } from "../model/match";
 import type { PartLine } from "../model/statement";
 import { inText, singular } from "../model/describe";
-import { chipText, kindOf, statement, stepName } from "../model/store";
+import { chipText, kindOf, pairView, statement, stepName } from "../model/store";
 import { type CrossChoice, cross, crossChoices, crossTo, crossing } from "../control/navigate";
 import { chip } from "./chips";
 import { HitTruth } from "./HitTruth";
@@ -85,6 +85,7 @@ export function TruthBlock({ table, row }: { table: string; row: number }) {
       )}
       {own?.kind === "container" && <p class="truthline nolink">Its truth is that of what contains it.</p>}
       {own?.kind === "fact" && <HitTruth />}
+      <Delegated />
       <Parts lines={st.parts.filter((l) => !l.beside)} own={own?.kind === "match"} table={table} />
       <Parts lines={st.parts.filter((l) => l.beside)} own={own?.kind === "match"} table={table} beside />
       <Chooser />
@@ -169,6 +170,21 @@ export function Quality({ purity, completeness, clean }: { purity?: number; comp
         </span>
       )}
     </>
+  );
+}
+
+/** When the pair the view shows is that of the object's part (model/pair.ts delegatedPart), says so at the top, so
+ *  it never reads as the object's own truth. */
+function Delegated() {
+  const p = pairView.value;
+  if (!p?.via || !p.from) return null;
+  const part = inText(singular(kindOf(p.from.table))),
+    whole = inText(singular(kindOf(p.via.table)));
+  return (
+    <p class="hint delegated">
+      The view shows the pair of its {part} {chip(p.from.table, p.from.row)}, not of the {whole}: the {whole} has no
+      truth of its own, and its matched parts all point to one particle. The match is the {part}'s.
+    </p>
   );
 }
 

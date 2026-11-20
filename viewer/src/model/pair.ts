@@ -100,6 +100,9 @@ export interface Pair {
   owners: number[];
   /** The selected reco object, when the pair comes from one (its table and row). */
   from?: Ref;
+  /** The selected object the pair stands in for, when it has no truth of its own and the pair is its part's
+   *  (delegatedPart): the pair is titled as the part's, never as this object's truth. */
+  via?: Ref;
   detectors: PairDetector[];
   classes: Map<string, Uint8Array>; // per table, a PairClass per object
 }
@@ -419,6 +422,29 @@ export function pairFor(ev: EventData, header: Header, focus: Ref, truth: string
   const rank = (d: PairDetector) => (d.in === "tracker" ? 0 : d.matches.length ? 1 : d.kind ? 2 : 3);
   detectors.sort((a, b) => rank(a) - rank(b));
   return { truth, particle, hitsOf, owners, from, detectors, classes };
+}
+
+/** The part whose pair stands in for `focus`'s (owner decision D4, a trial): for an object of a kind with no truth of
+ *  its own that is a reconstruction stage (a TICL candidate), its first part, in the header's order, of an earlier
+ *  stage with a match of its own (the candidate trackster; in a TICL v6 bundle, which has none, the linked trackster).
+ *  Every part it has through a relation that gives exactly one part and that is matched (its track too) must be
+ *  matched to the same particle, so the choice says nothing the parts do not; else null. */
+export function delegatedPart(ev: EventData, header: Header, focus: Ref, truth: string): Ref | null {
+  const stage = (t: string) => header.display.find((d) => d.table === t)?.stage;
+  if (stage(focus.table) === undefined || truthStatus(header, focus.table)?.kind !== "none") return null;
+  const matches = matchRelations(header, truth),
+    found: { part: Ref; particle: number; stage: boolean }[] = [];
+  for (const [name, info] of Object.entries(header.relations)) {
+    const rel = ev.relations[name],
+      m = matches.get(info.to);
+    if (!rel || !m || info.association || info.inverseOf || info.from !== focus.table || !ev.relations[m[0]]) continue;
+    if (rel.offsets[focus.row + 1] - rel.offsets[focus.row] !== 1) continue;
+    const part = rel.indices[rel.offsets[focus.row]],
+      p = bestPartners(ev.relations[m[0]], m[1], true, ev.tables[info.to]?.n ?? 0).partner[part];
+    if (p >= 0) found.push({ part: { table: info.to, row: part }, particle: p, stage: stage(info.to) !== undefined });
+  }
+  if (!found.every((f) => f.particle === found[0]?.particle)) return null; // its parts disagree
+  return found.find((f) => f.stage)?.part ?? null;
 }
 
 /** Whether the pair has anything to show: a particle with hits or matches, or a matched kind's object alone. */

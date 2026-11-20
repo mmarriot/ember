@@ -286,6 +286,11 @@ It never happens through an association, a pointer back up, or a "closest track"
 several parts and never gives the composite a verdict: "80% of its tracks are from the b" would be a match built in
 Ember, and a pion's track inside a photon's cluster is the story, not a contradiction to resolve.
 
+The pair of a part may stand in for the composite's in the view (owner decision D4, a trial). A TICL candidate's
+single parts that are matched (its candidate trackster, linked trackster, track) must all point to one particle; the
+view then shows the pair of the first of them that is an earlier reconstruction step (the candidate trackster; in a
+TICL v6 bundle, the linked trackster), and the card says it is that part's. Parts that disagree give no pair.
+
 A constituent's match never gives the composite its colour. In the truth colours, an object takes a colour only
 through its own association, or from the container it is part of, never from its parts. With a jet in focus, its
 tracks show in their own particles' colours: each colour is that track's own statement.

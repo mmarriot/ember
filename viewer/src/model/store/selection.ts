@@ -14,7 +14,7 @@ import { batch, computed, effect, signal } from "@preact/signals";
 import type { DisplayLayer } from "../../io/format";
 import { matchClass, recoLadder, recoOfTruth } from "../chain";
 import { focusLevels, levelLayers, mergeAcrossDomains, partsFirst, scopeLevels, stepLevel } from "../levels";
-import { PAIR, type Pair, pairFor, pairShows } from "../pair";
+import { delegatedPart, PAIR, type Pair, pairFor, pairShows } from "../pair";
 import { simEnergyByParticle } from "../match";
 import { colourLevel } from "../truth";
 import { cached, levelsOf, type Related, relatedParts, sameRef, type Ref, type SlotRank } from "../relations";
@@ -187,7 +187,11 @@ export const pairView = computed<Pair | null>(() => {
   if (activeMode.value === "layers" || !f || !b || !ev || !roots.truth || f.row >= (ev.tables[f.table]?.n ?? 0))
     return null;
   if (isFactTable(b.header, f.table) && !hitPair.value) return null;
-  const pair = pairFor(ev, b.header, f, roots.truth);
+  let pair = pairFor(ev, b.header, f, roots.truth);
+  // An object with no truth of its own may stand in for its one matched part (model/pair.ts delegatedPart).
+  const part = pair ? null : delegatedPart(ev, b.header, f, roots.truth);
+  const theirs = part && pairFor(ev, b.header, part, roots.truth);
+  if (theirs) pair = { ...theirs, via: f };
   return pair && pairShows(pair) ? pair : null;
 });
 
@@ -338,9 +342,9 @@ effect(() => {
 
 // ---- The focus's levels
 
-/** The object whose levels are shown: in the pair view, the matched object it comes from (a track for its hits);
- *  else the focus. */
-export const levelTop = computed<Ref | null>(() => pairView.value?.from ?? focus.value);
+/** The object whose levels are shown: in the pair view, the matched object it comes from (a track for its hits), or
+ *  the object it stands in for (a TICL candidate for its candidate trackster's pair); else the focus. */
+export const levelTop = computed<Ref | null>(() => pairView.value?.via ?? pairView.value?.from ?? focus.value);
 const topParts = computed(() => (sameRef(levelTop.value, focus.value) ? focusParts.value : partsOf(levelTop.value)));
 
 /** The kinds of object the focus is made of, top first (model/levels.ts); its own kind and truth are not levels. */

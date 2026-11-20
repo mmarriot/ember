@@ -641,6 +641,12 @@ lists that object's levels, with the one drawn lit. Click another one, or press 
 Behind its **i**: what the kind reconstructs (for example "the particle that entered the calorimeter"), how purity
 and completeness are counted, and the associator's score ("0 best; not a fraction").
 
+**Its part's pair** (owner decision D4, a trial). A TICL candidate has no truth of its own. When every part it has
+one of (its candidate trackster, its linked trackster, its track) that is matched points to the same particle, the
+view shows the pair of its first such part of an earlier reconstruction step: the candidate trackster, or in a TICL v6
+bundle (which has none with a match) the linked trackster. The truth block says so at its top: "The view shows the
+pair of its candidate trackster …, not of the TICL candidate". When the parts disagree, there is no pair.
+
 **A truth object** shows:
 
 - its head: `μ⁺ · pT 96.6 GeV · η 1.11 · φ -2.72 · E 162 GeV · status 1 · signal (bx 0)`; where it was made and the

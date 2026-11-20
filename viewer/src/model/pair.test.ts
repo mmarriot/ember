@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { DisplayLayer, EventData, Header } from "../io/format";
-import { PAIR, pairFor, pairShows } from "./pair";
+import { delegatedPart, PAIR, pairFor, pairShows } from "./pair";
 
 // HGCal: tracksters K hold layer clusters: K0 -> LC0, LC1; K1 -> LC2; K2 -> LC0 (a fragment); K3 -> LC3 (unmatched).
 // LC -> hits: LC0 -> H0, H1; LC1 -> H2; LC2 -> H3; LC3 -> H4. H5 is in no cluster.
@@ -205,5 +205,27 @@ describe("truth <-> reco pair", () => {
       },
     } as unknown as EventData;
     expect(pairShows(pairFor(lone, header, { table: "P", row: 5 }, "P")!)).toBe(false);
+  });
+});
+
+describe("a part's pair for an object with no truth of its own (D4, a trial)", () => {
+  it("takes the one matched part of an earlier reconstruction step (a candidate's trackster)", () => {
+    expect(delegatedPart(ev, header, { table: "C", row: 0 }, "P")).toEqual({ table: "K", row: 0 });
+  });
+  it("never when its matched parts disagree (its trackster on one particle, its track on another)", () => {
+    // C also points at track T0, matched to P2 while its trackster K0 is matched to P0
+    const ev2 = {
+      ...ev,
+      relations: {
+        ...ev.relations,
+        cT: { offsets: Uint32Array.from([0, 1]), indices: Uint32Array.from([0]), weights: {} },
+      },
+    } as EventData;
+    const h2 = { ...header, relations: { ...header.relations, cT: rel("C", "T") } } as Header;
+    expect(delegatedPart(ev2, h2, { table: "C", row: 0 }, "P")).toBeNull();
+  });
+  it("never for an object with truth of its own, nor for one that is no reconstruction step", () => {
+    expect(delegatedPart(ev, header, { table: "K", row: 0 }, "P")).toBeNull();
+    expect(delegatedPart(ev, header, { table: "V", row: 0 }, "P")).toBeNull();
   });
 });

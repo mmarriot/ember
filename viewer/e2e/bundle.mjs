@@ -154,7 +154,9 @@ export async function checkBundle(run, file, tag, state) {
     log(`${tag}: pair ${pair.replace(/\s+/g, " ") || (truthRoot && ownTruth ? "none" : why)}`);
     if (!pair && truthRoot && ownTruth) fail("no truth <-> reco pair for the selection");
     if (pair && !truthRoot) fail("a truth <-> reco pair in a bundle without truth");
-    if (pair && truthRoot && !ownTruth)
+    // ... unless the card says the pair is its one matched part's (owner decision D4: a TICL candidate's trackster)
+    const delegated = await page.locator(".inspector .delegated").count();
+    if (pair && truthRoot && !ownTruth && !delegated)
       fail(`a truth <-> reco pair for ${target.table}, which has no truth of its own`);
   }
   await shot("3_selected");

@@ -772,6 +772,9 @@ jetVariables = cms.PSet(kinematics,
     chEmEF=Var("chargedEmEnergyFraction", "float", precision=6, doc="charged EM energy fraction"),
     neEmEF=Var("neutralEmEnergyFraction", "float", precision=6, doc="neutral EM energy fraction"),
     muEF=Var("muonEnergyFraction", "float", precision=6, doc="muon energy fraction"),
+    x=Var("vx", "float", doc="x of the jet's vertex: the origin, without vertex correction [cm]"),
+    y=Var("vy", "float", doc="y of the jet's vertex [cm]"),
+    z=Var("vz", "float", doc="z of the jet's vertex [cm]"),
 )""",
             )
         for label, name, src in () if pat else (("puppiMet", "PuppiMET", "pfMetPuppi"), ("pfMet", "PFMET", "pfMet")):
@@ -824,6 +827,13 @@ table("tauTable", cms.EDProducer("SimplePFTauCandidateFlatTableProducer", src=cm
                     '\n        isGlobal=Var("isGlobalMuon", bool, doc="global muon"),'
                     '\n        isTracker=Var("isTrackerMuon", bool, doc="tracker muon"),'
                     '\n        isStandalone=Var("isStandAloneMuon", bool, doc="standalone muon"),'
+                    # where it starts: the reference point of the track it was made from (reco::Muon's vertex)
+                    + "".join(
+                        f'\n        {c}=Var("v{c}", "float", doc="{c} of the reference point of the track the muon was '
+                        f"made from (a global muon: the track its TeV refit chose; a tracker muon: the inner track; a "
+                        f'standalone-only muon: the standalone track) [cm]"),'
+                        for c in "xyz"
+                    )
                     if name == "Muon"
                     else ""
                 )

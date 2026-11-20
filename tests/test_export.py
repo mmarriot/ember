@@ -285,7 +285,7 @@ def test_the_phase2_configuration_has_what_the_input_and_the_release_have():
 
 def test_identification_impact_and_flight_columns():
     """e/gamma ID (HGCal's shower shapes for the HGCal objects), what the converter needs for impact parameters and
-    flight distances."""
+    flight distances, and the muons' and jets' own starting points."""
     s = cmsrun.Settings(True, False, "Phase2C22I13M9", "ExtendedRun4D104", "auto:phase2_realistic_T35")
     hgcal = [f"HGCRecHits_HGCalRecHit_{h}RecHits_RECO." for h in ("HGCHEF", "HGCHEB")]  # the value maps read all three
     text, notes = configuration(s, PHASE2 + hgcal + ["recoPhotons_photonsHGC__RECO."])
@@ -304,6 +304,8 @@ def test_identification_impact_and_flight_columns():
     )
     assert 'sigmaUU=ExtVar("hgcPhotonID:sigmaUU"' in photon and "pixelSeed=" in photon
     assert text.count('table("recHitMapProducer"') == 1 and 'electrons="ecalDrivenGsfElectronsHGC"' in text
+    assert 'x=Var("vx", "float", doc="x of the reference point of the track the muon' in table("Muon")
+    assert 'x=Var("vx", "float", doc="x of the jet' in text
     track = text.split("process.generalTracksTable.variables")[1]
     assert 'dxy0=Var("dxy"' in track and 'dz0Err=Var("dzError"' in track
     assert 'dxdz=Var("dxdz"' in text and 'widthX=Var("BeamWidthX"' in text  # the beam line, for dxybs

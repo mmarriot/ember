@@ -574,6 +574,18 @@ def test_gather_missing_fills_only_nan_values():
     assert out[:2].tolist() == [5, 8] and np.isnan(out[2])  # kept, filled, no track: still NaN
 
 
+def test_lookup_missing_keeps_the_tables_own_values():
+    """A lookup with `"missing": true` fills only the rows (or a whole column) the table lacks: ember's own muons carry
+    their track's reference point, a standard NanoAOD's take the leading primary vertex's."""
+    profile = {"derive": [{"table": "M", "lookup": "PV", "row": 0, "columns": {"z": "z"}, "missing": True}]}
+    conv = converter({"M": {"z": F4}, "PV": {"z": F4}}, profile)
+    _, tables, _ = one_event(conv, {"M": {"z": [1.5, np.nan]}, "PV": {"z": [4.0, 9.0]}})
+    assert tables["M"][1]["z"].tolist() == [1.5, 4.0]
+    conv = converter({"M": {"pt": F4}, "PV": {"z": F4}}, profile)  # no column of its own: all from PV row 0
+    _, tables, _ = one_event(conv, {"M": {"pt": [1, 2]}, "PV": {"z": [4.0]}})
+    assert tables["M"][1]["z"].tolist() == [4.0, 4.0]
+
+
 def test_impact_parameters_are_cmssw_s_moved_to_a_point():
     """impact: TrackBase::dxy(point) and dz(point) from the impact parameters to the origin (checked against the same
     distances from a reference point and the momentum), their uncertainties with the point's, and the beam line at the

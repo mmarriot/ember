@@ -2,7 +2,8 @@
 
 Kinds of derive, by the key that names them:
   lookup             columns copied from the row of another table (often a per-run table) named by an index column,
-                     or from one fixed `row` of it (e.g. the leading primary vertex)
+                     or from one fixed `row` of it (e.g. the leading primary vertex); with `missing`, only where the
+                     table lacks the column or the value is NaN
   impact             a track's transverse and longitudinal impact parameters to a point (one row of another table)
   flight             a secondary vertex's flight from a primary one: distances, their significances, pointing angle
   rowIndex           the row's number in the event, before cuts
@@ -175,8 +176,11 @@ def apply_derive(d, tables):
         ok = (idx >= 0) & (idx < n_source)
         for new, col in d["columns"].items():
             src = source[col]
-            cols[new] = np.full(n, np.nan if src.dtype.kind == "f" else -1, lookup_dtype(src.dtype))
-            cols[new][ok] = src[idx[ok]]
+            values = np.full(n, np.nan if src.dtype.kind == "f" else -1, lookup_dtype(src.dtype))
+            values[ok] = src[idx[ok]]
+            if d.get("missing") and new in cols and cols[new].dtype.kind == "f":  # its own numbers stay
+                values = np.where(np.isnan(cols[new]), values, cols[new]).astype(cols[new].dtype)
+            cols[new] = values
     elif "impact" in d:
         cols.update(_impact(d, cols, n, tables[d["impact"]]))
     elif "flight" in d:

@@ -1,6 +1,6 @@
 // A reco object's chain in its card (Card.tsx): what it is part of, itself, and what it is made of (model/chain.ts).
 // A step with a truth statement of its own has a tag (match: the associator's; sim: the simulated energy in its hits);
-// steps whose kinds have no associator have none, and a run of them is folded into one grey line. A step names its
+// steps whose kinds have no associator have none, and are named once behind the chain's i. A step names its
 // objects when they are few, and counts them otherwise (a click lists them). "show" draws a step in the view (↓ ↑ step
 // through them), and a step in another part of the detector has a link that looks there.
 import type { ComponentChildren } from "preact";
@@ -50,10 +50,7 @@ const CHAIN_HELP = (
         <b>sim</b>: from the simulation, the particles that left the energy in these hits.
       </li>
     </ul>
-    <p>
-      Steps of kinds CMSSW has no associator for have no tag; a run of them is named in one grey line. Click a tag for
-      what it means on that step.
-    </p>
+    <p>Click a tag for what it means on that step. Steps of kinds CMSSW has no associator for have no tag.</p>
   </>
 );
 
@@ -61,12 +58,37 @@ const CHAIN_HELP = (
 export function Chain() {
   const l = ladder.value;
   if (!l) return null;
+  // every collection of a step without an associator, also inside a step that has one (PF clusters: HCAL outer)
+  const none = [...l.above, ...l.below, ...l.beside].flatMap((r) =>
+    r.links.flatMap((x) => (x.kind === "none" ? [[r.kind, x] as const] : [])),
+  );
   return (
     <section class="ladder" aria-label="Chain">
       <h4>
         Chain{" "}
         <span class="lanes">
-          <Info title="The chain">{CHAIN_HELP}</Info>
+          <Info title="The chain">
+            {CHAIN_HELP}
+            {none.length > 0 && (
+              <>
+                <p>No CMSSW associator yet, so no truth, for:</p>
+                <ul>
+                  {none.map(([kind, x]) => (
+                    <li>
+                      <b>{kind}</b>
+                      {x.label ? ` (${x.label})` : ""}: {x.reason}
+                      {x.gap !== undefined && (
+                        <>
+                          {" "}
+                          (<GapLink gap={x.gap} />)
+                        </>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </Info>
         </span>
       </h4>
       <ol>
@@ -100,49 +122,9 @@ export function Chain() {
 /** Whether a step has a truth statement of its own (an association, or simulated energy in its hits). */
 const says = (r: Rung) => r.links.some((x) => x.kind === "match" || x.kind === "fact");
 
-/** A list of steps, each run of steps without truth followed by one grey line that names their kinds. */
+/** A list of steps. */
 function steps(rungs: Rung[], role: "above" | "below" | "beside", key: string) {
-  const out = [];
-  let quiet: Rung[] = [];
-  const fold = () => {
-    if (quiet.length) out.push(<NoAssociator rungs={quiet} key={`${key}|none|${out.length}`} />);
-    quiet = [];
-  };
-  for (const r of rungs) {
-    const none = !says(r) && r.links.some((x) => x.kind === "none");
-    if (!none) fold();
-    out.push(<RungRow rung={r} role={role} key={`${key}|${r.kind}`} />);
-    if (none) quiet.push(r);
-  }
-  fold();
-  return out;
-}
-
-/** One grey line for steps whose kinds have no CMSSW associator: their names, the reasons and gaps behind the i. */
-function NoAssociator({ rungs }: { rungs: Rung[] }) {
-  const why = rungs.flatMap((r) => r.links.flatMap((x) => (x.kind === "none" ? [[r.kind, x] as const] : [])));
-  return (
-    <li class="nolink">
-      {rungs.map((r) => r.kind).join(", ")}: no CMSSW associator{" "}
-      <Info title="No associator">
-        <p>CMSSW has no truth for these kinds of object yet. Ember builds no match in their place.</p>
-        <ul>
-          {why.map(([kind, x]) => (
-            <li>
-              <b>{kind}</b>
-              {x.label ? ` (${x.label})` : ""}: {x.reason}
-              {x.gap !== undefined && (
-                <>
-                  {" "}
-                  (<GapLink gap={x.gap} />)
-                </>
-              )}
-            </li>
-          ))}
-        </ul>
-      </Info>
-    </li>
-  );
+  return rungs.map((r) => <RungRow rung={r} role={role} key={`${key}|${r.kind}`} />);
 }
 
 /** One step of the chain: its kind, its objects (named when few, else counted, unfolding to a list), whether the view
@@ -221,8 +203,8 @@ function RungRow({ rung, role }: { rung: Rung; role: "above" | "self" | "below" 
           also via {rung.via.join(", ")}
         </div>
       )}
-      {/* The selection's own truth is the card's truth block; a step without a statement is named in the grey line
-          after its run of steps. */}
+      {/* The selection's own truth is the card's truth block; a step without a statement is named behind the chain's
+          i. */}
       {role !== "self" &&
         says(rung) &&
         rung.links.map((link) => (
@@ -398,13 +380,5 @@ function LinkLine({
       </div>
     );
   }
-  if (link.kind === "none")
-    // in a step with truth of its own, the collections that have none (PF clusters: HCAL outer)
-    return (
-      <div class="rlink none">
-        {label}
-        <span class="muted">no CMSSW associator</span>
-      </div>
-    );
-  return null; // no truth of its own (a track's hits): it goes with what contains it, and needs no line
+  return null; // none (said behind the chain's i), or no truth of its own (a track's hits: it goes with what contains it)
 }

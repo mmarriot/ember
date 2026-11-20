@@ -629,9 +629,8 @@ selected object's own statement is in the truth block, not repeated on its step.
 | match | For one object: the associator's best match and its purity (green from the kind's clean threshold, amber below), or "not matched" (a fake, or an object that the associator does not consider, such as a candidate without calorimeter energy). For several objects: their counts, in the colours of their dots, for example "11 clean · 4 impure · 1 not matched". On a step that holds the object (its vertex), the line says it is that step's own match: "the vertex's own: …". |
 | sim | The particles that left the simulated energy in the step's hits, with their shares, one line per detector (never summed across detectors). "per CSC layer" where the simulation records a coarser unit than the hit. "no simulated energy" where no exported particle left any (noise, out-of-time pile-up, or a particle the export left out): the tag says so. |
 
-Steps of kinds that CMSSW has no associator for have no tag. A run of them is named in one grey line after it, for
-example "Jets, Taus, PF candidates: no CMSSW associator", with each kind's reason and gap behind its **i**. "no
-truth" is never used: the card says which of three things it is, "no CMSSW associator" (the kind), "not matched"
+Steps of kinds that CMSSW has no associator for have no tag and no line: they are named once, with each kind's reason
+and gap, behind the chain's **i**. "no truth" is never used: the card says which of three things it is, "no CMSSW associator" (the kind), "not matched"
 (this object of a matched kind), or "no simulated energy" (a hit). A part with no truth of its own that goes with its
 container (the hits of a track) has no line.
 

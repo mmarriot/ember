@@ -332,6 +332,18 @@ On a phone, the panel is a sheet under the view. It is folded to its tabs until 
 
 The tab is called **Tree** for a bundle with a tree but no truth layers. It holds:
 
+- **the hard process**: the outgoing legs of the hard scatter (truth level HardProcess, bit 1), each once, under the
+  particle they came from: `t → b jet`, `W⁺ → μ⁺ νμ`. "jet" marks a leg that is a parton jet (bit 7). Each is a
+  button;
+- **Particles in this view**, the way into the truth: for the part of the detector looked at, detector by detector,
+  the particles that left simulated energy in its hits (from the hit index), largest first; in the tracker, which has
+  no simulated energy in the file, the particles a track is matched to, by pT. Each row gives the particle (by its
+  energy in a calorimeter, by pT and η in the tracker), its simulated energy there (MeV or GeV, not calibrated), its
+  best match among the kind compared there with that match's completeness ("51% of it"), "split n" when n objects of
+  the kind hold part of it, and "shared +n" when n other particles have the same best match (a merge). A detector
+  without an association (HF, HO) says "not compared". Sort by energy, completeness or split; click a particle or an
+  object to select it. Simulated energies of different detectors are never compared: a particle is listed in each
+  detector it reached. Physics and All list every detector;
 - **the event's reco ↔ truth scorecard.** For each reco kind that a CMSSW associator matches, it counts how many of
   the objects that pass their cuts and filters are a clean match, an impure match, or have no match
   (`matchTally` in `viewer/src/model/chain.ts`). Click a count to unfold its objects, largest first. So the event's
@@ -339,11 +351,14 @@ The tab is called **Tree** for a bundle with a tree but no truth layers. It hold
 - **the truth coverage**, folded to one line of counts, for example "9 matched · 2 sim · 18 no truth". Unfold it to
   see each kind's answer and, where there is no truth, why.
 - the truth collections, with their cuts;
-- what became of each particle that left hits: in each detector it left them in, its best match among the kind
-  compared there (HGCal: candidate tracksters; ECAL, HCAL: PF clusters), "none", or "not compared" where that
-  detector's reco has no association;
+- for a tree that is not the truth's, what became of each of its objects that left hits;
 - objects linked to objects of the same table as a tree that you can fold, for example the truth-graph particles and
-  their children.
+  their children. A particle that the generator wrote several times (status 23, 51, 1) is one node, "μ⁺ ×4", whose
+  children are those of its last copy. Its search box takes the start of a name ("B", "μ"), a pdgId (`511`, `-11`) or
+  a pdgId of either sign (`|pdg|=11`). Chips under it find particles by truth level (hard process, generator
+  particle, entered the calorimeter, parton jet, b hadron, c hadron, reconstructable, τ visible), each with its count
+  in the event, and by what they did (converted, radiated brem, interacted, decayed: a vertex of that process made some
+  of their daughters; each result then gives its radius). They combine.
 
 ### Event tab
 
@@ -549,8 +564,17 @@ match as the part's.
 
 **A truth object** shows:
 
+- its head: `μ⁺ · pT 96.6 GeV · η 1.11 · φ -2.72 · E 162 GeV · status 1 · signal (bx 0)`; where it was made and the
+  last vertex where its daughters were made (the file's end vertex: not necessarily where it stopped), with R and z
+  and the vertex named after the particle that made its particles and its process ("W⁻ decay · 1 charged",
+  "γ conversion · 2 charged"); its generator copies; a tag for each truth level it belongs to (hard process,
+  generator particle, entered the calorimeter, parton jet, b or c hadron, reconstructable, τ visible); and what the
+  graph says of its physics ([Truth](truth.md#physics-from-the-graph)): an electron's brem, a photon's conversion, a
+  τ's decay, a b or c hadron's flight and the reco vertex matched to its decay;
 - its lineage: its ancestors (the generator's quarks and gluons folded into one line), itself, its daughters, the
-  levels each one belongs to, and the reco objects whose best match it is;
+  levels each one belongs to, and the reco objects whose best match it is. A particle's generator copies are one
+  entry ("μ⁺ ×4 (status 23→1)"); a particle made from several partons says "from n partons", and the line follows the
+  first;
 - **Reconstructed as**: for each reco kind with a truth → reco association, the objects that share hits or energy
   with it, most complete first. Each shows the share of the particle that it holds, and a ★ where the particle is
   that object's own best match. "none" means that nothing of that kind was reconstructed from it. This alone is not an

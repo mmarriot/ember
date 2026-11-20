@@ -640,6 +640,66 @@ table.outcome .outcell {
 .outcome td:has(.outcell) {
   white-space: normal;
 }
+/* A3: a particle's chip never wraps one character per line next to a wide cell. */
+table.outcome td:first-child,
+table.outcome .chip {
+  white-space: nowrap;
+}
+/* Particles in this view: particle | amount | best match | holds | objects, sortable by the column names. */
+table.inview {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+table.inview th {
+  text-align: left;
+  font-weight: 500;
+  color: var(--muted);
+  white-space: nowrap;
+  padding: 0 4px 2px 0;
+}
+.inview .sortby {
+  margin: 0 0 4px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.inview .sortby .link {
+  margin-left: 6px;
+  font: inherit;
+}
+.inview .sortby .link.on {
+  color: var(--text);
+  font-weight: 600;
+}
+table.inview td {
+  padding: 1px 4px 1px 0;
+  vertical-align: middle;
+}
+table.inview td:first-child,
+table.inview .chip {
+  white-space: nowrap;
+}
+table.inview td.num,
+table.inview th.num {
+  text-align: right;
+}
+.inview details.indet {
+  margin: 4px 0 6px;
+}
+.inview details.indet > summary {
+  font-size: 12px;
+  cursor: pointer;
+}
+ul.hard {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 12px;
+}
+ul.hard li {
+  margin: 2px 0;
+}
 .outcome .missed .chip {
   border-color: #e5534b;
 }
@@ -700,6 +760,20 @@ table.outcome .outcell {
 .tree input.expr {
   width: 100%;
   margin: 4px 0;
+}
+/* Truth search: level and process chips, on when chosen. */
+.tree .levelchips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin: 0 0 4px;
+}
+.tree .levelchips .chip {
+  margin: 0;
+}
+.tree .levelchips .chip.on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
 }
 /* Per-event summary charts (Event tab): one row per group, label | bar | value. */
 .bars {

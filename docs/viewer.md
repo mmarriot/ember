@@ -381,11 +381,12 @@ On a phone, the panel is a sheet under the view. It is folded to its tabs until 
 
 ### Truth tab
 
-The tab is called **Tree** for a bundle with a tree but no truth layers. It holds:
+The tab is called **Tree** for a bundle with a tree but no truth layers. It opens on the hard process; every
+section under it is folded to its heading until you open it. It holds:
 
 - **the hard process**: the outgoing legs of the hard scatter (truth level HardProcess, bit 1), each once, under the
-  particle they came from: `t → b jet`, `W⁺ → μ⁺ νμ`. "jet" marks a leg that is a parton jet (bit 7). Each is a
-  button;
+  particle they came from: `t → b`, `W⁺ → μ⁺ νμ`. A quark or gluon leg is named by the parton (`b`, `s̄`), never
+  "jet": it selects that parton, and the truth graph has no jets. Each is a button;
 - **Particles in this view**, the way into the truth: for the part of the detector looked at, detector by detector,
   the particles that left simulated energy in its hits (from the hit index), largest first; in the tracker, which has
   no simulated energy in the file, the particles a track is matched to, by pT. Each row gives the particle (by its
@@ -402,7 +403,7 @@ The tab is called **Tree** for a bundle with a tree but no truth layers. It hold
   merged, split and fake objects are one click away.
 - **the truth coverage**, folded to one line of counts, for example "9 matched · 2 sim · 18 no associator". Unfold it
   to see each kind's answer and, where there is no associator, why (the gap behind its **i**).
-- the truth collections, with their cuts;
+- **Truth graph browser**: the truth collections, with their cuts, and the tree of their particles (the last item);
 - for a tree that is not the truth's, what became of each of its objects that left hits;
 - objects linked to objects of the same table as a tree that you can fold, for example the truth-graph particles and
   their children. A particle that the generator wrote several times (status 23, 51, 1) is one node, "μ⁺ ×4", whose

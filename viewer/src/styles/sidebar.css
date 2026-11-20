@@ -536,9 +536,6 @@ details.part > summary .link {
 }
 
 /* The Truth tab: the scorecard, the truth coverage, what became of each particle, and the tree. */
-section.scorecard {
-  margin: 0 0 12px;
-}
 table.score {
   width: 100%;
   border-collapse: collapse;
@@ -588,21 +585,22 @@ table.score .num.q-impure {
 table.score .num.q-unmatched {
   color: var(--nomatch);
 }
-section.coverage {
-  margin: 0 0 12px;
-}
-section.coverage > details {
+/* The sections under the hard process, each folded to its heading. */
+section.fold > details {
   margin: 0;
 }
-section.coverage > details > summary {
+section.fold > details > summary {
   color: inherit;
 }
-section.coverage > details > summary h3 {
+section.fold > details > summary h3 {
   display: inline;
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--muted);
+}
+section.fold > details[open] > summary {
+  margin-bottom: 4px;
 }
 ul.coverage {
   list-style: none;
@@ -702,9 +700,6 @@ table.inview th.num {
 }
 table.inview td > span {
   white-space: nowrap;
-}
-.inview > h3 .count {
-  margin-left: 4px;
 }
 .inview details.indet {
   margin: 4px 0 6px;

@@ -106,7 +106,7 @@ export const labelsOn = signal(true);
 /** The object under the pointer, where the pointer is, and how many objects are stacked under it. */
 export const hover = signal<(Hit & { x: number; y: number; stacked: number }) | null>(null);
 /** The dialog open, if any. */
-export const dialog = signal<"help" | null>(null);
+export const dialog = signal<"help" | "picture" | null>(null);
 /** The guided tour is running. */
 export const touring = signal(false);
 /** What the replay is showing now (its caption). */

@@ -46,6 +46,7 @@ import {
 import { chooserOpen } from "./Chooser";
 import { Header } from "./Header";
 import { HelpDialog } from "./Help";
+import { PictureDialog } from "./Picture";
 import { Popover, popover } from "./Info";
 import { Card } from "./Card";
 import { menuOpen } from "./Menu";
@@ -84,6 +85,7 @@ export function App() {
         <Card />
       </main>
       {dialog.value === "help" && <HelpDialog />}
+      {dialog.value === "picture" && <PictureDialog />}
       <Popover />
       <Toasts />
       {dropping.value && <DropHint />}

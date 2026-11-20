@@ -28,8 +28,8 @@ export function passing(d: DisplayLayer) {
 
 /** The event in one line, from the ticked layers with object rows (`list`): how many objects of each kind pass the cuts
  *  and filters ("Jets 4", the layers of a kind summed, e.g. barrel and endcap electrons), or the value of a one-object
- *  table ("Puppi MET 42.2 GeV"). */
-export function Headline({ layers }: { layers: DisplayLayer[] }) {
+ *  table ("Puppi MET 42.2 GeV"). As [name, value] pairs. */
+export function headline(layers: DisplayLayer[]): [string, string][] {
   const parts = new Map<string, number | string>();
   for (const d of layers.filter((l) => l.list && visible.value[layerKey(l)])) {
     const p = passing(d);
@@ -47,12 +47,17 @@ export function Headline({ layers }: { layers: DisplayLayer[] }) {
     const name = kindName(d);
     parts.set(name, (Number(parts.get(name)) || 0) + n);
   }
-  return parts.size ? (
+  return [...parts].map(([label, value]) => [label, typeof value === "number" ? value.toLocaleString() : value]);
+}
+
+export function Headline({ layers }: { layers: DisplayLayer[] }) {
+  const parts = headline(layers);
+  return parts.length ? (
     <p class="headline">
-      {[...parts].map(([label, value], i) => (
+      {parts.map(([label, value], i) => (
         <>
           {i > 0 && " · "}
-          {label} <b>{typeof value === "number" ? value.toLocaleString() : value}</b>
+          {label} <b>{value}</b>
         </>
       ))}
     </p>

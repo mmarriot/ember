@@ -58,6 +58,15 @@ and explains how to publish the file.
 
 The address bar always holds the same link. [The address](#the-address) lists what it keeps.
 
+## Saving a picture
+
+**Menu → Save picture…** saves the view alone as a PNG: without the side panel, the card, the labels or the axes.
+Choose 1×, 2× or 4× the view's size on screen; lines and markers keep their size relative to the picture, so it looks
+like the screen, only sharper. The caption, on by default, is the view's title and its line of physics objects. A
+graphics card that cannot draw the size asked for says so; choose a smaller one. A 4× picture of a view of 1260 × 890
+pixels takes about 72 MB for its pixels, and its antialiasing several times that on the graphics card, for the moment
+it is drawn.
+
 ## Controls
 
 Press `?` for the viewer's help. It lists the same controls as this section, grouped, with their keys. The **Menu**

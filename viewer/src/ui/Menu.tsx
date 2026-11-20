@@ -55,6 +55,7 @@ export function Menu() {
           run: () => engine?.frame(highlight.value ?? undefined, true),
         },
         { label: "Labels", keys: "L", on: labelsOn.value, run: () => (labelsOn.value = !labelsOn.value) },
+        { label: "Save picture…", off: !bundle.value, run: () => (dialog.value = "picture") },
       ],
     ],
     [

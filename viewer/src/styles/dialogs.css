@@ -36,6 +36,21 @@
 .modal-body h3:first-child {
   margin-top: 0;
 }
+/* Save picture (Picture.tsx): the size, the caption, the button. */
+.picture-size {
+  margin: 10px 0;
+}
+.picture-size small {
+  color: var(--muted);
+  margin-left: 4px;
+}
+.picture-size .on small {
+  color: inherit;
+}
+.picture-caption {
+  display: block;
+  margin: 0 0 12px;
+}
 /* Help: a key column, then what it does (and the mouse or button that does it too). */
 table.kv.keys {
   table-layout: fixed;

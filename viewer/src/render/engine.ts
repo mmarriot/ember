@@ -140,8 +140,9 @@ export class Engine {
     requestAnimationFrame(loop);
   }
 
-  /** The event, then a small axis gizmo in the bottom-right corner showing the camera orientation (3D views). */
-  private draw() {
+  /** The event, then (`gizmo`) a small axis gizmo in the bottom-right corner showing the camera orientation (3D
+   *  views). */
+  private draw(gizmo = true) {
     const r = this.renderer;
     r.setViewport(0, 0, this.width, this.height);
     // The outlines fade near the 3D camera, on the scale of its distance to what it looks at.
@@ -149,7 +150,7 @@ export class Engine {
     r.render(this.scene, this.camera);
     for (const l of this.retired.splice(0)) l.dispose();
     this.onDraw();
-    if (this.rz) return;
+    if (this.rz || !gizmo) return;
     const size = 110;
     this.gizmo.camera.position.copy(this.camera.position).sub(this.controls.target).setLength(3);
     this.gizmo.camera.up.copy(this.camera.up);
@@ -663,6 +664,42 @@ export class Engine {
   pickAll(clientX: number, clientY: number, accept?: (table: string, row: number) => boolean): Hit[] {
     const view = { rect: this.canvas.getBoundingClientRect(), camera: this.camera, rz: this.rz };
     return pickAll(this.drawn, view, clientX, clientY, accept);
+  }
+
+  /** The view drawn `scale` times its size on screen (in CSS pixels), copied to a canvas of its own; null when the
+   *  graphics card cannot draw that large. Line widths and marker sizes (in drawing-buffer pixels, set from the
+   *  screen's pixel ratio) are scaled with it, so the picture looks like the screen, only sharper. WebGL clears its
+   *  drawing buffer once the browser has shown it, so the buffer is resized, drawn and copied in this one task, then
+   *  put back. Memory: the buffer and the copy are 4 B per pixel each (4x of a 1260x890 view: about 72 MB each), and
+   *  the buffer's antialiasing samples several times that, on the graphics card, until it is put back. */
+  picture(scale: number): HTMLCanvasElement | null {
+    const r = this.renderer,
+      ratio = r.getPixelRatio(),
+      w = Math.floor(this.width * scale), // as three.js sizes the drawing buffer
+      h = Math.floor(this.height * scale);
+    const f = scale / (globalThis.devicePixelRatio || 1),
+      sized: [{ value: number }, number][] = [];
+    this.scene.traverse((o) => {
+      const u = ((o as THREE.Mesh).material as THREE.ShaderMaterial | undefined)?.uniforms;
+      for (const k of ["uWidth", "uPx"]) if (typeof u?.[k]?.value === "number") sized.push([u[k], u[k].value]);
+    });
+    let out: HTMLCanvasElement | null = null;
+    try {
+      r.setPixelRatio(scale);
+      const gl = r.getContext();
+      if (gl.drawingBufferWidth === w && gl.drawingBufferHeight === h && !gl.isContextLost()) {
+        for (const [u, v] of sized) u.value = v * f;
+        this.draw(false); // the view alone, without the axis gizmo
+        out = Object.assign(document.createElement("canvas"), { width: w, height: h });
+        if (!gl.isContextLost()) out.getContext("2d")!.drawImage(this.canvas, 0, 0);
+        else out = null; // the card ran out of memory for it
+      }
+    } finally {
+      for (const [u, v] of sized) u.value = v;
+      r.setPixelRatio(ratio);
+      this.requestRender();
+    }
+    return out;
   }
 
   /** Where a point (cm) is drawn, in CSS pixels from the canvas's top left (rho-z: on its own side of the axis), or

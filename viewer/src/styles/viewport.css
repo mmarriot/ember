@@ -247,6 +247,15 @@
 .labels .label.hover span {
   border-color: var(--accent);
 }
+/* A label that would cross the card or another label sits left of its object. */
+.labels .label.flip span {
+  left: auto;
+  right: 6px;
+}
+.labels .label.selected.flip span {
+  left: auto;
+  right: 12px;
+}
 /* The selected object in the view: its label filled, with a ring at its anchor. */
 .labels .label.selected span {
   background: var(--accent);

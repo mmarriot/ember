@@ -1,7 +1,8 @@
 // Labels over the view: the leading objects of the layers with a `labels` hint (in a shared domain's view, e.g.
 // Physics, where they are the event), the focus in any view, and the object under the pointer in the side panel's
 // object rows (with a ring). HTML elements moved after every frame drawn (Engine.onDraw): a projection and a CSS
-// transform each, a handful per frame.
+// transform each, a handful per frame. A label never sits under the card (it flips to the left of its object), and
+// where labels would overlap, the less important one hides (see place).
 import { computed, signal } from "@preact/signals";
 import { useEffect, useRef } from "preact/hooks";
 import { kindName, type DisplayLayer } from "../io/format";
@@ -23,6 +24,7 @@ import {
 } from "../model/store";
 import { ranked } from "../control/navigate";
 import { engine } from "../control/scene";
+import { type Kind, placeLabels } from "./placement";
 
 /** The object under the pointer in the side panel's object rows. */
 export const rowHover = signal<Ref | null>(null);
@@ -30,7 +32,7 @@ export const rowHover = signal<Ref | null>(null);
 interface Item {
   ref: Ref;
   text: string;
-  kind: "lead" | "focus" | "selected" | "hover";
+  kind: Kind;
 }
 
 /** A label's text: its kind and the first value of its `describe` ("Jets · pT 49.7 GeV"); `full`: all of it. */
@@ -87,21 +89,35 @@ export function Labels() {
   const box = useRef<HTMLDivElement>(null),
     list = items.value;
   useEffect(() => {
-    const e = engine;
-    if (!e) return;
+    const e = engine,
+      host = box.current;
+    if (!e || !host) return;
+    const els = [...host.children] as HTMLElement[],
+      spans = els.map((el) => el.firstElementChild as HTMLElement);
+    // The texts' sizes: measured once per list (moving a label does not change them).
+    const sizes = spans.map((s) => [s.offsetWidth, s.offsetHeight]);
+    // All reads first (the card's rectangle: one layout at most), then all writes, so a frame lays out once.
     const place = () => {
-      const els = box.current?.children;
-      if (!els) return;
-      list.forEach((item, i) => {
-        const el = els[i] as HTMLElement | undefined,
-          at = anchor(item.ref),
-          p = at && e.project(...at);
-        if (!el) return;
-        if (!p || !Number.isFinite(p[0])) {
+      const view = host.getBoundingClientRect(),
+        c = document.querySelector(".inspector")?.getBoundingClientRect(),
+        card = c && { x0: c.left - view.left, y0: c.top - view.top, x1: c.right - view.left, y1: c.bottom - view.top };
+      const at = list.map((item) => {
+        const a = anchor(item.ref),
+          p = a && e.project(...a);
+        return p && Number.isFinite(p[0]) && Number.isFinite(p[1]) ? p : null;
+      });
+      const sides = placeLabels(
+        list.map((item, i) => ({ kind: item.kind, at: at[i], w: sizes[i]?.[0] ?? 0, h: sizes[i]?.[1] ?? 0 })),
+        card,
+      );
+      els.forEach((el, i) => {
+        const p = at[i];
+        if (!p || !sides[i]) {
           el.style.visibility = "hidden";
           return;
         }
         el.style.visibility = "visible";
+        el.classList.toggle("flip", sides[i] === "left");
         el.style.transform = `translate(${p[0].toFixed(1)}px, ${p[1].toFixed(1)}px)`;
       });
     };

@@ -147,19 +147,28 @@ function wideSegments(input: LayerInput, start: Vec3s, end: Vec3s): Layer {
   followDrawingBuffer(quads, material);
   const group = new THREE.Group().add(quads);
   // Arrow heads: an instanced cone per row at the line's end, along it; hidden when the line is cut or not grown yet.
+  // They share the lines' uniforms, so they fade with a selection as the lines do (per head: selected before and now,
+  // and pinned).
   let rgb = input.rgb,
     rz = false,
     clock = REPLAY_OFF,
-    appear: Float32Array | null = null;
+    appear: Float32Array | null = null,
+    pinned = -1;
+  const headSel = new Float32Array(3 * Math.max(n, 1)); // per row: selected now, before, pinned
   const heads = d.arrow
     ? new THREE.InstancedMesh(
         new THREE.ConeGeometry(1, 1, 20).translate(0, -0.5, 0),
         new THREE.ShaderMaterial({
+          uniforms: material.uniforms,
           // raw colours, as the lines
-          vertexShader: /* glsl */ `varying vec3 vCol;
+          vertexShader: /* glsl */ `
+      attribute vec3 iflags;
+      varying vec3 vCol;
+      ${SHADER_COMMON}
       void main() {
+        gPin = iflags.z;
         #ifdef USE_INSTANCING_COLOR
-        vCol = instanceColor;
+        vCol = fade(instanceColor, selected(iflags.y, iflags.x));
         #endif
         gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(position, 1.0);
       }`,
@@ -168,6 +177,8 @@ function wideSegments(input: LayerInput, start: Vec3s, end: Vec3s): Layer {
         Math.max(n, 1),
       )
     : null;
+  const flags = new THREE.InstancedBufferAttribute(headSel, 3);
+  heads?.geometry.setAttribute("iflags", flags);
   const placeHeads = () => {
     if (!heads) return;
     const m = new THREE.Matrix4(),
@@ -216,7 +227,19 @@ function wideSegments(input: LayerInput, start: Vec3s, end: Vec3s): Layer {
     },
     setPinned(row) {
       common.setPinned(row);
-      placeHeads();
+      if (pinned >= 0) headSel[3 * pinned + 2] = 0;
+      pinned = row;
+      if (row >= 0) headSel[3 * row + 2] = 1;
+      flags.needsUpdate = true;
+      placeHeads(); // a pinned head is drawn whatever the cut
+    },
+    setHighlight(rows) {
+      common.setHighlight(rows);
+      for (let i = 0; i < n; i++) {
+        headSel[3 * i + 1] = headSel[3 * i];
+        headSel[3 * i] = rows?.has(i) ? 1 : 0;
+      }
+      flags.needsUpdate = true;
     },
     setColours(c) {
       rgb = c;

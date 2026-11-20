@@ -59,6 +59,8 @@ export class Engine {
   /** The replay in progress: started at `t0`, ends after `seconds`; `only`: the layers whose clocks run; `pace`: real
    *  seconds per second of replay. */
   private replayClock: { t0: number; seconds: number; only?: Layer[]; pace: number } | null = null;
+  /** Something is selected: the detector outlines are faded (see setFocused). */
+  private focused = false;
   /** The selection's cross-fade in progress (see fadeHighlight). */
   private highlightFade: { t0: number; ms: number } | null = null;
   /** Auto-rotation of the 3D view, turns per minute (0: none). */
@@ -290,6 +292,8 @@ export class Engine {
     this.outlines = outlines.length ? outlineObject(outlines, colour, background) : null;
     if (this.outlines) {
       this.outlines.setView(this.view);
+      this.outlines.setHighlight(this.focused);
+      this.outlines.setHighlightMix(1);
       this.scene.add(this.outlines.object);
     }
     this.requestRender();
@@ -637,10 +641,21 @@ export class Engine {
     this.requestRender();
   }
 
-  /** Cross-fade every layer from its previous selection to its current one (set with Layer.setHighlight). */
+  /** Whether something is selected: the detector outlines fade as the layers' unrelated objects do (shown at once;
+   *  fadeHighlight cross-fades them with the layers). */
+  setFocused(on: boolean) {
+    this.outlines?.setHighlight(on); // also when unchanged: fadeHighlight then cross-fades from on to on
+    this.focused = on;
+    this.outlines?.setHighlightMix(1);
+    this.requestRender();
+  }
+
+  /** Cross-fade every layer from its previous selection to its current one (set with Layer.setHighlight), and the
+   *  detector outlines with them. */
   fadeHighlight(ms: number) {
     this.highlightFade = { t0: performance.now(), ms };
     for (const l of this.layers) l.setHighlightMix(0);
+    this.outlines?.setHighlightMix(0);
     this.requestRender();
   }
 
@@ -649,6 +664,7 @@ export class Engine {
     const t = Math.min(1, (now - this.highlightFade!.t0) / this.highlightFade!.ms),
       k = t * t * (3 - 2 * t);
     for (const l of this.layers) l.setHighlightMix(k);
+    this.outlines?.setHighlightMix(k);
     if (t >= 1) this.highlightFade = null;
     this.requestRender();
   }

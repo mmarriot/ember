@@ -616,6 +616,7 @@ function showFocus(ms: number) {
   const hl = highlight.peek(),
     truth = truthOutline();
   for (const { layer } of entries) dress(layer, hl, truth);
+  engine?.setFocused(!!hl);
   if (ms > 0) engine?.fadeHighlight(ms);
   else for (const { layer } of entries) layer.setHighlightMix(1);
   engine?.requestRender();

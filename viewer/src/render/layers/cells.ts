@@ -9,6 +9,7 @@ import {
   commonFields,
   CULL,
   drawBehind,
+  FADE_GLSL,
   interleave,
   type Layer,
   type LayerInput,
@@ -52,7 +53,7 @@ export function cells(input: LayerInput): Layer {
         gl_Position.z -= gl_Position.w * 2e-7 * float(gl_InstanceID % 4);
         // The colour is A * light * icol + B: the light comes per face in the fragment shader (12 shared corners per
         // cell, no normals), the flash, selection fade and replay fade here: mix(fade(mix(icol * light, 1, f), s), bg, g).
-        float f = uFlash * p, k = 0.85 * selActive() * (1.0 - s), g = faded();
+        float f = uFlash * p, k = ${FADE_GLSL} * selActive() * (1.0 - s), g = faded();
         vCol = icol;
         vA = (1.0 - g) * (1.0 - k) * (1.0 - f) * (1.0 - PIN * gPin);
         vB = ((1.0 - g) * ((1.0 - k) * vec3(f) + k * uBg) + g * uBg) * (1.0 - PIN * gPin) + PIN * gPin * uRim; // the selected cell: as fade()

@@ -102,6 +102,12 @@ export interface LayerInput {
 /** Three columns, one value per object each (x, y, z). */
 export type Vec3s = [Float32Array, Float32Array, Float32Array];
 
+/** How far towards the background everything unrelated to a selection fades (0..1): one level for every layer, and
+ *  for what is drawn beside the layers (cone wedges, arrow heads, the detector outlines), so nothing out-shouts it. */
+export const FADE = 0.85;
+/** FADE as a GLSL float literal. */
+export const FADE_GLSL = FADE.toFixed(2);
+
 /** GLSL shared by the shader-drawn layers: the uniforms every one of them has (see baseUniforms) and small helpers for
  *  the rho-z projection, the selection fade and the replay. */
 export const SHADER_COMMON = /* glsl */ `
@@ -118,7 +124,7 @@ float selected(float before, float now) { return mix(before, now, uMix); }
 // line drawn as a ribbon is three times as wide and a marker larger.
 float gPin = 0.0;
 const float PIN = 0.55;
-vec3 fade(vec3 col, float s) { return mix(mix(col, uBg, 0.85 * selActive() * (1.0 - s)), uRim, PIN * gPin); }
+vec3 fade(vec3 col, float s) { return mix(mix(col, uBg, ${FADE_GLSL} * selActive() * (1.0 - s)), uRim, PIN * gPin); }
 float pop(float t) { return exp(-max(uClock - t, 0.0) * 6.0); } // 1 when an object appears, then decays in ~0.3 s
 // 1 until the layer retires in a replay, then down to 0 over 0.6 s (always 1 outside a replay).
 float remaining() { return uClock > 1e29 ? 1.0 : clamp(1.0 - (uClock - uRetire) / 0.6, 0.0, 1.0); }

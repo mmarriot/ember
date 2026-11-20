@@ -18,7 +18,8 @@ export function applyPreset(i: number) {
     for (const d of b.header.display) if (d.table === table && !d.context) by[layerKey(d)] = column;
   Object.assign(rows, presets[i].filters ?? {});
   // Layers any preset ticks start from their default tick; this one's are ticked: those it shows (e.g. the PF
-  // candidates for "What PUPPI removed", which start unticked) and those it colours (the AK4 CHS jets of "b-tags").
+  // candidates for "PF candidates with PUPPI weight 0", which start unticked) and those it colours (the AK4 CHS jets of
+  // "DeepCSV (CHS jets)").
   const ticks = { ...visible.peek() },
     ticksOf = (p: Preset, d: DisplayLayer) => !!p.show?.includes(d.table) || (!d.context && !!p.colour?.[d.table]);
   for (const d of b.header.display)
@@ -30,7 +31,8 @@ export function applyPreset(i: number) {
 }
 
 /** Whether the bundle has what preset `p` uses: every table it colours or ticks, and every column it colours by (a
- *  related object, "rel:…", is not a column). A data set without b-tag columns is not offered "b-tags". */
+ *  related object, "rel:…", is not a column). A data set without b-tag columns is not offered
+ *  "DeepCSV (CHS jets)". */
 export function presetFits(p: Preset, h: Pick<Header, "tables">): boolean {
   const has = (t: string) => !!h.tables[t];
   return (

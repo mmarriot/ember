@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Table } from "../io/format";
-import { passes, stepRow, topRows, whyHidden } from "./objects";
+import { passes, ranks, stepRow, topRows, whyHidden } from "./objects";
 
 const t = { n: 5, columns: { pt: new Float32Array([5, 40, 12, 80, 3]), eta: new Float32Array([0, 1, -1, 2, 0]) } };
 
@@ -20,6 +20,15 @@ describe("object rows", () => {
   it("keeps row order without a sort column, and passes everything without cut or filter", () => {
     expect(topRows(t, undefined, passes({}, t, 0, null), 3)).toEqual([0, 1, 2]);
     expect(topRows(t, "missing", passes({}, t, 0, null), 10)).toEqual([0, 1, 2, 3, 4]);
+  });
+});
+
+describe("ranks", () => {
+  it("gives each row its place, largest first, from 1; equal values in row order, NaN last", () => {
+    expect([...ranks(t.columns.pt, t.n)]).toEqual([4, 2, 3, 1, 5]);
+    expect([...ranks(new Float32Array([2, NaN, 7, 2]), 4)]).toEqual([2, 4, 1, 3]);
+    expect([...ranks(new BigInt64Array([3n, 10n]), 2)]).toEqual([2, 1]);
+    expect([...ranks(new Float32Array(0), 0)]).toEqual([]);
   });
 });
 

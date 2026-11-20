@@ -176,13 +176,19 @@ its chip in a list, the side panel's row and the shared link's description: "Jet
 reads:
 
 - the kind, in the singular ("Jet", "Primary vertex", "Puppi MET");
-- its number, from 1 (the address keeps `s=Jet:0`, from 0). A one-object table such as MET has none;
+- its number, from 1, by the column its side-panel rows are sorted by (and `N`, `Shift+N` step by) among the
+  objects of its collection in this event: by pT for jets and leptons, so the leading electron is "Electron 1"; by
+  energy for superclusters, clusters and tracksters. Hits, truth particles, and primary vertices (whose sort column
+  the file lacks) keep their place in the collection. The number counts all the collection's objects, also those a
+  cut or filter hides, so a filtered list may start at 2. The address keeps the row in the collection (`s=Electron:3`, from 0). A
+  one-object table such as MET has no number;
 - its collection, where the kind has several ("AK4" and "AK4 CHS"; "Standalone" and "Global" muon tracks). Where
   the layer's label adds nothing to the kind (the electrons beside "Electrons (HGCal)"), the CMSSW collection named
   in the table's description stands for it ("gedGsfElectrons"). The card names the collection and the CMSSW
   collection on a small line under its header, so the header stays short. A label in the view names it only while
   objects of another collection of the kind are labelled too, and then by the words that tell them apart ("Jet 1 ·
-  PUPPI" and "Jet 1 · CHS" of "AK4 PUPPI (raw, no JEC)" and "AK4 CHS (raw, no JEC)");
+  PUPPI" and "Jet 1 · CHS" of "AK4 PUPPI (raw, no JEC)" and "AK4 CHS (raw, no JEC)"). Labelled, not shown: a label
+  hidden by an overlapping one still counts, so the names do not change as the camera moves;
 - its values, each named after its quantity: "pT 49.7 GeV" (transverse momentum), "E raw 178 GeV" (a TICL
   candidate's raw energy). A truth particle is named by its pT and η ("π⁺ · pT 30.1 · η 0.714"), or by its energy
   next to a calorimeter object ("π⁺ · E 88.9 GeV").

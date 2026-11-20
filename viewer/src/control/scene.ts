@@ -34,6 +34,7 @@ import {
   levelTop,
   noTruth,
   modes,
+  numberOf,
   pairView,
   parentRows,
   rawEvent,
@@ -603,7 +604,12 @@ function colourEntries(
     const cls = e.d.context || chosen[e.key] ? undefined : pair?.classes.get(e.d.table); // a layer's own choice wins
     const out = cls
         ? pairColours(cls, classRgb)
-        : colours(e.d, e.t, ev, header, pal, { range: ranges.get(scale(e)), layerFor, rank: truthRank.peek() }),
+        : colours(e.d, e.t, ev, header, pal, {
+            range: ranges.get(scale(e)),
+            layerFor,
+            rank: truthRank.peek(),
+            numberOf: (t, r) => untracked(() => numberOf(t, r)),
+          }),
       dim = e.d.dim;
     if (dim) for (let i = 0; i < out.rgb.length; i++) out.rgb[i] += (bg[i % 3] - out.rgb[i]) * dim;
     if (underHits(e.d)) out.emphasis = new Uint8Array(e.t.n); // small and rimless

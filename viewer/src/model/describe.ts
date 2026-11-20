@@ -1,6 +1,6 @@
 // One name for an object, the same everywhere it is named (docs/viewer.md "Names"): the card's header, its label in
 // the view, its chip in a list and the share text. "Jet 1 · AK4 · pT 99.6 GeV · η 1.11": the kind in the singular,
-// numbered from 1 (the address, s=Jet:0, stays 0-based), the collection where the kind has several, then its values.
+// numbered from 1 by pT (the address, s=Jet:0, keeps the row), the collection where the kind has several, then its values.
 // And how a single value is written (H1): in a unit scaled to its size (µm, mm, cm; MeV, GeV), never in e-notation,
 // and a sentinel ("-99: none") as words.
 import { type DisplayLayer, type Header, kindName, type Table, unitOf } from "../io/format";
@@ -63,22 +63,25 @@ function which(header: Header, d: DisplayLayer) {
   return collection(d) || cmsswName(header, d);
 }
 
-/** An object's name: "Jet 1 · AK4 · pT 99.6 GeV": its kind, its number from 1 (none for a one-object table, MET, whose
- *  `list` reads a value), its collection where the kind has several, and `values` (describeRow). `cmssw`: with the
- *  CMSSW collection, for a chip's tooltip ("Jet 1 · AK4 (ak4PFJetsPuppi) · …"; the card's header: cardName). */
-export function objectName(header: Header, d: DisplayLayer, row: number, values: string, cmssw = false) {
+/** The kind and the number `n` of an object: "Jet 1"; the kind alone for a one-object table (MET, whose `list` reads a
+ *  value). `n`, from 1, is the object's rank by pT in its table (store/names.ts numberOf), not its row. */
+const numbered = (d: DisplayLayer, n: number) => `${kindLabel(d)}${d.list?.headline === "value" ? "" : ` ${n}`}`;
+
+/** An object's name: "Jet 1 · AK4 · pT 99.6 GeV": its kind and number `n` (numbered), its collection where the kind
+ *  has several, and `values` (describeRow). `cmssw`: with the CMSSW collection, for a chip's tooltip ("Jet 1 · AK4
+ *  (ak4PFJetsPuppi) · …"; the card's header: cardName). */
+export function objectName(header: Header, d: DisplayLayer, n: number, values: string, cmssw = false) {
   const c = which(header, d),
-    source = cmssw ? cmsswName(header, d) : "",
-    one = d.list?.headline === "value";
+    source = cmssw ? cmsswName(header, d) : "";
   const where = c && source && c !== source ? `${c} (${source})` : c || source;
-  return [`${kindLabel(d)}${one ? "" : ` ${row + 1}`}`, where, values].filter(Boolean).join(" · ");
+  return [numbered(d, n), where, values].filter(Boolean).join(" · ");
 }
 
 /** A label's text in the view: "Jet 1 · pT 46 GeV", its collection named only where objects of another collection of
  *  its kind are labelled too (`labelled`: the layers of the labels shown), and then by the words that tell the
  *  collections apart: "PUPPI" and "CHS" of "AK4 PUPPI (raw, no JEC)" and "AK4 CHS (raw, no JEC)". The card's subtitle
  *  names the collection in full. */
-export function labelName(header: Header, d: DisplayLayer, row: number, values: string, labelled: DisplayLayer[]) {
+export function labelName(header: Header, d: DisplayLayer, n: number, values: string, labelled: DisplayLayer[]) {
   const others = labelled.filter((l) => l.table !== d.table && !l.truth && kindName(l) === kindName(d)),
     own = others.length ? which(header, d) : "",
     shared = (w: string) => others.every((l) => which(header, l).split(" ").includes(w)),
@@ -87,32 +90,29 @@ export function labelName(header: Header, d: DisplayLayer, row: number, values: 
         .split(" ")
         .filter((w) => !shared(w))
         .join(" ") || own;
-  return [`${kindLabel(d)}${d.list?.headline === "value" ? "" : ` ${row + 1}`}`, word, values]
-    .filter(Boolean)
-    .join(" · ");
+  return [numbered(d, n), word, values].filter(Boolean).join(" · ");
 }
 
 /** The card's header in two lines: the object's name without its collection ("Jet 1 · pT 46 GeV · η 0.606"), and, small
  *  below it, where it comes from: its collection and its CMSSW collection ("AK4 PUPPI (raw, no JEC) · ak4PFJetsPuppi",
  *  "gedGsfElectrons"); "" when the layer's label only names its kind and the table's doc names no other CMSSW
  *  collection. On one line, a long collection wrapped the header over three. */
-export function cardName(header: Header, d: DisplayLayer, row: number, values: string): [string, string] {
-  const one = d.list?.headline === "value",
-    c = collection(d),
+export function cardName(header: Header, d: DisplayLayer, n: number, values: string): [string, string] {
+  const c = collection(d),
     source = cmsswName(header, d);
   return [
-    [`${kindLabel(d)}${one ? "" : ` ${row + 1}`}`, values].filter(Boolean).join(" · "),
+    [numbered(d, n), values].filter(Boolean).join(" · "),
     [c, source !== c ? source : ""].filter(Boolean).join(" · "),
   ];
 }
 
 /** A chip's text in a list of one kind (the chain's steps): its values, after its collection where its kind has
  *  several ("AK4 CHS · pT 52.8 GeV"). */
-export function chipName(header: Header, d: DisplayLayer, row: number, values: string) {
+export function chipName(header: Header, d: DisplayLayer, n: number, values: string) {
   // a collection named in the kind (Puppi MET, PF MET) is named by it
   const own = kindLabel(d) !== singular(kindName(d)) ? kindLabel(d) : "",
     c = severalOfKind(header, d) ? which(header, d) || own : "";
-  return [c, values || `${kindLabel(d)} ${row + 1}`].filter(Boolean).join(" · ");
+  return [c, values || `${kindLabel(d)} ${n}`].filter(Boolean).join(" · ");
 }
 
 // ---- Numbers

@@ -6,6 +6,7 @@
 //   collision down to its daughters, with the levels it belongs to and the reco objects matched to it.
 // Every line says where it comes from: the simulation (a fact), the CMSSW associator (a match, never "is"), or Ember.
 import { signal } from "@preact/signals";
+import type { ComponentChildren } from "preact";
 import type { Header } from "../io/format";
 import { completeness, percent, quality, TARGETS } from "../model/match";
 import { bestPartners, identities } from "../model/relations";
@@ -47,6 +48,14 @@ const ANCESTORS = 4; // ancestors listed above the particle; higher ones are fol
 const unfolded = signal(false);
 
 const chipAs = (t: string, r: number, text: string) => <ObjChip table={t} row={r} text={text} />;
+/** Chips side by side, a space between them (so that their text reads as words when copied). */
+const spaced = (xs: ComponentChildren[]) =>
+  xs.map((x, i) => (
+    <>
+      {i > 0 && " "}
+      {x}
+    </>
+  ));
 /** A collision's truth vertex, by whether it is the signal (the truth particles' `first` column, e.g. isSignal, on the
  *  vertex table too): what a primary vertex's match means, not its generator step (e.g. "shower branching"). */
 function collision(truth: string, t: string, r: number) {
@@ -287,9 +296,12 @@ export function Lineage({ row, compact = false }: { row: number; compact?: boole
   const levels = (r: number) => (flags ? LEVELS.filter(({ bit }) => (Number(flags[r]) >>> bit) & 1) : []);
   const tags = (r: number) =>
     levels(r).map(({ name, flag, what }) => (
-      <span class="badge level" title={`${what} (${flag})`}>
-        {name}
-      </span>
+      <>
+        {" "}
+        <span class="badge level" title={`${what} (${flag})`}>
+          {name}
+        </span>
+      </>
     ));
   /** A group's entry: its particle's chip, "×N" for copies, and a note when the top has several parents. */
   const entry = (grp: number[]) => {
@@ -412,7 +424,8 @@ export function Lineage({ row, compact = false }: { row: number; compact?: boole
         {children.length > 0 && (
           <li class="muted" style={{ paddingLeft: `${shown.length * 10}px` }}>
             └ {children.length} daughter{children.length > 1 ? "s" : ""}
-            {entered > 0 && `, ${entered} entered the calorimeter`} {children.slice(0, 4).map((c) => chip(truth, c))}
+            {entered > 0 && `, ${entered} entered the calorimeter`}{" "}
+            {spaced(children.slice(0, 4).map((c) => chip(truth, c)))}
             {children.length > 4 && " …"}
           </li>
         )}
@@ -463,7 +476,7 @@ export function ParticleFacts({ row }: { row: number }) {
       {copies.length > 1 && (
         <p class="muted">
           written {copies.length} times by the generator (status {copies.map((r) => g.col("status", r)).join(" → ")}
-          ): {copies.map((r) => (r === row ? <b>this one</b> : chip(tg.particles, r)))}
+          ): {spaced(copies.map((r) => (r === row ? <b>this one</b> : chip(tg.particles, r))))}
         </p>
       )}
       {prod >= 0 && (
@@ -484,10 +497,13 @@ export function ParticleFacts({ row }: { row: number }) {
       )}
       {levels.length > 0 && (
         <p class="plevels">
-          {levels.map(({ name: n, flag, what }) => (
-            <span class="badge level" title={`${what} (${flag}, bit ${LEVELS.find((l) => l.name === n)!.bit})`}>
-              {n}
-            </span>
+          {levels.map(({ name: n, flag, what }, i) => (
+            <>
+              {i > 0 && " "}
+              <span class="badge level" title={`${what} (${flag}, bit ${LEVELS.find((l) => l.name === n)!.bit})`}>
+                {n}
+              </span>
+            </>
           ))}
         </p>
       )}
@@ -555,7 +571,7 @@ function Physics({ g, row, particles, vertices }: { g: Graph; row: number; parti
         {conv.converted ? (
           <>
             <span class="muted">converted</span> at R {length(conv.r)}, z {length(conv.z)} →{" "}
-            {conv.products.map((c) => pchip(c))}
+            {spaced(conv.products.map((c) => pchip(c)))}
           </>
         ) : (
           <span class="muted">
@@ -569,7 +585,7 @@ function Physics({ g, row, particles, vertices }: { g: Graph; row: number; parti
             {conv.sisters.length > 0 && (
               <>
                 {" "}
-                <span class="muted">with</span> {conv.sisters.map((c) => pchip(c))}
+                <span class="muted">with</span> {spaced(conv.sisters.map((c) => pchip(c)))}
               </>
             )}
           </>
@@ -580,7 +596,7 @@ function Physics({ g, row, particles, vertices }: { g: Graph; row: number; parti
   if (tau)
     out.push(
       <p>
-        <span class="muted">decays</span> {name(tau.last)} → {tau.products.map((c) => pchip(c))} · visible E{" "}
+        <span class="muted">decays</span> {name(tau.last)} → {spaced(tau.products.map((c) => pchip(c)))} · visible E{" "}
         {short(tau.visibleE)} GeV
       </p>,
     );

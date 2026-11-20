@@ -299,7 +299,6 @@ a.link:hover {
   display: inline-block;
   font-size: 11px;
   padding: 0 4px;
-  margin-left: 4px;
   border-radius: 3px;
   border: 1px dashed var(--line-strong);
   color: var(--muted);

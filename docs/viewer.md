@@ -699,15 +699,18 @@ disagree, there is no pair.
   levels each one belongs to, and the reco objects whose best match it is. A particle's generator copies are one
   entry ("μ⁺ ×4 (status 23→1)"); a particle made from several partons says "from n partons", and the line follows the
   first;
-- **Reconstructed as**: for each reco kind with a truth → reco association, the objects that share hits or energy
-  with it, most complete first. Each shows "completeness 51%", the share of the particle that it holds, and "★ its
-  best" where the particle is that object's own best match. "Not found in: …" lists the kinds that nothing was
-  reconstructed in. This alone is not an inefficiency: the particle may never have reached that detector. Hit-based
-  association weights (tracks) are counted in hits. Under it, apart, the kinds with **no CMSSW associator** that the
-  particle could have reached: those made of hits in a detector where its branch left simulated energy, of the tracker
-  when a track holds part of it, of the muon system for a muon, and a species' own kinds (electrons, photons, muons,
-  taus) only for that species. "Not found in" (not matched) and "no associator" (no answer) stay two different
-  statements. **Go to reco (X)** crosses over;
+- **Reconstructed as**: for each reco kind with a truth → reco association, the objects that hold at least 5% of it
+  (completeness), most complete first, at most four; "+N" counts the others (all of them are under Every association).
+  Each shows "completeness 51%", the share of the particle that it holds, and "★ its best" where the particle is that
+  object's own best match. Kinds that show the same objects (the same parts: one trackster at the candidate, linked
+  and plain levels), with the same completeness, are one line naming every kind; so are the kinds of one detector
+  that hold under 5% of it each (a barrel particle's few MeV in HGCal). Hit-based association weights (tracks) are
+  counted in hits. With nothing at all: "No reco object holds any of it". Its **i** names the kinds that nothing holds
+  any of it in (not by itself an inefficiency: the particle may never have reached that detector), and apart the kinds
+  with **no CMSSW associator** that the particle could have reached: those made of hits in a detector where its branch
+  left simulated energy, of the tracker when a track holds part of it, of the muon system for a muon, and a species'
+  own kinds (electrons, photons, muons, taus) only for that species. "Nothing holds it" (not matched) and "no
+  associator" (no answer) stay two different statements. **Go to reco (X)** crosses over;
 - the number of hits it left, per detector.
 
 **Every association**, folded: each object that an association in the file links to the selection, with the

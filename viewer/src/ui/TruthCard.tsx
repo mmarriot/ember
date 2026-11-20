@@ -496,39 +496,23 @@ export function ParticleFacts({ row }: { row: number }) {
   );
 }
 
-/** "Reconstructed as", its other half: the kinds with no truth association that this particle could have reached
- *  (model/truth.ts unassociatedKinds), apart from the kinds that have one and found nothing ("None"): "not matched"
- *  and "no associator" are different answers. */
-export function Unassociated({ row }: { row: number }) {
+/** For the ⓘ of "Reconstructed as": the kinds with no truth association that this particle could have reached
+ *  (model/truth.ts unassociatedKinds), and their gaps; apart from the kinds that have one and found nothing: "nothing
+ *  holds it" and "no associator" are different answers. */
+export function unassociated(row: number): { names: string[]; gaps: number[] } {
   const b = bundle.value,
     ev = event.value,
     tg = truthGraph.value,
     st = truthStatuses.value;
-  if (!b || !ev || !tg) return null;
+  if (!b || !ev || !tg) return { names: [], gaps: [] };
   const kinds = unassociatedKinds(ev, b.header, tg.particles, row, tg.graph, (t) => {
     const s = st.get(t);
     return s?.kind === "none" ? { reason: s.reason, gap: s.gap } : undefined;
   });
-  const names = new Map<string, string>();
-  for (const k of kinds) if (!names.has(truthName(k.table))) names.set(truthName(k.table), k.reason);
-  if (!names.size) return null;
-  return (
-    <p class="hint unassociated">
-      No CMSSW associator, so no answer, for the kinds it could have reached:{" "}
-      {[...names].map(([n, why], i) => (
-        <>
-          {i > 0 && ", "}
-          <span title={why}>{n}</span>
-        </>
-      ))}{" "}
-      <Info title="No associator">
-        <p>
-          The kinds made of hits or objects in the detectors this particle (or what it made) reached, for which the
-          truth graph has no association: nothing can say whether they hold it. Ember builds none. Hover a kind for why.
-        </p>
-      </Info>
-    </p>
-  );
+  return {
+    names: [...new Set(kinds.map((k) => truthName(k.table)))],
+    gaps: [...new Set(kinds.flatMap((k) => (k.gap === undefined ? [] : [k.gap])))],
+  };
 }
 
 /** The names of the truth vertices' reasons, from their layer's categories. */

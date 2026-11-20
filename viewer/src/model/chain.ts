@@ -10,7 +10,7 @@
 import { type DisplayLayer, type EventData, type Header, kindName } from "../io/format";
 import { factIn, facts } from "./facts";
 import { chainOrder, focusLevels } from "./levels";
-import { bestPurities, simEnergyByParticle, type TruthStatus } from "./match";
+import { bestPurities, percent, simEnergyByParticle, type TruthStatus } from "./match";
 import { bestPartners, contentPartners, levelsOf, type Ref, type Related } from "./relations";
 
 /** What the truth says about the objects of one step, one line per truth table, detector or reason:
@@ -399,4 +399,47 @@ export function recoOfTruth(ev: EventData, header: Header, sel: Ref): { reco: Re
     (a, b) => (stageOf(header, b.table) ?? -1) - (stageOf(header, a.table) ?? -1) || order(a.table) - order(b.table),
   );
   return { reco, hits: [...hits.values()] };
+}
+
+/** "Reconstructed as" as the truth card lists it (recoOfTruth's entries with partners): per kind, the objects whose own
+ *  best match it is, and those that hold at least `min` of the particle (all of them where the association gives no
+ *  completeness), best first, at most `max` beside the best matches; `folded` counts the rest ("+N"). Kinds whose
+ *  listed objects are the same ones (`same`: the same parts, e.g. one trackster's layer clusters at several levels),
+ *  with the same completeness and best mark, in the same detector, are one entry naming every kind (`tables`), with
+ *  the largest of their folded counts (the same objects again); kinds that list nothing are one entry too, their
+ *  folded objects added up. */
+export function foldReco(
+  reco: Reconstructed[],
+  same: (a: Ref, b: Ref) => boolean,
+  min = 0.05,
+  max = 4,
+): { tables: string[]; measure?: string; in?: string; partners: Reconstructed["partners"]; folded: number }[] {
+  const out: ReturnType<typeof foldReco> = [];
+  for (const r of reco) {
+    // its own best match always shows (a pion's only track, at 0.8% of its hits with its secondaries'; each of the
+    // tracksters it is split into); the others from `min`, up to `max` in all
+    const listed = r.partners.filter((p) => p.best || p.completeness === undefined || p.completeness >= min),
+      room = Math.max(0, max - listed.filter((p) => p.best).length);
+    let others = 0;
+    const shown = listed.filter((p) => p.best || others++ < room),
+      folded = r.partners.length - shown.length;
+    const twin = out.find(
+      (o) =>
+        o.measure === r.measure &&
+        o.in === r.in &&
+        o.partners.length === shown.length &&
+        o.partners.every(
+          (p, i) =>
+            percent(p.completeness) === percent(shown[i].completeness) &&
+            p.best === shown[i].best &&
+            same({ table: o.tables[0], row: p.row }, { table: r.table, row: shown[i].row }),
+        ),
+    );
+    if (twin) {
+      twin.tables.push(r.table);
+      // the same objects at another level are not more of them; kinds listing nothing fold different ones
+      twin.folded = shown.length ? Math.max(twin.folded, folded) : twin.folded + folded;
+    } else out.push({ tables: [r.table], measure: r.measure, in: r.in, partners: shown, folded });
+  }
+  return out;
 }

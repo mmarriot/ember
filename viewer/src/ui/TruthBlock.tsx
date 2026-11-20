@@ -101,12 +101,20 @@ function Parts({ lines, own, table, beside }: { lines: PartLine[]; own: boolean;
   return (
     <div class="parts">
       <p class="hint">
-        {beside ? "Built from its parts, their own matches" : "Its parts' own matches"}{" "}
-        <span class="muted">
-          {beside
-            ? "(no relation names them as its parts: all their hits are in it)"
-            : `(each the associator's answer for that part${own ? "" : `, not for this ${one}`})`}
-        </span>
+        {beside ? "Built from its parts: their matches" : "Its parts' matches"}{" "}
+        <span class="muted">(associator, per part)</span>{" "}
+        <Info title={beside ? "Built from its parts" : "Its parts' matches"}>
+          {beside && (
+            <p>
+              No relation in the file names these objects as its parts, but all their hits are in it (an electron's PF
+              clusters, inside its supercluster).
+            </p>
+          )}
+          <p>
+            Each line is the associator's answer for that part{own ? "" : `, not for this ${one}`}. Ember never adds
+            them up into a verdict for the {one}.
+          </p>
+        </Info>
       </p>
       <ul class="partlines">
         {lines.map((l, i) => {
@@ -182,8 +190,13 @@ function Delegated() {
     whole = inText(singular(kindOf(p.via.table)));
   return (
     <p class="hint delegated">
-      The view shows the pair of its {part} {chip(p.from.table, p.from.row)}, not of the {whole}: the {whole} has no
-      truth of its own, and its matched parts all point to one particle. The match is the {part}'s.
+      Showing its {part}'s truth: the {whole} has none of its own{" "}
+      <Info title={`Its ${part}'s truth`}>
+        <p>
+          The view shows the truth ↔ reco pair of its {part} {chip(p.from.table, p.from.row)}, not of the {whole}. The{" "}
+          {whole} has no truth of its own, and its matched parts all point to one particle. The match is the {part}'s.
+        </p>
+      </Info>
     </p>
   );
 }

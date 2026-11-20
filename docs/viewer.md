@@ -531,7 +531,8 @@ associations in the file:
   ("Track pT 30.1 GeV → π⁻ · purity 100% · completeness 97%"). For several, how many are matched ("2 of 4 matched (2
   clean)"). Each line names its source: "associator · tracker hits", "associator · energy in ECAL". Objects built only
   from its parts (an electron's PF cluster, all of whose hits are in its supercluster) come under their own heading,
-  "Built from its parts", since no relation makes them its parts;
+  "Built from its parts: their matches", since no relation makes them its parts. The headings are short; what they
+  mean is behind their **i**;
 - **Go to truth (X)**, and the chooser it opens for a kind with no truth of its own.
 
 It never gives a verdict for the object from its parts: a pion's track inside a photon's cluster is the story. For a
@@ -645,11 +646,12 @@ lists that object's levels, with the one drawn lit. Click another one, or press 
 Behind its **i**: what the kind reconstructs (for example "the particle that entered the calorimeter"), how purity
 and completeness are counted, and the associator's score ("0 best; not a fraction").
 
-**Its part's pair** (owner decision D4, a trial). A TICL candidate has no truth of its own. When every part it has
-one of (its candidate trackster, its linked trackster, its track) that is matched points to the same particle, the
-view shows the pair of its first such part of an earlier reconstruction step: the candidate trackster, or in a TICL v6
-bundle (which has none with a match) the linked trackster. The truth block says so at its top: "The view shows the
-pair of its candidate trackster …, not of the TICL candidate". When the parts disagree, there is no pair.
+**Its part's pair** (owner decision D4, a trial). A TICL candidate has no truth of its own. When every part it has one
+of (its candidate trackster, its linked trackster, its track) that is matched points to the same particle, the view
+shows the pair of its first such part of an earlier reconstruction step: the candidate trackster, or in a TICL v6 bundle
+(which has none with a match) the linked trackster. The truth block says so at its top in one line, "Showing its
+candidate trackster's truth: the TICL candidate has none of its own", with the details behind its **i**. When the parts
+disagree, there is no pair.
 
 **A truth object** shows:
 

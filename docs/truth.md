@@ -281,12 +281,13 @@ fact in that layer's part of the detector. Bundles whose layer clusters still ca
 
 ### Constituents
 
-A composite object (jet, muon, PF candidate, electron) shows the **own** associations of its parts in its card's
-truth block, each named as the part's: "Its parts' own matches (each the associator's answer for that part, not for
-this muon)", then "Track pT 95.3 GeV → μ⁺ · purity 100% · completeness 100% · associator · tracker hits". A step of
-one part names its particle, with the match's purity and completeness; a step of several counts them ("3 of 3
-matched (3 clean)"). The parts are the steps of what it is made of, and the objects built only from its parts (an
-electron's PF cluster inside its supercluster, marked "inside it"). `X` offers the parts' particles in a chooser.
+A composite object (jet, muon, PF candidate, electron) shows the **own** associations of its parts in its card's truth
+block, each named as the part's: "Its parts' matches (associator, per part)", with behind its **i** that each line is
+the associator's answer for that part, not for this muon; then "Track pT 95.3 GeV → μ⁺ · purity 100% · completeness 100%
+· associator · tracker hits". A step of one part names its particle, with the match's purity and completeness; a step of
+several counts them ("3 of 3 matched (3 clean)"). The parts are the steps of what it is made of, and the objects built
+only from its parts (an electron's PF cluster inside its supercluster, under "Built from its parts: their matches"). `X`
+offers the parts' particles in a chooser.
 
 It never happens through an association, a pointer back up, or a "closest track" link. The card never adds up over
 several parts and never gives the composite a verdict: "80% of its tracks are from the b" would be a match built in

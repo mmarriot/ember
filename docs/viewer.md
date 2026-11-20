@@ -423,14 +423,14 @@ cluster, a trackster), or a hit shows its truth ↔ reco pair (`viewer/src/model
 
 Every layer is coloured by where its objects ended up:
 
-| class | meaning |
+| class (key) | meaning (behind the key's **i**) |
 |---|---|
-| shared | the branch's, in its match: hits where the branch left the most simulated energy, and the matched objects |
-| contamination | in its match, from other particles or from none |
-| split off | the branch's, in another object of the kind compared, and that object (also an object matched to the branch that is not its best: a fragment) |
-| missed | the branch's, in no object of the kind compared |
-| in its match | parts of a matched object that have no truth of their own (a trackster's layer clusters, a track's hits) |
-| branch | other particles of the branch that entered the calorimeter on their own (a conversion's electrons, an interaction's products) |
+| found | the branch's, in its match: hits where the branch left the most simulated energy, and the matched objects |
+| in another object | the branch's, in another object of the kind compared, and that object (split off; also an object matched to the branch that is not its best: a fragment) |
+| in no object | the branch's, in no object of the kind compared (missed) |
+| not from it | in its match, from other particles or from none (contamination) |
+| part of its match | parts of a matched object that have no truth of their own (a trackster's layer clusters, a track's hits) |
+| rest of its branch | other particles of the branch that entered the calorimeter on their own (a conversion's electrons, an interaction's products) |
 | not compared | the branch's hits in a detector whose reco has no association |
 
 Everything else fades. The colour key lists only the classes in view. A shower that is split off (another trackster

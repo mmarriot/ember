@@ -34,16 +34,16 @@ import {
 import { Info } from "./Info";
 import { jump } from "../control/navigate";
 
-/** The pair view's classes (model/pair.ts): colour, name, meaning. "Its match": the objects the associator rates
- *  best for the branch, in each detector's compared kind (named in the card). */
+/** The pair view's classes (model/pair.ts): colour, plain name, definition (behind the ⓘ). "Its match": the objects
+ *  the associator rates best for the branch, in each detector's compared kind (named in the card). */
 const CLASSES: [Exclude<PairClass, 0>, string, string][] = [
-  [PAIR.matched, "shared", "the branch's, in its match"],
-  [PAIR.contamination, "contamination", "in its match, from other particles or none"],
-  [PAIR.split, "split off", "the branch's, in another object of the kind compared"],
-  [PAIR.missed, "missed", "the branch's, in no object of the kind compared"],
-  [PAIR.reco, "in its match", "part of a matched object, no truth of its own (e.g. layer clusters)"],
-  [PAIR.branch, "branch", "other particles of the branch that left hits"],
-  [PAIR.uncompared, "not compared", "the branch's hits where no reco kind has an association"],
+  [PAIR.matched, "found", "the particle's (its branch's) hits and objects, in its match"],
+  [PAIR.split, "in another object", "the particle's, in another object of the kind compared (split off)"],
+  [PAIR.missed, "in no object", "the particle's, in no object of the kind compared (missed)"],
+  [PAIR.contamination, "not from it", "in its match, but from other particles or from none (contamination)"],
+  [PAIR.reco, "part of its match", "part of a matched object, with no truth of its own (e.g. layer clusters)"],
+  [PAIR.branch, "rest of its branch", "other particles of the branch that left hits (e.g. an interaction's products)"],
+  [PAIR.uncompared, "not compared", "the particle's hits where no reco kind has an association (HF, HO)"],
 ];
 
 export function ColourKey() {
@@ -87,25 +87,36 @@ export function ColourKey() {
       {!pair && mode === "truth" && <LevelPicker />}
       {!pair && mode === "truth" && <TruthKey />}
       {pair && ( // the pair itself and its numbers are in the selection's card; here only what each colour means
-        <ul class="key">
-          {CLASSES.filter(([c]) => shown.has(c)).map(([c, name, what]) => (
+        <>
+          <ul class="key inline">
+            {CLASSES.filter(([c]) => shown.has(c)).map(([c, name]) => (
+              <li>
+                <i style={{ background: pal.pair[c] }} />
+                {c === PAIR.reco && pair.particle < 0 ? "no particle: nothing confirmed" : name}
+              </li>
+            ))}
             <li>
-              <i style={{ background: pal.pair[c] }} />
-              <b>{name}</b>:{" "}
-              <span>
-                {c === PAIR.reco && pair.particle < 0
-                  ? "no truth particle: nothing confirmed"
-                  : pair.hitsOf >= 0 && pair.hitsOf !== pair.particle
-                    ? what.replace("the branch's", "the shower's")
-                    : what}
-              </span>
+              <i class="small" style={{ background: pal.unassigned }} />
+              everything else
             </li>
-          ))}
-          <li>
-            <i class="small" style={{ background: pal.unassigned }} />
-            everything else
-          </li>
-        </ul>
+          </ul>
+          <p class="hint keyhelp">
+            Where the particle's hits and energy went{" "}
+            <Info title="Colour = truth ↔ reco pair">
+              <ul>
+                {CLASSES.filter(([c]) => shown.has(c)).map(([, name, what]) => (
+                  <li>
+                    <b>{name}</b>:{" "}
+                    {pair.hitsOf >= 0 && pair.hitsOf !== pair.particle
+                      ? what.replace("the particle's", "the shower's")
+                      : what}
+                  </li>
+                ))}
+              </ul>
+              <p>The particle's numbers (its match, where its energy went) are in the card.</p>
+            </Info>
+          </p>
+        </>
       )}
     </details>
   );

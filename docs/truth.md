@@ -165,14 +165,14 @@ With a truth particle, a matched reco object or a hit selected, the view shows o
 
 Each object is coloured by where it ended up:
 
-| class | meaning |
+| class (as the key says it) | meaning |
 |---|---|
-| shared | the branch's, in its match (a hit: the branch left the most simulated energy in it) |
-| contamination | in its match, from other particles or none |
-| split off | the branch's, in another object of the kind compared (and that object) |
-| missed | the branch's, in no object of the kind compared |
-| in its match | part of a matched object with no truth of its own (a trackster's layer clusters, a track's hits) |
-| branch | the branch's other particles that entered the calorimeter on their own |
+| found | the branch's, in its match (a hit: the branch left the most simulated energy in it) |
+| not from it | in its match, from other particles or none (contamination) |
+| in another object | the branch's, in another object of the kind compared, and that object (split off) |
+| in no object | the branch's, in no object of the kind compared (missed) |
+| part of its match | part of a matched object with no truth of its own (a trackster's layer clusters, a track's hits) |
+| rest of its branch | the branch's other particles that entered the calorimeter on their own |
 | not compared | the branch's hits in a detector whose reco has no association |
 
 The card gives, per detector, two bars that name their energy:
@@ -321,7 +321,7 @@ tracks show in their own particles' colours: each colour is that track's own sta
 | completeness | the share of the match's hits or energy (in that detector) that is in the reco object |
 | score | the associator's ranking value, 0 is best; not a fraction |
 | clean match | purity at or above the kind's threshold |
-| shared / contamination / split off / missed / not compared | the pair view's classes ([above](#the-pair-view)) |
+| found / not from it / in another object / in no object / not compared | the pair view's classes ([above](#the-pair-view)) |
 | merges | a match above the particle level: the object holds several generator particles |
 | pile-up | particles from other collisions of the same bunch crossing |
 | no truth | energy that no exported particle left: noise, out-of-time pile-up, or not exported |

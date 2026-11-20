@@ -19,6 +19,7 @@ import {
   modes,
   short,
   truthGraph,
+  truthName,
   truthStatuses,
   truthText,
 } from "../model/store";
@@ -34,6 +35,7 @@ import {
   LEVELS,
   tauDecayOf,
   topCopy,
+  unassociatedKinds,
   vertexText,
 } from "../model/truth";
 import { ObjChip, truthChip } from "./chips";
@@ -559,6 +561,41 @@ export function ParticleFacts({ row }: { row: number }) {
       )}
       <Physics g={g} row={row} particles={tg.particles} vertices={tg.vertices} />
     </div>
+  );
+}
+
+/** "Reconstructed as", its other half: the kinds with no truth association that this particle could have reached
+ *  (model/truth.ts unassociatedKinds), apart from the kinds that have one and found nothing ("None"): "not matched"
+ *  and "no associator" are different answers. */
+export function Unassociated({ row }: { row: number }) {
+  const b = bundle.value,
+    ev = event.value,
+    tg = truthGraph.value,
+    st = truthStatuses.value;
+  if (!b || !ev || !tg) return null;
+  const kinds = unassociatedKinds(ev, b.header, tg.particles, row, tg.graph, (t) => {
+    const s = st.get(t);
+    return s?.kind === "none" ? { reason: s.reason, gap: s.gap } : undefined;
+  });
+  const names = new Map<string, string>();
+  for (const k of kinds) if (!names.has(truthName(k.table))) names.set(truthName(k.table), k.reason);
+  if (!names.size) return null;
+  return (
+    <p class="hint unassociated">
+      No CMSSW associator, so no answer, for the kinds it could have reached:{" "}
+      {[...names].map(([n, why], i) => (
+        <>
+          {i > 0 && ", "}
+          <span title={why}>{n}</span>
+        </>
+      ))}{" "}
+      <Info title="No associator">
+        <p>
+          The kinds made of hits or objects in the detectors this particle (or what it made) reached, for which the
+          truth graph has no association: nothing can say whether they hold it. Ember builds none. Hover a kind for why.
+        </p>
+      </Info>
+    </p>
   );
 }
 

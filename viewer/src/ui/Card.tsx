@@ -42,7 +42,7 @@ import { keyColumns, Properties, Rows } from "./Properties";
 import { Info } from "./Info";
 import { back, frameFocus } from "../control/navigate";
 import { PairBars } from "./PairBars";
-import { Lineage, ParticleFacts, TruthCard } from "./TruthCard";
+import { Lineage, ParticleFacts, TruthCard, Unassociated } from "./TruthCard";
 import { Icon } from "./widgets";
 
 const name = (r: Ref) => {
@@ -288,6 +288,7 @@ function TruthSide({ table, row }: { table: string; row: number }) {
             ))}
           </ol>
           {empty.length > 0 && <p class="hint">None: {empty.map((r) => stepName(r.table)).join(", ")}</p>}
+          {table === root && <Unassociated row={row} />}
         </section>
       )}
     </>

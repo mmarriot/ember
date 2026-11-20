@@ -579,7 +579,10 @@ match as the part's.
   with it, most complete first. Each shows the share of the particle that it holds, and a ★ where the particle is
   that object's own best match. "none" means that nothing of that kind was reconstructed from it. This alone is not an
   inefficiency: the particle may never have reached that detector. Hit-based association weights (tracks) are
-  counted in hits;
+  counted in hits. Under it, apart, the kinds with **no CMSSW associator** that the particle could have reached:
+  those made of hits in a detector where its branch left simulated energy, of the tracker when a track holds part of
+  it, of the muon system for a muon, and a species' own kinds (electrons, photons, muons, taus) only for that species.
+  "None" (not matched) and "no associator" (no answer) stay two different statements;
 - the number of hits it left, per detector.
 
 **Every association**, folded: each object that an association in the file links to the selection, with the

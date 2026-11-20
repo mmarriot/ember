@@ -14,6 +14,7 @@ import {
   particlesInView,
   ruleText,
   tauDecayOf,
+  unassociatedKinds,
   topCopy,
   vertexText,
 } from "./truth";
@@ -255,5 +256,42 @@ describe("particles in a view", () => {
     expect(t).toMatchObject({ in: "tracker", by: "pt" });
     expect(t.rows.map((r) => r.particle)).toEqual([0]);
     expect(particlesInView(ev, header, "P", null).map((d) => d.in)).toEqual(["tracker", "HGCal"]);
+  });
+});
+
+describe("kinds with no associator a particle could reach", () => {
+  // particle 0 (π⁻) left HGCal hits; HGCal layer clusters (no truth) are made of HGCal hits; ECAL superclusters (no
+  // truth) of ECAL hits; electrons (Physics, no truth) of superclusters; jets (Physics, no truth) of layer clusters.
+  const ev = {
+    id: [1, 1, 1],
+    tables: { P: { n: 1, columns: { pdgId: Int32Array.from([-211]) } } },
+    relations: { hgc: { ...csr([[0]]), weights: { e: Float32Array.from([1]) } }, kids: csr([[]]) },
+  } as unknown as Parameters<typeof unassociatedKinds>[0];
+  const header = {
+    domains: [{ name: "Physics", shared: true }, { name: "HGCal" }, { name: "Calo" }],
+    display: [
+      { table: "P", truth: true },
+      { table: "HGC", repr: "cells", domain: "HGCal" },
+      { table: "EB", repr: "cells", domain: "Calo" },
+      { table: "LC", domain: "HGCal" },
+      { table: "SC", domain: "Calo" },
+      { table: "Ele", domain: "Physics", kind: "electron" },
+      { table: "Jet", domain: "Physics", kind: "jet" },
+    ],
+    relations: {
+      hgc: { from: "P", to: "HGC", association: true, weights: ["e"], fact: { in: "HGCal" } },
+      eb: { from: "P", to: "EB", association: true, weights: ["e"], fact: { in: "ECAL" } },
+      lcHits: { from: "LC", to: "HGC", weights: [] },
+      scHits: { from: "SC", to: "EB", weights: [] },
+      eleSC: { from: "Ele", to: "SC", weights: [] },
+      jetLC: { from: "Jet", to: "LC", weights: [] },
+    },
+  } as unknown as Parameters<typeof unassociatedKinds>[1];
+  const g = graphOf(ev.tables.P, ev.relations.kids);
+  it("lists those of its detectors and species, never another detector's or species'", () => {
+    const kinds = unassociatedKinds(ev, header, "P", 0, g, (t) =>
+      ["P", "HGC", "EB"].includes(t) ? undefined : { reason: "none" },
+    );
+    expect(kinds.map((k) => k.table)).toEqual(["LC", "Jet"]);
   });
 });

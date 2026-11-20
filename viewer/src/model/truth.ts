@@ -498,3 +498,88 @@ export function particlesInView(
   }
   return out.filter((d) => d.rows.length);
 }
+
+// ---- What a particle could have been reconstructed as, without an associator
+
+/** The detectors a table's objects are in: those (fact `in`) of the hits they are made of, through plain relations;
+ *  for a kind made of no such hits, its own domain (the tracker, the muon system). */
+function detectorsOf(header: Header, table: string): Set<string> {
+  const factIn = new Map(facts(header).map((f) => [f.to, f.in])),
+    out = new Set<string>(),
+    seen = new Set([table]);
+  for (const todo = [table]; todo.length; ) {
+    const t = todo.pop()!;
+    if (factIn.has(t)) out.add(factIn.get(t)!);
+    for (const r of Object.values(header.relations))
+      if (r.from === t && !r.association && !r.inverseOf && !seen.has(r.to)) {
+        seen.add(r.to);
+        todo.push(r.to);
+      }
+  }
+  const dom = header.display.find((l) => l.table === table)?.domain;
+  if (!out.size && dom) out.add(dom);
+  return out;
+}
+
+/** Physics kinds (display hint `kind`) that stand for one species (|pdgId|): an electron kind is not a muon's answer.
+ *  Jets and PF candidates stand for any particle. */
+const SPECIES: Record<string, number> = { electron: 11, gsfTrack: 11, photon: 22, muon: 13, tau: 15 };
+
+/** The kinds with no truth association (`gapOf` gives their gap, undefined for a kind with one) that particle `row` of
+ *  `truth` could have reached (docs/truth.md "Where truth stops"): of a detector where its branch left simulated
+ *  energy, of the tracker when a track holds part of it, of the muon system for a muon; a kind of one species (an
+ *  electron, a muon) only for that species. A barrel electron gets no HGCal kinds; kinds made of nothing (a beam spot)
+ *  never. */
+export function unassociatedKinds(
+  ev: EventData,
+  header: Header,
+  truth: string,
+  row: number,
+  g: Graph,
+  gapOf: (table: string) => { reason: string; gap?: number } | undefined,
+) {
+  // Where its branch (it and everything below it) left simulated energy.
+  const branch = new Set([row]);
+  for (const todo = [row]; todo.length && branch.size < 5000; )
+    for (const c of g.children(todo.pop()!))
+      if (!branch.has(c)) {
+        branch.add(c);
+        todo.push(c);
+      }
+  const reached = new Set<string>();
+  for (const f of facts(header)) {
+    const rel = ev.relations[f.name],
+      has = (p: number) => p + 1 < (rel?.offsets.length ?? 0) && rel!.offsets[p + 1] > rel!.offsets[p];
+    if (f.from === truth && rel && [...branch].some(has)) reached.add(f.in);
+  }
+  // Detectors without simulated energy in the file: the tracker when a track holds part of it (its truth -> reco
+  // association), the muon system for a muon.
+  const sim = new Set(facts(header).map((f) => f.in)),
+    simDomains = new Set(facts(header).map((f) => header.display.find((l) => l.table === f.to)?.domain));
+  for (const [name, r] of Object.entries(header.relations)) {
+    const rel = ev.relations[name];
+    if (
+      rel &&
+      r.association &&
+      r.from === truth &&
+      row + 1 < rel.offsets.length &&
+      rel.offsets[row + 1] > rel.offsets[row]
+    )
+      for (const d of detectorsOf(header, r.to)) if (!sim.has(d)) reached.add(d);
+  }
+  const pdg = Math.abs(g.col("pdgId", row));
+  if (pdg === 13) for (const d of header.domains ?? []) if (!d.shared && !simDomains.has(d.name)) reached.add(d.name);
+  const related = (t: string) => Object.values(header.relations).some((r) => r.from === t || r.to === t);
+  const out: { table: string; reason: string; gap?: number }[] = [];
+  for (const l of header.display) {
+    const gap = gapOf(l.table),
+      species = l.kind ? SPECIES[l.kind] : undefined,
+      shared = !!header.domains?.find((d) => d.name === l.domain)?.shared;
+    if (!gap || l.truth || l.context || !related(l.table) || (species !== undefined && species !== pdg)) continue;
+    if (
+      shared ? species !== undefined || reached.size > 0 : [...detectorsOf(header, l.table)].some((d) => reached.has(d))
+    )
+      out.push({ table: l.table, ...gap });
+  }
+  return out;
+}

@@ -194,8 +194,15 @@ def _convert_options(p, profile, max_events=None, reconstruction=False):
     p.add_argument(
         "--events",
         type=_event_numbers,
-        help="only these event numbers, e.g. 416622,416630-416640 (the profile's selection still applies"
+        help="only these events: event numbers, ranges or run:lumi:event, e.g. 416622,416630-416640,1:5:416650 (the "
+        "profile's selection still applies"
         + ("; a reconstruction file is exported in full to find them)" if reconstruction else ")"),
+    )
+    p.add_argument(
+        "--events-file",
+        metavar="FILE",
+        help="only the events listed in FILE, as --events takes them, one or more per line (# starts a comment); "
+        "with --events, the events of both",
     )
     threads = "threads to read and compress with (default: up to 4)"
     if reconstruction:
@@ -214,11 +221,33 @@ def _number(least):
     return number
 
 
+EVENT = r"\d+(-\d+|:\d+:\d+)?"  # an event number, a range of them, or run:lumi:event
+
+
 def _event_numbers(text):
-    """An argparse type: event numbers and ranges, checked here and kept as text for nano.parse_events."""
-    if not re.fullmatch(r"\s*\d+(-\d+)?(\s*,\s*\d+(-\d+)?)*\s*", text):
-        raise argparse.ArgumentTypeError(f"'{text}' is not a list of event numbers such as 416622,416630-416640")
+    """An argparse type: event numbers, ranges and run:lumi:event, checked here and kept as text for
+    nano.parse_events."""
+    if not re.fullmatch(rf"\s*{EVENT}(\s*,\s*{EVENT})*\s*", text):
+        raise argparse.ArgumentTypeError(
+            f"'{text}' is not a list of events such as 416622,416630-416640 or run:lumi:event 1:5:416650"
+        )
     return text
+
+
+def _requested_events(args):
+    """The text of the events asked for with --events and --events-file (None: no selection)."""
+    parts = [args.events] if args.events else []
+    if args.events_file:
+        try:
+            with open(args.events_file) as f:
+                items = [x for line in f for x in re.split(r"[\s,]+", line.split("#")[0]) if x]
+        except OSError as e:
+            raise Problem(f"--events-file: {e}") from None
+        bad = [x for x in items if not re.fullmatch(EVENT, x)]
+        if bad:
+            raise Problem(f"{args.events_file}: not an event number, a range or run:lumi:event: {', '.join(bad[:5])}")
+        parts += [",".join(items)] if items else []
+    return ",".join(parts) or None
 
 
 # A user's own bundles on the site
@@ -229,6 +258,7 @@ def _view(args):
     from . import export
     from .nano import convert, parse_events
 
+    args.events = _requested_events(args)
     configured = args.site or os.environ.get("EMBER_SITE_DIR")
     publish = bool(configured) and not (args.output or args.no_publish)
     name = args.name or os.path.splitext(os.path.basename(args.inputs[0]))[0]
@@ -365,6 +395,7 @@ def _rm(args):
 def _convert(args):
     from .nano import convert, parse_events
 
+    args.events = _requested_events(args)
     n = convert(
         args.inputs,
         args.output,

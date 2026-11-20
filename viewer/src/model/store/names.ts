@@ -1,7 +1,7 @@
 // How tables, layers, objects and numbers are named in the page, from the open bundle's display hints. Plain
 // functions: they read the signals when called, so a component that calls them re-renders when those change.
 import { type DisplayLayer, kindName, type Table } from "../../io/format";
-import { chipName, describeRow, objectName } from "../describe";
+import { cardName, chipName, describeRow, objectName } from "../describe";
 import { bundle, event } from "./data";
 
 /** The key of a display layer, unique in a bundle: "table:repr". Signals keyed per layer use it. */
@@ -89,13 +89,20 @@ export function describe(table: string, row: number, skip: string[] = []): strin
 }
 
 /** An object's one name (model/describe.ts objectName): "Jet 1 · AK4 · pT 99.6 GeV"; `skip`: values to leave out;
- *  `cmssw`: with the CMSSW collection (the card's header). A table without a layer: its name and number. */
+ *  `cmssw`: with the CMSSW collection (a chip's tooltip; the card's header is cardNameOf). A table without a layer: its name and number. */
 export function nameOf(ref: { table: string; row: number }, skip: string[] = [], cmssw = false) {
   const b = bundle.value,
     d = layerOf(ref.table);
   return b && d
     ? objectName(b.header, d, ref.row, describe(ref.table, ref.row, skip), cmssw)
     : `${ref.table} ${ref.row + 1}`;
+}
+
+/** The card's header (model/describe.ts cardName): [name with its values, its collection]. */
+export function cardNameOf(ref: { table: string; row: number }): [string, string] {
+  const b = bundle.value,
+    d = layerOf(ref.table);
+  return b && d ? cardName(b.header, d, ref.row, describe(ref.table, ref.row)) : [`${ref.table} ${ref.row + 1}`, ""];
 }
 
 /** An object's name in a list of its kind (model/describe.ts chipName): "AK4 CHS · pT 52.8 GeV". */

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { DisplayLayer, Header, Table } from "../io/format";
 import {
+  cardName,
   cellText,
   chipName,
   cmsswName,
@@ -89,6 +90,11 @@ describe("names", () => {
     // a one-object table has no number, and a CMSSW name that repeats it is left out
     expect(objectName(header, met, 0, "pT 38.1 GeV", true)).toBe("Puppi MET · pT 38.1 GeV");
     expect(cmsswName(header, layer("Muon", "Muons", "Muons"))).toBe("");
+  });
+  it("heads the card with the name and its values, and its collection on a line below", () => {
+    expect(cardName(header, jet, 0, "pT 99.6 GeV")).toEqual(["Jet 1 · pT 99.6 GeV", "AK4 · ak4PFJetsPuppi"]);
+    expect(cardName(header, ele, 1, "pT 59.7 GeV")).toEqual(["Electron 2 · pT 59.7 GeV", "gedGsfElectrons"]);
+    expect(cardName(header, met, 0, "pT 38.1 GeV")).toEqual(["Puppi MET · pT 38.1 GeV", ""]);
   });
   it("names an object in a list of its kind by its collection, where the kind has several", () => {
     expect(chipName(header, chs, 0, "pT 52.8 GeV")).toBe("AK4 CHS · pT 52.8 GeV");

@@ -2,7 +2,7 @@
 // and what the truth says about it. It carries names and numbers; what each thing is, and how it is counted, is behind
 // an "i" or the tag itself (Info.tsx).
 // From the top, the answer first and the evidence below (docs/truth.md "The card"):
-// - its one name (model/describe.ts): "Electron 2 · gedGsfElectrons · pT 59.7 GeV · η 0.714";
+// - its one name (model/describe.ts cardName): "Electron 2 · pT 59.7 GeV · η 0.714", its collection below it, small;
 // - for a reco object, what the truth says (TruthBlock.tsx), then what it is made of and its main numbers
 //   (Physics.tsx), then its chain (Chain.tsx); for a truth object, its lineage and what was reconstructed from it
 //   (TruthSide, below);
@@ -19,6 +19,7 @@ import { plain } from "../model/describe";
 import {
   anchor,
   bundle,
+  cardNameOf,
   event,
   focusBar,
   focusHistory,
@@ -57,7 +58,8 @@ export function Card() {
     table = ev.tables[sel.table];
   const d = layerOf(sel.table),
     truth = !!d?.truth,
-    prev = !anchor.value && focusHistory.value.at(-1);
+    prev = !anchor.value && focusHistory.value.at(-1),
+    [name, source] = cardNameOf(sel);
   return (
     <div class="inspector" role="dialog" aria-label="Selected object">
       <header>
@@ -69,7 +71,7 @@ export function Card() {
           )}
           {truth && <div class="kind truth">simulation</div>}
           <h2>
-            {nameOf(sel, [], true)}{" "}
+            {name}{" "}
             {(info.doc || d?.doc) && (
               <Info title={labelOf(sel.table)}>
                 {d?.doc && <p>{d.doc}</p>}
@@ -77,6 +79,7 @@ export function Card() {
               </Info>
             )}
           </h2>
+          {source && <div class="source">{source}</div>}
         </div>
         <div class="actions">
           <button class="icon-button" title="Zoom to what the view shows (F)" onClick={() => frameFocus()}>

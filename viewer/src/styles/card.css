@@ -43,6 +43,12 @@
   font-size: 16px;
   line-height: 1.3;
 }
+.inspector header .source {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 1px;
+  overflow-wrap: anywhere; /* a CMSSW collection with its instance is one long word */
+}
 .inspector h2 .describe {
   font-weight: 500;
   font-size: 0.8em;

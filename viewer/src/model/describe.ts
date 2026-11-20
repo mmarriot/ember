@@ -65,13 +65,27 @@ function which(header: Header, d: DisplayLayer) {
 
 /** An object's name: "Jet 1 · AK4 · pT 99.6 GeV": its kind, its number from 1 (none for a one-object table, MET, whose
  *  `list` reads a value), its collection where the kind has several, and `values` (describeRow). `cmssw`: with the
- *  CMSSW collection, for the card's header ("Electron 2 · gedGsfElectrons · …"). */
+ *  CMSSW collection, for a chip's tooltip ("Jet 1 · AK4 (ak4PFJetsPuppi) · …"; the card's header: cardName). */
 export function objectName(header: Header, d: DisplayLayer, row: number, values: string, cmssw = false) {
   const c = which(header, d),
     source = cmssw ? cmsswName(header, d) : "",
     one = d.list?.headline === "value";
   const where = c && source && c !== source ? `${c} (${source})` : c || source;
   return [`${kindLabel(d)}${one ? "" : ` ${row + 1}`}`, where, values].filter(Boolean).join(" · ");
+}
+
+/** The card's header in two lines: the object's name without its collection ("Jet 1 · pT 46 GeV · η 0.606"), and, small
+ *  below it, where it comes from: its collection and its CMSSW collection ("AK4 PUPPI (raw, no JEC) · ak4PFJetsPuppi",
+ *  "gedGsfElectrons"); "" when the layer's label only names its kind and the table's doc names no other CMSSW
+ *  collection. On one line, a long collection wrapped the header over three. */
+export function cardName(header: Header, d: DisplayLayer, row: number, values: string): [string, string] {
+  const one = d.list?.headline === "value",
+    c = collection(d),
+    source = cmsswName(header, d);
+  return [
+    [`${kindLabel(d)}${one ? "" : ` ${row + 1}`}`, values].filter(Boolean).join(" · "),
+    [c, source !== c ? source : ""].filter(Boolean).join(" · "),
+  ];
 }
 
 /** A chip's text in a list of one kind (the chain's steps): its values, after its collection where its kind has

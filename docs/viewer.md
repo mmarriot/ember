@@ -92,6 +92,13 @@ The side panel keeps your ticks. A shared part (for example **Physics**) draws o
 no part. A bundle opens on the part named in its `view.domain`. A selected object stays selected when you change
 part: the view frames the object's pieces in that part, and `D` skips the parts where it has nothing.
 
+**The view's title.** The top left of the view says what is on screen, so that a screenshot says it too:
+`SIMULATION · ttbar 0PU · Run 1 · LS 1 · Event 18`, or `DATA · Run 392294 · LS 21 · Event 11805516`. Under it is the
+event in one line, as at the top of the Physics tab ("Jets 4 · Electrons 0 · … · Puppi MET 38.1 GeV"). No header
+field says whether a bundle is simulation: the viewer calls an event simulated when the bundle has truth or the run
+is 1 (CMSSW numbers every simulated run 1). A simulated event is named by the first part of the data set's title,
+and data by their run.
+
 ### Selecting an object
 
 **Click an object** to select it. If objects lie on top of each other, click again on the same spot to get the next

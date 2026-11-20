@@ -18,6 +18,7 @@ import {
   touring,
 } from "../model/store";
 import { Chooser } from "./Chooser";
+import { findEvent, parseEventId } from "../model/find";
 import { toggleLive } from "../control/live";
 import { Menu } from "./Menu";
 import { chooseDomain, showWhole } from "../control/navigate";
@@ -32,8 +33,9 @@ export function Header() {
   const b = bundle.value,
     e = shownEntry.value;
   const goToEvent = (value: string) => {
-    const [run, ev] = value.includes(":") ? value.split(":").map(Number) : [undefined, Number(value)];
-    const i = b?.events.findIndex((x) => x.event === ev && (run === undefined || x.run === run)) ?? -1;
+    const id = parseEventId(value);
+    if (!id) return toast(`"${value}" is not an event: type run:lumi:event, run:event or the event number`, "error");
+    const i = b ? findEvent(b.events, id) : -1;
     if (i >= 0) showEvent(i);
     else toast(`Event ${value} is not in this file`, "error");
   };
@@ -57,7 +59,11 @@ export function Header() {
         </button>
         <div class="eventid">
           <strong>
-            {e ? `Run ${e.run} · Event ${e.event}` : opening.value || loading.value ? "Opening…" : "No event"}
+            {e
+              ? `Run ${e.run} · LS ${e.lumi} · Event ${e.event}`
+              : opening.value || loading.value
+                ? "Opening…"
+                : "No event"}
           </strong>
           <small>
             {b && e
@@ -84,8 +90,8 @@ export function Header() {
         </button>
         <input
           class="jump"
-          placeholder="Event…"
-          title="Event number, or run:event"
+          placeholder="run:lumi:event"
+          title="Go to an event: run:lumi:event, run:event or the event number"
           onKeyDown={(ev) => {
             if (ev.key === "Enter") {
               goToEvent((ev.target as HTMLInputElement).value.trim());

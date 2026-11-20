@@ -135,9 +135,9 @@ You see the first event of the bundle. Press `?` at any time for the viewer's ow
 1. **Move around.** Drag to rotate, scroll to zoom, and right-drag to pan. Press `1`, `2`, `3` or `4` for the 3D,
    front, side and ρ–z views. Use the **Look at** bar at the top (or press `D`) to show one part of the detector:
    Physics, Tracker, Calo, HGCal, Muons, or All. Press `Home` to see everything again.
-2. **Go through the events.** Press `→` and `←`. Or type an event number in the **Event…** box. Press `P` for a
-   tour: the viewer builds up the event step by step, from the collision point outwards and from hits to physics
-   objects, with a caption for each step.
+2. **Go through the events.** Press `→` and `←`. Or type an event in the box next to them: `run:lumi:event`
+   (`392294:21:11805516`), `run:event`, or the event number. Press `P` for a tour: the viewer builds up the event
+   step by step, from the collision point outwards and from hits to physics objects, with a caption for each step.
 3. **Click an object**, for example a jet, a track, a cluster or a hit. Its card opens on the right. The card shows
    what the object is part of, and what it is made of, down to the hits. Press `↓` and `↑` to draw one step of this
    chain at a time. Click a name in the card to look at that object. Press `Esc` to go back.

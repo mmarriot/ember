@@ -76,6 +76,7 @@ It shows each control's key and whether it is on. The colour theme is there too.
 | show the whole event | `Home`, or Reset |
 | go back to the normal view, or close a dialog | `Esc`, or click on empty space |
 | previous / next event | `←` / `→`, or the arrows at the top |
+| go to an event | type `run:lumi:event`, `run:event` or the event number in the box next to the arrows, then Enter |
 | resize the side panel | drag its edge; double-click the edge to reset it |
 
 **Parts of the detector.** Press `D` (`Shift+D` to go backwards), or use the **Look at** bar at the top: Physics ·
@@ -532,7 +533,7 @@ They are in the part after `#` (`#b=…&e=…`). A query (`?b=…&e=…`) is rea
 
 - `b` is the bundle's path, relative to the site: `data/u/<login>/<name>.ember` for a file in a user area.
 - `e` is the event's position in the file, counted from 0. The top bar counts from 1. It is not the event number:
-  type the event number in the **Event…** box.
+  type the event number (or `run:lumi:event`) in the event box.
 
 A local file is not written to the address.
 

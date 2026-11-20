@@ -93,7 +93,7 @@ export function App() {
 
 /** Open what the page's address names, with its event, view, selection and colours. The state is in the hash
  *  (#b=…&e=…); an address written as a query (?b=…&e=…) works too. `e` is the event's place in the file, from 0 (the
- *  top bar counts from 1: "2 of 50"), not its event number (the "Event…" box takes that). */
+ *  top bar counts from 1: "2 of 50"), not its event number (the top bar's event box takes that, or run:lumi:event). */
 function openFromAddress() {
   const link = readLink(location.hash.slice(1) || location.search.slice(1));
 

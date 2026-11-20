@@ -347,7 +347,8 @@ example jets by pT, with pT, η and φ. Click one to select it. On any other row
 its eight largest objects in the same way (for example the tracksters by energy).
 
 The tab opens with a headline: how many objects of each such layer pass, or the value of a one-object table (for
-example MET).
+example MET). A selected object that does not pass is not counted, and the headline says why: "Electrons 0 (+1
+selected, below the electron pT cut)", or "left out by the filter" when the cut alone would keep it.
 
 **In the truth colours**, each kind's heading gets one word for what the truth graph says about it: match, sim,
 or no truth. Hover for the reason. Where a kind's layers differ, each row gets its own word. The rows of

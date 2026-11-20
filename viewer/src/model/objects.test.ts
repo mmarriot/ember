@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { passes, stepRow, topRows } from "./objects";
+import type { Table } from "../io/format";
+import { passes, stepRow, topRows, whyHidden } from "./objects";
 
 const t = { n: 5, columns: { pt: new Float32Array([5, 40, 12, 80, 3]), eta: new Float32Array([0, 1, -1, 2, 0]) } };
 
@@ -32,5 +33,15 @@ describe("N, through a kind's objects", () => {
     expect(stepRow(rows, undefined, -1)).toBe(0);
     expect(stepRow(rows, 7, 1)).toBe(3); // the selection fell below the cut
     expect(stepRow([], 3, 1)).toBe(undefined);
+  });
+});
+
+describe("whyHidden", () => {
+  it("says the cut only when the cut alone leaves a row out", () => {
+    const t = { n: 3, columns: { pt: Float32Array.from([5, 20, 5]) } } as unknown as Table,
+      d = { cut: { group: "g", column: "pt" } },
+      keep = Float32Array.from([1, 0, 0]);
+    expect([0, 1, 2].map((i) => whyHidden(d, t, 10, keep, i))).toEqual(["cut", "filter", "both"]);
+    expect(whyHidden(d, t, 1, null, 0)).toBeUndefined();
   });
 });

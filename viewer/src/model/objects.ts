@@ -31,6 +31,15 @@ export function passes(d: Pick<DisplayLayer, "cut">, t: Table, min: number, keep
   return (i: number) => (!keep || !!keep[i]) && (!c || Number(c[i]) >= min);
 }
 
+/** Why row `i` does not pass its layer's cut and filter (see passes): "cut" when the cut alone leaves it out (the
+ *  filter keeps it), "filter" when the filter does, "both"; undefined when it passes. */
+export function whyHidden(d: Pick<DisplayLayer, "cut">, t: Table, min: number, keep: Float32Array | null, i: number) {
+  const c = d.cut ? t.columns[d.cut.column] : undefined,
+    cut = !!c && !(Number(c[i]) >= min),
+    filter = !!keep && !keep[i];
+  return cut && filter ? "both" : cut ? "cut" : filter ? "filter" : undefined;
+}
+
 /** Readable names of common physics columns in the object rows' heading and in object names (store/names.ts
  *  describe); others keep their own name. */
 const NAMES: Record<string, string> = {

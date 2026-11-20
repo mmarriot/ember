@@ -10,10 +10,10 @@ Open https://marriot-evd.web.cern.ch, and sign on with your CERN account. It ope
 To open another one, click the button at the left of the top bar. It shows the name of the data set that is open.
 The data set chooser lists:
 
+- **Recent**: the data sets you opened from someone's link, and local files by name;
 - the site's **shared groups**: ttbar events at 0 and 200 pile-up, HGCal cassette tests at P5 (cosmic muons) and
   test beam data;
-- **My files**: bundles you published to this site (see [Publish to a site](#publish-to-a-site));
-- **Recent**: the data sets you opened from someone's link, and local files by name.
+- **My files**: bundles you published to this site (see [Publish to a site](#publish-to-a-site)).
 
 Type to filter the list. Use ↑ ↓ and Enter to open a data set, and Esc to close the chooser.
 

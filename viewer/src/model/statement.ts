@@ -4,8 +4,9 @@
 // parts, no ranking of particles over several parts. A part's line names the part, its particle, and the purity and
 // completeness of that match, each labelled.
 import type { EventData, Header, Match } from "../io/format";
-import type { Ladder } from "./chain";
+import { type Ladder, recoOfTruth } from "./chain";
 import { completeness, quality, type TruthStatus } from "./match";
+import { truthToReco } from "./pair";
 import { bestPartners } from "./relations";
 
 /** One part's own match: part `row` of `table`, matched to truth row `particle` (-1: not matched). */
@@ -99,4 +100,28 @@ export function partChoices(st: Statement, max = 8): (PartMatch & { truth: strin
       if (out.length < max && !out.some((x) => x.truth === line.truth && x.particle === o.particle))
         out.push({ ...o, truth: line.truth });
   return out;
+}
+
+/** Where truth row `particle` went among the objects of `table` (W2; docs/truth.md): every object its truth -> reco
+ *  association gives it, most complete first, with that completeness and whether the particle is the object's own
+ *  best match (recoOfTruth); and `merges`: the other particles whose best object there (their TruthToReco best) is
+ *  `row`. The associator's answers only. */
+export function whereItWent(
+  ev: EventData,
+  header: Header,
+  truth: string,
+  particle: number,
+  table: string,
+  row: number,
+) {
+  const objects = recoOfTruth(ev, header, { table: truth, row: particle }).reco.find(
+    (r) => r.table === table,
+  )?.partners;
+  const t2r = truthToReco(header, truth, table),
+    merges: number[] = [];
+  if (t2r && ev.relations[t2r[0]]) {
+    const best = bestPartners(ev.relations[t2r[0]], t2r[1], true, ev.tables[truth]?.n ?? 0).partner;
+    for (let q = 0; q < best.length; q++) if (q !== particle && best[q] === row) merges.push(q);
+  }
+  return { objects: objects ?? [], merges };
 }

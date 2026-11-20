@@ -11,6 +11,7 @@ import { bundle, drawnLayers, event, layerKey, layerOf, nameOf, stepName } from 
 import { ranked } from "../control/navigate";
 import { chip, ObjChip } from "./chips";
 import { Fractions, keyColumns, Rows } from "./Properties";
+import { Shares } from "./Relations";
 
 export function Physics({ table, row }: { table: string; row: number }) {
   const b = bundle.value,
@@ -67,6 +68,7 @@ export function Physics({ table, row }: { table: string; row: number }) {
           ))}
         </p>
       )}
+      <Shares table={table} row={row} />
       <Rows name={table} table={t} row={row} columns={key} />
       {groups.map((g) => (
         <div class="pgroup">

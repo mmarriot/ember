@@ -3,7 +3,7 @@ import type { DisplayLayer, EventData, Header } from "../io/format";
 import { matchClass, matchTally, recoLadder, recoOfTruth, type Ladder } from "./chain";
 import { truthStatus, type TruthStatus } from "./match";
 import { relatedParts } from "./relations";
-import { partChoices, truthStatement } from "./statement";
+import { partChoices, truthStatement, whereItWent } from "./statement";
 
 // jet 0 -> PF candidates 0, 1; PF 0 -> track 0 and candidate 0; PF 1 -> track 1; candidate 0 -> track 0,
 // interpretation 0 -> layer clusters 0, 2 -> hits 0, 1, 3; trackster 1 holds clusters 0, 2 (named by no relation of the
@@ -347,5 +347,11 @@ describe("truthStatement", () => {
     const st = truthStatement(ev, header, ladder("Trk", 0), statuses);
     expect(st.own?.kind).toBe("match");
     expect(st.parts).toEqual([]);
+  });
+  it("says where a matched object's particle went, and which other particles it is the best match of", () => {
+    expect(whereItWent(ev, header, "P", 0, "Trk", 0)).toEqual({
+      objects: [{ row: 0, completeness: expect.closeTo(0.6, 5), best: true, unmatched: false }],
+      merges: [],
+    });
   });
 });

@@ -538,6 +538,9 @@ It never gives a verdict for the object from its parts: a pion's track inside a 
   candidates 7: γ 4 · π⁻ 2 · μ⁺ 1"), and how many their layer's filter keeps ("all kept by puppiWeight > 0", or "5
   kept, 26 not" for a CHS jet at pile-up);
 - the objects holding it with a weight: "in Primary vertex 1 · weight 0.90" (a track), "in Secondary vertex 1";
+- objects of other kinds with exactly the same parts, from the relations alone: "same supercluster as Photon 1" (and
+  "same supercluster as Electron 2" on the photon's card), "same PF candidates as Jet 1 · AK4 CHS", "all its PF
+  candidates are in Jet 1 · AK4" (a tau);
 - its key columns (the layer's `inspect`), with units and named values ("decayMode h± π⁰ (1)" where the layer's
   `describe.names` names them). Raw indices (`trackIdx`), components derived from others (px) and positions copied
   in from another table (a jet's PV position) are left to **All columns**;
@@ -625,7 +628,10 @@ lists that object's levels, with the one drawn lit. Click another one, or press 
   threshold marked. The pair's "in its match 59%" further down is another number: the share of the particle's
   simulated energy in the match's hits;
 - the generator particle that the match belongs to;
-- the match's chain in the truth graph, on one line, from the collision down.
+- the match's chain in the truth graph, on one line, from the collision down;
+- **where it went**, when there is more than this object: every object of the kind that the particle's truth → reco
+  association gives, with its completeness and "★ its best" where the particle is that object's own best match (a
+  split); and "also best match of …": the other particles whose best object this is (a merge).
 
 Behind its **i**: what the kind reconstructs (for example "the particle that entered the calorimeter"), how purity
 and completeness are counted, and the associator's score ("0 best; not a fraction").

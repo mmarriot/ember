@@ -12,6 +12,7 @@ import { type CrossChoice, cross, crossChoices, crossTo, crossing } from "../con
 import { chip } from "./chips";
 import { Info } from "./Info";
 import { TruthCard } from "./TruthCard";
+import { WentTo } from "./Relations";
 
 /** A gap of docs/truth-graph.md, as a link to its table. */
 export const GapLink = ({ gap }: { gap?: number }) =>
@@ -58,7 +59,12 @@ export function TruthBlock({ table, row }: { table: string; row: number }) {
           </Info>
         </span>
       </h4>
-      {own?.kind === "match" && <TruthCard table={table} row={row} />}
+      {own?.kind === "match" && (
+        <>
+          <TruthCard table={table} row={row} />
+          <WentTo table={table} row={row} relation={own.relation} />
+        </>
+      )}
       {own?.kind === "none" && (
         <p class="truthline nolink">
           No CMSSW association for {kinds(table)}{" "}

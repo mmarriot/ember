@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { EventData, Header } from "../io/format";
-import { constituents, deltaPhi, memberships } from "./physics";
+import { constituents, deltaPhi, memberships, sharedParts } from "./physics";
 
 const csr = (rows: number[][], weights: Record<string, number[]> = {}) => ({
   offsets: Uint32Array.from(rows.reduce((o, r) => [...o, o[o.length - 1] + r.length], [0])),
@@ -70,6 +70,19 @@ describe("physics", () => {
         filter: "w > 0",
       },
     ]);
+  });
+  it("finds the objects with exactly the same parts, or all of them and more, from the relations alone", () => {
+    expect(sharedParts(ev, header, "Jet", 0, new Set())).toEqual([
+      { parts: "PF", n: 3, table: "JetCHS", row: 0, same: true },
+    ]);
+    expect(sharedParts(ev, header, "Tau", 0, new Set())).toEqual([
+      { parts: "PF", n: 2, table: "Jet", row: 0, same: false },
+      { parts: "PF", n: 2, table: "JetCHS", row: 0, same: false },
+    ]);
+    expect(sharedParts(ev, header, "Ele", 0, new Set())).toEqual([
+      { parts: "SC", n: 1, table: "Pho", row: 1, same: true },
+    ]);
+    expect(sharedParts(ev, header, "Ele", 0, new Set(["Pho"]))).toEqual([]);
   });
   it("measures an angle in φ the short way round", () => {
     expect(deltaPhi(3, -3)).toBeCloseTo(2 * Math.PI - 6);

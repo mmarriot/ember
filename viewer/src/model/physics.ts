@@ -100,3 +100,42 @@ export function deltaPhi(a: number, b: number) {
   const d = Math.abs(a - b) % (2 * Math.PI);
   return d > Math.PI ? 2 * Math.PI - d : d;
 }
+
+/** The objects of other kinds that share row `row` of `table`'s `n` parts exactly (docs/viewer.md "The selection's card"):
+ *  through each plain relation from it into a parts table, the objects of another table whose own parts there are
+ *  the same set (`same`: an electron and a photon with one supercluster, a PUPPI and a CHS jet with the same PF
+ *  candidates), or, for a set of several parts, hold all of them and more (`same` false: a tau's PF candidates, all in a
+ *  jet). Exact relations from the file, no matching. `skip`: tables left out (those the card already shows it is
+ *  part of). Once per event, object and `skip`. */
+export function sharedParts(ev: EventData, header: Header, table: string, row: number, skip: Set<string>) {
+  return cached(ev, `shared|${table}|${row}|${[...skip].sort()}`, () => {
+    const out: { parts: string; n: number; table: string; row: number; same: boolean }[] = [];
+    const plain = Object.entries(header.relations).filter(
+      ([name, r]) => !r.association && !r.inverseOf && r.from !== r.to && ev.relations[name],
+    );
+    for (const [name, r] of plain) {
+      if (r.from !== table) continue;
+      const rel = ev.relations[name],
+        mine = new Set(rel.indices.subarray(rel.offsets[row], rel.offsets[row + 1]));
+      if (!mine.size) continue;
+      const first = mine.values().next().value!;
+      for (const [other, o] of plain) {
+        if (o.to !== r.to || o.from === table || skip.has(o.from)) continue;
+        // the objects holding its first part (the relation read from its parts' side), then those holding them all
+        const orel = ev.relations[other],
+          { offsets, particle: holder } = byHit(ev, other, ev.tables[r.to]?.n ?? 0);
+        for (let j = offsets[first]; j < offsets[first + 1]; j++) {
+          const x = holder[j],
+            lo = orel.offsets[x],
+            hi = orel.offsets[x + 1];
+          if (hi - lo < mine.size || (mine.size === 1 && hi - lo > 1)) continue;
+          let held = 0;
+          for (let k = lo; k < hi; k++) if (mine.has(orel.indices[k])) held++;
+          if (held === mine.size && !out.some((s) => s.table === o.from && s.row === x))
+            out.push({ parts: r.to, n: mine.size, table: o.from, row: x, same: hi - lo === held });
+        }
+      }
+    }
+    return out;
+  });
+}

@@ -2,6 +2,9 @@
   "name": "run3",
   "note": "Ember's own NanoAOD of a Run 3 reconstruction file (data or simulation; ember FILE.root: embertools/cmsrun.py): ECAL, preshower and HCAL PF rechits (PhysicsTools/TruthInfo table 'pfrechits', remade in the job when the input keeps only the cleaned-away ones; positions from CaloGeometry), split here by the DetId's subdetector: ECAL barrel (towers 0.0174 x 1 degree), ECAL endcap (eta-phi bins with the area of the 2.862 cm crystal face), preshower (6.1 cm x 1.9 mm strips, along y in plane 1 and x in plane 2), HB, HE, HF and HO (towers from the DetId's ieta and depth, geometry sweep of Run 3); ECAL and HO show energy as length; PF clusters, superclusters, tracks and physics objects (reco.json, nano.json). A cluster's hits are found by DetId (when the release writes cluster-hits tables). Domain Calo: the barrel and endcap calorimeters (r <= 420 cm, |z| <= 580 cm), front view; the endcaps (ECAL, preshower, HCAL) and HF are not drawn in the front view, where they would sit over the barrel.",
   "include": ["nano", "reco", "muonsystem"],
+  "kinds": {
+    "trackHit": {"colourBy": {"names": [["1", "pixel barrel"], ["2", "pixel endcap"], ["5", "TOB"], ["6", "TEC"], ["4", "TID"], ["3", "TIB"]]}, "describe": {"names": {"subdet": {"1": "PXB", "2": "PXF", "3": "TIB", "4": "TID", "5": "TOB", "6": "TEC"}}}}
+  },
   "order": ["jet", "electron", "muon", "photon", "tau", "met", "vertex", "secondaryVertex", "pfCandidate", "superCluster", "pfCluster", "caloHit", "track", "gsfTrack", "trackHit", "beamSpot", "muonTrack", "standaloneTrackHit", "globalTrackHit", "muonSegment", "muonHit", "muonChamber"],
   "derive": [
     {"table": "pfrechits", "bits": {"det": ["rechit_ID", 28, 4], "subdet": ["rechit_ID", 25, 3]}},

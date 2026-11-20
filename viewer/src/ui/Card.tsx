@@ -22,7 +22,6 @@ import {
   focusHistory,
   focusLevel,
   full,
-  highlight,
   kindOf,
   labelOf,
   layerOf,
@@ -41,10 +40,9 @@ import { Chain } from "./Chain";
 import { chip } from "./chips";
 import { keyColumns, Properties, Rows } from "./Properties";
 import { Info } from "./Info";
-import { back } from "../control/navigate";
+import { back, frameFocus } from "../control/navigate";
 import { PairBars } from "./PairBars";
 import { Lineage, TruthCard } from "./TruthCard";
-import { engine } from "../control/scene";
 import { Icon } from "./widgets";
 
 const name = (r: Ref) => {
@@ -55,8 +53,7 @@ const name = (r: Ref) => {
 export function Card() {
   const b = bundle.value,
     ev = event.value,
-    sel = subject.value,
-    hl = highlight.value;
+    sel = subject.value;
   if (!b || !ev || !sel || !ev.tables[sel.table]) return null;
   const info = b.header.tables[sel.table],
     table = ev.tables[sel.table];
@@ -89,11 +86,7 @@ export function Card() {
           </h2>
         </div>
         <div class="actions">
-          <button
-            class="icon-button"
-            title="Zoom to what the view shows (F)"
-            onClick={() => hl && engine?.frame(hl, true)}
-          >
+          <button class="icon-button" title="Zoom to what the view shows (F)" onClick={() => frameFocus()}>
             <Icon name="focus" />
           </button>
           <button class="icon-button" title="Close (Esc)" onClick={() => (selection.value = null)}>
@@ -142,7 +135,7 @@ function Looking() {
             title="Open its card (double click does the same)"
             onClick={() => {
               openCard(sel);
-              engine?.frame(highlight.peek() ?? undefined, true, 800);
+              frameFocus(800);
             }}
           >
             Open →

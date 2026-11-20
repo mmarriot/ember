@@ -32,13 +32,42 @@ export function flatView(view: Exclude<ViewName, "3d">) {
 }
 
 /** Orthographic zoom that fits a width x height (cm) into a camera whose frustum at zoom 1 is frustumW x frustumH,
- *  with a margin. */
+ *  with a margin. The smallest size framed is the caller's (Engine.fit: the profile's minRadius, e.g. 15 cm in the
+ *  tracker), so a short track fills the view as a long one does. */
 export const flatZoom = (frustumW: number, frustumH: number, w: number, h: number) =>
-  0.85 * Math.min(frustumW / Math.max(w + 30, 80), frustumH / Math.max(h + 30, 80));
+  0.85 * Math.min(frustumW / Math.max(w, 1), frustumH / Math.max(h, 1));
 
-/** A 2D view's zoom and target: a width x height (cm) around `ctr` fitted into the part of the view a panel on the
- *  right leaves free (`free`: its share of the width, at least 0.4) and centred there, so the target moves right on
- *  screen by half the covered width. */
+/** A part of the view, as fractions of its width and height from its top left corner: x0 < x1, y0 < y1 in [0, 1]. */
+export interface Area {
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+}
+/** The whole view. */
+export const WHOLE: Area = { x0: 0, y0: 0, x1: 1, y1: 1 };
+
+/** The part of a width x height view (px) that a panel over it leaves free: the largest of the four rectangles beside
+ *  it (left, right, above, below), at least 40% of the view each way, so a panel that covers nearly all of it still
+ *  leaves room to frame. `cover`: the panel's rectangle (px from the view's top left); null: the whole view. */
+export function freeArea(width: number, height: number, cover: Area | null): Area {
+  if (!cover || width <= 0 || height <= 0) return WHOLE;
+  const x0 = Math.min(Math.max(cover.x0 / width, 0), 1),
+    x1 = Math.min(Math.max(cover.x1 / width, 0), 1),
+    y0 = Math.min(Math.max(cover.y0 / height, 0), 1),
+    y1 = Math.min(Math.max(cover.y1 / height, 0), 1);
+  const sides: Area[] = [
+    { x0: 0, y0: 0, x1: Math.max(x0, 0.4), y1: 1 },
+    { x0: Math.min(x1, 0.6), y0: 0, x1: 1, y1: 1 },
+    { x0: 0, y0: 0, x1: 1, y1: Math.max(y0, 0.4) },
+    { x0: 0, y0: Math.min(y1, 0.6), x1: 1, y1: 1 },
+  ];
+  const size = (a: Area) => (a.x1 - a.x0) * width * (a.y1 - a.y0) * height;
+  return sides.reduce((a, b) => (size(b) > size(a) ? b : a));
+}
+
+/** A 2D view's zoom and target: a width x height (cm) around `ctr` fitted into the `free` part of the view and centred
+ *  there, so the target moves on screen from the view's centre to the free part's. */
 export function flatAim(
   ctr: THREE.Vector3,
   dir: THREE.Vector3,
@@ -46,12 +75,18 @@ export function flatAim(
   frustumH: number,
   w: number,
   h: number,
-  free: number,
+  free: Area = WHOLE,
 ) {
-  const f = Math.min(1, Math.max(0.4, free)),
-    zoom = flatZoom(f * frustumW, frustumH, w, h);
+  const zoom = flatZoom((free.x1 - free.x0) * frustumW, (free.y1 - free.y0) * frustumH, w, h);
   const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), dir).normalize();
-  return { zoom, target: ctr.clone().addScaledVector(right, (0.5 * (1 - f) * frustumW) / zoom) };
+  // The free part's centre, from the view's centre: right and down, as fractions of the frustum.
+  const cx = (free.x0 + free.x1) / 2 - 0.5,
+    cy = (free.y0 + free.y1) / 2 - 0.5;
+  const target = ctr
+    .clone()
+    .addScaledVector(right, (-cx * frustumW) / zoom)
+    .addScaledVector(new THREE.Vector3(0, 1, 0), (cy * frustumH) / zoom);
+  return { zoom, target };
 }
 
 /** A camera distance far enough that the orthographic camera's depth range (+-5000 cm around it) holds the detector. */

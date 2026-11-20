@@ -86,7 +86,7 @@ It shows each control's key and whether it is on. The colour theme is there too.
 | pan | right-drag, or shift + drag |
 | zoom | scroll (it zooms towards the cursor) |
 | switch view: 3D, front, side, ρ–z | `1`, `2`, `3`, `4`, or the buttons at the bottom left of the view (in the top bar for a bundle without parts of the detector) |
-| zoom to an object | double-click it, or `F` |
+| zoom to an object | double-click it, or `F`: it fills the part of the view the card leaves free |
 | show the whole event | `Home`, or Reset |
 | go back to the normal view, or close a dialog | `Esc`, or click on empty space |
 | previous / next event | `←` / `→`, or the arrows at the top |
@@ -141,6 +141,12 @@ The selected object itself is always drawn, whatever the cut, but the hits of pa
 
 The selection's **card** opens on the right. It shows the object's chain, with what the truth says at every step
 (see [The selection's card](#the-selections-card)).
+
+**Framing.** `F`, a double click, the card's zoom button, `X` and back (`B`) frame the
+object in the part of the view the card leaves free (left of it, or below it on a narrow screen), so the card never
+covers it. What is framed is the object and its parts. Objects only linked to it, such as its truth particle or a
+track's vertex, are not: a low-pT particle's helix can curl far from its track. Clicking an object does not move the
+camera.
 
 **Next object.** `N` selects the next object of the same kind, largest first. `Shift+N` goes back. The order is the
 order of the list that the row's count opens, for example the next jet by pT, or the next track. This works for every

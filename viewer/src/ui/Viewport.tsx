@@ -2,7 +2,6 @@
 // and tour captions, the note while one kind is drawn alone, the views' buttons and a hint. The pointer: hovering an
 // object shows its tooltip, a click selects it (again on the same spot: the next object under the pointer), a
 // double click zooms to the selection, and a drag rotates or pans without changing the selection.
-import { effect } from "@preact/signals";
 import { useEffect, useRef } from "preact/hooks";
 import { unitOf } from "../io/format";
 import { colourBy } from "../model/custom";
@@ -13,7 +12,6 @@ import {
   describe,
   event,
   focusLinked,
-  highlight,
   hover,
   inFocus,
   isHitLayer,
@@ -23,6 +21,7 @@ import {
   selection,
   short,
   shownLayer,
+  subject,
   unlook,
   view,
 } from "../model/store";
@@ -30,9 +29,12 @@ import type { ViewName } from "../io/format";
 import { Labels } from "./Labels";
 import { Hint } from "./Hint";
 import { TitleBox } from "./TitleBox";
-import { jump } from "../control/navigate";
+import { frameFocus, jump } from "../control/navigate";
 import { engine, startScene } from "../control/scene";
 import { stopTour, tourCaption } from "../control/tour";
+
+/** The card's width and right margin (styles/card.css .inspector), for framing before it is drawn. */
+const CARD = 384 + 12;
 
 export function Viewport() {
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -41,19 +43,18 @@ export function Viewport() {
     const stop = startScene(canvas.current!);
     const eng = engine!;
     eng.onInteract = stopTour;
-    // The inspector covers the right of the view while something is selected: framing leaves that part free.
-    const stopInset = effect(() => {
-      selection.value;
-      const panel = document.querySelector(".inspector") as HTMLElement | null,
-        box = canvas.current!.getBoundingClientRect();
-      eng.insetRight = selection.peek()
-        ? Math.max(0, box.right - (panel?.getBoundingClientRect().left ?? box.right - 372))
-        : 0;
-    });
-    return () => {
-      stop();
-      stopInset();
+    // The card covers part of the view while something is selected: framing leaves that part free. Measured at each
+    // framing (one layout read); a card not drawn yet (framing in the same step as the selection) is taken where
+    // styles/card.css puts it.
+    eng.cover = () => {
+      if (!subject.peek()) return null;
+      const box = canvas.current!.getBoundingClientRect(),
+        card = document.querySelector(".inspector")?.getBoundingClientRect();
+      return card
+        ? { x0: card.left - box.left, y0: card.top - box.top, x1: card.right - box.left, y1: card.bottom - box.top }
+        : { x0: box.width - CARD, y0: 12, x1: box.width - 12, y1: box.height - 12 };
     };
+    return stop;
   }, []);
 
   // A press that moves more than a few pixels is a rotate/pan, not a click: it must not change the selection.
@@ -118,7 +119,7 @@ export function Viewport() {
       if (!hit) return;
       selection.value = { table: hit.table, row: hit.row };
     }
-    engine?.frame(highlight.value ?? undefined, true, 700);
+    frameFocus(700);
   };
 
   return (

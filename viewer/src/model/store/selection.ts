@@ -205,6 +205,23 @@ export const highlight = computed(() => {
   return b && ev && f && parts ? levelsOf(ev, b.header, f, parts) : null;
 });
 
+/** What framing the focus fits in the view: the highlight less what is only linked to the focus (its truth particle,
+ *  a track's vertex), which can lie far from it (a low-pT particle's helix curls round 80 cm across the tracker). Null
+ *  without a focus. */
+export const framed = computed(() => {
+  const hl = highlight.value,
+    f = focus.value,
+    linked = focusParts.value?.linked;
+  if (!hl || !f || !linked?.size) return hl;
+  const out: Related = new Map();
+  for (const [t, rows] of hl) {
+    const away = linked.get(t),
+      keep = away ? new Set([...rows].filter((r) => !away.has(r) || (t === f.table && r === f.row))) : rows;
+    if (keep.size) out.set(t, keep);
+  }
+  return out;
+});
+
 /** Objects linked to the focus through an association (its truth; a truth particle's reco objects): a click on one
  *  moves the focus there. */
 export const focusLinked = computed(() => focusParts.value?.linked ?? null);

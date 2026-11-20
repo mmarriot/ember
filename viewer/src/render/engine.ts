@@ -6,6 +6,7 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import type { Outline, ViewName } from "../io/format";
 import {
   angle,
+  type Area,
   boxOf,
   DIRECTIONS,
   type Envelope,
@@ -14,6 +15,7 @@ import {
   FLAT_DISTANCE,
   flatAim,
   flatView,
+  freeArea,
   presetDirection,
   type Rows,
 } from "./camera";
@@ -84,8 +86,9 @@ export class Engine {
   private envelope: Envelope | null = null;
   /** Smallest radius (cm) framed around objects (profile view.minRadius, set by control/scene.ts). */
   minRadius = MIN_RADIUS;
-  /** Pixels on the right of the view covered by a panel (the inspector): framing centres objects in the rest. */
-  insetRight = 0;
+  /** The rectangle of the view covered by a panel (the card), in px from its top left, or null: framing fits and
+   *  centres objects in the largest part it leaves free (camera.ts freeArea). Asked at each framing. */
+  cover: () => Area | null = () => null;
   /** Called on every replay frame with the replay time (s), and with null when it ends. */
   onReplayTick: (t: number | null) => void = () => {};
   /** Called when the user starts rotating, panning or zooming. */
@@ -407,28 +410,28 @@ export class Engine {
   private aimFlat(ctr: THREE.Vector3, w: number, h: number, animate: boolean, ms: number) {
     const c = this.cam2d,
       dir = flatView(this.view as Exclude<ViewName, "3d">).dir;
-    const { zoom, target } = flatAim(
-      ctr,
-      dir,
-      c.right - c.left,
-      c.top - c.bottom,
-      w,
-      h,
-      1 - this.insetRight / this.width,
-    );
+    const { zoom, target } = flatAim(ctr, dir, c.right - c.left, c.top - c.bottom, w, h, this.free());
     this.go([target.clone().addScaledVector(dir, FLAT_DISTANCE), target, zoom], animate, ms, 0);
   }
 
-  /** 3D: look at a sphere around `ctr` of this radius along `dir` (default: the current direction), filling the view
-   *  left free by a panel. */
+  /** The part of the view a panel leaves free (fractions of the view). */
+  private free() {
+    return freeArea(this.width, this.height, this.cover());
+  }
+
+  /** 3D: look at a sphere around `ctr` of this radius along `dir` (default: the current direction), filling the part
+   *  of the view a panel leaves free and centred there. */
   private aim(ctr: THREE.Vector3, radius: number, animate: boolean, ms: number, swing: number, dir = this.direction()) {
-    // With a panel over the right of the view, fit the objects in the uncovered width and centre them there.
-    const free = Math.max(0.4, 1 - this.insetRight / this.width),
+    const f = this.free(),
       aspect = this.cam3d.aspect;
-    const dist = this.distanceFor(radius / Math.min(1, free * aspect)); // the narrower side decides
-    const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), dir).normalize();
-    const shift = (1 - free) * dist * Math.tan(THREE.MathUtils.degToRad(this.cam3d.fov / 2)) * aspect; // half the covered width
-    const target = ctr.addScaledVector(right, shift);
+    const dist = this.distanceFor(radius / Math.min(f.y1 - f.y0, (f.x1 - f.x0) * aspect)); // the narrower side decides
+    // The free part's centre is off the view's centre: the target moves the other way, by as much at its distance.
+    const half = dist * Math.tan(THREE.MathUtils.degToRad(this.cam3d.fov / 2)), // half the view's height there (cm)
+      right = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), dir).normalize(),
+      up = new THREE.Vector3().crossVectors(dir, right);
+    const target = ctr
+      .addScaledVector(right, -(f.x0 + f.x1 - 1) * half * aspect)
+      .addScaledVector(up, (f.y0 + f.y1 - 1) * half);
     this.go([target.clone().addScaledVector(dir, dist), target, 1], animate, ms, swing);
   }
 

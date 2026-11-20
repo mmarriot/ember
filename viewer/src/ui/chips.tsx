@@ -4,12 +4,12 @@
 // object: clean, impure or no match, so a list shows at a glance which are which.
 import { useEffect } from "preact/hooks";
 import { sameRef } from "../model/relations";
-import { anchor, describe, highlight, labelOf, look, matchOf, openCard, selection } from "../model/store";
+import { anchor, describe, labelOf, look, matchOf, openCard, selection } from "../model/store";
 import { rowHover } from "./Labels";
-import { engine } from "../control/scene";
+import { frameFocus } from "../control/navigate";
 
 const WORDS = { clean: "clean match", impure: "impure match", unmatched: "no truth match", matched: "matched" };
-const glide = () => engine?.frame(highlight.peek() ?? undefined, true, 800);
+const glide = () => frameFocus(800);
 
 /** The chip of row `r` of table `t`, named as its kind describes it; `title`: more to say on hover. */
 export const chip = (t: string, r: number, title = "") => <ObjChip table={t} row={r} title={title} />;

@@ -21,9 +21,9 @@ import {
   truthColours,
   view,
 } from "../model/store";
-import { back, cross, nextDomain, nextObject, showWhole } from "../control/navigate";
+import { back, cross, frameFocus, nextDomain, nextObject, showWhole } from "../control/navigate";
 import { stopTour, toggleTour } from "../control/tour";
-import { engine, replayEvent } from "../control/scene";
+import { replayEvent } from "../control/scene";
 import { VIEWS } from "./Viewport";
 import { usePressOutside } from "./widgets";
 
@@ -52,7 +52,7 @@ export function Menu() {
           label: "Zoom to the selection",
           keys: "F",
           off: !highlight.value,
-          run: () => engine?.frame(highlight.value ?? undefined, true),
+          run: () => frameFocus(),
         },
         { label: "Labels", keys: "L", on: labelsOn.value, run: () => (labelsOn.value = !labelsOn.value) },
         { label: "Save picture…", off: !bundle.value, run: () => (dialog.value = "picture") },

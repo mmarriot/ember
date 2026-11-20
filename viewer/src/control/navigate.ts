@@ -16,6 +16,7 @@ import {
   focus,
   focusBack,
   focusOn,
+  framed,
   highlight,
   ladder,
   layerKey,
@@ -35,10 +36,16 @@ import {
 import type { Ref } from "../model/relations";
 import { engine } from "./scene";
 
+/** Frame the focus in the part of the view the card leaves free (engine.frame, store `framed`): `F`, a double click,
+ *  the card's button, X, back, a link; `ms`: the glide's length (0: at once). */
+export function frameFocus(ms = 450) {
+  engine?.frame(framed.peek() ?? undefined, ms > 0, ms);
+}
+
 export function jump(ref: Ref) {
   focusOn(ref);
   selection.value = { ...ref };
-  engine?.frame(highlight.peek() ?? undefined, true, 800);
+  frameFocus(800);
 }
 
 /** Back (keyboard: B): while another object is looked at, to the card's own object; else to the previous card. */
@@ -49,7 +56,7 @@ export function back() {
     if (!prev) return;
     selection.value = { ...prev };
   }
-  engine?.frame(highlight.peek() ?? undefined, true, 800);
+  frameFocus(800);
 }
 
 /** Across the reco ↔ truth link (keyboard: X): from a reco object to its best truth match (a hit or a layer cluster:
@@ -92,17 +99,17 @@ export function chooseDomain(name: string | null, animate = true) {
     if (d) openTab.value = { name: tabOfDomain(h, d.name) }; // its tab in the side panel (choosing a tab does not change the view)
     view.value = d?.view ?? h.view?.start ?? "3d";
   });
-  const part = focusIn(d?.name ?? null),
+  const part = focusIn(d?.name ?? null, framed.peek()),
     f = focus.peek();
   if (part && f) engine?.frame(withFocus(part, f), animate, 700);
   else if (d) engine?.frameRegion(d.region.rMax, d.region.zMax, animate);
   else engine?.frame(undefined, animate);
 }
 
-/** The focus's objects that domain `name` draws as its own (model/domains.ts rowsInDomain); null without a focus. */
-function focusIn(name: string | null) {
-  const h = bundle.peek()?.header,
-    hl = highlight.peek();
+/** The focus's objects (`hl`: of its highlight) that domain `name` draws as its own (model/domains.ts rowsInDomain);
+ *  null without a focus. */
+function focusIn(name: string | null, hl = highlight.peek()) {
+  const h = bundle.peek()?.header;
   return h && hl && focus.peek() ? rowsInDomain(hl, h.display, name, shared.peek()) : null;
 }
 

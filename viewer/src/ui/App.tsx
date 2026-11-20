@@ -23,7 +23,6 @@ import {
   event,
   eventIndex,
   focusLevel,
-  highlight,
   labelsOn,
   openBundle,
   opened,
@@ -52,9 +51,9 @@ import { Card } from "./Card";
 import { menuOpen } from "./Menu";
 import { Sidebar } from "./Sidebar";
 import { DropHint, Start } from "./Start";
-import { back, chooseDomain, cross, nextDomain, nextObject, showWhole } from "../control/navigate";
+import { back, chooseDomain, cross, frameFocus, nextDomain, nextObject, showWhole } from "../control/navigate";
 import { stopTour, toggleTour } from "../control/tour";
-import { engine, replayEvent } from "../control/scene";
+import { replayEvent } from "../control/scene";
 import { Viewport } from "./Viewport";
 import { Toasts } from "./widgets";
 
@@ -219,7 +218,7 @@ function onKey(e: KeyboardEvent) {
   else if (e.key === "d" || e.key === "D") nextDomain(e.shiftKey ? -1 : 1);
   else if ((e.key === "t" || e.key === "T") && truthColours.value)
     colourChoice.value = colourChoice.value === "truth" ? "reco" : "truth";
-  else if (e.key === "f" || e.key === "F") engine?.frame(highlight.value ?? undefined, true);
+  else if (e.key === "f" || e.key === "F") frameFocus();
   else if (e.key === "l" || e.key === "L") labelsOn.value = !labelsOn.value;
   else if (e.key === "n" || e.key === "N") nextObject(e.shiftKey ? -1 : 1);
   else if (e.key === "x" || e.key === "X") cross();

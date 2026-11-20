@@ -46,9 +46,9 @@ def test_the_release_tables_are_drawn_and_linked_under_the_phase2_profile():
     assert [d["name"] for d in header["domains"]] == ["Physics", "Tracker", "Calo", "HGCal", "Muons"]
     # the presets, with only what the bundle has: no vertex <-> track links yet, no MTD hits
     assert header["presets"] == [
-        {"name": "Primary vertex", "filters": {"PV": "index == 0", "GeneralTrack": "highPurity == 1 && vertex < 1"}},
+        {"name": "Default", "filters": {"PV": "index == 0", "GeneralTrack": "highPurity == 1 && vertex < 1"}},
         {"name": "All vertices", "filters": {"PV": "", "GeneralTrack": "highPurity == 1"}},
-        {"name": "What PUPPI removed", "filters": {"PFCandidates": "puppiWeight == 0"}, "show": ["PFCandidates"]},
+        {"name": "PF candidates with PUPPI weight 0", "filters": {"PFCandidates": "puppiWeight == 0"}, "show": ["PFCandidates"]},
         {"name": "Track time", "colour": {"GeneralTrack": "t0", "PV": "t"}},
     ]
 
@@ -119,7 +119,7 @@ def test_the_tables_of_every_cmssw_branch_are_drawn_and_linked():
     presets = {p["name"]: p for p in header["presets"]}
     assert presets["All vertices"]["colour"] == {"GeneralTrack": "rel:trackVertex"}
     # the b-tags (jet tags branch), the CHS jets ticked; without the branch the preset is left out (above)
-    assert presets["b-tags"] == {"name": "b-tags", "colour": {"JetCHS": "btagDeepCSVB"}, "show": ["JetCHS"]}
+    assert presets["DeepCSV (CHS jets)"] == {"name": "DeepCSV (CHS jets)", "colour": {"JetCHS": "btagDeepCSVB"}, "show": ["JetCHS"]}
     assert presets["Track time"]["colour"] == {
         "GeneralTrack": "t0",
         "PV": "t",

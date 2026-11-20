@@ -96,10 +96,10 @@
     {"table": "PFCandidates", "kind": "pfCandidate", "label": "Particle flow", "position": ["vx", "vy", "vz"], "momentum": ["px", "py", "pz"], "charge": "charge", "end": ["endX", "endY", "endZ"], "length": {"to": {"r": 129, "z": 320}}, "time": "time", "cut": {"column": "pt"}, "filter": "puppiWeight > 0", "describe": {"columns": ["pdgId", "pt"], "names": {"pdgId": {"211": "π⁺", "-211": "π⁻", "22": "γ", "130": "h⁰", "11": "e⁻", "-11": "e⁺", "13": "μ⁻", "-13": "μ⁺", "1": "HF had", "2": "HF EM"}}}, "inspect": ["pt", "eta", "phi", "energy", "ecalEnergy", "hcalEnergy", "time"]}
   ],
   "presets": [
-    {"name": "Primary vertex", "filters": {"PV": "index == 0", "GeneralTrack": "highPurity == 1 && vertex < 1"}},
+    {"name": "Default", "filters": {"PV": "index == 0", "GeneralTrack": "highPurity == 1 && vertex < 1"}},
     {"name": "All vertices", "filters": {"PV": "", "GeneralTrack": "highPurity == 1"}, "colour": {"GeneralTrack": "rel:trackVertex"}},
-    {"name": "What PUPPI removed", "filters": {"PFCandidates": "puppiWeight == 0"}, "show": ["PFCandidates"]},
-    {"name": "b-tags", "colour": {"JetCHS": "btagDeepCSVB"}, "show": ["JetCHS"]}
+    {"name": "PF candidates with PUPPI weight 0", "filters": {"PFCandidates": "puppiWeight == 0"}, "show": ["PFCandidates"]},
+    {"name": "DeepCSV (CHS jets)", "colour": {"JetCHS": "btagDeepCSVB"}, "show": ["JetCHS"]}
   ],
   "view": {"colourRoot": "pfCandidate"},
   "domains": [{"name": "Tracker", "region": {"rMax": 120, "zMax": 280}, "view": "front", "colourMode": "layers", "minRadius": 15}],

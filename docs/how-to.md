@@ -92,7 +92,7 @@ or only the ones you want, each with its own `git cms-merge-topic mmarriot:<bran
 | `nanoaod-vertex-tracks` | which tracks each primary and secondary vertex is made of |
 | `nanoaod-pfcandidate-links` | each PF candidate's PF clusters and TICL candidate: the whole detector takes the candidates' colours |
 | `nanoaod-reco-constituents` | the PF candidates of each jet and tau: select a jet, see what it is made of |
-| `nanoaod-jet-tags` | the b-tags of the CHS jets (preset "b-tags") |
+| `nanoaod-jet-tags` | the b-tags of the CHS jets (preset "DeepCSV (CHS jets)") |
 | `nanoaod-mtd-rechits` | every BTL and ETL rechit (preset "Track time") |
 | `muontools-rechits-chambers` | DT and CSC rechits, the chambers in use, and each muon's segments |
 | `nanoaod-muon-track-links` | each muon's standalone track |

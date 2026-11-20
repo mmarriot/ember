@@ -101,6 +101,10 @@ The side panel keeps your ticks. A shared part (for example **Physics**) draws o
 no part. A bundle opens on the part named in its `view.domain`. A selected object stays selected when you change
 part: the view frames the object's pieces in that part, and `D` skips the parts where it has nothing.
 
+**Hints.** On a first visit, a line at the bottom left of the view names the keys to start with: click an object,
+`X` for its truth and `T` for truth colours (when the bundle has truth), `D` for the parts of the detector, `?` for
+help. **Got it** hides it for good in this browser; the line then says only "Click an object to select it · ? help".
+
 **The view's title.** The top left of the view says what is on screen, so that a screenshot says it too:
 `SIMULATION · ttbar 0PU · Run 1 · LS 1 · Event 18`, or `DATA · Run 392294 · LS 21 · Event 11805516`. Under it is the
 event in one line, as at the top of the Physics tab ("Jets 4 · Electrons 0 · … · Puppi MET 38.1 GeV"). No header
@@ -556,4 +560,5 @@ They are in the part after `#` (`#b=…&e=…`). A query (`?b=…&e=…`) is rea
 A local file is not written to the address.
 
 **Remembered in this browser, not in links:** custom columns, filters, colour choices and the active preset (per
-profile), the theme, the width of the side panel, the login you typed, and the recent data sets.
+profile), the theme, the width of the side panel, the login you typed, the recent data sets, and whether the
+first-visit hints were dismissed.

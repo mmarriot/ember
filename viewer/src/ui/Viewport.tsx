@@ -28,6 +28,7 @@ import {
 } from "../model/store";
 import type { ViewName } from "../io/format";
 import { Labels } from "./Labels";
+import { Hint } from "./Hint";
 import { TitleBox } from "./TitleBox";
 import { jump } from "../control/navigate";
 import { engine, startScene } from "../control/scene";
@@ -136,9 +137,7 @@ export function Viewport() {
       <ReplayCaption />
       <TitleBox />
       {(bundle.value?.header.domains?.length ?? 0) >= 2 && <Views />}
-      <div class="hintbar">
-        Click an object to select it · <kbd>?</kbd> help
-      </div>
+      <Hint />
     </div>
   );
 }

@@ -5,7 +5,18 @@ import { type DisplayLayer, kindName, unitOf } from "../io/format";
 import { filterMask, filters } from "../model/custom";
 import { columnName, passes, topRows, whyHidden } from "../model/objects";
 import { plain } from "../model/describe";
-import { bundle, cuts, describe, event, layerKey, nameOf, selection, sizeColumn, visible } from "../model/store";
+import {
+  bundle,
+  cuts,
+  describe,
+  event,
+  layerKey,
+  nameOf,
+  numberOf,
+  selection,
+  sizeColumn,
+  visible,
+} from "../model/store";
 import { rowHover } from "./Labels";
 import { jump } from "../control/navigate";
 
@@ -103,9 +114,9 @@ export function ObjectRows({ d, list = d.list! }: { d: DisplayLayer; list?: NonN
             onMouseLeave={() => (rowHover.value = null)}
             title={`${nameOf({ table: d.table, row: r })}: select it (pointed at in the view)`}
           >
-            {/* its name without the columns shown next to it (a jet: none, so its number, from 1 as everywhere; a PF
+            {/* its name without the columns shown next to it (a jet: none, so its number, by pT as everywhere; a PF
                 candidate: its type) */}
-            <td>{describe(d.table, r, cols) || `${r + 1}`}</td>
+            <td>{describe(d.table, r, cols) || numberOf(d.table, r)}</td>
             {cols.map((c) => (
               <td>{plain(Number(p.t.columns[c][r]))}</td>
             ))}

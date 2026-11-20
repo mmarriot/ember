@@ -1,7 +1,9 @@
 // How tables, layers, objects and numbers are named in the page, from the open bundle's display hints. Plain
 // functions: they read the signals when called, so a component that calls them re-renders when those change.
+import { computed } from "@preact/signals";
 import { type DisplayLayer, kindName, type Table } from "../../io/format";
 import { cardName, chipName, describeRow, labelName, objectName } from "../describe";
+import { ranks } from "../objects";
 import { bundle, event } from "./data";
 
 /** The key of a display layer, unique in a bundle: "table:repr". Signals keyed per layer use it. */
@@ -49,6 +51,40 @@ export function largestFirst(table: string, rows: number[]) {
   return key ? [...rows].sort((a, b) => Number(key[b]) - Number(key[a])) : rows;
 }
 
+/** The column an object's number ranks by: the one its rows in the side panel are sorted by (and N, Shift+N step by),
+ *  so the numbers in a list run 1, 2, 3: its layer's list sort, else its size column (a jet's pT, a supercluster's
+ *  energy), else its pT; undefined (numbered by row) for hits and truth particles, whose numbers no list shows and which would cost
+ *  a sort of up to 10⁵ rows on a hover, and for a sort column the table lacks (primary vertices: CMSSW's leading one
+ *  stays 1). */
+export function rankColumn(d: DisplayLayer, t: Table) {
+  if (isHitLayer(d) || d.truth) return undefined;
+  return d.list?.sort ?? sizeColumn(d.table, t) ?? ("pt" in t.columns ? "pt" : undefined);
+}
+
+/** Per event, each table's ranks by its rank column (null: none), ranked when first asked for: one sort per table and
+ *  event, not one per name drawn. */
+const rankCache = computed(() => {
+  bundle.value;
+  event.value;
+  return new Map<string, Uint32Array | null>();
+});
+
+/** An object's number in its name, from 1: its rank by its rank column among the rows of its table (the leading
+ *  electron is "Electron 1"), else its row + 1. The address (s=Electron:2) and every reference keep the row. */
+export function numberOf(table: string, row: number) {
+  const t = event.value?.tables[table],
+    d = layerOf(table),
+    cache = rankCache.value;
+  if (!t || !d || row >= t.n) return row + 1;
+  let r = cache.get(table);
+  if (r === undefined) {
+    const c = rankColumn(d, t);
+    r = c && c in t.columns ? ranks(t.columns[c], t.n) : null;
+    cache.set(table, r);
+  }
+  return r ? r[row] : row + 1;
+}
+
 /** A number in a few significant figures, for names, legends and charts. */
 export const short = (v: number) => (Number.isInteger(v) || Math.abs(v) >= 100 ? v.toFixed(0) : v.toPrecision(3));
 
@@ -94,7 +130,7 @@ export function nameOf(ref: { table: string; row: number }, skip: string[] = [],
   const b = bundle.value,
     d = layerOf(ref.table);
   return b && d
-    ? objectName(b.header, d, ref.row, describe(ref.table, ref.row, skip), cmssw)
+    ? objectName(b.header, d, numberOf(ref.table, ref.row), describe(ref.table, ref.row, skip), cmssw)
     : `${ref.table} ${ref.row + 1}`;
 }
 
@@ -104,7 +140,7 @@ export function labelText(ref: { table: string; row: number }, skip: string[], l
   const b = bundle.value,
     d = layerOf(ref.table);
   return b && d
-    ? labelName(b.header, d, ref.row, describe(ref.table, ref.row, skip), labelled)
+    ? labelName(b.header, d, numberOf(ref.table, ref.row), describe(ref.table, ref.row, skip), labelled)
     : `${ref.table} ${ref.row + 1}`;
 }
 
@@ -112,12 +148,14 @@ export function labelText(ref: { table: string; row: number }, skip: string[], l
 export function cardNameOf(ref: { table: string; row: number }): [string, string] {
   const b = bundle.value,
     d = layerOf(ref.table);
-  return b && d ? cardName(b.header, d, ref.row, describe(ref.table, ref.row)) : [`${ref.table} ${ref.row + 1}`, ""];
+  return b && d
+    ? cardName(b.header, d, numberOf(ref.table, ref.row), describe(ref.table, ref.row))
+    : [`${ref.table} ${ref.row + 1}`, ""];
 }
 
 /** An object's name in a list of its kind (model/describe.ts chipName): "AK4 CHS · pT 52.8 GeV". */
 export function chipText(table: string, row: number) {
   const b = bundle.value,
     d = layerOf(table);
-  return b && d ? chipName(b.header, d, row, describe(table, row)) : `${table} ${row + 1}`;
+  return b && d ? chipName(b.header, d, numberOf(table, row), describe(table, row)) : `${table} ${row + 1}`;
 }

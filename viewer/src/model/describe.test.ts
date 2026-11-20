@@ -83,48 +83,48 @@ describe("names", () => {
       ["Truth particle", ""],
     ]);
   });
-  it("gives an object one name: kind, number from 1, collection where its kind has several, values", () => {
-    expect(objectName(header, jet, 0, "pT 99.6 GeV")).toBe("Jet 1 · AK4 · pT 99.6 GeV");
-    expect(objectName(header, jet, 0, "pT 99.6 GeV", true)).toBe("Jet 1 · AK4 (ak4PFJetsPuppi) · pT 99.6 GeV");
-    expect(objectName(header, ele, 1, "pT 59.7 GeV", true)).toBe("Electron 2 · gedGsfElectrons · pT 59.7 GeV");
-    expect(objectName(header, pv, 0, "")).toBe("Primary vertex 1");
+  it("gives an object one name: kind, its number (from 1, by pT), collection where its kind has several, values", () => {
+    expect(objectName(header, jet, 1, "pT 99.6 GeV")).toBe("Jet 1 · AK4 · pT 99.6 GeV");
+    expect(objectName(header, jet, 1, "pT 99.6 GeV", true)).toBe("Jet 1 · AK4 (ak4PFJetsPuppi) · pT 99.6 GeV");
+    expect(objectName(header, ele, 2, "pT 59.7 GeV", true)).toBe("Electron 2 · gedGsfElectrons · pT 59.7 GeV");
+    expect(objectName(header, pv, 1, "")).toBe("Primary vertex 1");
     // a one-object table has no number, and a CMSSW name that repeats it is left out
-    expect(objectName(header, met, 0, "pT 38.1 GeV", true)).toBe("Puppi MET · pT 38.1 GeV");
+    expect(objectName(header, met, 1, "pT 38.1 GeV", true)).toBe("Puppi MET · pT 38.1 GeV");
     expect(cmsswName(header, layer("Muon", "Muons", "Muons"))).toBe("");
   });
   it("heads the card with the name and its values, and its collection on a line below", () => {
-    expect(cardName(header, jet, 0, "pT 99.6 GeV")).toEqual(["Jet 1 · pT 99.6 GeV", "AK4 · ak4PFJetsPuppi"]);
-    expect(cardName(header, ele, 1, "pT 59.7 GeV")).toEqual(["Electron 2 · pT 59.7 GeV", "gedGsfElectrons"]);
-    expect(cardName(header, met, 0, "pT 38.1 GeV")).toEqual(["Puppi MET · pT 38.1 GeV", ""]);
+    expect(cardName(header, jet, 1, "pT 99.6 GeV")).toEqual(["Jet 1 · pT 99.6 GeV", "AK4 · ak4PFJetsPuppi"]);
+    expect(cardName(header, ele, 2, "pT 59.7 GeV")).toEqual(["Electron 2 · pT 59.7 GeV", "gedGsfElectrons"]);
+    expect(cardName(header, met, 1, "pT 38.1 GeV")).toEqual(["Puppi MET · pT 38.1 GeV", ""]);
   });
   it("names an object in a list of its kind by its collection, where the kind has several", () => {
-    expect(chipName(header, chs, 0, "pT 52.8 GeV")).toBe("AK4 CHS · pT 52.8 GeV");
-    expect(chipName(header, pmet, 0, "pT 34.1 GeV")).toBe("PF MET · pT 34.1 GeV");
-    expect(chipName(header, pv, 2, "")).toBe("Primary vertex 3");
+    expect(chipName(header, chs, 1, "pT 52.8 GeV")).toBe("AK4 CHS · pT 52.8 GeV");
+    expect(chipName(header, pmet, 1, "pT 34.1 GeV")).toBe("PF MET · pT 34.1 GeV");
+    expect(chipName(header, pv, 3, "")).toBe("Primary vertex 3");
     // a collection whose label adds nothing to its kind is named by its CMSSW collection
-    expect(chipName(header, ele, 0, "pT 5.15 GeV")).toBe("gedGsfElectrons · pT 5.15 GeV");
-    expect(objectName(header, ele, 0, "pT 5.15 GeV")).toBe("Electron 1 · gedGsfElectrons · pT 5.15 GeV");
+    expect(chipName(header, ele, 1, "pT 5.15 GeV")).toBe("gedGsfElectrons · pT 5.15 GeV");
+    expect(objectName(header, ele, 1, "pT 5.15 GeV")).toBe("Electron 1 · gedGsfElectrons · pT 5.15 GeV");
   });
 });
 
 describe("labels", () => {
   it("name the collection only where another of the kind is labelled, by the words that tell them apart", () => {
-    expect(labelName(header, jet, 0, "pT 46 GeV", [jet, ele])).toBe("Jet 1 · pT 46 GeV");
-    expect(labelName(header, ele, 0, "pT 16 GeV", [jet, ele])).toBe("Electron 1 · pT 16 GeV");
+    expect(labelName(header, jet, 1, "pT 46 GeV", [jet, ele])).toBe("Jet 1 · pT 46 GeV");
+    expect(labelName(header, ele, 1, "pT 16 GeV", [jet, ele])).toBe("Electron 1 · pT 16 GeV");
     // AK4 and AK4 CHS: "AK4" is in both, so the CHS jet is "CHS"; the other keeps its whole name, being only "AK4"
-    expect(labelName(header, chs, 0, "pT 52.8 GeV", [jet, chs])).toBe("Jet 1 · CHS · pT 52.8 GeV");
-    expect(labelName(header, jet, 0, "pT 46 GeV", [jet, chs])).toBe("Jet 1 · AK4 · pT 46 GeV");
-    expect(labelName(header, eleHGC, 1, "pT 15.4 GeV", [ele, eleHGC])).toBe("Electron 2 · HGCal · pT 15.4 GeV");
-    expect(labelName(header, ele, 0, "pT 16 GeV", [ele, eleHGC])).toBe("Electron 1 · gedGsfElectrons · pT 16 GeV");
-    expect(labelName(header, met, 0, "pT miss 27.6 GeV", [met, pmet])).toBe("Puppi MET · pT miss 27.6 GeV");
+    expect(labelName(header, chs, 1, "pT 52.8 GeV", [jet, chs])).toBe("Jet 1 · CHS · pT 52.8 GeV");
+    expect(labelName(header, jet, 1, "pT 46 GeV", [jet, chs])).toBe("Jet 1 · AK4 · pT 46 GeV");
+    expect(labelName(header, eleHGC, 2, "pT 15.4 GeV", [ele, eleHGC])).toBe("Electron 2 · HGCal · pT 15.4 GeV");
+    expect(labelName(header, ele, 1, "pT 16 GeV", [ele, eleHGC])).toBe("Electron 1 · gedGsfElectrons · pT 16 GeV");
+    expect(labelName(header, met, 1, "pT miss 27.6 GeV", [met, pmet])).toBe("Puppi MET · pT miss 27.6 GeV");
   });
   it("keep the words that differ, not those all the collections share", () => {
     const puppi = layer("Jet", "Jets", "AK4 PUPPI (raw, no JEC)"),
       chsRaw = layer("JetCHS", "Jets", "AK4 CHS (raw, no JEC)"),
       h = { ...header, display: [puppi, chsRaw] } as Header;
-    expect(labelName(h, puppi, 0, "", [puppi, chsRaw])).toBe("Jet 1 · PUPPI");
-    expect(labelName(h, chsRaw, 0, "", [puppi, chsRaw])).toBe("Jet 1 · CHS");
-    expect(labelName(h, puppi, 0, "", [puppi])).toBe("Jet 1");
+    expect(labelName(h, puppi, 1, "", [puppi, chsRaw])).toBe("Jet 1 · PUPPI");
+    expect(labelName(h, chsRaw, 1, "", [puppi, chsRaw])).toBe("Jet 1 · CHS");
+    expect(labelName(h, puppi, 1, "", [puppi])).toBe("Jet 1");
   });
 });
 

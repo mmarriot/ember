@@ -15,6 +15,7 @@ import {
   matchOf,
   modes,
   nameOf,
+  numberOf,
   openCard,
   selection,
   truthText,
@@ -94,5 +95,5 @@ export function named(t: string, r: number) {
   if (v === undefined || typeof c !== "object" || !("category" in c) || !c.names) return "";
   const names = Array.isArray(c.names) ? Object.fromEntries(c.names) : c.names,
     name = names[String(v)];
-  return name ? `${name} ${r + 1}` : "";
+  return name ? `${name} ${numberOf(t, r)}` : "";
 }

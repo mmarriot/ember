@@ -224,6 +224,8 @@ interface ColourOptions {
   range?: Range;
   layerFor?: LayerFor;
   rank?: SlotRank;
+  /** An object's number in its name (store/names.ts numberOf; default: its row + 1), for the key's "Jet 1". */
+  numberOf?: (table: string, row: number) => number;
 }
 
 /** Per-object RGB (n * 3), the legend describing it, and (for relation colouring) which objects to emphasise:
@@ -238,7 +240,12 @@ export function colours(
   opts: ColourOptions = {},
   seen: ReadonlySet<string> = new Set(),
 ): Coloured {
-  const { range, layerFor = (table: string) => header.display.find((l) => l.table === table), rank } = opts;
+  const {
+    range,
+    layerFor = (table: string) => header.display.find((l) => l.table === table),
+    rank,
+    numberOf = (_: string, row: number) => row + 1,
+  } = opts;
   const out = new Float32Array(3 * t.n),
     cats = pal.categories.map(rgb);
   // Named categories other than particle types (e.g. a hit's subdetector) take colours apart from the types first.
@@ -292,7 +299,11 @@ export function colours(
     }
     // With a selection, the key lists only its own particles: the other colours are faded with what is not selected.
     const items = top
-      .map((row, j) => ({ label: `${kindLabel(d)} ${row + 1}`, colour: pal.identity[j], ref: { table: d.table, row } }))
+      .map((row, j) => ({
+        label: `${kindLabel(d)} ${numberOf(d.table, row)}`,
+        colour: pal.identity[j],
+        ref: { table: d.table, row },
+      }))
       .slice(0, rank?.prefer ? preferred : undefined);
     return {
       rgb: out,

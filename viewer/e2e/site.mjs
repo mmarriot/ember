@@ -114,8 +114,8 @@ export async function checkSite(run) {
   const rowTitles = (page) => page.$$eval(".dataset-row .title", (r) => r.map((x) => x.textContent));
   const label = (page) => page.textContent(".dataset .name");
 
-  // The chooser, signed in: the button names the data set open; the panel lists my files (newest first, with their
-  // expiry), then the site's, with the open one marked; the filter narrows them; ↓ and Enter open one; Esc closes.
+  // The chooser, signed in: the button names the data set open; the panel lists the site's data sets, with the open
+  // one marked, then my files (newest first, with their expiry); the filter narrows them; ↓ and Enter open one; Esc closes.
   for (const [theme, width] of [
     ["dark", 1440],
     ["light", 900],
@@ -158,12 +158,12 @@ export async function checkSite(run) {
     await page.waitForSelector(".chooserpanel");
     const sections = await sectionNames(page),
       titles = await rowTitles(page);
-    if (sections[0] !== "My files · tester") fail(`the first section is "${sections[0]}", not my files`);
-    if (titles[0] !== "My rereco test" || titles[1] !== "An older conversion")
-      fail(`my files are not listed newest first: ${titles.slice(0, 2).join(" | ")}`);
+    if (sections.at(-1) !== "My files · tester") fail(`the last section is "${sections.at(-1)}", not my files`);
+    if (titles.at(-2) !== "My rereco test" || titles.at(-1) !== "An older conversion")
+      fail(`my files are not listed newest first: ${titles.slice(-2).join(" | ")}`);
     const notes = await page.$$eval(".dataset-row small", (r) => r.map((x) => x.textContent));
-    if (!/12 events · expires in 29 days/.test(notes[0]) || !/expires today/.test(notes[1]))
-      fail(`my files do not say their events and expiry: ${notes.slice(0, 2).join(" | ")}`);
+    if (!/12 events · expires in 29 days/.test(notes.at(-2)) || !/expires today/.test(notes.at(-1)))
+      fail(`my files do not say their events and expiry: ${notes.slice(-2).join(" | ")}`);
     if (sections.includes("Recent")) fail("a recent section with nothing opened from a link");
     for (const b of listed) if (!titles.includes(b.title)) fail(`the shared data set "${b.title}" is not listed`);
     if (titles.includes("Events for the meeting")) fail("someone else's file is listed without a link to it");
@@ -260,10 +260,9 @@ export async function checkSite(run) {
     if (!(await page.evaluate(() => (localStorage.getItem("evd.recent") ?? "").includes("for_the_meeting"))))
       fail("Delete in the filter removed the recent data set");
     await page.fill(".chooserpanel .filter", "");
-    await page.keyboard.press("ArrowDown"); // from my first file to my second,
-    await page.keyboard.press("ArrowDown"); // to the recent one
+    // the keys are on the first row again: the recent one (Recent comes first)
     if (!(await page.$(".dataset-row.active .icon-button")))
-      fail(`↓ ↓ from my first file is not on the recent data set: ${await page.textContent(".dataset-row.active")}`);
+      fail(`the first row is not the recent data set: ${await page.textContent(".dataset-row.active")}`);
     await page.keyboard.press("Delete");
     if (await page.evaluate(() => JSON.parse(localStorage.getItem("evd.recent") ?? "[]").length))
       fail("Delete with no filter typed does not forget the recent data set under the keys");

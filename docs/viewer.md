@@ -12,13 +12,14 @@ This page describes every part of the viewer. For a short first tour, see
 The button at the left of the top bar shows the name of the data set that is open. Click it to open the **data set
 chooser**. It has a filter and three kinds of list:
 
-- **My files**: the bundles you published to this site with `ember FILE.root`
-  ([Publish to a site](how-to.md#publish-to-a-site)). The newest come first. Each shows its number of events and when
-  it expires. This list is your user area on the site, `data/u/<login>/index.json`.
 - **Recent**: data sets you opened from someone's link, and local files by name. The list holds up to 12 and is
   remembered in this browser. You cannot open a local file again from this list: drop it on the page again.
 - **The site's shared groups**: samples and test-stand data that the site keeps. They come from the site's
   `index.json`, which the viewer reads again every 30 s while the page is visible.
+- **My files**, last: the bundles you published to this site with `ember FILE.root`
+  ([Publish to a site](how-to.md#publish-to-a-site)). The newest come first. Each shows its number of events and when
+  it expires. This list is your user area on the site, `data/u/<login>/index.json`. Before you publish any, it says
+  how to.
 
 Other people's files are in no list. You reach them only through a link.
 

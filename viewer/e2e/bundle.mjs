@@ -11,7 +11,7 @@
 //   selection, as a hash or as a query;
 // - a click on an object of the chain looks at it and keeps the card; Open goes into its card and back returns; a
 //   description opens on request; X crosses to the truth match and B comes back; Esc leaves the selection;
-// - "only" draws one kind alone; the Truth tab has the event's scorecard;
+// - "only" draws one kind alone; the Truth tab has the event's scorecard (folded);
 // - for one bundle, the interaction checks (deepChecks); for a bundle whose paths are built from their parts (`grow`),
 //   the replay (checkReplay).
 import { BIG, bigEvents, eventRead, expected404, log } from "./common.mjs";
@@ -653,8 +653,8 @@ async function checkOnly(page, h, fail, shot, tag) {
   if ((await tables()) !== before) fail(`"show everything" did not bring the other layers back`);
 }
 
-/** With truth matches in the bundle, the Truth tab opens with the event's scorecard: a row per matched kind, and a
- *  count unfolds to its objects. */
+/** With truth matches in the bundle, the Truth tab has the event's scorecard, folded under the hard process: a row
+ *  per matched kind, and a count unfolds to its objects. */
 async function checkScorecard(page, h, fail, shot, tag) {
   const truth = new Set(h.display.filter((d) => d.truth).map((d) => d.table));
   if (
@@ -664,6 +664,9 @@ async function checkScorecard(page, h, fail, shot, tag) {
   )
     return;
   await page.getByRole("tab", { name: "Truth", exact: true }).click();
+  // unfold it, unless it is open already (the tab keeps its sections' state)
+  if (await page.locator("section.scorecard details:not([open])").count())
+    await page.locator("section.scorecard summary").click();
   const rows = await page.locator("table.score tbody tr:not(.list)").count(),
     number = page.locator("table.score .num:not(.zero)").first();
   if (!rows) return fail("no reco <-> truth scorecard in the Truth tab");

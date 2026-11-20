@@ -1,7 +1,8 @@
-// The Truth tab of the side panel: the event's reco <-> truth scorecard, the truth coverage of each kind, the truth
-// collections, what became of each object that left hits (e.g. each truth-graph particle), and the trees of objects
-// linked to objects of the same table (Tree.tsx). A bundle with such trees but no truth calls the tab "Tree".
-import { signal } from "@preact/signals";
+// The Truth tab of the side panel: the hard process, open; then, each folded to its heading, the particles in the view
+// (what became of each one that left hits), the event's reco <-> truth scorecard, the truth coverage of each kind, and
+// the truth graph browser (the truth collections and the trees of objects linked to objects of the same table,
+// Tree.tsx). A bundle with such trees but no truth calls the tab "Tree", and folds nothing.
+import { effect, signal } from "@preact/signals";
 import { filterMask, filters } from "../model/custom";
 import { matchTally } from "../model/chain";
 import { factIn, facts } from "../model/facts";
@@ -33,6 +34,23 @@ import { jump } from "../control/navigate";
 import { passing } from "./ObjectRows";
 import { Tree, treeRelations } from "./Tree";
 
+/** Which of the tab's folded sections are open, kept while the tab is closed and between events (a plain <details>
+ *  would fold again on every visit). */
+const folds = signal<Record<string, boolean>>({});
+const fold = (name: string) => ({
+  open: folds.value[name] ?? false,
+  onToggle: (e: Event) => {
+    const open = (e.currentTarget as HTMLDetailsElement).open;
+    if (open !== (folds.peek()[name] ?? false)) folds.value = { ...folds.peek(), [name]: open };
+  },
+});
+// a truth particle selected anywhere (X, a hard-process chip) opens the browser, whose tree shows its path
+effect(() => {
+  const sel = selection.value;
+  if (sel && sel.table === modes.peek().roots.truth && !folds.peek().browser)
+    folds.value = { ...folds.peek(), browser: true };
+});
+
 const go = (table: string, row: number) => jump({ table, row });
 const LISTED = 100; // objects listed under "what became of each one"; the rest are counted
 
@@ -40,6 +58,8 @@ const LISTED = 100; // objects listed under "what became of each one"; the rest 
 export function TruthTab() {
   const trees = treeRelations(),
     truth = bundle.value?.header.display.filter((d) => d.truth) ?? [];
+  const browse = trees.map(([name, table]) => <Tree name={name} table={table} />);
+  // With truth, the tab opens on the hard process: everything under it is folded, each section to its own heading.
   return (
     <div>
       {truth.length > 0 && <HardProcess />}
@@ -48,10 +68,19 @@ export function TruthTab() {
       ))}
       {truth.length > 0 && <Scorecard />}
       {truth.length > 0 && <Coverage />}
-      {truth.length > 0 && <Collections layers={truth} />}
-      {trees.map(([name, table]) => (
-        <Tree name={name} table={table} />
-      ))}
+      {truth.length > 0 ? (
+        <section class="fold">
+          <details {...fold("browser")}>
+            <summary>
+              <h3>Truth graph browser</h3>
+            </summary>
+            <Collections layers={truth} />
+            {browse}
+          </details>
+        </section>
+      ) : (
+        browse
+      )}
     </div>
   );
 }
@@ -88,7 +117,6 @@ function HardProcess() {
       onClick={() => go(tg.particles, g.last[r])}
     >
       {truthText(tg.particles, r).split(" · ")[0]}
-      {bit(r, 7) ? <span class="muted"> jet</span> : null}
     </button>
   );
   return (
@@ -97,8 +125,8 @@ function HardProcess() {
         Hard process{" "}
         <Info title="Hard process">
           <p>
-            The outgoing legs of the hard scatter (truth level HardProcess, bit 1), under the particle they came from.
-            "jet" marks a leg that stands for a parton jet (bit 7): everything below it in the graph.
+            The outgoing legs of the hard scatter (truth level HardProcess, bit 1), under the particle they came from. A
+            quark or a gluon is the parton itself, not a jet: the truth graph has no jets.
           </p>
           <p>Each is one particle, though the generator writes it several times. Click one to select it.</p>
         </Info>
@@ -107,7 +135,12 @@ function HardProcess() {
         {[...from].map(([p, rs]) => (
           <li>
             {p >= 0 ? chip(p) : <span class="muted">collision</span>} →{" "}
-            {rs.map((r) => chip(r, truthText(tg.particles, r)))}
+            {rs.map((r, i) => (
+              <>
+                {i > 0 && " "}
+                {chip(r, truthText(tg.particles, r))}
+              </>
+            ))}
           </li>
         ))}
       </ul>
@@ -145,74 +178,76 @@ function Scorecard() {
     });
   if (!rows.length) return null;
   return (
-    <section class="scorecard">
-      <h3>
-        Reco ↔ truth in this event{" "}
-        <Info title="Reco ↔ truth in this event">
-          <p>
-            For each kind of reco object that CMSSW's associator matches to the truth: how many of the objects drawn
-            (passing their cuts and filters) are a clean match, an impure one, or have none.
-          </p>
-          <p>Click a number to list those objects, largest first; click one to select it.</p>
-          <p>Kinds without an associator are under Truth coverage.</p>
-        </Info>
-      </h3>
-      <table class="score">
-        <thead>
-          <tr>
-            <th />
-            {CLASSES.map(([name, , what]) => (
-              <th title={what}>{name === "unmatched" ? "not matched" : name}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map(({ d, tally, match }) => {
-            const open = CLASSES.find(([name]) => opened.value === `${d.table}|${name}`)?.[0],
-              list = open ? largestFirst(d.table, tally[open]) : [];
-            return (
-              <>
-                <tr>
-                  <td
-                    title={`${match.target ? `They reconstruct ${TARGETS[match.target]}. ` : ""}${tally.good !== undefined ? `Clean: at least ${percent(tally.good)} of its ${match.measure === "hits" ? "hits" : match.measure === "pt2" ? "tracks' pT²" : "energy"} from its match.` : ""}`}
-                  >
-                    {stepName(d.table)}
-                  </td>
-                  {CLASSES.map(([name, cls]) => {
-                    const k = `${d.table}|${name}`,
-                      n = tally[name].length;
-                    return (
-                      <td>
-                        <button
-                          class={`num ${n ? cls : "zero"}`}
-                          disabled={!n}
-                          aria-expanded={opened.value === k}
-                          title={n ? "List them" : undefined}
-                          onClick={() => (opened.value = opened.value === k ? null : k)}
-                        >
-                          {n.toLocaleString()}
-                        </button>
-                      </td>
-                    );
-                  })}
-                </tr>
-                {open && (
-                  <tr class="list">
-                    <td colSpan={4}>
-                      {list.slice(0, 40).map((r) => (
-                        <button class={`chip q-${open}`} onClick={() => jump({ table: d.table, row: r })}>
-                          {chipText(d.table, r)}
-                        </button>
-                      ))}
-                      {list.length > 40 && <span class="muted"> … {list.length - 40} more</span>}
+    <section class="scorecard fold">
+      <details {...fold("scorecard")}>
+        <summary>
+          <h3>Reco ↔ truth in this event</h3>{" "}
+          <Info title="Reco ↔ truth in this event">
+            <p>
+              For each kind of reco object that CMSSW's associator matches to the truth: how many of the objects drawn
+              (passing their cuts and filters) are a clean match, an impure one, or have none.
+            </p>
+            <p>Click a number to list those objects, largest first; click one to select it.</p>
+            <p>Kinds without an associator are under Truth coverage.</p>
+          </Info>
+        </summary>
+        <table class="score">
+          <thead>
+            <tr>
+              <th />
+              {CLASSES.map(([name, , what]) => (
+                <th title={what}>{name === "unmatched" ? "not matched" : name}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(({ d, tally, match }) => {
+              const open = CLASSES.find(([name]) => opened.value === `${d.table}|${name}`)?.[0],
+                list = open ? largestFirst(d.table, tally[open]) : [];
+              return (
+                <>
+                  <tr>
+                    <td
+                      title={`${match.target ? `They reconstruct ${TARGETS[match.target]}. ` : ""}${tally.good !== undefined ? `Clean: at least ${percent(tally.good)} of its ${match.measure === "hits" ? "hits" : match.measure === "pt2" ? "tracks' pT²" : "energy"} from its match.` : ""}`}
+                    >
+                      {stepName(d.table)}
                     </td>
+                    {CLASSES.map(([name, cls]) => {
+                      const k = `${d.table}|${name}`,
+                        n = tally[name].length;
+                      return (
+                        <td>
+                          <button
+                            class={`num ${n ? cls : "zero"}`}
+                            disabled={!n}
+                            aria-expanded={opened.value === k}
+                            title={n ? "List them" : undefined}
+                            onClick={() => (opened.value = opened.value === k ? null : k)}
+                          >
+                            {n.toLocaleString()}
+                          </button>
+                        </td>
+                      );
+                    })}
                   </tr>
-                )}
-              </>
-            );
-          })}
-        </tbody>
-      </table>
+                  {open && (
+                    <tr class="list">
+                      <td colSpan={4}>
+                        {list.slice(0, 40).map((r) => (
+                          <button class={`chip q-${open}`} onClick={() => jump({ table: d.table, row: r })}>
+                            {chipText(d.table, r)}
+                          </button>
+                        ))}
+                        {list.length > 40 && <span class="muted"> … {list.length - 40} more</span>}
+                      </td>
+                    </tr>
+                  )}
+                </>
+              );
+            })}
+          </tbody>
+        </table>
+      </details>
     </section>
   );
 }
@@ -253,8 +288,8 @@ function Coverage() {
     .filter(([, n]) => n);
   const SHORT = { match: "matched", fact: "sim", container: "via container", none: "no associator" };
   return (
-    <section class="coverage">
-      <details>
+    <section class="coverage fold">
+      <details {...fold("coverage")}>
         <summary>
           <h3>Truth coverage</h3> <span class="count">{counts.map(([k, n]) => `${n} ${SHORT[k]}`).join(" · ")}</span>
         </summary>
@@ -407,125 +442,133 @@ function InView({ table }: { table: string }) {
     // what the first column sorts by: the energy deposited in a calorimeter, a track's particle's pT
     amountName = sims.size > 1 ? "deposited energy or pT" : sims.has(true) ? "deposited energy" : "pT";
   return (
-    <section class="outcome inview">
-      <h3>
-        Particles in this view{" "}
-        <span class="count">
-          · {total}
-          {dom ? ` in ${dom}` : ""}
-        </span>{" "}
-        <Info title="Particles in this view">
-          <p>
-            Detector by detector, the truth particles that left simulated energy in its hits (from the hit index: the
-            energy deposited in the sensors, not calibrated), largest first; in the tracker, which has no simulated
-            energy in the file, the particles a track is matched to, by pT. A particle is listed in each detector it
-            reached: energies of different detectors are never compared or added.
-            {keep ? ` Filter: ${filters.value[table]}.` : ""}
-          </p>
-          <p>
-            For each, its <b>best match</b>: the object of the kind compared there that CMSSW's associator rates best
-            for it, with that object's completeness (<b>% of it</b>: the share of the particle it holds); <b>split</b>:
-            how many objects of the kind hold part of it, when more than one; <b>shared</b>: how many other particles of
-            the list have the same best match (a merge). A detector whose reco has no association (HF, HO) is not
-            compared.
-          </p>
-          <p>Click a particle or an object to select it.</p>
-        </Info>
-      </h3>
-      <p class="sortby">
-        sort by
-        {(
-          [
-            ["amount", amountName],
-            ["completeness", "completeness"],
-            ["split", "split"],
-          ] as const
-        ).map(([k, text]) => (
-          <button
-            class={`link${order === k ? " on" : ""}`}
-            aria-pressed={order === k}
-            onClick={() => (sortBy.value = k)}
-          >
-            {text}
-          </button>
-        ))}
-      </p>
-      {dets.map((d, i) => {
-        const sim = d.by === "simEnergy",
-          sorted = [...d.rows].sort((a, c) => value(c) - value(a) || c.amount - a.amount),
-          none = d.kind ? d.rows.filter((r) => r.best < 0).length : 0;
-        return (
-          <details class="indet" open={i === 0 || dets.length <= 2}>
-            <summary>
-              <b>{d.in}</b>{" "}
-              <span class="count">
-                {d.rows.length} {sim ? "with simulated energy" : "matched by a track"}
-                {d.kind ? ` · compared with ${stepName(d.kind).toLowerCase()}` : " · not compared"}
-                {none ? ` · ${none} not matched` : ""}
-              </span>
-            </summary>
-            <table class="inview">
-              <thead>
-                <tr>
-                  <th>particle</th>
-                  {/* in the tracker, the particle's name already gives its pT */}
-                  {sim && (
-                    <th
-                      class="num"
-                      title={`Simulated energy the particle deposited in the ${d.in} sensors (hit index), not calibrated: not its energy`}
-                    >
-                      deposited in {d.in}
-                    </th>
-                  )}
-                  <th title="The best match, and its completeness: the share of the particle it holds">
-                    best match · % of it
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {sorted.slice(0, LISTED).map((r) => (
+    <section class="outcome inview fold">
+      <details {...fold("inview")}>
+        <summary>
+          <h3>Particles in this view</h3>{" "}
+          <span class="count">
+            {total}
+            {dom ? ` in ${dom}` : ""}
+          </span>{" "}
+          <Info title="Particles in this view">
+            <p>
+              Detector by detector, the truth particles that left simulated energy in its hits (from the hit index: the
+              energy deposited in the sensors, not calibrated), largest first; in the tracker, which has no simulated
+              energy in the file, the particles a track is matched to, by pT. A particle is listed in each detector it
+              reached: energies of different detectors are never compared or added.
+              {keep ? ` Filter: ${filters.value[table]}.` : ""}
+            </p>
+            <p>
+              For each, its <b>best match</b>: the object of the kind compared there that CMSSW's associator rates best
+              for it, with that object's completeness (<b>% of it</b>: the share of the particle it holds); <b>split</b>
+              : how many objects of the kind hold part of it, when more than one; <b>shared</b>: how many other
+              particles of the list have the same best match (a merge). A detector whose reco has no association (HF,
+              HO) is not compared.
+            </p>
+            <p>Click a particle or an object to select it.</p>
+          </Info>
+        </summary>
+        <p class="sortby">
+          sort by{" "}
+          {(
+            [
+              ["amount", amountName],
+              ["completeness", "completeness"],
+              ["split", "split"],
+            ] as const
+          ).map(([k, text]) => (
+            <button
+              class={`link${order === k ? " on" : ""}`}
+              aria-pressed={order === k}
+              onClick={() => (sortBy.value = k)}
+            >
+              {text}
+            </button>
+          ))}
+        </p>
+        {dets.map((d, i) => {
+          const sim = d.by === "simEnergy",
+            sorted = [...d.rows].sort((a, c) => value(c) - value(a) || c.amount - a.amount),
+            none = d.kind ? d.rows.filter((r) => r.best < 0).length : 0;
+          return (
+            <details class="indet" open={i === 0 || dets.length <= 2}>
+              <summary>
+                <b>{d.in}</b>{" "}
+                <span class="count">
+                  {d.rows.length} {sim ? "with simulated energy" : "matched by a track"}
+                  {d.kind ? ` · compared with ${stepName(d.kind).toLowerCase()}` : " · not compared"}
+                  {none ? ` · ${none} not matched` : ""}
+                </span>
+              </summary>
+              <table class="inview">
+                <thead>
                   <tr>
-                    <td>{chip(table, r.particle, truthText(table, r.particle, sim))}</td>
-                    {sim && <td class="num">{amount(r.amount)}</td>}
-                    <td>
-                      {!d.kind ? (
-                        <span class="muted">not compared</span>
-                      ) : r.best >= 0 ? (
-                        <>
-                          {chip(d.kind, r.best)}{" "}
-                          <span class="muted" title="The best match's completeness: the share of the particle it holds">
-                            {r.completeness !== undefined ? percent(r.completeness) : ""}
-                          </span>
-                        </>
-                      ) : (
-                        <span class="muted">none</span>
-                      )}
-                      {/* the spaces outside the spans: where a narrow column wraps */}
-                      {r.split > 1 && (
-                        <>
-                          {" "}
-                          <span class="muted" title="Objects of the kind that hold part of it">
-                            · split {r.split}
-                          </span>
-                        </>
-                      )}
-                      {r.shares > 0 && (
-                        <>
-                          {" "}
-                          <span class="muted" title="Other particles of this list whose best match is the same object">
-                            · shared +{r.shares}
-                          </span>
-                        </>
-                      )}
-                    </td>
+                    <th>particle</th>
+                    {/* in the tracker, the particle's name already gives its pT */}
+                    {sim && (
+                      <th
+                        class="num"
+                        title={`Simulated energy the particle deposited in the ${d.in} sensors (hit index), not calibrated: not its energy`}
+                      >
+                        deposited in {d.in}
+                      </th>
+                    )}
+                    <th title="The best match, and its completeness: the share of the particle it holds">
+                      best match · % of it
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-            {d.rows.length > LISTED && <p class="hint">… {d.rows.length - LISTED} more (sort to see others first)</p>}
-          </details>
-        );
-      })}
+                </thead>
+                <tbody>
+                  {sorted.slice(0, LISTED).map((r) => (
+                    <tr>
+                      <td>{chip(table, r.particle, truthText(table, r.particle, sim))}</td>
+                      {sim && <td class="num">{amount(r.amount)}</td>}
+                      <td>
+                        {!d.kind ? (
+                          <span class="muted">not compared</span>
+                        ) : r.best >= 0 ? (
+                          <>
+                            {chip(d.kind, r.best)}{" "}
+                            <span
+                              class="muted"
+                              title="The best match's completeness: the share of the particle it holds"
+                            >
+                              {r.completeness !== undefined ? percent(r.completeness) : ""}
+                            </span>
+                          </>
+                        ) : (
+                          <span class="muted">none</span>
+                        )}
+                        {/* the spaces outside the spans: where a narrow column wraps */}
+                        {r.split > 1 && (
+                          <>
+                            {" "}
+                            <span class="muted" title="Objects of the kind that hold part of it">
+                              · split {r.split}
+                            </span>
+                          </>
+                        )}
+                        {r.shares > 0 && (
+                          <>
+                            {" "}
+                            <span
+                              class="muted"
+                              title="Other particles of this list whose best match is the same object"
+                            >
+                              · shared +{r.shares}
+                            </span>
+                          </>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {d.rows.length > LISTED && <p class="hint">… {d.rows.length - LISTED} more (sort to see others first)</p>}
+            </details>
+          );
+        })}
+      </details>
     </section>
   );
 }

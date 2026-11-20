@@ -17,7 +17,8 @@ import {
 /** Objects as discs of constant pixel size with a dark rim, drawn on top of cells. Objects without emphasis
  *  (e.g. layer clusters in no trackster) are small, rimless and faded, so they stay in the background. With a `size`
  *  column, larger values give larger discs (5 to 14 px over the bulk of the values, as the colour scale), e.g. the
- *  primary vertex (largest sum of pT^2) stands out among the pile-up vertices. */
+ *  primary vertex (largest sum of pT^2) stands out among the pile-up vertices. Truth markers (truth vertices) are hollow
+ *  dashed rings: the simulation's look (docs/truth.md "One look for truth"), never a filled reco vertex. */
 export function markers(input: LayerInput): Layer {
   const { d, t } = input;
   const [x, y, z] = positions(input);
@@ -37,6 +38,7 @@ export function markers(input: LayerInput): Layer {
       ...baseUniforms(input.pal),
       uPx: { value: window.devicePixelRatio },
       uSized: { value: sizeCol ? 1 : 0 },
+      uHollow: { value: d.truth ? 1 : 0 },
     },
     depthTest: false,
     vertexShader: /* glsl */ `
@@ -63,11 +65,14 @@ export function markers(input: LayerInput): Layer {
       }`,
     fragmentShader: /* glsl */ `
       uniform vec3 uRim;
+      uniform float uHollow;
       varying vec3 vCol;
       varying float vRim;
       void main() {
         vec2 d = gl_PointCoord * 2.0 - 1.0; float r = dot(d, d);
         if (r > 1.0) discard;
+        // truth: a ring of 8 dashes
+        if (uHollow > 0.5 && (r < 0.4 || fract(4.0 * atan(d.y, d.x) / 3.14159265) > 0.6)) discard;
         gl_FragColor = vec4(r > 0.5 ? mix(vCol, uRim, 0.55 * vRim) : vCol, 1.0);
       }`,
   });

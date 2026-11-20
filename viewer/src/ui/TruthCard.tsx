@@ -10,7 +10,7 @@ import type { Header } from "../io/format";
 import { completeness, percent, quality, TARGETS } from "../model/match";
 import { bestPartners, identities } from "../model/relations";
 import { bundle, describe, event, kindOf, labelOf, layerOf, modes, short, truthStatuses } from "../model/store";
-import { ObjChip } from "./chips";
+import { ObjChip, truthChip } from "./chips";
 import { Info } from "./Info";
 
 /** Names of truth::LevelFlag bits worth showing on a particle (SimDataFormats/TruthInfo ParticleData.h). */
@@ -24,7 +24,14 @@ const ANCESTORS = 4; // ancestors listed above the particle; higher ones are fol
 /** The lineage's folded ancestors are shown (kept from one particle to the next). */
 const unfolded = signal(false);
 
-const chip = (t: string, r: number) => <ObjChip table={t} row={r} text={describe(t, r) || named(t, r) || undefined} />;
+/** An object's chip; a truth particle's is named by pT and η, or by energy in a calorimeter's view (chips.tsx). */
+const chip = (t: string, r: number) => (
+  <ObjChip
+    table={t}
+    row={r}
+    text={t === modes.peek().roots.truth ? undefined : describe(t, r) || named(t, r) || undefined}
+  />
+);
 /** An object's name from its layer's categorical colouring (e.g. a truth vertex's reason: "decay"), for layers without
  *  a `describe` hint. */
 function named(t: string, r: number) {
@@ -144,7 +151,7 @@ export function TruthCard({ table, row }: { table: string; row: number }) {
           <>
             match{" "}
             {particles
-              ? chip(target, p)
+              ? truthChip(target, p, m.measure)
               : chipAs(
                   target,
                   p,
@@ -182,7 +189,9 @@ export function TruthCard({ table, row }: { table: string; row: number }) {
               />
             )}
           </div>
-          {generator >= 0 && generator !== p && <p class="hint">part of generator particle {chip(truth, generator)}</p>}
+          {generator >= 0 && generator !== p && (
+            <p class="hint">part of generator particle {truthChip(truth, generator, m.measure)}</p>
+          )}
           {particles && generator === p && aboveLevel(truth, p) && (
             <p class="hint" title="The match decayed in the generator (e.g. a π⁰): it is above the generator particles">
               merges the generator particles its match decayed to
@@ -254,7 +263,7 @@ function Constituent({ table, row, truth }: { table: string; row: number; truth:
       if (partner[part] >= 0)
         return (
           <p class="hint">
-            its {one(info.to)} {chip(info.to, part)} is matched to {chip(truth, partner[part])}{" "}
+            its {one(info.to)} {chip(info.to, part)} is matched to {truthChip(truth, partner[part], m.match?.measure)}{" "}
             <Info title={`Its ${one(info.to)}'s match`}>
               <p>
                 This is the associator's answer for that {one(info.to)}, not for this {one(table)}: CMSSW has no match

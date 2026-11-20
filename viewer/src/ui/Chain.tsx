@@ -21,7 +21,7 @@ import {
   shared,
   shownLevel,
 } from "../model/store";
-import { chip } from "./chips";
+import { chip, truthChip } from "./chips";
 import { Info, togglePopover } from "./Info";
 import { chooseDomain } from "../control/navigate";
 
@@ -258,7 +258,7 @@ function LinkLine({
         {label}
         {single && link.matched > 0 && (
           <>
-            {chip(link.truth, link.partners[0][0])}
+            {truthChip(link.truth, link.partners[0][0], link.measure)}
             {link.purity !== undefined && (
               <span
                 class={link.good === undefined ? "q" : `q q-${impure ? "impure" : "clean"}`}
@@ -339,7 +339,7 @@ function LinkLine({
           <>
             {shown.slice(0, 3).map(([p, share]) => (
               <>
-                {chip(link.truth, p)}
+                {truthChip(link.truth, p, "energy")}
                 <span class="muted">{percent(share)}</span>
               </>
             ))}

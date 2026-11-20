@@ -4,7 +4,18 @@
 // object: clean, impure or no match, so a list shows at a glance which are which.
 import { useEffect } from "preact/hooks";
 import { sameRef } from "../model/relations";
-import { anchor, describe, labelOf, look, matchOf, openCard, selection } from "../model/store";
+import {
+  anchor,
+  caloView,
+  describe,
+  labelOf,
+  layerOf,
+  look,
+  matchOf,
+  openCard,
+  selection,
+  truthText,
+} from "../model/store";
 import { rowHover } from "./Labels";
 import { frameFocus } from "../control/navigate";
 
@@ -13,6 +24,11 @@ const glide = () => frameFocus(800);
 
 /** The chip of row `r` of table `t`, named as its kind describes it; `title`: more to say on hover. */
 export const chip = (t: string, r: number, title = "") => <ObjChip table={t} row={r} title={title} />;
+/** The chip of truth particle `r`, named for what it is shown next to (docs/truth.md): by its energy next to a
+ *  calorimeter object or hits (`measure` "energy"), else by pT and η ("μ⁺ · pT 96.6 · η 1.11"). */
+export const truthChip = (t: string, r: number, measure?: string) => (
+  <ObjChip table={t} row={r} text={truthText(t, r, measure === "energy")} />
+);
 
 export function ObjChip({
   table,
@@ -52,7 +68,7 @@ export function ObjChip({
       onMouseEnter={() => (rowHover.value = ref)}
       onMouseLeave={() => (rowHover.value = null)}
     >
-      {text ?? (describe(table, row) || `#${row}`)}
+      {text ?? ((layerOf(table)?.truth && truthText(table, row, caloView.value)) || describe(table, row) || `#${row}`)}
     </button>
   );
 }

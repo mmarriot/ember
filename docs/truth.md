@@ -320,6 +320,10 @@ Truth and reco are told apart by one visual grammar, everywhere:
 | reco | solid lines, filled markers, type colours | all reco |
 | no information | plain grey text, no badge | "no truth" |
 
+A truth particle is named for what it is shown next to: by pT and η next to a track, a muon, a jet, an e/γ object or
+MET, and in the colour key of Physics, the tracker and All (`μ⁺ · pT 96.6 · η 1.11`); by its energy next to a
+calorimeter object or hits, and in the views of HGCal and Calo (`K⁻ · E 69.4 GeV`).
+
 Violet is the truth's only: no category colour of the palettes is violet, and the profiles give RPC hits and taus,
 violet before, other colours. Bundles converted before that are drawn in the new colours by a shim
 (`render/colour.ts` `RETIRED`).

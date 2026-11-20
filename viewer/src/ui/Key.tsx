@@ -4,7 +4,6 @@
 // something selected, its truth <-> reco pair. The Reco | Truth switch (key T) chooses between the first two. Bundles
 // without candidates or truth, and a domain coloured layer by layer, have no key: each layer shows its own colours.
 import type { Header } from "../io/format";
-import { facts } from "../model/facts";
 import { PAIR, type PairClass } from "../model/pair";
 import { percent } from "../model/match";
 import { cached } from "../model/relations";
@@ -13,8 +12,8 @@ import { PALETTES } from "../render/colour";
 import {
   activeMode,
   bundle,
+  caloView,
   colourChoice,
-  domain,
   drawnLayers,
   event,
   layerKey,
@@ -258,8 +257,7 @@ function TruthKey() {
       );
     }
   // In a calorimeter's view the particles are named by their energy, elsewhere by pT and η (docs/truth.md).
-  const dom = domain.value,
-    calo = !!dom && facts(b.header).some((f) => layerOf(f.to)?.domain === dom);
+  const calo = caloView.value;
   const items = legend?.kind === "category" ? (legend.items ?? []) : [],
     selected = truthRank.value.prefer !== undefined;
   return (

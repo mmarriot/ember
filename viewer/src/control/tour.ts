@@ -23,7 +23,7 @@ import {
   showAll,
   showEvent,
   sizeColumn,
-  solo,
+  lookAlone,
   touring,
   view,
   drawnLayers,
@@ -86,7 +86,7 @@ async function startTour() {
     e = engine;
   if (!e) return;
   touring.value = true;
-  solo.value = null; // the tour builds the whole event up, not one kind
+  lookAlone(null); // the tour builds the whole event up, not one kind
   view.value = "3d";
   // Real time per unit of the durations below: 1, or in development builds window.emberTourPace (2 is half speed).
   const pace = import.meta.env.DEV ? Number((window as { emberTourPace?: number }).emberTourPace ?? 1) : 1;

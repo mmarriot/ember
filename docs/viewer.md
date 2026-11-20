@@ -171,7 +171,8 @@ the barrel's.
   If none is ticked, it draws all the kind's collections.
 - Selecting an object brings back its parts and its truth.
 - "show everything" on the view ends it. A replay or a tour also ends it. Your ticks are kept.
-- **only** is not offered for kinds that are drawn only for a selection (such as the hits on a track).
+- On a kind that is drawn only for a selection (such as the hits on tracks), **only** also switches it to **all**
+  of its objects while it lasts, so the view is not empty.
 
 ### Colours
 

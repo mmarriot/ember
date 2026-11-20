@@ -1,7 +1,7 @@
 // What the view draws and how, as the user sets it (the side panel's ticks, the domain, the cuts, the view preset),
 // and the state of the page around the view (pointer, pop-ups, messages, theme). openBundle (open.ts) resets most of
 // it for each bundle; the components change it as the user acts.
-import { computed, effect, signal } from "@preact/signals";
+import { batch, computed, effect, signal } from "@preact/signals";
 import type { DisplayLayer, Header, ViewName } from "../../io/format";
 import type { Legend, ThemeName } from "../../render/colour";
 import type { Hit } from "../../render/picking";
@@ -39,6 +39,23 @@ export const tabOfDomain = (h: Pick<Header, "domains">, name: string) =>
 export const solo = signal<string | null>(null);
 /** A side-panel heading: a kind in one part of the detector ("HGCal|Hits" is not "Calo|Hits"). */
 export const soloKey = (d: Pick<DisplayLayer, "domain" | "group">) => `${d.domain ?? ""}|${d.group}`;
+let switched: string[] = []; // the layers lookAlone switched to all of their rows, until "only" ends
+/** Look at the kind `key` alone (null: everything ticked again). Its collections drawn only for a selection (track
+ *  hits) are switched to all of their rows while it lasts, or the view would be empty until something is selected. */
+export function lookAlone(key: string | null) {
+  const all = { ...showAll.peek() };
+  for (const k of switched) delete all[k];
+  switched = key
+    ? (bundle.peek()?.header.display ?? [])
+        .filter((l) => l.onSelection && soloKey(l) === key && !all[layerKey(l)])
+        .map(layerKey)
+    : [];
+  for (const k of switched) all[k] = true;
+  batch(() => {
+    showAll.value = all;
+    solo.value = key;
+  });
+}
 
 /** Per display layer key: drawn. A layer is drawn when it is ticked and in the domain's view; with a kind looked at
  *  alone (`solo`), when it is one of that kind's ticked collections, or, with none of them ticked, all of its

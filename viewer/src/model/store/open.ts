@@ -24,7 +24,7 @@ import { colourChoice } from "./colours";
 import { bundle, bundleName, eventIndex, loadMs, loading, rawEvent, shownOf } from "./data";
 import { layerKey } from "./names";
 import { selection } from "./selection";
-import { cutGroups, cuts, domain, hover, openTab, showAll, solo, tabOfDomain, toast, view, visible } from "./view";
+import { cutGroups, cuts, domain, hover, lookAlone, openTab, showAll, tabOfDomain, toast, view, visible } from "./view";
 
 export type { Listed };
 
@@ -140,7 +140,7 @@ export async function openBundle(
     // one's event, selection or settings.
     batch(() => {
       bundle.value = b;
-      solo.value = null;
+      lookAlone(null);
       colourChoice.value = "reco";
       bundleName.value = name;
       openedAs.value = { local, external };

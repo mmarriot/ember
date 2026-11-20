@@ -22,6 +22,7 @@ import {
   showAll,
   shown,
   sizeColumn,
+  lookAlone,
   solo,
   soloKey,
   truthStatuses,
@@ -59,10 +60,8 @@ export function Collections({ layers }: { layers: DisplayLayer[] }) {
         const id = layerKey(ls[0]),
           shut = folded.value.has(id),
           drawn = ls.filter((d) => visible.value[layerKey(d)]).length;
-        // Not for a kind drawn only for a selection (track hits): alone, it would show nothing to click.
         const key = soloKey(ls[0]),
-          alone = solo.value === key,
-          canSolo = ls.some((d) => !d.onSelection);
+          alone = solo.value === key;
         return (
           <section class={shut ? "kind folded" : "kind"} key={group}>
             <h3>
@@ -87,20 +86,18 @@ export function Collections({ layers }: { layers: DisplayLayer[] }) {
                 </span>
               )}
               {!shut && onHeading(ls) && <CutChip name={cutsOf(ls)[0]} here={ls} />}
-              {canSolo && (
-                <button
-                  class={alone ? "only on" : "only"}
-                  aria-pressed={alone}
-                  title={
-                    alone
-                      ? "Back to everything ticked"
-                      : `Look at only the ${group.toLowerCase()}: nothing else is drawn until you select one, which brings its parts and its truth`
-                  }
-                  onClick={() => (solo.value = alone ? null : key)}
-                >
-                  only
-                </button>
-              )}
+              <button
+                class={alone ? "only on" : "only"}
+                aria-pressed={alone}
+                title={
+                  alone
+                    ? "Back to everything ticked"
+                    : `Look at only the ${group.toLowerCase()}: nothing else is drawn until you select one, which brings its parts and its truth`
+                }
+                onClick={() => lookAlone(alone ? null : key)}
+              >
+                only
+              </button>
             </h3>
             {!shut && ls.map((d) => <LayerRow key={layerKey(d)} d={d} cut={rowCut(d, ls)} here={ls} />)}
           </section>

@@ -39,7 +39,7 @@ import {
   shown,
   shownLayer,
   shownLevel,
-  solo,
+  lookAlone,
   theme,
   touring,
   view,
@@ -79,7 +79,7 @@ const replaying = signal(false);
 export function replayEvent(pace = 1): Plan | null {
   if (!engine) return null;
   engine.stopReplay(); // a running replay ends first (its end resets `replaying`), so the rebuild below sticks
-  solo.value = null; // the replay builds the whole event up, not one kind
+  lookAlone(null); // the replay builds the whole event up, not one kind
   replaying.value = true; // rebuilds the layers at once (an effect), including the hidden stages
   if (!entries.length) {
     replaying.value = false; // nothing to replay, so no replay's end will reset it

@@ -33,6 +33,7 @@ import {
   selection,
   shownEntry,
   shownLevel,
+  lookAlone,
   solo,
   soloKey,
   started,
@@ -116,7 +117,7 @@ function openFromAddress() {
       const { domain: d, view: v, only, selection: s, truth, level } = link;
       if (d) chooseDomain(d === ALL ? null : d, false);
       if (v && (Object.values(VIEW_KEYS) as string[]).includes(v)) view.value = v as ViewName;
-      if (only && bundle.peek()?.header.display.some((l) => soloKey(l) === only)) solo.value = only;
+      if (only && bundle.peek()?.header.display.some((l) => soloKey(l) === only)) lookAlone(only);
       // A link made before the data set was converted again may name a row that no longer exists.
       if (s && s.row < (event.peek()?.tables[s.table]?.n ?? 0)) selection.value = s;
       if (truth && truthColours.peek()) colourChoice.value = "truth";

@@ -257,6 +257,15 @@ class Converter:
             if "filter" in layer and not self._filterable(layer["table"], layer["filter"]):
                 del layer["filter"]  # e.g. puppiWeight > 0 for an input without PUPPI weights
             columns = self.tables[layer["table"]]["columns"]
+            # one profile serves files with and without these columns (ember's own NanoAOD, a standard one)
+            groups = [
+                {**g, "columns": [c for c in g["columns"] if c in columns]} for g in layer.pop("inspectGroups", [])
+            ]
+            if any(g["columns"] for g in groups):
+                layer["inspectGroups"] = [g for g in groups if g["columns"]]
+            without = layer.pop("labelWithout", None)
+            if without and without["column"] not in columns:
+                layer["label"] = without["label"]
             missing = [c for c in named_columns(layer) if c and c not in columns]
             if missing:
                 raise ValueError(

@@ -207,11 +207,17 @@ each of layers 25 and 26:
 `table`, `repr`, `position`, `end`, `momentum`, `charge`, `axis`, `extent`, `size`, `colour`, `palette`, `colourBy`,
 `time`, `group`, `label`, `visible`, `kind`, `source`, `domain`, `cut`, `filter`, `context`, `dim`, `shape`, `truth`,
 `particle`, `onSelection`, `describe`, `doc`; and, added for the whole detector, `cell`, `direction`, `radius`, `length`,
-`arrow`, `width`, `views`, `labels`, `list`, `inspect`, `fractions`, `truthGap`, `fixedColour` and `cut.label`.
+`arrow`, `width`, `views`, `labels`, `list`, `inspect`, `fractions`, `truthGap`, `fixedColour` and `cut.label`; and
+`inspectGroups`.
 
 - They are copied to the bundle for the layers whose table is written.
 - Every column that a layer names must exist. This includes columns named inside `cell`, `list`, `inspect` and
-  `fractions`, and a `length` or `radius` given as a column.
+  `fractions`, and a `length` or `radius` given as a column. `inspectGroups` is the exception: it keeps only the
+  columns the table has, and drops a group left empty, so one profile serves ember's own NanoAOD and a standard one
+  (`nano.json` lists both's names, for example `convVtxFitProb` and `convVeto`).
+- `labelWithout: {"column", "label"}` (a profile key, not copied): the layer's `label` when its table lacks `column`.
+  `nano.json` names ember's own jets "AK4 PUPPI (raw, no JEC)": a standard NanoAOD's jets are corrected, and have
+  `rawFactor`.
 - `truthGap: {"reason", "gap"}` on a kind says why the kind has no truth association; the display says so, and Ember
   builds no association in its place. `gap` is the gap
   number in [Truth graph](truth-graph.md). A relation from the kind with a `match` hint supersedes it.

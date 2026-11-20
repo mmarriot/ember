@@ -573,6 +573,21 @@ def test_gather_missing_fills_only_nan_values():
     assert out[:2].tolist() == [5, 8] and np.isnan(out[2])  # kept, filled, no track: still NaN
 
 
+def test_inspect_groups_keep_the_columns_the_table_has_and_a_label_follows_a_column():
+    """inspectGroups: only the columns of the table written, and no empty group; labelWithout: the label of a table
+    that lacks the column (ember's own uncorrected jets, which have no rawFactor)."""
+    layer = {"table": "Jet", "label": "AK4", "position": ["x", "y", "z"],
+             "labelWithout": {"column": "rawFactor", "label": "AK4 (raw)"},
+             "inspectGroups": [{"name": "b-tag", "columns": ["btagA", "btagB"]}, {"name": "ID", "columns": ["id"]}]}  # fmt: skip
+    conv = converter({"Jet": {**dict.fromkeys("xyz", F4), "btagB": F4}}, {"display": [layer]})
+    (out,) = conv.display
+    assert out["label"] == "AK4 (raw)" and out["inspectGroups"] == [{"name": "b-tag", "columns": ["btagB"]}]
+    assert "labelWithout" not in out
+    conv = converter({"Jet": {**dict.fromkeys("xyz", F4), "rawFactor": F4}}, {"display": [layer]})
+    (out,) = conv.display
+    assert out["label"] == "AK4" and "inspectGroups" not in out
+
+
 def test_relation_names_must_be_unique():
     """Two relations with one name (e.g. from two included profiles) are an error, not a silent replacement."""
     rel = {"name": "r", "kind": "index", "from": "A", "to": "B", "index": "A.k"}

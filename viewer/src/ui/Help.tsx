@@ -170,12 +170,12 @@ export function HelpDialog() {
       <h3>Side panel</h3>
       <p class="hint">
         One tab per part of the detector with its collections, by kind of object (with a domain bar: the physics objects
-        in their own tab, with the event's headline and each kind's largest objects, a click selecting one; the parts of
-        the detector in Detector, which follows the bar); the truth (the event's reco ↔ truth counts, its collections,
-        what became of each particle, the history as a tree); the event. A kind's heading shows its cut (e.g. pT ≥ 30
-        GeV): click it to change it; it applies to every collection of its group. A row shows the collection's state as
-        chips: filter (click to see or remove it), selected (drawn only for the selected object; click for all), show
-        (hidden while something is selected; click to draw it).
+        in their own tab, with each kind's largest objects (the event's headline is the view's title), a click selecting
+        one; the parts of the detector in Detector, which follows the bar); the truth (the event's reco ↔ truth counts,
+        its collections, what became of each particle, the history as a tree); the event. A kind's heading shows its cut
+        (e.g. pT ≥ 30 GeV): click it to change it; it applies to every collection of its group. A row shows the
+        collection's state as chips: filter (click to see or remove it), selected (drawn only for the selected object;
+        click for all), show (hidden while something is selected; click to draw it).
       </p>
       <h3>Colours</h3>
       <p class="hint">

@@ -116,7 +116,7 @@ help. **Got it** hides it for good in this browser; the line then says only "Cli
 
 **The view's title.** The top left of the view says what is on screen, so that a screenshot says it too:
 `SIMULATION · ttbar 0PU · Run 1 · LS 1 · Event 18`, or `DATA · Run 392294 · LS 21 · Event 11805516`. Under it is the
-event in one line, as at the top of the Physics tab ("Jets 4 · Electrons 0 · … · Puppi MET 38.1 GeV"). No header
+event in one line: the physics objects that pass their cuts ("Jets 4 · Electrons 0 · … · Puppi MET 38.1 GeV"). No header
 field says whether a bundle is simulation: the viewer calls an event simulated when the bundle has truth or the run
 is 1 (CMSSW numbers every simulated run 1). A simulated event is named by the first part of the data set's title,
 and data by their run.
@@ -369,7 +369,8 @@ its eight largest objects in the same way (for example the tracksters by energy)
 
 The tab opens with a headline: how many objects of each such layer pass, or the value of a one-object table (for
 example MET). A selected object that does not pass is not counted, and the headline says why: "Electrons 0 (+1
-selected, below the electron pT cut)", or "left out by the filter" when the cut alone would keep it.
+selected, below the electron pT cut)", or "left out by the filter" when the cut alone would keep it. The Physics tab
+has none: the view's title gives that line.
 
 **In the truth colours**, each kind's heading gets one word for what the truth graph says about it: match, sim,
 or no associator. Hover for the reason. Where a kind's layers differ, each row gets its own word. The rows of

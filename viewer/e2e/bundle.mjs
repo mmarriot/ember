@@ -412,7 +412,8 @@ async function checkObjectRows(page, h, fail, shot, tag) {
   const rows = page.locator(".layer", { hasText: d.label }).locator("table.objects tbody tr:not(.more)");
   const n = await rows.count(),
     headline = await page
-      .locator(".tabpanel .headline")
+      .locator(".tabpanel .headline, .titlebox .headline")
+      .first()
       .innerText()
       .catch(() => "");
   log(`${tag}: ${d.label}: ${n} object rows; headline "${headline}"`);

@@ -13,8 +13,9 @@ export function shownTitle(): string {
   return b && e ? eventTitle(isSimulation(b.header, e.run), opened.value?.title ?? "", e) : "";
 }
 
-/** The layers the one-line summary counts: the shared parts' (the physics objects), else every reco layer. */
-function summaryLayers() {
+/** The layers the one-line summary counts: the shared parts' (the physics objects), else every reco layer. A side-panel
+ *  tab of these alone does not count them again (Layers.tsx). */
+export function summaryLayers() {
   const display = bundle.value?.header.display ?? [],
     shared = sharedDomains(bundle.value?.header);
   return display.filter((d) => !d.truth && (!shared.size || (d.domain !== undefined && shared.has(d.domain))));

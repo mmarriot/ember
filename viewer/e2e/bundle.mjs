@@ -1,4 +1,5 @@
 // The checks of one bundle (checkBundle), each step logged and a failure noted, not thrown:
+// - messages are readable;
 // - its layers draw (helix paths end at finite points); a bundle that names a start domain opens on it;
 // - each domain draws only its own layers and the shared ones, and opens its tab; labels show on the leading objects
 //   (L hides them) and N selects one; pointing at an object row rings its object, and a click selects it;
@@ -49,6 +50,7 @@ export async function checkBundle(run, file, tag, state) {
 
   await open(`b=${file}&e=1`);
   await checkStart(page, h, fail, tag);
+  await checkMessage(page, fail, tag);
   const [drawn, objects] = await page.evaluate(() => [
     window.emberEngine.layers.length,
     window.emberEngine.layers.reduce((s, l) => s + l.x.length, 0),
@@ -242,6 +244,17 @@ export async function checkBundle(run, file, tag, state) {
     await open(`b=${file}&e=1${all}&s=${target.table}:0`);
     await deepChecks(page, h, fail, shot);
   } else if (h.display.some((d) => d.grow) && !small) await checkReplay(page, h, fail); // the path building, also when not deep
+}
+
+/** A message is readable: wider than a word (it once took the ⓘ button's 15 px). The event box's answer to text that
+ *  names nothing is one. */
+async function checkMessage(page, fail, tag) {
+  await page.fill("input.jump", "no such thing");
+  await page.press("input.jump", "Enter");
+  const toast = page.locator(".toast").last(), // the newest
+    width = await toast.evaluate((t) => t.getBoundingClientRect().width).catch(() => 0);
+  log(`${tag}: a message ${Math.round(width)} px wide: ${await toast.innerText().catch(() => "none")}`);
+  if (width < 200) fail(`a message is ${Math.round(width)} px wide`);
 }
 
 /** A bundle that names a start domain (`view.domain`) opens on it: in the URL, drawing only its layers and those of

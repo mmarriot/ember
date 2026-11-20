@@ -95,7 +95,7 @@ export function Toasts() {
   return (
     <div class="toasts">
       {toasts.value.map((t) => (
-        <div class={`toast ${t.kind}`} role="status">
+        <div class={`toast toast-${t.kind}`} role="status">
           {t.text}
         </div>
       ))}

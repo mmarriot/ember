@@ -335,7 +335,7 @@ export async function checkSite(run) {
     const text = await page.textContent(".startpanel");
     for (const part of ["no longer here", "published by alice", "ember file.root", "HTTP 404"])
       if (!text.includes(part)) fail(`a link to a file that is gone does not say "${part}": ${text}`);
-    if (await page.$(".toast.error")) fail("a file that is gone is also reported as a passing message");
+    if (await page.$(".toast-error")) fail("a file that is gone is also reported as a passing message");
     await shot(page, `gone_${theme}_${width}`);
     await page.click(".startpanel .primary");
     await page.waitForSelector(".chooserpanel");
@@ -399,8 +399,8 @@ export async function checkSite(run) {
       );
     if (page.url() !== chosen)
       fail(`the slow link changed the address of the data set chosen after it: ${chosen} -> ${page.url()}`);
-    if (await page.$(".toast.error"))
-      fail(`an overtaken open left a message: ${await page.textContent(".toast.error")}`);
+    if (await page.$(".toast-error"))
+      fail(`an overtaken open left a message: ${await page.textContent(".toast-error")}`);
     await page.context().close();
   }
 

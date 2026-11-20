@@ -227,14 +227,19 @@ particle on a step's match line.
 
 - From a reco object, `X` goes to the associator's best match. For a hit, it goes to the particle that left the most
   simulated energy in it.
-- An object of a kind with no truth of its own (an electron, a jet, a TICL candidate) has none to go to. `X` then
-  opens a small chooser in the card: the particles its parts are matched to, each named with its part ("π⁻ · its
-  track · purity 100%"). Pick one, or press `X` again for the first; `Esc` closes it. Objects only built from its
-  parts are not offered. With no matched part either, the button is off and says why.
+- An object of a kind with no truth of its own (an electron, a jet, a TICL candidate) has none to go to. When the
+  card's truth line names a part's particle (its track's, its one PF cluster's), `X` goes there; so it does when its
+  parts are matched to one particle only. Otherwise `X` opens a small chooser in the card: the particles its parts are
+  matched to, each named with its part ("π⁻ · its track · purity 100%"), its largest part first, so that a pile-up
+  photon's small cluster never comes before a τ's leading track. Objects only built from its parts (an electron's PF
+  clusters) come after its own parts. Pick one, or press `X` again for the first; `Esc` closes it. With no matched
+  part, the button is off and says why.
 - While another object is looked at, `X` crosses from that object; the card's **Go to truth (X)** crosses from the
   card's own object.
 - From a truth object, `X` goes to a reco object of the latest reconstruction step. It picks the object whose best
   match is this truth object. If there is none, it picks the object that holds most of the truth object.
+- `X` is a round trip: on the object `X` led to, it goes back to where it came from (an electron, its e⁻, the electron),
+  until another event opens.
 
 ### Showing less
 

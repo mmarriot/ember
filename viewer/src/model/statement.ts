@@ -90,17 +90,55 @@ export function truthStatement(
   return { own: statuses.get(lad.self.groups[0]?.table ?? ""), parts };
 }
 
+/** A particle X can go to from an object without a match of its own: a matched part's own match, with what that match
+ *  counts (`measure`: the particle is named by its energy next to a calorimeter object), whether the part is the only
+ *  one of its collection in its step (`alone`: its track, its one PF cluster), and whether it is only built from the
+ *  object's parts (`beside`: a PF cluster inside an electron's supercluster). */
+export type PartChoice = PartMatch & { truth: string; measure: string; alone: boolean; beside: boolean };
+
 /** The particles X can go to from an object without a match of its own: each matched part's own particle (at most
- *  `max`), in the statement's order; one entry per particle, with the part that names it and what its match counts
- *  (`measure`: the particle is named by its energy next to a calorimeter object). Not those of the objects only built
- *  from its parts (`beside`): no relation makes them its parts. */
-export function partChoices(st: Statement, max = 8): (PartMatch & { truth: string; measure: string })[] {
-  const out: (PartMatch & { truth: string; measure: string })[] = [];
-  for (const line of st.parts.filter((l) => !l.beside))
-    for (const o of line.objects)
-      if (out.length < max && !out.some((x) => x.truth === line.truth && x.particle === o.particle))
-        out.push({ ...o, truth: line.truth, measure: line.match.measure });
+ *  `max`), one entry per particle, with the part that names it. Its own parts first, then those only built from them
+ *  (an electron's PF clusters, inside its supercluster). Among parts whose matches count the same thing (energy;
+ *  tracker hits) the larger part (`size`: a cluster's energy, a track's pT) comes first, so a 1.85 GeV pile-up
+ *  photon's cluster does not come before the τ's 96 GeV one; parts counting different things keep the steps' order
+ *  (a track's pT is not compared with a cluster's energy). The first is where X goes again. An order of the parts,
+ *  never a ranking of particles over several parts. */
+export function partChoices(
+  st: Statement,
+  max = Infinity,
+  size: (table: string, row: number) => number = () => 0,
+): PartChoice[] {
+  const ordered = (ls: PartLine[]) => {
+    const measures = [...new Set(ls.map((l) => l.match.measure))];
+    return measures.flatMap((m) =>
+      ls
+        .filter((l) => l.match.measure === m)
+        .flatMap((line) => line.objects.map((o) => ({ line, o })))
+        .sort((a, b) => size(b.o.table, b.o.row) - size(a.o.table, a.o.row)),
+    );
+  };
+  const out: PartChoice[] = [];
+  for (const { line, o } of [
+    ...ordered(st.parts.filter((l) => !l.beside)),
+    ...ordered(st.parts.filter((l) => l.beside)),
+  ])
+    if (out.length < max && !out.some((x) => x.truth === line.truth && x.particle === o.particle))
+      out.push({ ...o, truth: line.truth, measure: line.match.measure, alone: line.of === 1, beside: line.beside });
   return out;
+}
+
+/** The part whose match the card names for an object without a match of its own (an electron's or a muon's track, a
+ *  photon's PF cluster): its matched parts that are alone in their collection in their step (its own parts; else those
+ *  only built from them), when they all name one particle; the first of them. Parts that disagree (a charged PF
+ *  candidate's track on a π⁺, its HCAL cluster on a K⁰L), or a jet's or a τ's several tracks: none is named, X offers
+ *  them all. */
+export function leadChoice(choices: PartChoice[]) {
+  const own = choices.filter((c) => !c.beside),
+    from = own.length ? own : choices,
+    alone = from.filter((c) => c.alone);
+  // a part not alone in its step is matched elsewhere too: then the alone ones do not speak for the object
+  if (!alone.length || alone.length !== from.length) return undefined;
+  return alone.every((c) => c.truth === alone[0].truth && c.particle === alone[0].particle) ? alone[0] : undefined;
 }
 
 /** Where truth row `particle` went among the objects of `table` (W2; docs/truth.md): every object its truth -> reco

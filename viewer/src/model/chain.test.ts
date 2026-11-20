@@ -3,7 +3,7 @@ import type { DisplayLayer, EventData, Header } from "../io/format";
 import { matchClass, matchTally, recoLadder, recoOfTruth, type Ladder } from "./chain";
 import { truthStatus, type TruthStatus } from "./match";
 import { relatedParts } from "./relations";
-import { partChoices, truthStatement, whereItWent } from "./statement";
+import { leadChoice, type PartLine, partChoices, truthStatement, whereItWent } from "./statement";
 
 // jet 0 -> PF candidates 0, 1; PF 0 -> track 0 and candidate 0; PF 1 -> track 1; candidate 0 -> track 0,
 // interpretation 0 -> layer clusters 0, 2 -> hits 0, 1, 3; trackster 1 holds clusters 0, 2 (named by no relation of the
@@ -339,9 +339,49 @@ describe("truthStatement", () => {
       expect.objectContaining({ truth: "P", particle: 0, table: "Trk", row: 0, measure: "hits" }),
     ]);
   });
-  it("never offers X the particle of an object only built from its parts", () => {
+  it("offers X the particles of objects only built from its parts after those of its own parts", () => {
     const st = truthStatement(ev, header, ladder("Jet", 0), statuses);
-    expect(partChoices({ ...st, parts: st.parts.map((l) => ({ ...l, beside: true })) })).toEqual([]);
+    const [line] = st.parts,
+      other = { ...line, beside: true, objects: [{ ...line.objects[0], particle: 1 }] };
+    expect(partChoices({ ...st, parts: [other, line] }).map((c) => c.particle)).toEqual([0, 1]);
+  });
+  it("orders X's choices by size among parts counting the same thing, keeping the steps' order across them", () => {
+    const st = truthStatement(ev, header, ladder("Jet", 0), statuses);
+    const [line] = st.parts,
+      o = line.objects[0];
+    const cal = (table: string, objects: typeof line.objects) => ({
+      ...line,
+      table,
+      of: objects.length,
+      match: { ...line.match, measure: "energy" as const },
+      objects,
+    });
+    const tracks = { ...line, of: 2, objects: [o, { ...o, row: 1, particle: 1 }] }, // hits; pT 1 and 5
+      ecal = cal("Ecal", [{ ...o, table: "Ecal", row: 0, particle: 2 }]), // 2 GeV
+      hcal = cal("Hcal", [{ ...o, table: "Hcal", row: 0, particle: 3 }]); // 50 GeV
+    const size = (t: string, r: number) => (t === "Ecal" ? 2 : t === "Hcal" ? 50 : [1, 5][r]);
+    // the larger cluster first, then the tracks by pT: a cluster's energy is never compared with a track's pT
+    expect(partChoices({ ...st, parts: [ecal, hcal, tracks] }, 8, size).map((c) => c.particle)).toEqual([3, 2, 1, 0]);
+    expect(partChoices({ ...st, parts: [ecal, hcal, tracks] }, 2, size)).toHaveLength(2);
+  });
+  it("names a part only when the parts alone in their step name one particle and no other part is matched", () => {
+    const st = truthStatement(ev, header, ladder("Jet", 0), statuses);
+    const [line] = st.parts,
+      o = line.objects[0];
+    const one = (table: string, particle: number, beside = false) => ({
+      ...line,
+      table,
+      of: 1,
+      beside,
+      objects: [{ ...o, table, particle }],
+    });
+    const lead = (...parts: PartLine[]) => leadChoice(partChoices({ ...st, parts }));
+    expect(lead(one("Trk", 0), one("Clu", 7, true))).toMatchObject({ table: "Trk", particle: 0 }); // an electron
+    expect(lead(one("Clu", 7, true))).toMatchObject({ table: "Clu", particle: 7, beside: true }); // a photon
+    expect(lead(one("Trk", 0), one("Hcal", 3))).toBeUndefined(); // a π⁺'s track and a K⁰L's cluster disagree
+    expect(lead(one("Trk", 0), one("Hcal", 0))).toMatchObject({ table: "Trk" }); // they agree
+    expect(lead({ ...line, of: 2, objects: [o, { ...o, row: 1, particle: 1 }] })).toBeUndefined(); // a jet's tracks
+    expect(lead(one("Ecal", 2), { ...line, of: 2, objects: [o, { ...o, row: 1, particle: 1 }] })).toBeUndefined(); // a τ
   });
   it("gives a matched kind its own status and no parts it does not have", () => {
     const st = truthStatement(ev, header, ladder("Trk", 0), statuses);

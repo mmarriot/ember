@@ -230,16 +230,19 @@ particle on a step's match line.
 - An object of a kind with no truth of its own (an electron, a jet, a TICL candidate) has none to go to. When the
   card's truth line names a part's particle (its track's, its one PF cluster's), `X` goes there; so it does when its
   parts are matched to one particle only. Otherwise `X` opens a small chooser in the card: the particles its parts are
-  matched to, each named with its part ("π⁻ · its track · purity 100%"), its largest part first, so that a pile-up
-  photon's small cluster never comes before a τ's leading track. Objects only built from its parts (an electron's PF
-  clusters) come after its own parts. Pick one, or press `X` again for the first; `Esc` closes it. With no matched
+  matched to (the first eight), each named with its part ("π⁻ · its track · purity 100%"). Among parts whose matches
+  count the same thing, the larger part comes first (a cluster's energy, a track's pT), so that a pile-up photon's
+  1.85 GeV cluster never comes before a τ's 96 GeV one; parts counting different things keep the chain's order, since
+  a track's pT is not compared with a cluster's energy. Objects only built from its parts (an electron's PF clusters)
+  come after its own parts. Pick one, or press `X` again for the first; `Esc` closes it. With no matched
   part, the button is off and says why.
 - While another object is looked at, `X` crosses from that object; the card's **Go to truth (X)** crosses from the
   card's own object.
 - From a truth object, `X` goes to a reco object of the latest reconstruction step. It picks the object whose best
   match is this truth object. If there is none, it picks the object that holds most of the truth object.
 - `X` is a round trip: on the object `X` led to, it goes back to where it came from (an electron, its e⁻, the electron),
-  until another event opens.
+  until another event opens; the button then reads **Back (X)**. A reco object with a match of its own goes to its
+  match instead, even when `X` came from another particle.
 
 ### Showing less
 
@@ -536,15 +539,23 @@ collection, "AK4 PUPPI (raw, no JEC) · ak4PFJetsPuppi".
 **The truth block** (`viewer/src/ui/TruthBlock.tsx`, `viewer/src/model/statement.ts`), built only from the
 associations in the file:
 
-- the kind's own association: its match (see **The match** below), or "No CMSSW association for electrons", with
-  the reason and the gap behind its **i**;
-- then one line per step of its parts that has an association of its own: a track, a PF cluster, a candidate
-  trackster. For one object, the part, its particle, and the match's purity and completeness, each named
-  ("Track pT 30.1 GeV → π⁻ · purity 100% · completeness 97%"). For several, how many are matched ("2 of 4 matched (2
-  clean)"). Each line names its source: "associator · tracker hits", "associator · energy in ECAL". Objects built only
-  from its parts (an electron's PF cluster, all of whose hits are in its supercluster) come under their own heading,
-  "Built from its parts: their matches", since no relation makes them its parts. The headings are short; what they
-  mean is behind their **i**;
+- one line: the kind's own association, its match (see **The match** below); else, for a kind with no truth of its
+  own, the match of its parts that are each the only one of their collection in their step (an electron's or a
+  muon's track, a photon's PF cluster), when no other part is matched and they all name one particle, named as that
+  part's, with where the particle comes from and the match's purity: "via its track · e⁻ · pT 27.5 · η −0.596 · from
+  Z decay · purity 100%"; "via the PF cluster inside it" for a part only built from it (a photon's). A muon whose track
+  is a K⁺ reads "via its track · K⁺ …". A charged PF candidate whose track is a π⁺ and whose HCAL cluster is a K⁰L,
+  a jet, a τ: "No truth match for jets in CMSSW · its parts match 21 particles (X)". The origin is left out where the
+  graph names neither the particle that made it nor why (a pile-up vertex). Why the kind has
+  no truth of its own (no CMSSW associator, with its gap), and that the line is the part's answer, are behind its
+  **i**;
+- folded under **Each part's match**, one line per step of its parts that has an association of its own: a track, a
+  PF cluster, a candidate trackster. For one object, the part, its particle, and the match's purity ("Track pT 30.1
+  GeV → π⁻ · purity 100%"). For several, how many are matched ("2 of 4 matched (2 clean)"). Each line names its
+  source: "associator · tracker hits", "associator · energy in ECAL". Objects built only from its parts (an
+  electron's PF cluster, all of whose hits are in its supercluster) come under their own heading, "Built from its
+  parts". Completeness is on the truth particle's side ("Reconstructed as"), where its denominator is the particle's:
+  a genuine electron's track holds a small share of everything its brem photons made;
 - **Go to truth (X)**, and the chooser it opens for a kind with no truth of its own.
 
 It never gives a verdict for the object from its parts: a pion's track inside a photon's cluster is the story. For a

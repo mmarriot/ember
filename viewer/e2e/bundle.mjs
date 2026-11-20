@@ -542,7 +542,7 @@ async function checkLevels(page, h, target, fail, shot, tag) {
   if ((await style()) !== style0) fail("↑ did not give the focus its own surface back");
   // In the truth <-> reco pair view, the pair's particle opens its own pair (its branch, per detector): the card names
   // it on the pair's truth line.
-  const particle = page.locator(".inspector .truthline .chip").first();
+  const particle = page.locator(".inspector .truthline:not(.answer) .chip").first(); // not the one-line answer, named by energy next to a calorimeter part
   if (!(await page.locator(".pairline").count()) || !(await particle.count())) return;
   const name = (await particle.innerText()).replace(/\s+/g, " ");
   await particle.click();

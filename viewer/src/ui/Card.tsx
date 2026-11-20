@@ -154,17 +154,21 @@ function ViewLevels() {
         In the view <span class="lanes">{nameOf(top)}</span>
       </h4>
       <div class="levelrow">
-        {bar.map((l) => {
+        {bar.map((l, i) => {
           const on = l.always || l.name === chosen;
           return (
-            <button
-              class={on ? "level on" : "level"}
-              disabled={l.always}
-              aria-pressed={on}
-              onClick={() => (focusLevel.value = l.name === chosen ? null : l.name)}
-            >
-              {l.name} <span class="count">{l.count.toLocaleString()}</span>
-            </button>
+            <>
+              {/* what is only built from its parts: ↓ ↑ skip it, a click draws it */}
+              {l.beside && !bar[i - 1]?.beside && <span class="muted">built from its parts:</span>}
+              <button
+                class={on ? "level on" : "level"}
+                disabled={l.always}
+                aria-pressed={on}
+                onClick={() => (focusLevel.value = l.name === chosen ? null : l.name)}
+              >
+                {l.name} <span class="count">{l.count.toLocaleString()}</span>
+              </button>
+            </>
           );
         })}
       </div>

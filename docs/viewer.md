@@ -201,7 +201,8 @@ bottom of the card describes the object you look at: its truth match and its mai
 object. ← at the top of the card (or `B`) goes back.
 
 **Draw one step of what the object is made of.** Press `↓` / `↑`, or click **show** on a step of the chain. This
-draws one step at a time, from the object down to its smallest parts. For a TICL candidate, the steps are its
+draws one step at a time, from the object down to its smallest parts. `↓` / `↑` go through the object's own parts
+only; what is only built from them (a jet's taus) is drawn with its **show** button. For a TICL candidate, the steps are its
 candidate trackster, linked tracksters, tracksters and layer clusters (in a TICL v6 export, its interpretation in place
 of the candidate trackster). The object itself is drawn as an outline around the step. A caption on the view says
 for a moment what is drawn, for example "Drawing: Tracksters · 2 · step 3 of 5".

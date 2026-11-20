@@ -13,7 +13,7 @@
 import { batch, computed, effect, signal } from "@preact/signals";
 import type { DisplayLayer } from "../../io/format";
 import { matchClass, recoLadder, recoOfTruth } from "../chain";
-import { focusLevels, levelLayers, mergeAcrossDomains, scopeLevels, stepLevel } from "../levels";
+import { focusLevels, levelLayers, mergeAcrossDomains, partsFirst, scopeLevels, stepLevel } from "../levels";
 import { PAIR, type Pair, pairFor, pairShows } from "../pair";
 import { simEnergyByParticle } from "../match";
 import { colourLevel } from "../truth";
@@ -337,7 +337,11 @@ export const levels = computed(() => {
     return [...linked!.get(t)!].every((r) => !cls || cls[r] === PAIR.other);
   };
   const own = (t: string) => parts.madeOf.has(t) || (!parts.linked.has(t) && !(linked?.has(t) && unclassified(t)));
-  const lv = focusLevels(b.header.display, top.table, hl, own, b.header.relations);
+  const stage = (t: string) => b.header.display.some((d) => d.table === t && d.stage !== undefined);
+  const lv = partsFirst(
+    focusLevels(b.header.display, top.table, hl, own, b.header.relations),
+    (t) => parts.madeOf.has(t) || stage(t),
+  );
   // Looking at everything in a bundle with parts of the detector: same-depth levels of different parts become one.
   return !domain.value && (b.header.domains?.length ?? 0) >= 2 ? mergeAcrossDomains(lv, shared.value) : lv;
 });
@@ -356,7 +360,7 @@ export const shownLevel = computed(() => {
  *  has none to step through. */
 export function stepFocusLevel(by: number) {
   const bar = focusBar.peek();
-  if (!bar.some((l) => !l.always)) return false;
+  if (!bar.some((l) => !l.always && !l.beside)) return false;
   focusLevel.value = stepLevel(bar, focusLevel.peek(), by);
   return true;
 }

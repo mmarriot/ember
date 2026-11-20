@@ -550,18 +550,18 @@ function Physics({ g, row, particles, vertices }: { g: Graph; row: number; parti
   if (brem)
     out.push(
       brem.count ? (
-        <p title="Its photons made at a bremsstrahlung vertex that the graph keeps (those that reached the calorimeter, or that something is matched to): very soft ones may be missing">
-          <span class="muted">brem</span> {brem.count} photon{brem.count > 1 ? "s" : ""}, ΣE {short(brem.energy)} GeV,
-          radiated at R {length(brem.rMin)} – {length(brem.rMax)}
+        <p title="Its photons made at a bremsstrahlung vertex inside the tracker volume (before the simulation's tracker–calorimeter boundary: R 123 cm in the barrel, |z| 293.5 cm in the endcaps, in front of the ETL and HGCal), that the graph keeps (those that reached the calorimeter, or that something is matched to): very soft ones may be missing. Its energy where it left the tracker is at that boundary's checkpoint, so the two add up to its energy but for what it lost by ionisation. This is not the reco fbrem, (p_in − p_out) / p_in of its GSF track: that stops at the track's last hit, and misses the brem after the outermost tracker layer">
+          <span class="muted">brem in the tracker</span> {brem.count} photon{brem.count > 1 ? "s" : ""}, ΣE{" "}
+          {short(brem.energy)} GeV, radiated at R {length(brem.rMin)} – {length(brem.rMax)}
           {Number.isFinite(brem.atCalo) && (
             <>
               {" "}
-              · {short(brem.atCalo)} GeV at the calorimeter · true fbrem {brem.fbrem.toFixed(2)}
+              · left the tracker (R {length(brem.atR)}, z {length(brem.atZ)}) with {short(brem.atCalo)} GeV
             </>
           )}
         </p>
       ) : (
-        <p class="muted">no brem photon kept in the graph</p>
+        <p class="muted">no brem in the tracker kept in the graph</p>
       ),
     );
   const conv = conversionOf(g, row);
@@ -573,9 +573,14 @@ function Physics({ g, row, particles, vertices }: { g: Graph; row: number; parti
             <span class="muted">converted</span> at R {length(conv.r)}, z {length(conv.z)} →{" "}
             {spaced(conv.products.map((c) => pchip(c)))}
           </>
+        ) : conv.showered ? (
+          <span title="Its first pair production (a vertex of reason conversion in the graph) is beyond the simulation's tracker–calorimeter boundary (R 123 cm, |z| 293.5 cm): in front of or in the calorimeter, not a conversion that tracking could find">
+            <span class="muted">did not convert in the tracker: first pair at</span> R {length(conv.r)}, z{" "}
+            {length(conv.z)}
+          </span>
         ) : (
           <span class="muted">
-            did not convert{conv.reachedCalo ? ": it reached the calorimeter" : " (no conversion vertex in the graph)"}
+            did not convert{conv.reachedCalo ? " in the tracker" : " (no conversion vertex in the graph)"}
           </span>
         )}
         {conv.pi0 >= 0 && (

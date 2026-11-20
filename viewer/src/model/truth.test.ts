@@ -75,20 +75,78 @@ describe("the truth graph", () => {
     expect(copiesBelow(g, 11)).toEqual([11, 12]);
     expect(foldCopies(g, [6, 7])).toEqual([[6], [7]]); // a π⁰'s photon is not a copy
   });
-  it("sums an electron's brem photons, where they were radiated, and its true fbrem", () => {
+  it("sums an electron's brem photons, where they were radiated, and its energy at the calorimeter", () => {
     const b = bremOf(g, 3)!;
     expect(b.count).toBe(2);
     expect(b.energy).toBe(50);
     expect([b.rMin, b.rMax]).toEqual([10, 50]);
     expect(b.atCalo).toBe(20);
-    expect(b.fbrem).toBeCloseTo(1 - 20 / 70);
     expect(bremOf(g, 15)).toBeUndefined();
+  });
+  // An e⁺ of 221 GeV (egamma_0PU event 7) leaves the tracker (|z| 293.5 cm) at t 9.49 ns with 139 GeV, having radiated
+  // 82 GeV before: a 27 GeV photon it radiates beyond the boundary (z −298 cm, t 9.66 ns) is not brem in the tracker.
+  const late = graphOf(
+    {
+      n: 3,
+      columns: {
+        pdgId: [-11, 22, 22],
+        status: [1, 0, 0],
+        energy: [221, 82, 27],
+        prodVertexIdx: [0, 1, 2],
+        hasBoundary: [1, 0, 0],
+        boundaryE: [139, 0, 0],
+        boundaryT: [9.49, 0, 0],
+        boundaryX: [30, 0, 0],
+        boundaryY: [40, 0, 0],
+        boundaryZ: [-293.5, 0, 0],
+      },
+    },
+    csr([[1, 2], [], []]),
+    { n: 3, columns: { reason: [17, 3, 3], x: [0, 18, 52], y: [0, 0, 0], z: [0, -103, -298], t: [0, 3.05, 9.66] } },
+  );
+  it("counts only the brem radiated before the calorimeter, so that E = ΣE + E at the calorimeter", () => {
+    expect(bremOf(late, 0)).toMatchObject({
+      count: 1,
+      energy: 82,
+      rMin: 18,
+      rMax: 18,
+      atCalo: 139,
+      atR: 50,
+      atZ: -293.5,
+    });
   });
   it("says where a photon converted, into what, and its π⁰ and sister photon", () => {
     const c = conversionOf(g, 7)!;
     // the Compton electron made earlier by the same photon is not a conversion product
-    expect(c).toMatchObject({ converted: true, r: 26, z: 40, products: [8, 9], pi0: 6, sisters: [10] });
+    expect(c).toMatchObject({
+      converted: true,
+      showered: false,
+      r: 26,
+      z: 40,
+      products: [8, 9],
+      pi0: 6,
+      sisters: [10],
+    });
     expect(conversionOf(g, 10)).toMatchObject({ converted: false, reachedCalo: true, pi0: 6, sisters: [7] });
+  });
+  it("calls a conversion after the photon reached the calorimeter the start of its shower, not a conversion", () => {
+    // a H → γγ photon (egamma_0PU event 11) reaching the barrel calorimeter at t 4.56 ns, its first pair at R 129 cm
+    const p = graphOf(
+      {
+        n: 3,
+        columns: {
+          pdgId: [22, 11, -11],
+          status: [1, 0, 0],
+          energy: [81, 40, 41],
+          prodVertexIdx: [0, 1, 1],
+          hasBoundary: [1, 0, 0],
+          boundaryT: [4.56, 0, 0],
+        },
+      },
+      csr([[1, 2], [], []]),
+      { n: 2, columns: { reason: [17, 5], x: [0, 129], y: [0, 0], z: [0, -82.5], t: [0, 4.79] } },
+    );
+    expect(conversionOf(p, 0)).toMatchObject({ converted: false, showered: true, r: 129, z: -82.5, products: [] });
   });
   it("reads a τ's decay products from the τ that decays, and its visible energy without neutrinos", () => {
     const t = tauDecayOf(g, 11)!;

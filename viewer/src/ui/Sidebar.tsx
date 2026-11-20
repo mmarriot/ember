@@ -13,7 +13,7 @@ import { bundle, bundleName, DETECTOR, domain, openTab } from "../model/store";
 import { chooseDomain } from "../control/navigate";
 import { EventInfo } from "./EventInfo";
 import { ColourKey } from "./Key";
-import { Collections, tabOf } from "./Layers";
+import { Collections, TickAll, tabOf } from "./Layers";
 import { treeRelations } from "./Tree";
 import { TruthTab } from "./TruthTab";
 import { stopTour } from "../control/tour";
@@ -155,6 +155,10 @@ function Detector({ names, layers }: { names: string[]; layers: DisplayLayer[] }
         return (
           <details class="part" open={here || !current} key={`${bundleName.value}|${name}|${current}`}>
             <summary>
+              <TickAll
+                layers={layers.filter((d) => d.domain === name)}
+                name={`collections of ${name}, of every kind`}
+              />
               <b>{name}</b>{" "}
               <span
                 class="muted"

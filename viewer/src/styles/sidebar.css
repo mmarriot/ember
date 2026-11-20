@@ -115,6 +115,10 @@
   letter-spacing: 0;
   font-weight: 400;
 }
+/* One tick for all of a kind's collections, or of a part's (Layers.tsx TickAll). */
+.tickall {
+  margin: 0 6px 0 0;
+}
 /* A kind's heading folds it (Layers.tsx). */
 .tabpanel section > h3 .fold {
   border: none;

@@ -273,6 +273,10 @@ accent colour when the cut differs from the profile's. Click it to open a slider
 A kind with several cuts (one per calorimeter) shows each cut on the first row it cuts, without the row's name
 ("energy ≥ 1 GeV" on the ECAL barrel row). A long name wraps onto a second line instead of being cut short.
 
+A kind with several collections, and each part of the detector in the Detector tab, has a tick of its own on its
+heading: one click ticks all of its collections, or unticks them all when all are ticked. It is half ticked when
+only some are.
+
 Clicking a kind's heading folds it. The folded heading says how many of its collections are drawn. This lasts for
 the life of the page. A slider shared with a later kind moves to that kind.
 

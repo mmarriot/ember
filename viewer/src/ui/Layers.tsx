@@ -65,6 +65,7 @@ export function Collections({ layers }: { layers: DisplayLayer[] }) {
         return (
           <section class={shut ? "kind folded" : "kind"} key={group}>
             <h3>
+              {ls.length > 1 && <TickAll layers={ls} name={group.toLowerCase()} />}
               <button
                 class="fold"
                 aria-expanded={!shut}
@@ -104,6 +105,26 @@ export function Collections({ layers }: { layers: DisplayLayer[] }) {
         );
       })}
     </>
+  );
+}
+
+/** One tick for several collections (a kind's, a part of the detector's): ticked when all are, half when some are; a
+ *  click ticks them all, or unticks them all when all are ticked. */
+export function TickAll({ layers, name }: { layers: DisplayLayer[]; name: string }) {
+  const keys = layers.map(layerKey),
+    on = keys.filter((k) => visible.value[k]).length,
+    all = on === keys.length;
+  return (
+    <input
+      type="checkbox"
+      class="tickall"
+      checked={all}
+      indeterminate={on > 0 && !all}
+      title={all ? `Untick all the ${name}` : `Tick all the ${name}`}
+      aria-label={`All the ${name}`}
+      onClick={(e) => e.stopPropagation()} // in a part's heading, a click would also fold it
+      onChange={() => (visible.value = { ...visible.value, ...Object.fromEntries(keys.map((k) => [k, !all])) })}
+    />
   );
 }
 

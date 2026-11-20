@@ -246,51 +246,58 @@ export function daughterVertices(g: Graph, r: number): { vertex: number; reason:
   return out;
 }
 
-/** An electron's or positron's bremsstrahlung, from its own photons in the graph (docs/truth.md "Physics from the
- *  graph"): the photons its last copy radiated (children made at a vertex of reason bremsstrahlung; a generator
- *  copy's radiated photons are not) that the graph keeps (those that reached the calorimeter, or that something is
- *  matched to, or that made such particles), their summed energy, the radii (transverse distance to the beam line)
- *  where they were radiated, its energy where it entered the calorimeter (its boundary checkpoint) and the true fbrem,
- *  1 - E at the calorimeter / E at production, both of the last copy. Undefined for another particle; `count` 0 for
- *  an electron with none kept. */
+/** An electron's or positron's bremsstrahlung before the calorimeter, from its own photons in the graph (docs/truth.md
+ *  "Physics from the graph"): the photons its last copy radiated (children made at a vertex of reason bremsstrahlung;
+ *  a generator copy's radiated photons are not) before it reached the calorimeter (made before the time of its
+ *  boundary checkpoint: those made after it are its shower's) that the graph keeps (those that reached the
+ *  calorimeter, or that something is matched to, or that made such particles), their summed energy, the radii
+ *  (transverse distance to the beam line) where they were radiated, and its energy and place (R, z) where it reached
+ *  the calorimeter (its boundary checkpoint), of the last copy. So E = ΣE + E at the calorimeter, but for what it lost
+ *  by ionisation and the softest photons. Undefined for another particle; `count` 0 for an electron with none kept. */
 export function bremOf(g: Graph, r: number) {
   if (Math.abs(g.col("pdgId", r)) !== 11) return undefined;
   const last = g.last[r],
-    photons = g
-      .children(last)
-      .filter((c) => g.col("pdgId", c) === 22 && g.vcol("reason", g.col("prodVertexIdx", c)) === REASON.brem);
+    reached = !!g.col("hasBoundary", last),
+    boundaryT = reached ? g.col("boundaryT", last) : NaN,
+    photons = g.children(last).filter((c) => {
+      const v = g.col("prodVertexIdx", c);
+      return g.col("pdgId", c) === 22 && g.vcol("reason", v) === REASON.brem && !(g.vcol("t", v) >= boundaryT);
+    });
   const radii = photons
     .map((c) => g.col("prodVertexIdx", c))
     .map((v) => Math.hypot(g.vcol("x", v), g.vcol("y", v)))
     .filter(Number.isFinite);
-  const e = g.col("energy", last),
-    atCalo = g.col("hasBoundary", last) ? g.col("boundaryE", last) : NaN;
   return {
     count: photons.length,
     photons,
     energy: photons.reduce((s, c) => s + g.col("energy", c), 0),
     rMin: radii.length ? Math.min(...radii) : NaN,
     rMax: radii.length ? Math.max(...radii) : NaN,
-    atCalo,
-    fbrem: Number.isFinite(atCalo) && e > 0 ? 1 - atCalo / e : NaN,
+    atCalo: reached ? g.col("boundaryE", last) : NaN,
+    atR: reached ? Math.hypot(g.col("boundaryX", last), g.col("boundaryY", last)) : NaN,
+    atZ: reached ? g.col("boundaryZ", last) : NaN,
   };
 }
 
 /** A photon's conversion: the vertex of reason conversion among those where its daughters were made, where it is (R,
  *  z) and the electrons made at that vertex (not, say, a Compton electron made earlier); else whether it reached the
- *  calorimeter. Its parent if a π⁰ and its sister photons. Undefined for another particle. */
+ *  calorimeter. A conversion after it reached the calorimeter (at or after the time of its boundary checkpoint) is the
+ *  start of its shower, not a conversion before the calorimeter: `showered`, with where (R, z), and no products. Its
+ *  parent if a π⁰ and its sister photons. Undefined for another particle. */
 export function conversionOf(g: Graph, r: number) {
   if (g.col("pdgId", r) !== 22) return undefined;
   const last = g.last[r],
     v = daughterVertices(g, r).find((d) => d.reason === REASON.conversion)?.vertex ?? -1,
-    converted = v >= 0;
+    showered = v >= 0 && !!g.col("hasBoundary", last) && !(g.vcol("t", v) < g.col("boundaryT", last)),
+    converted = v >= 0 && !showered;
   const top = g.top[r],
     parent = g.parents(top).length === 1 ? g.parents(top)[0] : -1,
     pi0 = parent >= 0 && g.col("pdgId", parent) === 111 ? parent : -1;
   return {
     converted,
-    r: converted ? Math.hypot(g.vcol("x", v), g.vcol("y", v)) : NaN,
-    z: converted ? g.vcol("z", v) : NaN,
+    showered,
+    r: v >= 0 ? Math.hypot(g.vcol("x", v), g.vcol("y", v)) : NaN,
+    z: v >= 0 ? g.vcol("z", v) : NaN,
     products: converted
       ? g.children(last).filter((c) => Math.abs(g.col("pdgId", c)) === 11 && g.col("prodVertexIdx", c) === v)
       : [],

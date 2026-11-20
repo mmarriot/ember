@@ -663,6 +663,8 @@ def test_the_truth_tables_are_written_when_the_release_and_the_input_have_them()
     assert 'hitTable="recHitTable", hitIdColumn="rechit_ID", name="TruthHGCalRecHits"' in text
     assert 'hitTable="pfRecHitTable", hitIdColumn="rechit_ID", name="TruthPFRecHits"' in text
     assert "'truthGraphGeneralTracksToTruthTable'," in text and "truthGraphNanoAssociatorsTask" in text
+    # the trackster associator reads only the input's trackster collections (a TICL v6 input has no CLUE3D ones)
+    assert "if t.getModuleLabel() in ['ticlTrackstersCLUE3DHigh', 'ticlTrackstersCLUEstering']" in text
     # with --pat, PV and SV are standard NanoAOD's (not the collections the vertex maps index): no vertex association
     text, _ = truth(PHASE2 + GRAPH, pat=True)
     assert "VerticesToTruthTable" not in text and "keepVerticesMatchedBy=[]" in text

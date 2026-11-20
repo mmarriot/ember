@@ -1279,6 +1279,12 @@ table("jetCHSTagTable", cms.EDProducer("JetTagTableProducer", src=cms.InputTag("
                 "# little without pileup (--no-truth-associators leaves them out)\n"
                 + tables(maps)
                 + "process.emberTables.add(process.truthGraphNanoAssociatorsTask)\n"
+                + "# Only the trackster collections the input has: the associator stops on a missing one (TICL v6\n"
+                "# has no CLUE3D tracksters)\n"
+                'if hasattr(process, "truthBranchTracksterAssociators"):\n'
+                "    associator = process.truthBranchTracksterAssociators\n"
+                "    associator.recoCollections = [t for t in associator.recoCollections\n"
+                f"                                  if t.getModuleLabel() in {inv.modules('ticlTracksters')!r}]\n"
             )
         else:
             self.notes.append("reco <-> truth associations: --no-truth-associators, and the input holds no maps")

@@ -11,6 +11,7 @@ import {
   CULL,
   DASHED_LINE_FRAGMENT,
   followDrawingBuffer,
+  halo,
   interleave,
   type Layer,
   type LayerInput,
@@ -134,7 +135,7 @@ function wideSegments(input: LayerInput, start: Vec3s, end: Vec3s): Layer {
         vec4 A = projectionMatrix * modelViewMatrix * vec4(a, 1.0), B = projectionMatrix * modelViewMatrix * vec4(b, 1.0);
         vec2 along = (B.xy / B.w - A.xy / A.w) * uRes, across = length(along) > 1e-6 ? normalize(vec2(-along.y, along.x)) : vec2(0.0, 1.0);
         vec4 P = mix(A, B, position.x);
-        P.xy += across * position.y * uWidth * (1.0 + 0.5 * s * selActive() + 2.0 * gPin) / uRes * P.w; // half the width each side, in NDC
+        P.xy += across * position.y * (uWidth * (1.0 + 0.5 * s * selActive() + 2.0 * gPin) + HALO_PX) / uRes * P.w; // half the width each side, in NDC
         gl_Position = P;
         vCol = fade(mix(icol, vec3(1.0), uFlash * pop(iT)), s) * remaining() + uBg * (1.0 - remaining());
       }`,
@@ -145,6 +146,9 @@ function wideSegments(input: LayerInput, start: Vec3s, end: Vec3s): Layer {
   quads.frustumCulled = false;
   quads.renderOrder = 1;
   followDrawingBuffer(quads, material);
+  const quad = new THREE.BufferGeometry(); // the halo's shape
+  setLineQuad(quad);
+  const ring = halo(g, material, quad, quads.renderOrder, input.pal);
   const group = new THREE.Group().add(quads);
   // Arrow heads: an instanced cone per row at the line's end, along it; hidden when the line is cut or not grown yet.
   // They share the lines' uniforms, so they fade with a selection as the lines do (per head: selected before and now,
@@ -154,7 +158,7 @@ function wideSegments(input: LayerInput, start: Vec3s, end: Vec3s): Layer {
     clock = REPLAY_OFF,
     appear: Float32Array | null = null,
     pinned = -1;
-  const headSel = new Float32Array(3 * Math.max(n, 1)); // per row: selected now, before, pinned
+  const headSel = new Float32Array(d.arrow ? 3 * Math.max(n, 1) : 0); // per row: selected now, before, pinned
   const heads = d.arrow
     ? new THREE.InstancedMesh(
         new THREE.ConeGeometry(1, 1, 20).translate(0, -0.5, 0),
@@ -210,6 +214,7 @@ function wideSegments(input: LayerInput, start: Vec3s, end: Vec3s): Layer {
     group.add(heads);
     placeHeads();
   }
+  group.add(ring.object); // the group: the lines, the heads, the halo
   return {
     ...commonFields(input, 10),
     object: group,
@@ -227,6 +232,8 @@ function wideSegments(input: LayerInput, start: Vec3s, end: Vec3s): Layer {
     },
     setPinned(row) {
       common.setPinned(row);
+      ring.pin(material.uniforms.uPin0.value, material.uniforms.uPin1.value);
+      if (!heads) return;
       if (pinned >= 0) headSel[3 * pinned + 2] = 0;
       pinned = row;
       if (row >= 0) headSel[3 * row + 2] = 1;
@@ -235,6 +242,8 @@ function wideSegments(input: LayerInput, start: Vec3s, end: Vec3s): Layer {
     },
     setHighlight(rows) {
       common.setHighlight(rows);
+      ring.refresh(); // the halo's copy of the selection flags
+      if (!heads) return;
       for (let i = 0; i < n; i++) {
         headSel[3 * i + 1] = headSel[3 * i];
         headSel[3 * i] = rows?.has(i) ? 1 : 0;
@@ -254,6 +263,7 @@ function wideSegments(input: LayerInput, start: Vec3s, end: Vec3s): Layer {
     setTimeline(a, l) {
       appear = a;
       common.setTimeline(a, l);
+      ring.refresh(); // the halo's copy of the replay's times
       placeHeads();
     },
     setClock(t) {
@@ -265,6 +275,8 @@ function wideSegments(input: LayerInput, start: Vec3s, end: Vec3s): Layer {
     dispose() {
       g.dispose();
       material.dispose();
+      quad.dispose();
+      ring.dispose();
       heads?.geometry.dispose();
       (heads?.material as THREE.Material | undefined)?.dispose();
       heads?.dispose();

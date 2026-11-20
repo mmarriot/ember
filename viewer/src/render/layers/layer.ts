@@ -125,6 +125,12 @@ float selected(float before, float now) { return mix(before, now, uMix); }
 float gPin = 0.0;
 const float PIN = 0.55;
 vec3 fade(vec3 col, float s) { return mix(mix(col, uBg, ${FADE_GLSL} * selActive() * (1.0 - s)), uRim, PIN * gPin); }
+// The halo pass (see halo): the selected object again, wider by HALO_PX px, behind it.
+#ifdef HALO
+const float HALO_PX = 6.0;
+#else
+const float HALO_PX = 0.0;
+#endif
 float pop(float t) { return exp(-max(uClock - t, 0.0) * 6.0); } // 1 when an object appears, then decays in ~0.3 s
 // 1 until the layer retires in a replay, then down to 0 over 0.6 s (always 1 outside a replay).
 float remaining() { return uClock > 1e29 ? 1.0 : clamp(1.0 - (uClock - uRetire) / 0.6, 0.0, 1.0); }
@@ -134,7 +140,12 @@ float faded() { return uClock > 1e29 ? 0.0 : uFade.z * smoothstep(uFade.x, uFade
 /** The first lines of a vertex shader's main(): an instance that is cut away, not yet there in a replay, or retired
  *  is moved outside the clip volume, so it draws nothing. Instances uPin0 <= id < uPin1 belong to the pinned object
  *  (the selected one), which is drawn whatever the cut. `id`: the instance's number (markers: the vertex's). */
-export const CULL = (id = "gl_InstanceID") => `float pinned = float(${id}) >= uPin0 && float(${id}) < uPin1 ? 1.0 : 0.0;
+export const CULL = (id = "gl_InstanceID") => `
+  #ifdef HALO
+  float pinned = 1.0; // the halo pass holds only the pinned object's instances
+  #else
+  float pinned = float(${id}) >= uPin0 && float(${id}) < uPin1 ? 1.0 : 0.0;
+  #endif
   gPin = pinned;
   if ((icut < uCut && pinned < 0.5) || iT > uClock || remaining() <= 0.0) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }`;
 
@@ -359,6 +370,102 @@ export function drawBehind(object: THREE.Object3D, material: THREE.Material) {
 export function setLineQuad(g: THREE.BufferGeometry) {
   g.setAttribute("position", new THREE.Float32BufferAttribute([0, -1, 0, 0, 1, 0, 1, -1, 0, 1, 1, 0], 3));
   g.setIndex([0, 2, 1, 2, 3, 1]);
+}
+
+/** The halo's colour per theme: the page's accent (styles/base.css --accent), the colour of the selection's label and
+ *  ring. */
+const HALO_COLOUR = { light: "#0969da", dark: "#4493f8" };
+const HALO_FRAGMENT = /* glsl */ `uniform vec3 uHalo;
+  #if HALO_DASH
+  uniform float uDash;
+  varying float vS;
+  #endif
+  void main() {
+    #if HALO_DASH
+    if (uDash > 0.5 && mod(vS, 7.0) > 4.0) discard; // a truth line's halo is dashed with it (DASHED_LINE_FRAGMENT)
+    #endif
+    gl_FragColor = vec4(uHalo, 1.0);
+  }`;
+
+/** A halo around the selected line (the pinned instances of a line layer: tracks, particles, muon paths): the same
+ *  instances drawn again before it as a strip HALO_PX px wider in the accent colour, so even a line one pixel wide
+ *  stands out. It shares the layer's uniforms and shader (with HALO and WIDE defined) and draws from copies of the
+ *  pinned instances' attributes only (`pin`, on each new selection: a few pieces), so a frame costs a draw call of a
+ *  few hundred vertices, not a second pass over the layer. `refresh` copies them again after the layer rewrote them
+ *  (a new highlight, a replay's times). `shape`: the strip's corners (setLineQuad, or a helix's strip of points),
+ *  which the halo shares and never frees; `order`: the layer's renderOrder. */
+export function halo(
+  source: THREE.InstancedBufferGeometry,
+  material: THREE.ShaderMaterial,
+  shape: THREE.BufferGeometry,
+  order: number,
+  pal: Pal,
+) {
+  const light = (pal.background & 0xff) + ((pal.background >> 8) & 0xff) + (pal.background >> 16) > 3 * 128;
+  const haloMaterial = new THREE.ShaderMaterial({
+    // the same uniform objects: projection, cut, replay clock follow the layer's
+    uniforms: { ...material.uniforms, uHalo: { value: rawColour(HALO_COLOUR[light ? "light" : "dark"]) } },
+    defines: { ...material.defines, WIDE: 1, HALO: 1, HALO_DASH: material.uniforms.uDash ? 1 : 0 },
+    vertexShader: material.vertexShader,
+    fragmentShader: HALO_FRAGMENT,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+  });
+  const empty = new THREE.InstancedBufferGeometry(),
+    mesh = new THREE.Mesh(empty, haloMaterial);
+  mesh.frustumCulled = false;
+  mesh.renderOrder = order - 0.5;
+  mesh.visible = false;
+  followDrawingBuffer(mesh, haloMaterial);
+  let k0 = -1,
+    k1 = -1;
+  // Free the copies, not the shared shape (disposing a geometry frees the GPU buffers of all its attributes).
+  const drop = () => {
+    const g = mesh.geometry;
+    if (g === empty) return;
+    g.deleteAttribute("position");
+    g.setIndex(null);
+    g.dispose();
+    mesh.geometry = empty;
+  };
+  const copy = () => {
+    drop();
+    mesh.visible = k0 >= 0 && k1 > k0;
+    if (!mesh.visible) return;
+    const g = new THREE.InstancedBufferGeometry();
+    g.setAttribute("position", shape.getAttribute("position"));
+    if (shape.index) g.setIndex(shape.index);
+    for (const [name, a] of Object.entries(source.attributes))
+      if (a instanceof THREE.InstancedBufferAttribute)
+        g.setAttribute(
+          name,
+          new THREE.InstancedBufferAttribute(
+            (a.array as Float32Array).slice(k0 * a.itemSize, k1 * a.itemSize),
+            a.itemSize,
+            a.normalized,
+          ),
+        );
+    g.instanceCount = k1 - k0;
+    mesh.geometry = g;
+  };
+  return {
+    object: mesh,
+    /** Draw instances [a, b) of the layer (its pinned object; a < 0: none). */
+    pin(a: number, b: number) {
+      if (a === k0 && b === k1) return; // every layer is pinned again at each rebuild
+      k0 = a;
+      k1 = b;
+      copy();
+    },
+    refresh() {
+      if (mesh.visible) copy();
+    },
+    dispose() {
+      drop();
+      empty.dispose();
+      haloMaterial.dispose();
+    },
+  };
 }
 
 /** Keep the material's `uRes` uniform at the drawing buffer's size (px), which wide lines need to turn their width in

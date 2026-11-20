@@ -130,8 +130,9 @@ The selected object stands out in the view:
 
 - it gets a ring and a filled label, whatever the labels setting;
 - its colour moves halfway to white on the dark theme, or to black on the light theme, so it keeps its hue;
-- a line becomes a ribbon three times as wide, and a marker becomes larger. A line one pixel wide, such as a track,
-  gets only the new colour, the ring and the label;
+- a line becomes a ribbon three times as wide, and a marker becomes larger;
+- a line (a track, a particle, a muon's path, MET) gets a halo in the accent colour, a few pixels wider than the
+  line, so even a track one pixel wide is found at once;
 - everything not related to it fades 85 % of the way to the background: hits, clusters, tracks, jet cones and their
   outlines, the MET arrow and the detector's outlines alike. Showers not related to it are not drawn.
 

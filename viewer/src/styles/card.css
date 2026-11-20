@@ -400,9 +400,6 @@ ul.matches li {
   font-size: 12.5px;
   font-variant-numeric: tabular-nums;
 }
-.pfacts .plevels .badge {
-  margin: 0 4px 0 0;
-}
 .pfacts .physics {
   margin-top: 4px;
   padding-top: 4px;

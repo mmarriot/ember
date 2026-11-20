@@ -32,7 +32,7 @@ export function WentTo({ table, row, relation }: { table: string; row: number; r
         <p class="physline">
           <span class="rkind">
             Where {layerOf(info.to)?.particle ? truthChip(info.to, p, info.match?.measure) : namedChip(info.to, p)} went
-          </span>
+          </span>{" "}
           {objects.slice(0, SHOWN).map((o, i) => (
             <span>
               {i > 0 && " · "}
@@ -55,7 +55,7 @@ export function WentTo({ table, row, relation }: { table: string; row: number; r
       )}
       {merges.length > 0 && (
         <p class="physline" title="Other particles whose best object of this kind is this one (associator): a merge">
-          <span class="rkind">also best match of</span>
+          <span class="rkind">also best match of</span>{" "}
           {merges.slice(0, 3).map((q, i) => (
             <>
               {i > 0 && " · "}

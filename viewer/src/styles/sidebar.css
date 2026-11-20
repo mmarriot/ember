@@ -180,6 +180,15 @@
   min-width: 0;
   overflow-wrap: break-word;
 }
+/* A row's truth word ("no associator") goes under its name when the row is full, never squeezing it to a letter per
+   line. */
+.layer .row label:has(.truthword) {
+  flex-wrap: wrap;
+  row-gap: 0;
+}
+.layer .row label:has(.truthword) .name {
+  flex: 1 1 6em;
+}
 .layer .row .tag {
   flex: none;
   margin-left: -2px;

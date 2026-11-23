@@ -288,51 +288,6 @@ function linksOf(
   );
 }
 
-/** The objects of the `from` table of reco -> truth relation `name` that `pass` (its layer's cut and filter), by what
- *  the CMSSW associator says of each: `clean` (a best match with purity at or above the kind's `good`; without a
- *  threshold, any match), `impure` (a match below it) or `unmatched` (none). Rows in table order; null without the
- *  relation in this event. The event's list of fakes and merges for one kind. */
-export function matchTally(ev: EventData, header: Header, name: string, pass: (row: number) => boolean) {
-  const info = header.relations[name],
-    rel = ev.relations[name];
-  if (!info?.match || !rel) return null;
-  const n = ev.tables[info.from]?.n ?? 0,
-    { partner } = bestPartners(rel, info, true, n),
-    purity = bestPurities(ev, header, name),
-    good = info.match.good;
-  const clean: number[] = [],
-    impure: number[] = [],
-    unmatched: number[] = [];
-  for (let r = 0; r < n; r++) {
-    // typed-array reads only: it runs for every matched kind on each cut slider step
-    if (!pass(r)) continue;
-    if (partner[r] < 0) unmatched.push(r);
-    else if (good !== undefined && purity && !(purity[r] >= good)) impure.push(r);
-    else clean.push(r);
-  }
-  return { clean, impure, unmatched, good };
-}
-
-/** What the CMSSW associator says of object `row` of reco -> truth relation `name`'s table: `clean`, `impure` or
- *  `unmatched` (see matchTally), or `matched` for a kind without a clean threshold (nothing says how good the match
- *  is); undefined without the relation in this event. */
-export function matchClass(
-  ev: EventData,
-  header: Header,
-  name: string,
-  row: number,
-): "clean" | "impure" | "unmatched" | "matched" | undefined {
-  const info = header.relations[name],
-    rel = ev.relations[name];
-  if (!info?.match || !rel) return undefined;
-  const p = bestPartners(rel, info, true, ev.tables[info.from]?.n ?? 0).partner[row],
-    good = info.match.good;
-  if (p === undefined || p < 0) return "unmatched";
-  if (good === undefined) return "matched";
-  const purity = bestPurities(ev, header, name)?.[row];
-  return purity !== undefined && !(purity >= good) ? "impure" : "clean";
-}
-
 /** What was reconstructed from truth object `sel`, one entry per reco table with an association from its table (the
  *  truth -> reco maps), latest reconstruction step first: the objects sharing hits or energy with it, most complete
  *  first, each with its completeness (the share of the truth object it holds, where the association gives one) and

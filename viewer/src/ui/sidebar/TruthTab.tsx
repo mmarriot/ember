@@ -4,11 +4,10 @@
 // Tree.tsx). A bundle with such trees but no truth calls the tab "Tree", and folds nothing.
 import { effect, signal } from "@preact/signals";
 import { filterMask, filters } from "../../model/custom/settings";
-import { matchTally } from "../../model/event/chain";
 import { factIn, facts } from "../../model/truth/facts";
 import { topCopy } from "../../model/truth/graph";
 import { particlesInView, type ViewRow } from "../../model/truth/particles";
-import { percent, TARGETS, type TruthStatus } from "../../model/truth/match";
+import { matchTally, percent, TARGETS, type TruthStatus } from "../../model/truth/match";
 import { cached } from "../../model/event/cache";
 import { bestPartners } from "../../model/event/relations";
 import {
@@ -163,7 +162,7 @@ const CLASSES = [
 ] as const;
 
 /** The Truth tab's scorecard: for each reco kind the CMSSW associator matches, how many of the objects that pass their
- *  cuts and filters are a clean match, an impure one, or unmatched (model/event/chain.ts matchTally). A count unfolds to its
+ *  cuts and filters are a clean match, an impure one, or unmatched (model/truth/match.ts matchTally). A count unfolds to its
  *  objects, largest first: the event's fakes and merges, one click away. */
 function Scorecard() {
   const b = bundle.value,

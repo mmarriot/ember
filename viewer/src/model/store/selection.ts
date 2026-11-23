@@ -12,10 +12,10 @@
 // is the card's object, shown as it was (in its own focus), never the object looked at.
 import { batch, computed, effect, signal } from "@preact/signals";
 import type { DisplayLayer } from "../../io/format";
-import { matchClass, recoLadder, recoOfTruth } from "../event/chain";
+import { recoLadder, recoOfTruth } from "../event/chain";
 import { focusLevels, levelLayers, mergeAcrossDomains, partsFirst, scopeLevels, stepLevel } from "../event/levels";
 import { delegatedPart, PAIR, type Pair, pairFor, pairShows } from "../truth/pair";
-import { simEnergyByParticle } from "../truth/match";
+import { matchClass, simEnergyByParticle } from "../truth/match";
 import type { SlotRank } from "../colour/identities";
 import { cached } from "../event/cache";
 import { levelsOf, type Related, relatedParts, sameRef, type Ref } from "../event/relations";

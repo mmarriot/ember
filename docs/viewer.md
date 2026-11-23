@@ -431,7 +431,7 @@ section under it is folded to its heading until you open it. It holds:
   particle is listed in each detector it reached. Physics and All list every detector;
 - **the event's reco ↔ truth scorecard.** For each reco kind that a CMSSW associator matches, it counts how many of
   the objects that pass their cuts and filters are a clean match, an impure match, or are not matched
-  (`matchTally` in `viewer/src/model/event/chain.ts`). Click a count to unfold its objects, largest first. So the event's
+  (`matchTally` in `viewer/src/model/truth/match.ts`). Click a count to unfold its objects, largest first. So the event's
   merged, split and fake objects are one click away.
 - **the truth coverage**, folded to one line of counts, for example "9 matched · 2 sim · 18 no associator". Unfold it
   to see each kind's answer and, where there is no associator, why (the gap behind its **i**).
@@ -629,7 +629,7 @@ photoelectrons) and its share of the hit's, with a button for the particle's pai
 
 **Names of objects.** Every object name in the card is a button. A click looks at the object; a double click opens
 its card ([Following the chain](#following-the-chain)). For a kind that a CMSSW associator matches, each name has a
-dot for what the associator says about that object (`matchClass` in `viewer/src/model/event/chain.ts`):
+dot for what the associator says about that object (`matchClass` in `viewer/src/model/truth/match.ts`):
 
 - filled green: a clean match;
 - half amber: an impure match;

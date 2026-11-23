@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { DisplayLayer, EventData, Header } from "../../io/format";
-import { foldReco, matchClass, matchTally, recoLadder, recoOfTruth, type Ladder } from "./chain";
-import { truthStatus, type TruthStatus } from "../truth/match";
+import { foldReco, recoLadder, recoOfTruth, type Ladder } from "./chain";
+import { matchClass, matchTally, truthStatus, type TruthStatus } from "../truth/match";
 import { relatedParts } from "./relations";
 import { leadChoice, type PartLine, partChoices, truthStatement, whereItWent } from "../truth/statement";
 

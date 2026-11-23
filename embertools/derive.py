@@ -314,7 +314,7 @@ def gather(d, tables, relations, profile_relations):
     without an ECAL entrance point takes its track's outermost state). `relations` are the event's CSR relations,
     `profile_relations` the profile's (for each relation's `to` table)."""
     n, cols = tables[d["table"]]
-    out = {c: np.full(n, d.get("fill", np.nan), np.float32) for c in _gathered_columns(d)}
+    out = {c: np.full(n, d.get("fill", np.nan), np.float32) for c in gathered_columns(d)}
     placed = np.zeros(n, bool)
     for src in d["gather"]:
         rel = relations.get(src["relation"])
@@ -334,6 +334,6 @@ def gather(d, tables, relations, profile_relations):
     cols.update(out)
 
 
-def _gathered_columns(d):
+def gathered_columns(d):
     """The columns a gather derive writes: those of all its sources, each once, in order."""
     return list(dict.fromkeys(c for src in d["gather"] for c in src["columns"]))

@@ -1,7 +1,6 @@
-// How good a reco <-> truth match is, in linear numbers a reader can take at face value (docs/truth.md): purity (the
-// share of the reco object's hits or energy that came from the particle) and completeness (the share of the
-// particle's hits or energy that the object has), from an association's `match` hint. The associator's own score is
-// a ranking (0 best, squared for calorimeter objects), not a fraction, so it is shown next to these, never instead.
+// How good a reco <-> truth match is, as purity and completeness (docs/truth.md "Measures"), from an association's
+// `match` hint, and what the truth says of each kind (its truth status). The associator's own score is a ranking (0
+// best, squared for calorimeter objects), not a fraction, so it is shown next to these, never instead.
 import type { DisplayLayer, EventData, Fact, Header, Match } from "../../io/format";
 import { evaluate } from "../custom/settings";
 import { facts } from "./facts";
@@ -18,7 +17,7 @@ export const TARGETS: Record<NonNullable<Match["target"]>, string> = {
   decayVertex: "the vertex their tracks come from, aiming at b and c hadron decays (a truth vertex)",
 };
 
-/** The object's own amount (`over`: the first expression that can be computed on its table), once per event. */
+/** The objects' own amount (`over`: the first expression that can be computed on their table), once per event. */
 export function ownAmount(ev: EventData, table: string, match: Match): Float32Array | null {
   return cached(ev, `over|${table}|${match.over?.join("|")}`, () => {
     const t = ev.tables[table];
@@ -66,8 +65,8 @@ export function quality(ev: EventData, header: Header, name: string, k: number, 
   };
 }
 
-/** Per object of the `from` table of reco -> truth relation `name`: the purity of its best match (NaN without one, or
- *  without a `match` hint). Once per event. */
+/** Per object of the `from` table of reco -> truth relation `name`: the purity of its best match (NaN without one).
+ *  Once per event. */
 export function bestPurities(ev: EventData, header: Header, name: string): Float32Array | null {
   const info = header.relations[name],
     rel = ev.relations[name];
@@ -111,13 +110,10 @@ export const measureWords = (m: Match) =>
 export const percent = (x: number | undefined) =>
   x === undefined || Number.isNaN(x) ? "–" : `${Math.round(100 * x)}%`;
 
-// What the truth graph says about each kind of object (docs/truth.md "Where truth stops"), the same words everywhere:
-// the inspector's truth box, the colour key, the Truth tab's coverage list.
-
-/** A drawn table's truth, in this order: `match`, its own reco -> truth association with a `match` hint (to the truth
- *  particles or vertices); `fact`, hits with the simulated energy each particle left in them; `none`, its kind's
- *  `truthGap` (why, and the gap in docs/truth-graph.md); `container`, drawn in the colour of what contains it (a
- *  track's hits); else `none`. Ember derives no truth where CMSSW has none: a gap is shown as a gap. */
+/** A drawn table's truth (docs/truth.md "Where truth stops"), the first that applies: `match`, its own reco -> truth
+ *  association with a `match` hint; `fact`, hits with simulated energy per particle; `none`, its kind's `truthGap`;
+ *  `container`, coloured as what contains it (a track's hits); else `none`. Ember derives no truth where CMSSW has
+ *  none. */
 export type TruthStatus =
   | { kind: "match"; relation: string; match: Match }
   | { kind: "fact"; in: string; unit?: Fact["unit"] }
@@ -125,12 +121,12 @@ export type TruthStatus =
   | { kind: "container"; relation: string };
 
 export const NO_EXPORT = "no truth association exported for this kind";
-/** A gap's reason, without the clause bundles made before Ember stopped deriving truth add to it (their layer
- *  clusters' "; the colour is Ember's stand-in: ..."). */
+/** A gap's reason, without the clause that bundles from before Ember stopped deriving truth add ("; the colour is
+ *  Ember's stand-in: ..."). */
 const gapReason = (gap: NonNullable<DisplayLayer["truthGap"]>) => (gap.derived ? gap.reason.split(";")[0] : gap.reason);
 
 /** The truth status of `table` (undefined for truth layers and for a bundle without truth). `colouring`: the truth
- *  mode's (model/colour/modes.ts), computed when not given. */
+ *  mode's (colour/modes.ts), computed when not given. */
 export function truthStatus(
   header: Header,
   table: string,
@@ -152,9 +148,9 @@ export function truthStatus(
   return { kind: "none", reason: NO_EXPORT };
 }
 
-/** What truth particles left in the given objects' hits, one group per detector (simulated energy is never summed
- *  across detectors: sampling and homogeneous calorimeters, photoelectrons in HF): per particle, the sum of the fact
- *  relations' weight over those hits. Largest first; groups without any energy are left out. */
+/** What truth particles left in the given objects' hits, per detector (never summed across detectors: their sampling
+ *  differs, and HF counts photoelectrons): per particle, the fact relations' weight summed over those hits, largest
+ *  first. Detectors without any energy are left out. */
 export function simEnergyByParticle(ev: EventData, header: Header, objects: Related) {
   const groups = new Map<
     string,
@@ -168,7 +164,7 @@ export function simEnergyByParticle(ev: EventData, header: Header, objects: Rela
     const w = weight ? rel?.weights[weight] : undefined;
     if (!rel || !rows || !w) continue;
     const g = groups.get(f.in) ?? { in: f.in, unit: f.unit, table: f.from, weight, total: 0, sums: new Map() };
-    // Through the hits: the relation read from the hit side, once per event, so a selection costs its own hits.
+    // The relation read from the hit side (once per event), so a selection costs only its own hits.
     const { offsets, from: particle, entry } = reversed(ev, f.name, ev.tables[f.to]?.n ?? 0);
     for (const h of rows)
       for (let j = offsets[h]; j < offsets[h + 1]; j++) {
@@ -184,10 +180,9 @@ export function simEnergyByParticle(ev: EventData, header: Header, objects: Rela
     .map(({ sums, ...g }) => ({ ...g, particles: [...sums].sort((a, c) => c[1] - a[1]) }));
 }
 
-/** The objects of the `from` table of reco -> truth relation `name` that `pass` (its layer's cut and filter), by what
- *  the CMSSW associator says of each: `clean` (a best match with purity at or above the kind's `good`; without a
- *  threshold, any match), `impure` (a match below it) or `unmatched` (none). Rows in table order; null without the
- *  relation in this event. The event's list of fakes and merges for one kind. */
+/** The objects of the `from` table of reco -> truth relation `name` that `pass` (their layer's cut and filter), by
+ *  what the associator says of each: `clean` (a best match with purity at or above the kind's `good`; without one,
+ *  any match), `impure` (below it) or `unmatched`. Rows in table order; null without the relation in this event. */
 export function matchTally(ev: EventData, header: Header, name: string, pass: (row: number) => boolean) {
   const info = header.relations[name],
     rel = ev.relations[name];
@@ -200,7 +195,7 @@ export function matchTally(ev: EventData, header: Header, name: string, pass: (r
     impure: number[] = [],
     unmatched: number[] = [];
   for (let r = 0; r < n; r++) {
-    // typed-array reads only: it runs for every matched kind on each cut slider step
+    // typed-array reads only: this runs for every matched kind on each cut slider step
     if (!pass(r)) continue;
     if (partner[r] < 0) unmatched.push(r);
     else if (good !== undefined && purity && !(purity[r] >= good)) impure.push(r);
@@ -209,9 +204,8 @@ export function matchTally(ev: EventData, header: Header, name: string, pass: (r
   return { clean, impure, unmatched, good };
 }
 
-/** What the CMSSW associator says of object `row` of reco -> truth relation `name`'s table: `clean`, `impure` or
- *  `unmatched` (see matchTally), or `matched` for a kind without a clean threshold (nothing says how good the match
- *  is); undefined without the relation in this event. */
+/** What the associator says of object `row` of reco -> truth relation `name`'s table: as matchTally, or `matched`
+ *  for a kind without a clean threshold; undefined without the relation in this event. */
 export function matchClass(
   ev: EventData,
   header: Header,

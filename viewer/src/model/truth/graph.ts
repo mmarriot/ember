@@ -2,11 +2,9 @@
 // brem, conversions, decays (owner decision D1, docs/truth.md "Physics from the graph").
 import type { EventData, Header } from "../../io/format";
 
-/** The truth particles and their vertices of one event, as the truth graph's tables give them (TruthParticles,
- *  TruthVertices, TruthParticleChildren; docs/truth-graph.md). Missing columns read as NaN or -1. A particle's
- *  `decayVertexIdx` is only the latest of the vertices where its saved daughters were made (not necessarily where it
- *  stopped), and its children are those of all those vertices: what happened where is read from each child's own
- *  production vertex. */
+/** One event's truth particles and vertices, from the truth graph's tables (docs/truth-graph.md). Missing columns
+ *  read as NaN. A particle's `decayVertexIdx` is only the latest vertex where its kept daughters were made, and its
+ *  children are those of all of them: what happened where is read from each child's own production vertex. */
 export interface Graph {
   n: number;
   col: (name: string, r: number) => number; // a particle's column
@@ -22,8 +20,8 @@ export interface Graph {
   last: Int32Array;
 }
 
-/** The graph of `particles` (with its `children` relation, from parent to child, and its vertex table `vertices`), from
- *  plain arrays: built once per event by the caller (store), so each card or list reads it at no cost. */
+/** The graph of `particles`, their parent -> child relation `children` and their `vertices`. Built once per event
+ *  (store/colours.ts truthGraph). */
 export function graphOf(
   particles: { n: number; columns: Record<string, ArrayLike<number | bigint>> },
   children: { offsets: ArrayLike<number>; indices: ArrayLike<number> } | undefined,
@@ -104,9 +102,8 @@ export function length(cm: number) {
   return a < 0.1 ? `${f(cm * 1e4)} µm` : a < 1 ? `${f(cm * 10)} mm` : `${f(cm)} cm`;
 }
 
-/** The generator copies of particle `r`: the particles below it that are the same particle again (the only child of
- *  the same pdgId; the generator writes a particle again at each of its steps, sometimes beside a photon it radiates:
- *  a τ status 23 -> τ status 2 + γ), top first, `r` included (μ⁺ ×4, status 23 -> 51 -> 51 -> 1). */
+/** The generator copies of particle `r`, top first, `r` included: the generator writes a particle again at each of
+ *  its steps (μ⁺ status 23 -> 51 -> 51 -> 1), sometimes beside a photon it radiates (τ 23 -> τ 2 + γ). */
 export function copiesBelow(g: Graph, r: number): number[] {
   const out = [r];
   for (let k = r, steps = 0; k !== g.last[r] && steps < g.n; steps++) {
@@ -116,10 +113,9 @@ export function copiesBelow(g: Graph, r: number): number[] {
   }
   return out;
 }
-/** The top of `r`'s copies: the highest particle above it that is the same particle (see copiesBelow). */
+/** The top of `r`'s generator copies (see copiesBelow). */
 export const topCopy = (g: Graph, r: number) => g.top[r];
-/** A chain of particles (top first, each the parent of the next) with the generator copies of each particle folded:
- *  groups of rows, top first. */
+/** A chain of particles (top first, each the parent of the next) in groups of generator copies. */
 export function foldCopies(g: Graph, chain: number[]): number[][] {
   const out: number[][] = [];
   for (const r of chain) {
@@ -130,8 +126,7 @@ export function foldCopies(g: Graph, chain: number[]): number[][] {
   return out;
 }
 
-/** The vertices where particle `r`'s daughters were made (of its last copy: those of the earlier copies are the
- *  generator's), with their reason: what it did along its path, in time order of the file. */
+/** The vertices where particle `r`'s last copy made its daughters, with their reason, in the file's (time) order. */
 export function daughterVertices(g: Graph, r: number): { vertex: number; reason: number }[] {
   const seen = new Set<number>(),
     out: { vertex: number; reason: number }[] = [];
@@ -145,14 +140,11 @@ export function daughterVertices(g: Graph, r: number): { vertex: number; reason:
   return out;
 }
 
-/** An electron's or positron's bremsstrahlung before the calorimeter, from its own photons in the graph (docs/truth.md
- *  "Physics from the graph"): the photons its last copy radiated (children made at a vertex of reason bremsstrahlung;
- *  a generator copy's radiated photons are not) before it reached the calorimeter (made before the time of its
- *  boundary checkpoint: those made after it are its shower's) that the graph keeps (those that reached the
- *  calorimeter, or that something is matched to, or that made such particles), their summed energy, the radii
- *  (transverse distance to the beam line) where they were radiated, and its energy and place (R, z) where it reached
- *  the calorimeter (its boundary checkpoint), of the last copy. So E = ΣE + E at the calorimeter, but for what it lost
- *  by ionisation and the softest photons. Undefined for another particle; `count` 0 for an electron with none kept. */
+/** An electron's bremsstrahlung before the calorimeter (docs/truth.md "Physics from the graph"): the photons its last
+ *  copy radiated (at a vertex of reason brem) before the time of its boundary checkpoint (later ones are its shower's)
+ *  that the graph keeps, their summed energy and the radii where they were radiated, and its energy and place where it
+ *  reached the calorimeter. So E = ΣE + E at the calorimeter, but for ionisation and the softest photons. Undefined
+ *  for another particle. */
 export function bremOf(g: Graph, r: number) {
   if (Math.abs(g.col("pdgId", r)) !== 11) return undefined;
   const last = g.last[r],
@@ -178,11 +170,9 @@ export function bremOf(g: Graph, r: number) {
   };
 }
 
-/** A photon's conversion: the vertex of reason conversion among those where its daughters were made, where it is (R,
- *  z) and the electrons made at that vertex (not, say, a Compton electron made earlier); else whether it reached the
- *  calorimeter. A conversion after it reached the calorimeter (at or after the time of its boundary checkpoint) is the
- *  start of its shower, not a conversion before the calorimeter: `showered`, with where (R, z), and no products. Its
- *  parent if a π⁰ and its sister photons. Undefined for another particle. */
+/** A photon's conversion: where (R, z), and the electrons made at that vertex (not a Compton electron made earlier).
+ *  A conversion at or after the time of its boundary checkpoint is its shower's start: `showered`, no products. Also
+ *  whether it reached the calorimeter, its parent if a π⁰, and its sister photons. Undefined for another particle. */
 export function conversionOf(g: Graph, r: number) {
   if (g.col("pdgId", r) !== 22) return undefined;
   const last = g.last[r],
@@ -206,9 +196,8 @@ export function conversionOf(g: Graph, r: number) {
   };
 }
 
-/** A τ's decay, from the children of its last copy: the decay products (the photons radiated beside a τ copy are
- *  not: they are made at a copy, not at its decay) and the visible energy, the sum of the products' energies but the
- *  neutrinos'. Undefined for another particle or a τ the graph keeps no decay of. */
+/** A τ's decay, from its last copy's children (a photon radiated beside an earlier copy is not a product), and its
+ *  visible energy (all but the neutrinos'). Undefined for another particle, or a τ with no decay kept. */
 export function tauDecayOf(g: Graph, r: number) {
   if (Math.abs(g.col("pdgId", r)) !== 15) return undefined;
   const last = g.last[r], // the τ that decays
@@ -222,8 +211,7 @@ export function tauDecayOf(g: Graph, r: number) {
 export const decayVertexOf = (g: Graph, r: number) =>
   daughterVertices(g, r).find((d) => d.reason === REASON.decay)?.vertex ?? -1;
 
-/** A particle's flight: from its production vertex to its decay vertex, in 3D and transverse (cm); undefined without
- *  both. For a b or c hadron, its decay length. */
+/** A particle's flight from its production to its decay vertex, 3D and transverse (cm); undefined without both. */
 export function flightOf(g: Graph, r: number) {
   const p = g.col("prodVertexIdx", g.top[r]),
     e = decayVertexOf(g, r);
@@ -233,11 +221,10 @@ export function flightOf(g: Graph, r: number) {
   return { l3d: Math.hypot(d[0], d[1], d[2]), lxy: Math.hypot(d[0], d[1]), vertex: e };
 }
 
-/** The reco vertices CMSSW's vertex associator matches to a b or c hadron's decay (docs/truth.md "Physics from the
- *  graph"): through the truth -> reco vertex association whose reco side matches decay vertices (`match.target`
- *  "decayVertex", e.g. truthSecondaryVertices), from the decay vertices of the hadron and of the b and c hadrons below
- *  it (a B -> D cascade), each with the association's completeness weight; best first. `associator` false when the
- *  bundle has no such association. `flags`: the particles' level-flags column. */
+/** The reco vertices CMSSW's vertex associator matches to a b or c hadron's decay, and to those of the b and c
+ *  hadrons below it (a B -> D cascade), with their completeness, best first (docs/truth.md "Physics from the graph").
+ *  Read through the truth -> reco vertex association whose reverse matches decay vertices (`match.target`
+ *  "decayVertex"); `associator` false without one. `flags`: the particles' level-flags column. */
 export function decayVertexMatches(
   ev: EventData,
   header: Header,
@@ -280,9 +267,8 @@ export function decayVertexMatches(
   return { associator: true, matches: matches.sort((a, b) => b.completeness - a.completeness) };
 }
 
-/** What a truth vertex is, in words (docs/truth.md): the particle that made its particles, its reason, and the number
- *  of charged particles made there that the graph keeps ("B⁰ decay · 3 charged"). `name`: a particle's name;
- *  `reasons`: the vertex reasons' names (the vertex layer's categories). */
+/** A truth vertex in words: the particle that made its particles, its reason, and the charged particles the graph
+ *  keeps from it ("B⁰ decay · 3 charged"). `reasons`: the reasons' names (the vertex layer's categories). */
 export function vertexText(g: Graph, v: number, name: (r: number) => string, reasons: Record<string, string>) {
   const r = g.into(v),
     reason = reasons[String(g.vcol("reason", v))] ?? "vertex",

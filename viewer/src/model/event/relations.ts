@@ -1,4 +1,5 @@
-// Navigation over the CSR relations of an event: what is related to a selected object.
+// Walking an event's CSR relations: what is related to a selected object, each object's best partner across a
+// relation, a relation read backwards, and the vote through containment.
 import type { EventData, Header, Relation, RelationInfo } from "../../io/format";
 import { cached } from "./cache";
 
@@ -9,16 +10,13 @@ export interface Ref {
 export type Related = Map<string, Set<number>>; // table -> rows
 export const sameRef = (a: Ref | null, b: Ref | null) => !!a && !!b && a.table === b.table && a.row === b.row;
 
-/** What a selected object is related to, in three kinds:
- *  - `madeOf`: what it is made of, following relations forwards to the end of the chain (a candidate -> its
- *    tracksters, layer clusters and hits), including the object itself;
- *  - `partOf`: what it is part of, following them backwards to the top (a hit -> its layer clusters -> the
- *    tracksters and candidates that contain them);
- *  - `linked`: objects of another kind reached through an association relation (e.g. reco <-> truth graph) from the
- *    object or from what it is made of. An association is crossed once, never followed further: a trackster
- *    reaches its truth particle, not that particle's hits and other matches.
- *  Objects that merely share a parent (the other hits of the same shower) are not included: they are one click away,
- *  through the parent. */
+/** What a selected object is related to:
+ *  - `madeOf`: what it is made of, down to the end of the chain (a candidate -> tracksters, layer clusters, hits),
+ *    itself included;
+ *  - `partOf`: what contains it, up to the top (a hit -> layer clusters -> tracksters, candidates);
+ *  - `linked`: objects reached through an association (reco <-> truth) from it or its parts. An association is
+ *    crossed once: a trackster reaches its truth particle, not that particle's hits and other matches.
+ *  Objects that only share a parent (the other hits of a shower) are not included. */
 export function relatedParts(
   ev: EventData,
   header: Header,
@@ -44,7 +42,7 @@ export function relatedParts(
           else reached(info.to, rel.indices[k]);
     }
   });
-  let first = true; // associations pointing at the selection itself (e.g. the particles that share its energy)
+  let first = true; // associations into the selection itself (e.g. the particles that share its energy)
   const partOf = closure(sel, (frontier, reached) => {
     // one pass over each relation per level, whatever the frontier size
     for (const [name, info] of rels) {
@@ -66,11 +64,10 @@ export function relatedParts(
   return { madeOf, partOf, linked };
 }
 
-/** Plain relations that point back up a containment that their inverse gives, e.g. track -> its vertex next to
- *  vertex -> its tracks. Navigation treats them as an association (crossed once, the partner linked), so a track's
- *  relatives are its vertex, not every track of the vertex and their hits. A relation says so with its `inverseOf`
- *  hint; for a pair of inverse relations without one, the one with at most one link per object, where the other has
- *  more, is taken (which way is "up" then shows in the data). Once per event. */
+/** Plain relations that point back up a containment their inverse gives (track -> its vertex, next to vertex -> its
+ *  tracks). Navigation crosses them once, like an association, so a track's relatives are its vertex, not every track
+ *  of the vertex. Named by the `inverseOf` hint; without one, of a pair of inverse relations the one with at most one
+ *  link per object, where the other has more. Once per event. */
 export function backPointers(ev: EventData, header: Header): Set<string> {
   return cached(ev, "backPointers", () => {
     const out = new Set<string>(),
@@ -95,12 +92,11 @@ export function backPointers(ev: EventData, header: Header): Set<string> {
   });
 }
 
-/** The levels of an object: what it is made of, plus every object of another table that is made only of those parts
- *  (e.g. for a candidate, the tracksters and linked tracksters whose layer clusters all belong to it, though no
- *  relation names them; through every relation it has: for a vertex, not a candidate whose track is inside but whose
- *  clusters are not), plus the linked objects (e.g. its truth particle). A containment test, no physics metric. An
- *  object that contains the selection (`parts.partOf`) is never inside it, though its other parts may all be (a PF
- *  candidate made of a TICL candidate and that candidate's track). `parts`: relatedParts of `sel`, if already known. */
+/** The levels of an object: what it is made of, every object of another table made only of those parts (a
+ *  candidate's tracksters, though no relation names them), and the linked objects (its truth particle). A containment
+ *  test through every relation an object has (a candidate whose track is in a vertex but whose clusters are not is not
+ *  inside the vertex), no physics metric. An object that contains the selection (`parts.partOf`) is never inside it.
+ *  `parts`: relatedParts of `sel`, if already known. */
 export function levelsOf(
   ev: EventData,
   header: Header,
@@ -109,9 +105,8 @@ export function levelsOf(
 ): Related {
   const { madeOf, linked, partOf } = parts,
     back = backPointers(ev, header);
-  // Only objects below the selection: not made of objects of its own table, and of an earlier reconstruction stage
-  // than the selection's. A reconstruction stage is built on top of the objects without one, so it is never inside an
-  // object without a stage (a candidate made only of a vertex's track is not part of the vertex).
+  // Only objects below the selection: of an earlier reconstruction stage, or of none. A stage is built on top of the
+  // objects without one, so it is never inside them (a candidate made only of a vertex's track is not in the vertex).
   const stage = (table: string) => header.display?.find((l) => l.table === table && l.stage !== undefined)?.stage;
   const own = stage(sel.table),
     below = (table: string) => {
@@ -129,7 +124,6 @@ export function levelsOf(
       !madeOf.has(info.from) &&
       below(info.from),
   );
-  // Only tables with a relation into the parts can have objects inside: the others are not looked at.
   const reaching = new Set(usable.filter(([, info]) => madeOf.get(info.to)?.size).map(([, info]) => info.from));
   const extra: Related = new Map();
   // Per candidate table, per object: 1 while everything it points to so far is inside, 0 once something is not.
@@ -147,7 +141,7 @@ export function levelsOf(
       if (hi === lo || !flags[i]) continue;
       let all = !!parts;
       for (let k = lo; k < hi && all; k++) all = parts!.has(rel.indices[k]);
-      flags[i] = all ? 1 : 0; // e.g. a candidate with its track inside a vertex, but its clusters outside: not inside
+      flags[i] = all ? 1 : 0;
     }
   }
   for (const [table, flags] of inside)
@@ -182,7 +176,7 @@ function closure(
   step: (frontier: Related, reached: (table: string, row: number) => void) => void,
 ): Related {
   const seen: Related = new Map([[start.table, new Set([start.row])]]);
-  let frontier: Related = new Map([[start.table, new Set([start.row])]]); // its own sets: `seen` grows during a step
+  let frontier: Related = new Map([[start.table, new Set([start.row])]]); // own sets: `seen` grows during a step
   while (frontier.size) {
     const next: Related = new Map();
     step(frontier, (table, row) => {
@@ -201,10 +195,10 @@ function closure(
 export const bestFirst = (best: NonNullable<RelationInfo["best"]>) => (a: number, b: number) =>
   best.order === "min" ? a - b : b - a;
 
-/** Each object's best partner across a relation, by the relation's `best` weight (else the first): `forward`, for
- *  each `from` object among the objects it points to; else for each `to` object among those pointing to it. Per
- *  object (n of them): the partner row and the entry (index into indices and weights), -1 for none. Computed once per
- *  relation of an event and shared: do not modify the arrays. */
+/** Each object's best partner across a relation, by its `best` weight (else the first): `forward`, for each `from`
+ *  object among those it points to; else for each `to` object among those pointing to it. Per object (`n`): the
+ *  partner row and the entry (index into indices and weights), -1 for none. Once per relation of an event, shared: do
+ *  not modify the arrays. */
 export function bestPartners(rel: Relation, info: RelationInfo, forward: boolean, n: number) {
   const k = `${forward}|${info.best?.weight}|${info.best?.order}|${n}`;
   let m = partnersOf.get(rel);
@@ -212,7 +206,7 @@ export function bestPartners(rel: Relation, info: RelationInfo, forward: boolean
   if (!m.has(k)) m.set(k, partnersOnce(rel, info, forward, n));
   return m.get(k)!;
 }
-const partnersOf = new WeakMap<Relation, Map<string, { partner: Int32Array; entry: Int32Array }>>(); // per event: relations are per event
+const partnersOf = new WeakMap<Relation, Map<string, { partner: Int32Array; entry: Int32Array }>>(); // relations are per event
 function partnersOnce(rel: Relation, info: RelationInfo, forward: boolean, n: number) {
   const partner = new Int32Array(n).fill(-1),
     entry = new Int32Array(n).fill(-1);
@@ -254,14 +248,12 @@ export function reversed(ev: EventData, name: string, n: number) {
   });
 }
 
-/** For each object of `table`, the object of `root` with the most weight in its parts (-1 for none): over each
- *  relation from `table` into a parts table (weighted by its first weight, e.g. a layer cluster's hit fraction, else
- *  1) and each relation from `root` into the same parts table (by its `best` weight, e.g. the simulated energy a
- *  particle left in a hit, else 1), the root object with the largest sum of products: a vote through containment,
- *  e.g. the candidate holding most of a trackster's layer clusters. `derived`: the weights came through an association
- *  (a colouring a person chose; the truth colours never vote through hits: docs/truth.md).
- *  `weight`: the root -> parts weight summed ("" for counts); `parts`: the parts table; `share`: per object, the
- *  partner's part of the total weight (0..1). Computed once per event. */
+/** For each object of `table`, the object of `root` with the most weight in its parts (-1 for none): a vote through
+ *  containment, e.g. the candidate holding most of a trackster's layer clusters. Each part counts with the product of
+ *  `table`'s weight for it (its first weight, e.g. a hit fraction, else 1) and `root`'s (its `best` weight, e.g. a
+ *  particle's simulated energy in a hit, else 1). `weight`: the root -> parts weight ("" for counts); `parts`: the
+ *  parts table; `share`: the partner's part of the total (0..1); `derived`: the weights came through an association
+ *  (only for a colouring a person chose: the truth colours never vote through hits, docs/truth.md). Once per event. */
 export function contentPartners(table: string, root: string, n: number, ev: EventData, header: Header) {
   return cached(ev, `content|${table}|${root}`, () => content(table, root, n, ev, header));
 }
@@ -284,7 +276,7 @@ function content(table: string, root: string, n: number, ev: EventData, header: 
       weight ||= wname;
       partsTable ||= info.to;
       derived ||= !!a.association;
-      // Inverted once per event: for each part, the root objects linked to it and their weights.
+      // For each part, the root objects linked to it and their weights.
       const offsets = new Uint32Array(nParts + 1);
       for (const h of into.indices) offsets[h + 1]++;
       for (let h = 0; h < nParts; h++) offsets[h + 1] += offsets[h];
@@ -304,7 +296,7 @@ function content(table: string, root: string, n: number, ev: EventData, header: 
       });
     }
   }
-  // One accumulator for all objects, reset through the list of entries touched: no allocation per object.
+  // One accumulator for all objects, reset through the entries touched: no allocation per object.
   const partner = new Int32Array(n).fill(-1),
     share = new Float32Array(n),
     acc = new Float64Array(nRoot),

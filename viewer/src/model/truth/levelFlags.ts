@@ -1,5 +1,6 @@
 // The truth levels (truth::LevelFlag bits of the particles' level flags): the tags and search chips, and the levels
 // the truth colours can group the particles by.
+
 /** A truth level: its bit in the particles' level flags (SimDataFormats/TruthInfo ParticleData.h truth::LevelFlag), its
  *  plain name, the flag's own name (for experts) and what it means. */
 export interface Level {
@@ -61,9 +62,9 @@ export interface TruthClass {
   name: string;
   mask?: number;
 }
-/** A level the truth colours can group the particles by: its id (in links), plain name, the flags' names, and the bits
- *  (any of them set makes a particle a member). With `classes`, one colour per class instead of one per particle: a
- *  particle is in the class of its nearest ancestor (or itself) with a class's bits, pile-up in its own. */
+/** A level the truth colours can group the particles by: its id (in links), names, and the bits that make a particle
+ *  a member (any of them). With `classes`, one colour per class instead of per particle (colour/identities.ts
+ *  truthClasses). */
 export interface ColourLevel {
   id: string;
   name: string;

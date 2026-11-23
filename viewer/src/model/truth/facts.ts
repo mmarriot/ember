@@ -1,9 +1,7 @@
-// Which truth -> hit relations are simulation facts (docs/truth.md): the simulated energy each truth particle left in
-// each detector cell, from the truth graph's hit index. They are not matches: a hit "has 60% of its simulated energy
-// from this particle". The relation hint `fact: {in}` says so and names the detector, so totals are never summed
-// across detectors (sampling and homogeneous calorimeters, HF photoelectrons). Bundles made before the hint, and
-// relations of profiles that do not set it (hgcal.json), keep the earlier rule: a truth association into a layer
-// drawn as cells is a fact, in that layer's domain.
+// Simulation facts (docs/truth.md): truth -> hit relations giving the simulated energy each particle left in each
+// cell, from the truth graph's hit index. Not matches. The hint `fact: {in}` names the detector, so totals are never
+// summed across detectors; without it (older bundles, hgcal.json), a truth association into a layer drawn as cells is
+// a fact in that layer's domain.
 import type { DisplayLayer, EventData, Fact, Header } from "../../io/format";
 import { cached } from "../event/cache";
 
@@ -22,7 +20,7 @@ export function factIn(header: Header, name: string): string | undefined {
   return to.domain ?? "";
 }
 
-/** The fact relations of the bundle: name, truth table, hit table and detector. Once per header. */
+/** The bundle's fact relations: name, truth table, hit table and detector. Once per header. */
 export type FactRelation = { name: string; from: string; to: string; in: string; unit?: Fact["unit"] };
 export function facts(header: Header): FactRelation[] {
   return cached(header, "facts", () =>
@@ -77,13 +75,12 @@ export function factUnit(
 /** Whether `table` holds hits with simulation facts (the `to` of a fact relation). */
 export const isFactTable = (header: Header, table: string) => facts(header).some((f) => f.to === table);
 
-/** The unit of the simulated amount a fact relation holds in detector `where`: deposited energy in GeV, but
- *  photoelectrons in HF (docs/truth.md "Each kind's contract"). The bundle does not name it. */
+/** The unit of the simulated amount in detector `where`: GeV, but photoelectrons in HF (docs/truth.md "Each kind's
+ *  contract"). The bundle does not name it. */
 export const simUnit = (where: string) => (where === "HF" ? "photoelectrons" : "GeV");
 
-/** Whether the objects of `table` are made of hits with simulated energy drawn as cells (layer clusters, superclusters,
- *  PF clusters): a plain relation (not an association) from it reaches the hit table of a fact. Muon hits, track hits
- *  and the beam spot are not. */
+/** Whether `table`'s objects are made (through a plain relation) of fact hits drawn as cells: layer clusters,
+ *  superclusters, PF clusters; not muon or track hits. */
 export function madeOfSimCells(header: Header, table: string): boolean {
   const hits = new Set(facts(header).map((f) => f.to));
   return Object.values(header.relations).some(

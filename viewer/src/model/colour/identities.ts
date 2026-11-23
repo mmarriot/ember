@@ -1,15 +1,14 @@
-// Identity colouring: which key (object, or truth branch) each object takes its colour from, and which keys get
-// one of the palette's slots (render/colour.ts draws them).
+// Identity colouring (drawn by render/colour.ts): the key (an object, or a truth branch) each object takes its colour
+// from, and which keys get one of the palette's slots (docs/truth.md "Which particles get a colour").
 import type { DisplayLayer, EventData, Header, Table } from "../../io/format";
 import { cached } from "../event/cache";
 import { bestPartners } from "../event/relations";
 import { facts, isFactTable, simEnergyIn } from "../truth/facts";
 import type { TruthClass } from "../truth/levelFlags";
 
-/** The rule the truth colours give their slots by (model/event/relations.ts identities), as the colour key's title says it:
- *  - `selection`: the particles the selection and its parts are matched to or hold simulated energy in, first;
- *  - `by`: then the rest by simulated energy in one detector of the domain (`in`: the domain, `detectors`: those it
- *    has), by pT among the particles the domain's reco objects are matched to, or by pT among the signal particles. */
+/** The rule the truth colours gave their slots by, for the colour key's title: `selection`, the selection's particles
+ *  first; then `by` simulated energy in the domain `in` (detector by detector), by pT among the particles its reco
+ *  objects are matched to, by pT among the signal particles, or by the layer's colour `column`. */
 export interface SlotRule {
   selection: boolean;
   by: "simEnergy" | "matchedPt" | "pt" | "size";
@@ -34,42 +33,31 @@ export function ruleText(rule: SlotRule, slots: number) {
     : `top ${slots} ${rest}`;
 }
 
-/** How the truth colours give their slots (identities): the domain looked at (null: all of them), the particles the
- *  selection and its parts point at (rows; undefined without a selection), and the level that groups the particles
- *  (a mask of level-flag bits; undefined: the layer's `particle` bit). */
+/** What the truth colours' slots depend on: the domain looked at (null: all), the particles the selection and its
+ *  parts point at (undefined without a selection), and the level that groups the particles (a mask of level-flag
+ *  bits; undefined: the layer's `particle` bit). */
 export interface SlotRank {
   domain?: string | null;
   prefer?: number[];
   level?: number;
   /** Only the level's particles take slots (the b / c hadron level: the rest stays grey). */
   only?: boolean;
-  /** A class level's classes (model/truth/truth.ts ColourLevel): one colour per class, no slots (truthClasses). */
+  /** A class level's classes (truth/levelFlags.ts ColourLevel): one colour per class, no slots (truthClasses). */
   classes?: TruthClass[];
 }
 
-/** Identity colouring of a table (render/colour.ts): per object, the key whose colour it takes, and the keys that get
- *  a colour of their own (`top`, at most `slots`), and the rule they were chosen by (`rule`, model/truth/truth.ts).
- *  `others`: keys in use beyond `top`; `parent`: each object's first parent, -1 for none, and `anchor`: 1 for the
- *  particles that own hits or are matched (truth tables only);
- *  `preferred`: how many of `top` the selection points at (rank.prefer).
- *  Every object is its own key, except in a truth table (`truth`) with a parent ->
- *  children relation (truth particles), where colours follow truth branches:
- *  - anchors are the particles something points at: those that own hits (an association into a hit layer; the
- *    particles that entered the calorimeter) and those a reco object is matched to (an association into the table);
- *  - with a `particle` level (docs/truth.md: e.g. generator-level stable particles), a particle takes the key of its
- *    highest ancestor in the level (or itself without one): the electrons of a converted photon, the daughters of a
- *    π⁺ that interacted in the tracker and a shower's secondaries all share their generator particle's colour, in
- *    every part of the detector. `rank.level` chooses another level. Without a level, the key is its highest anchor
- *    ancestor (or itself);
- *  - only anchors' keys use colours (`used`): a particle linked to nothing (e.g. a quark) takes none;
- *  - with the level's `first` column (e.g. isSignal), only its keys take colours: signal, never pile-up; keys in the
- *    level come before those above it (a π⁰ matched as a whole), and with `rank.only` only they take colours (the
- *    b / c hadron level: the particles outside every b or c hadron stay grey);
- *  - the slots (docs/truth.md "Which particles get a colour"): first the keys the selection points at (rank.prefer),
- *    then, in a calorimeter's domain, by simulated energy in its hits, ranked within each detector and taken from the
- *    detectors in turn (never compared across detectors); without calorimeter hits there, by pT among the particles
- *    its reco objects are matched to; elsewhere (Physics, all of them) by pT, |η| < 5 first. Keys with nothing in the
- *    domain take no slot. */
+/** Identity colouring of a table: per object, the `key` whose colour it takes; the keys with a colour of their own
+ *  (`top`, at most `slots`), chosen by `rule`, the selection's first (`preferred` of them); `others`, the keys in use
+ *  beyond `top`. Every object is its own key, except in a truth table with a parent -> children relation, where colours
+ *  follow branches:
+ *  - anchors (`anchor`) are the particles that own hits or that a reco object is matched to; only their keys take
+ *    colours (`used`): a quark linked to nothing takes none;
+ *  - a particle takes the key of its highest ancestor in the level (`rank.level`, else the layer's `particle` bit), or
+ *    without a level its highest anchor ancestor, else itself: a converted photon's electrons and a shower's
+ *    secondaries share their generator particle's colour;
+ *  - with the level's `first` column (isSignal) only its keys take colours, never pile-up; with `rank.only`, only the
+ *    level's particles do (the b / c hadron level).
+ *  `parent`: each particle's first parent, -1 for none. */
 export function identities(
   d: DisplayLayer,
   t: Table,
@@ -90,8 +78,8 @@ export function identities(
     eligible = bySize.filter(
       (k) => (!first || Number(first[k])) && (!rank.only || !flags || (Number(flags[k]) & mask) !== 0),
     );
-  // The slot order depends on the event, the domain and the level only: once each (not on every selection). The
-  // callers that only want the keys (slots 0: a lineage, a pair) skip it.
+  // The slot order depends on the event, the domain and the level only: once each, not on every selection. Callers
+  // that only want the keys (slots 0) skip it.
   const { order, rule } =
     slots > 0
       ? cached(
@@ -121,11 +109,10 @@ export function identities(
   };
 }
 
-/** Each truth particle's class under a class level (model/truth/truth.ts ColourLevel `classes`): the first class with a bit
- *  of its nearest ancestor (or itself) that has any of the classes' bits; without one, the class without bits (all
- *  of the signal collision) or else `classes.length` (the rest of the signal collision). Pile-up (the level's `first`
- *  column 0) is `classes.length + 1`, whatever its bits (the underlying-event bit is set on pile-up too). Once per
- *  event and level: a walk up the first parents, O(particles x depth). */
+/** Each truth particle's class under a class level (ColourLevel `classes`): the first class with a bit of its nearest
+ *  ancestor (or itself) with any of the classes' bits; without one, the class without bits, else `classes.length`
+ *  (the rest of the signal collision). Pile-up (`first` column 0) is `classes.length + 1` whatever its bits (the
+ *  underlying-event bit is set on pile-up too). Once per event and level: O(particles x depth). */
 export function truthClasses(d: DisplayLayer, t: Table, ev: EventData, header: Header, classes: TruthClass[]) {
   return cached(ev, `classes|${d.table}|${classes.map((c) => `${c.name}:${c.mask}`).join(",")}`, () => {
     const { parent } = identities(d, t, ev, header, 0),
@@ -139,7 +126,7 @@ export function truthClasses(d: DisplayLayer, t: Table, ev: EventData, header: H
         out[i] = classes.length + 1;
         continue;
       }
-      let f = 0; // the bits of the nearest particle with any (at most n steps: no endless loop on a cycle)
+      let f = 0; // the bits of the nearest particle with any (at most n steps: bad data may have a cycle)
       for (let j = i, steps = 0; any && flags && j >= 0 && steps < t.n && !f; j = parent[j], steps++)
         f = Number(flags[j]) & any;
       const k = f ? classes.findIndex((c) => (c.mask ?? 0) & f) : -1;
@@ -149,8 +136,7 @@ export function truthClasses(d: DisplayLayer, t: Table, ev: EventData, header: H
   });
 }
 
-/** The eligible keys in slot order, and the rule used (see identities): one pass over the domain's hit-index
- *  relations (O(entries)), once per event, domain and level (identities caches it). */
+/** The eligible keys in slot order, and the rule used: one pass over the domain's hit-index relations. */
 function rankKeys(
   d: DisplayLayer,
   t: Table,
@@ -166,7 +152,7 @@ function rankKeys(
     above = (k: number) => (flags && !(Number(flags[k]) & mask) ? 1 : 0); // keys in the level first
   const inDomain = (table: string) => header.display.find((l) => l.table === table)?.domain === domain;
   if (own && !own.shared && d.truth) {
-    // Calorimeter facts only (hits drawn as cells): simulated energy in a muon chamber says little of a particle's
+    // Calorimeter facts only (hits drawn as cells): a muon chamber's simulated energy says little of a particle's
     // size, and the pT rule below serves it better.
     const mine = facts(header).filter(
       (f) =>
@@ -222,8 +208,8 @@ function rankKeys(
   };
 }
 
-/** The part of `identities` that does not depend on the selection, once per event: keys, which keys are in use, and
- *  the keys in use largest first. */
+/** The part of `identities` that does not depend on the selection: the keys, which are in use, and those largest
+ *  first. */
 function identityKeys(d: DisplayLayer, t: Table, ev: EventData, header: Header, mask: number) {
   const n = t.n,
     anchor = new Uint8Array(n),
@@ -247,8 +233,8 @@ function identityKeys(d: DisplayLayer, t: Table, ev: EventData, header: Header, 
     }
     const flags = d.particle ? t.columns[d.particle.flags] : undefined;
     const member = flags ? (j: number) => Number(flags[j]) & mask : (j: number) => anchor[j];
-    // Each particle walks up to its root, keeping the highest member seen (at most n steps: no endless loop on bad
-    // data with a cycle).
+    // Each particle walks up to its root, keeping the highest member seen (at most n steps: bad data may have a
+    // cycle).
     for (let i = 0; i < n; i++)
       for (let j = i, steps = 0; j >= 0 && steps < n; j = parent[j], steps++) if (member(j)) key[i] = j;
   }
@@ -264,5 +250,5 @@ function identityKeys(d: DisplayLayer, t: Table, ev: EventData, header: Header, 
   const rank = (i: number) => (first && Number(first[i]) ? 2 : 0) + (flags && Number(flags[i]) & mask ? 1 : 0);
   if (col || first || flags)
     bySize.sort((a, b) => rank(b) - rank(a) || (col ? Number(col[b]) - Number(col[a]) : 0) || a - b);
-  return { key, used, bySize, parent, anchor }; // parent: each object's first parent (-1 none), truth tables only
+  return { key, used, bySize, parent, anchor };
 }

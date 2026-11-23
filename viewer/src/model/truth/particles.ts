@@ -29,10 +29,10 @@ export function matchesQuery(q: Exclude<TruthQuery, null>, pdg: number, name: st
 
 // ---- The particles in a view (the Truth tab's entry point)
 
-/** One truth particle in one detector of a view: its simulated energy there (`amount`, GeV; the tracker, which has
- *  none in the file: its pT), its best object of the kind compared there (TruthToReco, -1 for none) and that object's
- *  completeness for it; `split`, how many objects of the kind hold part of it; `shares`, how many other particles of
- *  the list have the same best object (a merge). */
+/** One truth particle in one detector of a view: its simulated energy there (`amount`, GeV; in the tracker, its pT),
+ *  its best object of the kind compared there (TruthToReco, -1 for none) and that object's completeness for it;
+ *  `split`, how many objects of the kind hold part of it; `shares`, how many other particles of the list have the
+ *  same best object (a merge). */
 export interface ViewRow {
   particle: number;
   amount: number;
@@ -50,11 +50,9 @@ export interface ViewDetector {
 }
 
 /** The particles of `truth` with something in the view of `domain` (null, or a shared domain: the whole detector),
- *  detector by detector, largest first (docs/viewer.md "Particles in this view"): those that left simulated energy
- *  in its hits (the hit index); in the tracker, which has no simulated energy in the file, those a track is matched
- *  to (their own best match: not the ancestors whose branches hold the track too), by pT. Simulated energy is never
- *  compared across detectors: a particle is listed in each detector it left energy in. `keep`: the truth layer's
- *  filter (signal only). */
+ *  detector by detector, largest first: those that left simulated energy in its hits; in the tracker (no simulated
+ *  energy in the file), those a track is matched to, by pT. A particle is listed in each detector it left energy in:
+ *  energies are never compared across detectors. `keep`: the truth layer's filter. */
 export function particlesInView(
   ev: EventData,
   header: Header,
@@ -91,8 +89,7 @@ export function particlesInView(
     for (const r of rows) r.shares = r.best >= 0 ? count.get(r.best)! - 1 : 0;
     return { in: det, by, kind, rows: rows.sort((a, b) => b.amount - a.amount) };
   };
-  // The tracker (or any detector with an association but no simulated energy): the particles its objects are
-  // matched to, by pT.
+  // A detector with an association but no simulated energy (the tracker): the particles its objects are matched to.
   const pt = ev.tables[truth]?.columns.pt,
     simIn = new Set(facts(header).map((f) => f.in));
   const matchedIn = new Map<string, Set<number>>();
@@ -140,11 +137,9 @@ function detectorsOf(header: Header, table: string): Set<string> {
  *  Jets and PF candidates stand for any particle. */
 const SPECIES: Record<string, number> = { electron: 11, gsfTrack: 11, photon: 22, muon: 13, tau: 15 };
 
-/** The kinds with no truth association (`gapOf` gives their gap, undefined for a kind with one) that particle `row` of
- *  `truth` could have reached (docs/truth.md "Where truth stops"): of a detector where its branch left simulated
- *  energy, of the tracker when a track holds part of it, of the muon system for a muon; a kind of one species (an
- *  electron, a muon) only for that species. A barrel electron gets no HGCal kinds; kinds made of nothing (a beam spot)
- *  never. */
+/** The kinds with no truth association (`gapOf`: their gap, undefined for a kind with one) that particle `row` could
+ *  have reached (docs/truth.md "Where truth stops"): those of a detector its branch left simulated energy in, of the
+ *  tracker when a track holds part of it, of the muon system for a muon; a kind of one species only for that species. */
 export function unassociatedKinds(
   ev: EventData,
   header: Header,
@@ -167,8 +162,8 @@ export function unassociatedKinds(
       has = (p: number) => p + 1 < (rel?.offsets.length ?? 0) && rel!.offsets[p + 1] > rel!.offsets[p];
     if (f.from === truth && rel && [...branch].some(has)) reached.add(f.in);
   }
-  // Detectors without simulated energy in the file: the tracker when a track holds part of it (its truth -> reco
-  // association), the muon system for a muon.
+  // Detectors without simulated energy in the file: the tracker when a track holds part of it, the muon system for a
+  // muon.
   const sim = new Set(facts(header).map((f) => f.in)),
     simDomains = new Set(facts(header).map((f) => header.display.find((l) => l.table === f.to)?.domain));
   for (const [name, r] of Object.entries(header.relations)) {

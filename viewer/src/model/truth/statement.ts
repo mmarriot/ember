@@ -1,8 +1,6 @@
-// What the truth says about a reco object, as the card's truth block reads it (docs/truth.md "The card"): its kind's own
-// association (or why there is none), then, for each step of its parts that has an association of its own, each
-// part's own match. Built only from the associations in the file, never combined: no verdict for the object from its
-// parts, no ranking of particles over several parts. A part's line names the part, its particle, and the purity and
-// completeness of that match, each labelled.
+// What the truth says about a reco object, for the card's truth block: its kind's own association (or why there is
+// none), then each part's own match, for the steps of its parts that have an association. Only the file's
+// associations, never combined: no verdict for the object from its parts, no ranking of particles over several parts.
 import type { EventData, Header, Match } from "../../io/format";
 import { type Ladder, recoOfTruth } from "../event/chain";
 import { completeness, quality, type TruthStatus } from "./match";
@@ -18,10 +16,9 @@ export interface PartMatch {
   completeness?: number;
   clean?: boolean;
 }
-/** The parts of one collection in one step that have their own association: `of` of them, `matched` with a match
- *  (`clean` of those at or above the kind's `good` purity); `rows`: all of them; `objects`: each matched part's match, purest first.
- *  `beside`: objects built only from the selection's parts (a PF cluster inside an electron's supercluster), not
- *  named by a relation as its parts. */
+/** The parts of one collection in one step with their own association: `of` of them, `matched` with a match, `clean`
+ *  of those at or above the kind's `good` purity; `objects`: each matched part's match, purest first. `beside`: built
+ *  only from the selection's parts (a PF cluster inside an electron's supercluster), not named as its parts. */
 export interface PartLine {
   table: string;
   truth: string;
@@ -39,7 +36,7 @@ export interface Statement {
   parts: PartLine[];
 }
 
-/** The truth statement of the reco object whose ladder is `lad` (model/event/chain.ts recoLadder). */
+/** The truth statement of the reco object whose ladder is `lad` (event/chain.ts recoLadder). */
 export function truthStatement(
   ev: EventData,
   header: Header,
@@ -90,19 +87,16 @@ export function truthStatement(
   return { own: statuses.get(lad.self.groups[0]?.table ?? ""), parts };
 }
 
-/** A particle X can go to from an object without a match of its own: a matched part's own match, with what that match
- *  counts (`measure`: the particle is named by its energy next to a calorimeter object), whether the part is the only
- *  one of its collection in its step (`alone`: its track, its one PF cluster), and whether it is only built from the
- *  object's parts (`beside`: a PF cluster inside an electron's supercluster). */
+/** A particle X can go to from an object without a match of its own: a matched part's match, with what it counts
+ *  (`measure`), whether the part is alone in its collection in its step (`alone`: its track, its one PF cluster), and
+ *  whether it is only built from the object's parts (`beside`). */
 export type PartChoice = PartMatch & { truth: string; measure: string; alone: boolean; beside: boolean };
 
-/** The particles X can go to from an object without a match of its own: each matched part's own particle (at most
- *  `max`), one entry per particle, with the part that names it. Its own parts first, then those only built from them
- *  (an electron's PF clusters, inside its supercluster). Among parts whose matches count the same thing (energy;
- *  tracker hits) the larger part (`size`: a cluster's energy, a track's pT) comes first, so a 1.85 GeV pile-up
- *  photon's cluster does not come before the τ's 96 GeV one; parts counting different things keep the steps' order
- *  (a track's pT is not compared with a cluster's energy). The first is where X goes again. An order of the parts,
- *  never a ranking of particles over several parts. */
+/** The particles X can go to from an object without a match of its own: each matched part's particle (at most `max`,
+ *  one entry per particle), its own parts first, then those only built from them. Among parts whose matches count the
+ *  same thing, the larger part (`size`: a cluster's energy, a track's pT) first, so a 1.85 GeV pile-up photon's
+ *  cluster does not come before the τ's 96 GeV one; parts counting different things keep the steps' order. An order
+ *  of the parts, never a ranking of particles. */
 export function partChoices(
   st: Statement,
   max = Infinity,
@@ -127,11 +121,10 @@ export function partChoices(
   return out;
 }
 
-/** The part whose match the card names for an object without a match of its own (an electron's or a muon's track, a
- *  photon's PF cluster): its matched parts that are alone in their collection in their step (its own parts; else those
- *  only built from them), when they all name one particle; the first of them. Parts that disagree (a charged PF
- *  candidate's track on a π⁺, its HCAL cluster on a K⁰L), or a jet's or a τ's several tracks: none is named, X offers
- *  them all. */
+/** The part whose match the card names for an object without a match of its own (an electron's track, a photon's PF
+ *  cluster): the first of its parts alone in their step (its own, else those built from them), when every part is
+ *  alone and all name one particle. Parts that disagree (a charged PF candidate's track on a π⁺, its HCAL cluster on
+ *  a K⁰L), or several tracks: none, X offers them all. */
 export function leadChoice(choices: PartChoice[]) {
   const own = choices.filter((c) => !c.beside),
     from = own.length ? own : choices,
@@ -141,10 +134,8 @@ export function leadChoice(choices: PartChoice[]) {
   return alone.every((c) => c.truth === alone[0].truth && c.particle === alone[0].particle) ? alone[0] : undefined;
 }
 
-/** Where truth row `particle` went among the objects of `table` (W2; docs/truth.md): every object its truth -> reco
- *  association gives it, most complete first, with that completeness and whether the particle is the object's own
- *  best match (recoOfTruth); and `merges`: the other particles whose best object there (their TruthToReco best) is
- *  `row`. The associator's answers only. */
+/** Where truth row `particle` went among the objects of `table` (W2): every object its truth -> reco association
+ *  gives it (recoOfTruth), and `merges`, the other particles whose TruthToReco best there is `row`. */
 export function whereItWent(
   ev: EventData,
   header: Header,

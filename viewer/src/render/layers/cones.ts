@@ -10,6 +10,7 @@ import {
   interleave,
   type Layer,
   type LayerInput,
+  newVec3s,
   positions,
   SHADER_COMMON,
   shaderLayer,
@@ -47,11 +48,7 @@ export function cones(input: LayerInput): Layer {
   const [eta, phi] = (d.direction ?? ["eta", "phi"]).map((c) => toF32(t.columns[c], n));
   const radius = perRow(t.columns, n, d.radius, 0.4);
   const length = isToCylinder(d.length) ? new Float32Array(n) : perRow(t.columns, n, d.length, 100);
-  const ends = [new Float32Array(n), new Float32Array(n), new Float32Array(n)] as [
-    Float32Array,
-    Float32Array,
-    Float32Array,
-  ];
+  const ends = newVec3s(n);
   for (let i = 0; i < n; i++) {
     const [dx, dy, dz] = etaPhiDirection(eta[i], phi[i]),
       x0 = start[0][i],

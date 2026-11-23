@@ -107,6 +107,12 @@ export interface LayerInput {
 /** Three columns, one value per object each (x, y, z). */
 export type Vec3s = [Float32Array, Float32Array, Float32Array];
 
+/** Three zeroed columns of n values. */
+export const newVec3s = (n: number): Vec3s => [new Float32Array(n), new Float32Array(n), new Float32Array(n)];
+
+/** Three columns of a table as floats (a missing column: zeros). */
+export const columns3 = (t: Table, names: readonly string[]) => names.map((c) => toF32(t.columns[c], t.n)) as Vec3s;
+
 /** How far towards the background everything unrelated to a selection fades (0..1), per choice of the user
  *  (model/store view.ts `rest`): dimmed, it stays readable around the selection; faint, a trace of it is left; hidden
  *  (1), it is not drawn at all (see `gone` in SHADER_COMMON). One level for every layer and for what is drawn beside
@@ -367,7 +373,7 @@ export const commonFields = ({ key, d }: LayerInput, pickRadius: number) => ({
 });
 
 /** The layer's `position` columns as floats. */
-export const positions = ({ d, t }: LayerInput) => d.position.map((c) => toF32(t.columns[c], t.n)) as Vec3s;
+export const positions = ({ d, t }: LayerInput) => columns3(t, d.position);
 
 /** Three columns as one array of 3 floats per row, for a vec3 attribute (WebGL gives a shader at most 16 attributes,
  *  so three single floats would use up three of them). */
@@ -387,6 +393,18 @@ export function drawBehind(object: THREE.Object3D, material: THREE.Material) {
   material.depthWrite = false;
   object.renderOrder = -1;
 }
+
+/** The two ends of a line one pixel wide (x: 0 at the start, 1 at the end), placed by the vertex shader. */
+export function setLineEnds(g: THREE.BufferGeometry) {
+  g.setAttribute("position", new THREE.Float32BufferAttribute([0, 0, 0, 1, 0, 0], 3));
+}
+
+/** Uniforms of lines `width` CSS pixels wide: the width in drawing-buffer pixels, and the drawing buffer's size
+ *  (followDrawingBuffer), which turns it into clip-space units. */
+export const lineWidthUniforms = (width: number) => ({
+  uWidth: { value: width * (globalThis.devicePixelRatio ?? 1) },
+  uRes: { value: new THREE.Vector2(1, 1) },
+});
 
 /** Corners of a quad along a line (x: 0 at the start, 1 at the end; y: -1 and +1 for its two sides) and its two
  *  triangles, for lines several pixels wide: the vertex shader moves each corner across the line on screen. */
@@ -471,17 +489,34 @@ export function halo(
     g.instanceCount = k1 - k0;
     mesh.geometry = g;
   };
+  /** Draw instances [a, b) of the layer (its pinned object; a < 0: none). */
+  const pin = (a: number, b: number) => {
+    if (a === k0 && b === k1) return; // every layer is pinned again at each rebuild
+    k0 = a;
+    k1 = b;
+    copy();
+  };
+  const refresh = () => {
+    if (mesh.visible) copy();
+  };
   return {
     object: mesh,
-    /** Draw instances [a, b) of the layer (its pinned object; a < 0: none). */
-    pin(a: number, b: number) {
-      if (a === k0 && b === k1) return; // every layer is pinned again at each rebuild
-      k0 = a;
-      k1 = b;
-      copy();
-    },
-    refresh() {
-      if (mesh.visible) copy();
+    /** The layer's setters that change its pinned instances or their attributes, keeping the halo in step. */
+    wrap(common: Pick<Layer, "setPinned" | "setHighlight" | "setTimeline">) {
+      return {
+        setPinned(row: number) {
+          common.setPinned(row);
+          pin(material.uniforms.uPin0.value, material.uniforms.uPin1.value);
+        },
+        setHighlight(rows: Set<number> | null) {
+          common.setHighlight(rows);
+          refresh(); // the halo's copy of the selection flags
+        },
+        setTimeline(appear: Float32Array, link: Float32Array) {
+          common.setTimeline(appear, link);
+          refresh(); // and of the replay's times
+        },
+      };
     },
     dispose() {
       drop();

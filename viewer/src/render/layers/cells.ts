@@ -6,12 +6,14 @@ import { type DisplayLayer, type PerRow, toF32 } from "../../io/format";
 import { perRow, towerPoint } from "../geometry";
 import {
   baseUniforms,
+  columns3,
   commonFields,
   CULL,
   drawBehind,
   interleave,
   type Layer,
   type LayerInput,
+  newVec3s,
   positions,
   SHADER_COMMON,
   shaderLayer,
@@ -203,7 +205,7 @@ function towers(input: LayerInput): Layer {
     dPhi = perRow(t.columns, n, cell.dPhi, 0.087),
     depth = perRow(t.columns, n, cell.depth, 10);
   for (let i = 0; i < n; i++) depth[i] = Math.max(depth[i], MIN_DEPTH); // never flat: a cell seen edge-on stays visible
-  const back = [new Float32Array(n), new Float32Array(n), new Float32Array(n)] as const;
+  const back = newVec3s(n);
   for (let i = 0; i < n; i++) {
     const b = towerPoint(x[i], y[i], z[i], dEta[i], dPhi[i], depth[i], disc, 0, 0, 1);
     back[0][i] = b[0];
@@ -235,8 +237,7 @@ function boxes(input: LayerInput): Layer {
   const { d, t } = input,
     n = t.n,
     cell = d.cell as Extract<NonNullable<DisplayLayer["cell"]>, { shape: "box" }>;
-  const [x, y, z] = positions(input),
-    cols = (c: readonly string[]) => c.map((k) => toF32(t.columns[k], n)) as [Float32Array, Float32Array, Float32Array];
+  const [x, y, z] = positions(input);
   const size = cell.size.map((v: PerRow) => perRow(t.columns, n, v, 1));
   const solid = solidCells(
     input,
@@ -249,8 +250,8 @@ function boxes(input: LayerInput): Layer {
     { ithick: size[3] },
     {
       ipos: interleave([x, y, z]),
-      iu: interleave(cols(cell.u)),
-      iv: interleave(cols(cell.v)),
+      iu: interleave(columns3(t, cell.u)),
+      iv: interleave(columns3(t, cell.v)),
       isize: interleave([size[0], size[1], size[2]]),
     },
   );

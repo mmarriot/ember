@@ -7,6 +7,7 @@ import { isToCylinder, perRow } from "../geometry";
 import { REPLAY_OFF } from "../replay";
 import {
   baseUniforms,
+  columns3,
   commonFields,
   CULL,
   DASHED_LINE_FRAGMENT,
@@ -15,8 +16,11 @@ import {
   interleave,
   type Layer,
   type LayerInput,
+  lineWidthUniforms,
+  newVec3s,
   positions,
   SHADER_COMMON,
+  setLineEnds,
   setLineQuad,
   shaderLayer,
   type Vec3s,
@@ -30,7 +34,7 @@ export function segments(input: LayerInput): Layer {
   const [start, [x, y, z]] = segmentEnds(d, t, positions(input));
   if ((d.width ?? 1) > 1 || d.arrow) return wideSegments(input, start, [x, y, z]);
   const g = new THREE.InstancedBufferGeometry();
-  g.setAttribute("position", new THREE.Float32BufferAttribute([0, 0, 0, 1, 0, 0], 3)); // x: 0 at the start, 1 at the end
+  setLineEnds(g);
   const material = new THREE.ShaderMaterial({
     uniforms: { ...baseUniforms(input.pal, input.d.context), uDash: { value: d.truth ? 1 : 0 } },
     vertexShader: /* glsl */ `
@@ -82,12 +86,12 @@ export function segments(input: LayerInput): Layer {
 /** A segments layer's start and end points: `position` to `end`, or along `direction` for `length` cm (from
  *  `position`, or `centred` on it). */
 export function segmentEnds(d: DisplayLayer, t: Table, position: Vec3s): [Vec3s, Vec3s] {
-  if (!d.direction) return [position, (d.end ?? d.position).map((c) => toF32(t.columns[c], t.n)) as Vec3s];
+  if (!d.direction) return [position, columns3(t, d.end ?? d.position)];
   const n = t.n,
     dir = d.direction.map((c) => toF32(t.columns[c], n)),
     len = perRow(t.columns, n, isToCylinder(d.length) ? undefined : d.length, 100);
-  const a: Vec3s = [new Float32Array(n), new Float32Array(n), new Float32Array(n)],
-    b: Vec3s = [new Float32Array(n), new Float32Array(n), new Float32Array(n)];
+  const a = newVec3s(n),
+    b = newVec3s(n);
   for (let i = 0; i < n; i++) {
     const m = Math.hypot(dir[0][i], dir[1][i], dir[2][i]) || 1,
       back = d.centred ? 0.5 * len[i] : 0,
@@ -109,12 +113,10 @@ function wideSegments(input: LayerInput, start: Vec3s, end: Vec3s): Layer {
     [x, y, z] = end;
   const g = new THREE.InstancedBufferGeometry();
   setLineQuad(g);
-  const px = globalThis.devicePixelRatio ?? 1;
   const material = new THREE.ShaderMaterial({
     uniforms: {
       ...baseUniforms(input.pal, input.d.context),
-      uWidth: { value: (d.width ?? 2) * px },
-      uRes: { value: new THREE.Vector2(1, 1) },
+      ...lineWidthUniforms(d.width ?? 2),
       uDash: { value: d.truth ? 1 : 0 },
     },
     side: THREE.DoubleSide,
@@ -148,7 +150,8 @@ function wideSegments(input: LayerInput, start: Vec3s, end: Vec3s): Layer {
   followDrawingBuffer(quads, material);
   const quad = new THREE.BufferGeometry(); // the halo's shape
   setLineQuad(quad);
-  const ring = halo(g, material, quad, quads.renderOrder, input.pal);
+  const ring = halo(g, material, quad, quads.renderOrder, input.pal),
+    haloed = ring.wrap(common);
   const group = new THREE.Group().add(quads);
   // Arrow heads: an instanced cone per row at the line's end, along it; hidden when the line is cut or not grown yet.
   // They share the lines' uniforms, so they fade with a selection as the lines do (per head: selected before and now,
@@ -233,8 +236,7 @@ function wideSegments(input: LayerInput, start: Vec3s, end: Vec3s): Layer {
       return shown;
     },
     setPinned(row) {
-      common.setPinned(row);
-      ring.pin(material.uniforms.uPin0.value, material.uniforms.uPin1.value);
+      haloed.setPinned(row);
       if (!heads) return;
       if (pinned >= 0) headSel[3 * pinned + 2] = 0;
       pinned = row;
@@ -243,8 +245,7 @@ function wideSegments(input: LayerInput, start: Vec3s, end: Vec3s): Layer {
       placeHeads(); // a pinned head is drawn whatever the cut
     },
     setHighlight(rows) {
-      common.setHighlight(rows);
-      ring.refresh(); // the halo's copy of the selection flags
+      haloed.setHighlight(rows);
       if (!heads) return;
       for (let i = 0; i < n; i++) {
         headSel[3 * i + 1] = headSel[3 * i];
@@ -264,8 +265,7 @@ function wideSegments(input: LayerInput, start: Vec3s, end: Vec3s): Layer {
     },
     setTimeline(a, l) {
       appear = a;
-      common.setTimeline(a, l);
-      ring.refresh(); // the halo's copy of the replay's times
+      haloed.setTimeline(a, l);
       placeHeads();
     },
     setClock(t) {

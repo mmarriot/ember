@@ -353,8 +353,7 @@ def _tag(written, src):
 
 def constituents(w, jets, taus):
     """The PF candidates of the RECO jets and taus (CMSSW branch nanoaod-reco-constituents), as text for the physics
-    objects:
-    `jets` (table, collection) pairs, `taus` whether the tau table is written."""
+    objects. `jets`: (table, collection) pairs; `taus`: whether the tau table is written."""
     if not w.pf or not (jets or taus) or not w.branch(CONSTITUENTS, "the constituents of jets and taus"):
         return ""
     rows = [(f"{name}PFCands", "SimplePFJetConstituentTableProducer", src) for name, src in jets]

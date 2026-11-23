@@ -36,6 +36,8 @@ def config(
     physics objects: ember's tables of everything else, written in that job's NanoAOD. `associators`: run the
     truth associators when the input holds no association maps of its own (truth.truth_tables()); `truth_maps`: the
     release's reco <-> truth association tables and the maps they read (export.truth_maps())."""
+    # The order matters: later sections read what earlier ones wrote on `w` (calo: ticl, pf_clusters, hit_tables;
+    # tracks: gsf, track_tables, written), so a reordered call silently loses columns.
     w = writer.Writer(settings, inventory, release)
     writer.header(w, made_by, pat)
     writer.process(w, inputs, events, threads, drop, pat)

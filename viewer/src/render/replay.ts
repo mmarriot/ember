@@ -85,8 +85,7 @@ export function planReplay(items: ReplayItem[], how: Header["replay"], parts?: P
     const n = l.x.length,
       out = new Float64Array(n);
     if (random) {
-      // a fixed pseudo-random order (the same every replay): hash of the row number
-      for (let i = 0; i < n; i++) out[i] = (Math.imul(i + 1, 2654435761) >>> 0) / 4294967296;
+      for (let i = 0; i < n; i++) out[i] = hash01(i); // the same order every replay
       return out;
     }
     if (direction) {
@@ -312,20 +311,11 @@ function buildPaths(items: ReplayItem[], growing: ReplayItem[], parts?: Parts) {
   for (const [g, item] of growing.entries()) {
     const { layer, d } = item,
       path = layer.path!,
-      n = layer.x.length;
-    // Arc length of each drawn path, from its polyline (the piece joining the arc to the end point is drawn last).
-    const length = new Float32Array(n),
-      drawn: number[] = [];
-    for (let i = 0; i < n; i++)
-      if (layer.passes(i)) {
-        drawn.push(i);
-        length[i] = arcLength(path, i);
-      }
-    const sorted = drawn.map((i) => length[i]).sort((a, b) => a - b),
-      longest = sorted[Math.floor(0.9 * (sorted.length - 1))] || 1;
+      n = layer.x.length,
+      { drawn, share } = drawnPaths(layer);
     const appear = new Float32Array(n).fill(build),
       done = new Float32Array(n).fill(build + BUILD);
-    for (const i of drawn) done[i] = build + BUILD * Math.max(0.05, Math.min(1, length[i] / longest)); // one speed
+    for (const i of drawn) done[i] = build + BUILD * share(i);
     paths.set(items.indexOf(item), { appear, done });
 
     const { rel, k } = links[g];
@@ -335,7 +325,7 @@ function buildPaths(items: ReplayItem[], growing: ReplayItem[], parts?: Parts) {
     let out = lit.get(k);
     if (!out) lit.set(k, (out = new Float32Array(hits.x.length).fill(NEVER)));
     for (const i of drawn) {
-      const seededAt = start + SEEDS * ((Math.imul(i + 1, 2654435761) >>> 0) / 4294967296),
+      const seededAt = start + SEEDS * hash01(i),
         from = rel.offsets[i];
       for (let m = from; m < rel.offsets[i + 1]; m++) {
         const h = rel.indices[m];
@@ -346,6 +336,25 @@ function buildPaths(items: ReplayItem[], growing: ReplayItem[], parts?: Parts) {
     }
   }
   return { start, build, end, seed, seeded, partsName, paths, parts: lit };
+}
+
+/** A fixed pseudo-random number in [0, 1) for row i: a hash of the row number. */
+const hash01 = (i: number) => (Math.imul(i + 1, 2654435761) >>> 0) / 4294967296;
+
+/** The paths of a layer that pass its cut, and the share of the build time each takes: paths grow at one speed, so
+ *  that one as long as the longest tenth takes all of it (at least 5%). */
+function drawnPaths(layer: Layer) {
+  const n = layer.x.length,
+    length = new Float32Array(n),
+    drawn: number[] = [];
+  for (let i = 0; i < n; i++)
+    if (layer.passes(i)) {
+      drawn.push(i);
+      length[i] = arcLength(layer.path!, i);
+    }
+  const sorted = drawn.map((i) => length[i]).sort((a, b) => a - b),
+    longest = sorted[Math.floor(0.9 * (sorted.length - 1))] || 1;
+  return { drawn, share: (i: number) => Math.max(0.05, Math.min(1, length[i] / longest)) };
 }
 
 /** The arc length of path i, from its polyline (the piece joining the arc to the end point is drawn last: not
@@ -378,16 +387,8 @@ export function growIn(layers: Layer[], seconds: number) {
       appear = new Float32Array(n),
       done = new Float32Array(n);
     if (l.path) {
-      const length = new Float32Array(n),
-        drawn: number[] = [];
-      for (let i = 0; i < n; i++)
-        if (l.passes(i)) {
-          drawn.push(i);
-          length[i] = arcLength(l.path, i);
-        }
-      const sorted = drawn.map((i) => length[i]).sort((a, b) => a - b),
-        longest = sorted[Math.floor(0.9 * (sorted.length - 1))] || 1;
-      for (const i of drawn) done[i] = seconds * Math.max(0.05, Math.min(1, length[i] / longest));
+      const { drawn, share } = drawnPaths(l);
+      for (const i of drawn) done[i] = seconds * share(i);
     } else {
       for (let i = 0; i < n; i++) appear[i] = seconds * Math.min(1, Math.max(0, (dist(l, i) - d0) / (d1 - d0 || 1)));
       done.set(appear); // in their colours as they appear

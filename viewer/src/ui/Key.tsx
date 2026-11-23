@@ -6,7 +6,7 @@
 import { CLASSES, type KeyEntry, modeKey, truthLevelOf } from "../model/key";
 import { percent } from "../model/match";
 import { cached } from "../model/relations";
-import { COLOUR_LEVELS, colourLevel } from "../model/truth";
+import { COLOUR_LEVELS, type ColourLevel, colourLevel } from "../model/truth";
 import {
   activeMode,
   bundle,
@@ -166,38 +166,39 @@ function LevelPicker() {
   if (!d?.particle || !t) return null;
   const flags = t.columns[d.particle.flags],
     first = d.particle.first ? t.columns[d.particle.first] : undefined,
-    profile = 2 ** d.particle.bit,
-    current = truthLevelOf(b.header).mask;
-  const levels = COLOUR_LEVELS.some((l) => l.mask === profile)
-    ? COLOUR_LEVELS
-    : [colourLevel(profile), ...COLOUR_LEVELS];
+    profile = colourLevel(2 ** d.particle.bit),
+    current = truthLevelOf(b.header).id;
+  const levels = COLOUR_LEVELS.includes(profile) ? COLOUR_LEVELS : [profile, ...COLOUR_LEVELS];
   // Per level, its signal particles in the event: one pass, once per event (not at each render of the key).
-  const counts = cached(ev!, `levelCounts|${root}|${d.particle.flags}|${levels.map((l) => l.mask).join(",")}`, () => {
+  const counts = cached(ev!, `levelCounts|${root}|${d.particle.flags}|${levels.map((l) => l.id).join(",")}`, () => {
     const out = levels.map(() => 0);
     for (let i = 0; flags && i < t.n; i++)
       if (!first || Number(first[i])) levels.forEach((l, j) => (out[j] += Number(flags[i]) & l.mask ? 1 : 0));
     return out;
   });
-  const count = (mask: number) => counts[levels.findIndex((l) => l.mask === mask)];
+  // A level with no particle in this event would draw everything grey: offered, but not chosen.
+  const option = (l: ColourLevel, j: number) => (
+    <option value={l.id} title={l.flag} disabled={!!l.mask && !counts[j] && l.id !== current}>
+      {l.name}
+      {l.classes ? "" : ` (${counts[j]})`}
+      {l === profile ? " · default" : ""}
+    </option>
+  );
   return (
     <label
       class="levelpick"
-      title="Which truth level is one colour: everything below a particle of the level shares its colour"
+      title="What is one colour: a particle of the level and everything below it, or a class of particles"
     >
       Group by{" "}
       <select
-        value={String(current)}
+        value={current}
         onChange={(e) => {
-          const m = Number((e.target as HTMLSelectElement).value);
-          truthLevel.value = m === profile ? null : m;
+          const l = levels.find((x) => x.id === (e.target as HTMLSelectElement).value);
+          truthLevel.value = !l || l === profile ? null : l;
         }}
       >
-        {levels.map((l) => (
-          <option value={String(l.mask)}>
-            {l.name} ({count(l.mask)}) · {l.flag}
-            {l.mask === profile ? " · default" : ""}
-          </option>
-        ))}
+        <optgroup label="one colour per particle">{levels.map((l, j) => !l.classes && option(l, j))}</optgroup>
+        <optgroup label="one colour per class">{levels.map((l, j) => l.classes && option(l, j))}</optgroup>
       </select>
     </label>
   );
@@ -258,6 +259,11 @@ function TruthKey({ entries }: { entries: KeyEntry[] }) {
           <p>
             A reco object takes its particle's colour only when at least {[...rules.values()].join(", or ")} is from it;
             otherwise it is grey. Pile-up is drawn small.
+          </p>
+          <p>
+            Grouped by class ("one colour per class"), a particle takes the class of its nearest ancestor (or itself)
+            with that class's level, and pile-up is a class of its own; every class is drawn alike, and a selection
+            changes no colour. The signal process and underlying event are set only in samples made with a truth preset.
           </p>
           <p>No simulated energy: noise, out-of-time pile-up, or a particle the export left out.</p>
           {faint.length > 0 && (

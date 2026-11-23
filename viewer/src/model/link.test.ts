@@ -11,10 +11,13 @@ describe("the address of a view", () => {
       selection: { table: "Tracks", row: 4 },
       level: "particle",
       truth: true,
+      group: "collision",
       only: "Tracks:helix",
     };
     const text = writeLink(link);
-    expect(text).toBe("b=data/u/alice/x.ember&e=30&v=rz&d=All&s=Tracks:4&lv=particle&c=truth&only=Tracks:helix");
+    expect(text).toBe(
+      "b=data/u/alice/x.ember&e=30&v=rz&d=All&s=Tracks:4&lv=particle&c=truth&g=collision&only=Tracks:helix",
+    );
     expect(readLink(text)).toEqual(link);
     expect(readLink(writeLink({ bundle: "x.ember", event: 0 }))).toEqual({ bundle: "x.ember", event: 0 });
   });

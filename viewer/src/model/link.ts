@@ -1,6 +1,7 @@
 // The address of what is on screen, which the share button copies: data set, event, view, domain, selection and its
-// level, truth colours and the kind drawn alone. ui/App.tsx writes it as the page changes and reads it when the page
-// opens. Anyone can type or edit an address, so reading it checks every value, and drops one that is not well formed.
+// level, truth colours and their grouping, and the kind drawn alone. ui/App.tsx writes it as the page changes and reads
+// it when the page opens. Anyone can type or edit an address, so reading it checks every value, and drops one that is
+// not well formed.
 
 /** What an address names. Only `bundle` and `event` are always there. */
 export interface Link {
@@ -18,6 +19,8 @@ export interface Link {
   level?: string;
   /** c=truth: coloured by truth. */
   truth?: boolean;
+  /** g: the level the truth colours group by (model/truth.ts ColourLevel id; the caller checks it is one). */
+  group?: string;
   /** only: the kind drawn alone. */
   only?: string;
 }
@@ -40,6 +43,7 @@ export function readLink(text: string): Link | null {
     ...(table && selected !== undefined ? { selection: { table, row: selected } } : {}),
     ...(p.get("lv") ? { level: p.get("lv")! } : {}),
     ...(p.get("c") === "truth" ? { truth: true } : {}),
+    ...(p.get("g") ? { group: p.get("g")! } : {}),
     ...(p.get("only") ? { only: p.get("only")! } : {}),
   };
 }
@@ -55,6 +59,7 @@ export function writeLink(link: Link): string {
     ...(link.selection ? { s: `${link.selection.table}:${link.selection.row}` } : {}),
     ...(link.level ? { lv: link.level } : {}),
     ...(link.truth ? { c: "truth" } : {}),
+    ...(link.group ? { g: link.group } : {}),
     ...(link.only ? { only: link.only } : {}),
   });
   return String(p).replace(/%2F/g, "/").replace(/%3A/g, ":");

@@ -100,9 +100,20 @@ order is kept; a new selection only puts its particles first, and recolours the 
 
 **The level picker.** The key's "Group by" chooses the level that is one colour: generator particle (bit 2,
 StableDecayProducts), entered the calorimeter (bit 3, CaloBoundary), reconstructable (bit 10,
-ReconstructableFinalState) or b / c hadron (bits 8 and 9; the particles outside every b or c hadron stay grey). Each
-option gives the number of signal particles in that level in the event. The profile's level is the default. The level
-changes the colours only: the lineage, the pair and the cards keep the profile's.
+ReconstructableFinalState), parton jet (bit 7, PartonJets), b / c hadron (bits 8 and 9) or τ visible (bits 11 and 12).
+For the last three only the level's particles take colours: the rest stays grey and small. Each option gives the
+number of signal particles in that level in the event (its flags in its tooltip); a level with none in the event can
+not be chosen. The profile's level is the default. The level changes the colours only: the lineage, the pair and the
+cards keep the profile's. The link keeps it (`g=`).
+
+**Classes.** The picker's second group colours by class, one colour each, every class drawn alike (pile-up at full
+size too): collision (signal collision, pile-up), signal process / underlying event (bits 4 and 5, bit 6) and τ decay
+(bit 11, bit 12). A particle takes the class of its nearest ancestor (or itself) with one of the classes' bits, else
+"rest of the signal collision" (grey); pile-up is its own class whatever its bits (bit 6 is set on pile-up too). Hits
+and matched reco objects follow their particle as in every truth colouring, and a selection changes no colour. The key
+lists the classes of the particles that left hits or are matched, and hits without simulated energy as "no in-time
+truth" (noise, out-of-time pile-up), drawn small. Bits 4–6 are set only in samples made with a truth preset at DIGI
+(`applyTruthPreset`); bits 11–12 in every sample.
 
 **Before a selection.** In the truth colours the signal particles of the level with pT ≥ 1 GeV are drawn as dashed
 lines (the truth layer is otherwise drawn only for a selection). Pile-up stays off.

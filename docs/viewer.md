@@ -484,7 +484,9 @@ compared with.
     in the tracker, by pT among the particles its tracks are matched to; in Physics and All, by pT. The other signal
     particles are mid grey. Pile-up has its own warm grey and is drawn small;
   - **Group by** in the key chooses the level that is one colour: generator particle (the default, the profile's),
-    entered the calorimeter, reconstructable, or b / c hadron, each with its truth flag and its count in the event;
+    entered the calorimeter, reconstructable, parton jet, b / c hadron or τ visible, each with its count in the event;
+    or one colour per class: collision (signal, pile-up), signal process / underlying event, or τ decay (hadronic,
+    leptonic), every class drawn alike (docs/truth.md "Classes");
   - before anything is selected, the signal particles of that level with pT ≥ 1 GeV are drawn as dashed lines;
   - hits in which no exported particle left energy are small and faint: noise, out-of-time pile-up, or a particle
     that was not exported.
@@ -758,7 +760,7 @@ The address keeps what a link needs:
 - the part of the detector (`All` when a bundle that opens on one part shows everything);
 - a kind of object shown alone (`only`);
 - the selection, and the level shown (`lv`);
-- the truth colours (`c=truth`).
+- the truth colours (`c=truth`) and what they group by (`g`, e.g. `g=collision`).
 
 They are in the part after `#` (`#b=…&e=…`). A query (`?b=…&e=…`) is read too.
 

@@ -4,8 +4,11 @@ import type { DisplayLayer, Header } from "../io/format";
 import { PALETTES, type Legend } from "../render/colour";
 // The store sets the page's theme as it loads: a stand-in page (the tests run without a DOM).
 Object.assign(globalThis, { document: { documentElement: { dataset: {} } } });
-const { bundle, layerKey, legends, rawEvent, shown, theme, visible } = await import("./store");
+const { bundle, colourChoice, layerKey, legends, rawEvent, shown, theme, truthLevel, visible } = await import(
+  "./store"
+);
 const { layerEntries, modeKey, viewKey } = await import("./key");
+const { COLOUR_LEVELS } = await import("./truth");
 
 const layer = (table: string, extra: Partial<DisplayLayer> = {}) =>
   ({ table, repr: "markers", group: table, label: table, position: ["x", "x", "x"], ...extra }) as DisplayLayer;
@@ -102,5 +105,51 @@ describe("the view's key", () => {
     theme.value = "dark";
     expect(viewKey.value.map((g) => g.title)).toEqual(["candidate type (reco)", ""]);
     expect(viewKey.value[0].entries[1].colours).toEqual([PALETTES.dark.unassigned]);
+  });
+});
+
+describe("the truth group", () => {
+  /** Truth particles (`signal`: which are of the signal collision) owning hits, coloured by truth, with the truth
+   *  layer's legend as the scene gives it. */
+  function openTruth(signal: number[], items: { label: string; colour: string }[]) {
+    const display = [
+      layer("P", { truth: true, colourBy: "identity", particle: { flags: "flags", bit: 2, first: "signal" } }),
+      layer("Hit", { repr: "cells" }),
+    ];
+    const relations = { pHits: { from: "P", to: "Hit", weights: [], association: true } };
+    bundle.value = {
+      header: { display, tables: {}, relations } as unknown as Header,
+      events: [{}],
+      keep: () => {},
+    } as unknown as Bundle;
+    const columns = { x: new Float32Array(signal.length), flags: new Uint32Array(signal.length).fill(4) };
+    rawEvent.value = {
+      id: [1, 1, 1],
+      tables: { P: { n: signal.length, columns: { ...columns, signal: Uint8Array.from(signal) } } },
+      relations: {},
+    };
+    colourChoice.value = "truth";
+    legends.value = { "P:markers": { kind: "category", text: "", items } };
+  }
+  const labels = () => modeKey.value?.entries.map((e) => e.label);
+
+  it("by class, lists the classes drawn and no other grey", () => {
+    openTruth(
+      [1, 0],
+      [
+        { label: "signal collision", colour: "#D55E00" },
+        { label: "pile-up", colour: "#2E8FCB" },
+      ],
+    );
+    truthLevel.value = COLOUR_LEVELS.find((l) => l.id === "collision")!;
+    expect(labels()).toEqual(["signal collision", "pile-up", "no in-time truth, or not cleanly matched"]);
+  });
+
+  it("by particle, lists pile-up only in an event that has some", () => {
+    truthLevel.value = null;
+    openTruth([1, 1], []);
+    expect(labels()).toEqual(["other signal", "no simulated energy, or not cleanly matched"]);
+    openTruth([1, 0], []);
+    expect(labels()).toContain("pile-up");
   });
 });

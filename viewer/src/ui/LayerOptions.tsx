@@ -3,38 +3,11 @@
 import { type DisplayLayer } from "../io/format";
 import { colourBy, customColumns, RELATION } from "../model/custom";
 import { PALETTES, relatedColourText, type Legend } from "../render/colour";
-import {
-  activeMode,
-  bundle,
-  event,
-  layerKey,
-  modes,
-  pairView,
-  short,
-  shownLayer,
-  theme,
-  truthStatuses,
-} from "../model/store";
+import { layerEntries } from "../model/key";
+import { activeMode, bundle, event, layerKey, modes, shownLayer, theme } from "../model/store";
 import { ExprForm } from "./ExprForm";
+import { Swatch } from "./Key";
 import { Icon } from "./widgets";
-
-/** Whether the colour key at the bottom of the panel explains the layer's colours (particle type, generator
- *  particle, or the pair view), so its own legend would only repeat it. In the truth colours, a kind with no CMSSW
- *  associator is the key's one "faint" line (and its heading's word), not a line under each of its collections. */
-export function explainedByKey(d: DisplayLayer) {
-  const mode = activeMode.value;
-  if (mode === "layers" || d.context || colourBy.value[layerKey(d)]) return false;
-  if (pairView.value?.classes.has(d.table)) return true;
-  if (mode === "truth") {
-    const c = shownLayer(d).colourBy;
-    return (
-      d.table === modes.value.roots.truth ||
-      truthStatuses.value.get(d.table)?.kind === "none" ||
-      (c !== d.colourBy && c !== "none")
-    );
-  }
-  return !d.truth && (d.table === modes.value.roots.reco || shownLayer(d).colourBy !== d.colourBy);
-}
 
 /** Behind ⋯: what colours the layer (any column, custom ones too, or a related object), with its scale; a filter or a
  *  new column for its table; the table's custom columns. */
@@ -115,56 +88,19 @@ export function Options({ d, legend }: { d: DisplayLayer; legend?: Legend }) {
 }
 
 /** A layer's colours: its categories, or a few swatches and what they stand for, or a value ramp with its range (and
- *  its column, unless `full`: there the colour choice above names it). */
+ *  its column, unless `full`: there the colour choice above names it). A kind's own colour needs none: its row names
+ *  it. */
 export function Scale({ d, legend, full = false }: { d: DisplayLayer; legend: Legend; full?: boolean }) {
-  const pal = PALETTES[theme.value],
-    shownD = shownLayer(d, activeMode.value, colourBy.value);
-  // Identity colours (directly, or taken along a chain in the colour mode) show the identity palette.
-  const identity =
-    shownD.colourBy === "identity" || (typeof shownD.colourBy === "object" && shownD.colourBy !== d.colourBy);
-  if (shownD.fixedColour && (shownD.colourBy === undefined || shownD.colourBy === "none")) return null; // its kind's colour: nothing to explain
-  if (shownD.colourBy === "none")
-    return (
-      <>
-        <span class="dots">
-          <i style={{ background: pal.other }} />
-        </span>
-        {legend.kind === "category" ? legend.text : ""}
-      </>
-    );
-  if (legend.kind === "category" && legend.items && !legend.items.some((it) => it.ref))
-    return (
-      <span class="items">
-        {legend.items.map((it) => (
-          <span>
-            <i style={{ background: it.colour }} />
-            {it.label}
-          </span>
-        ))}
-      </span>
-    );
-  if (legend.kind === "category")
-    return (
-      <>
-        <span class="dots">
-          {(identity ? pal.identity : pal.categories).slice(0, 5).map((c) => (
-            <i style={{ background: c }} />
-          ))}
-        </span>
-        {legend.text}
-        {legend.note && `; ${legend.note}`}
-      </>
-    );
+  const shownD = shownLayer(d, activeMode.value, colourBy.value);
+  if (shownD.fixedColour && (shownD.colourBy === undefined || shownD.colourBy === "none")) return null;
   return (
-    <>
-      <span class="ramp" style={{ background: `linear-gradient(to right, ${pal.ramps[legend.palette].join(",")})` }} />
-      <span>
-        {legend.column && !full ? `${legend.column} ` : ""}
-        {legend.range.scale === "log"
-          ? `${short(10 ** legend.range.lo)} – ${short(10 ** legend.range.hi)}`
-          : `${short(legend.range.lo)} – ${short(legend.range.hi)}`}{" "}
-        {legend.unit}
-      </span>
-    </>
+    <span class="items">
+      {layerEntries(d, legend, PALETTES[theme.value], !full).map((e) => (
+        <span>
+          <Swatch e={e} />
+          {e.label}
+        </span>
+      ))}
+    </span>
   );
 }

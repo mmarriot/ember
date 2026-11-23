@@ -75,10 +75,10 @@ export const Icon = ({ name }: { name: keyof typeof PATHS }) => (
   </svg>
 );
 
-export function Modal({ title, children }: { title: string; children: ComponentChildren }) {
+export function Modal({ title, wide, children }: { title: string; wide?: boolean; children: ComponentChildren }) {
   return (
     <div class="backdrop" onClick={() => (dialog.value = null)}>
-      <div class="modal" role="dialog" aria-label={title} onClick={(e) => e.stopPropagation()}>
+      <div class={wide ? "modal wide" : "modal"} role="dialog" aria-label={title} onClick={(e) => e.stopPropagation()}>
         <header>
           <h2>{title}</h2>
           <button class="icon-button" title="Close (Esc)" onClick={() => (dialog.value = null)}>

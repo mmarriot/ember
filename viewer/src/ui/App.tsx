@@ -208,7 +208,8 @@ function writeAddress() {
 /** The keyboard shortcuts (the help dialog lists them). Not while typing in a field, nor with Ctrl, Cmd or Alt. */
 function onKey(e: KeyboardEvent) {
   if (e.key === "Escape" && popover.value) return void (popover.value = null); // also from a control in it (a cut's slider)
-  if (["SELECT", "INPUT"].includes((e.target as HTMLElement).tagName) || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (["SELECT", "INPUT", "TEXTAREA"].includes((e.target as HTMLElement).tagName) || e.ctrlKey || e.metaKey || e.altKey)
+    return;
   if (e.key === "p" || e.key === "P") return toggleTour();
   stopTour(); // any other key takes over from the tour
 

@@ -1,23 +1,11 @@
-"""Derived columns: columns a profile's `derive` entries add to a table (docs/profiles.md, "derive").
+"""Derived columns: the columns a profile's `derive` entries add to a table. Each kind is named by its key;
+docs/profiles.md ("derive") describes lookup, impact, flight, rowIndex, xyFromEtaPhiZ, momentum, bits, cell (cells.py),
+neighbourDistance, gather (which needs the event's relations) and split (converter.py), and three more are only here:
 
-Kinds of derive, by the key that names them:
-  lookup             columns copied from the row of another table (often a per-run table) named by an index column,
-                     or from one fixed `row` of it (e.g. the leading primary vertex); with `missing`, only where the
-                     table lacks the column or the value is NaN
-  impact             a track's transverse and longitudinal impact parameters to a point (one row of another table)
-  flight             a secondary vertex's flight from a primary one: distances, their significances, pointing angle
-  rowIndex           the row's number in the event, before cuts
-  parentRow          the row of the parent, for children stored in their parents' order with a count on each parent
-                     (the hits of tracks), so that the children can be split and still name their parent
-  nanUnless          NaN in columns where a condition fails (a track's time where it has none)
-  timeAtOrigin       a hit's time minus the light's flight from the origin to it (comparable to tracks' t0)
-  xyFromEtaPhiZ      x and y from eta, phi and z
-  momentum           px, py and pz from pt, eta and phi (or pt and phi: pz 0, e.g. missing transverse momentum)
-  bits               integer columns cut out of the bits of another (e.g. the subdetector of a DetId)
-  cell               the size of calorimeter cells from their DetId and position (cells.py)
-  neighbourDistance  scale x the distance to the k-th nearest other row (a cell size estimated from the hits' spacing)
-  gather             columns copied from the first row reached through a relation (needs the event's relations)
-  split              (converter.py) new tables of the rows of a table that pass conditions, e.g. one per subdetector
+  parentRow     the row of the parent, for children stored in their parents' order with a count on each parent (the
+                hits of tracks), so that the children can be split and still name their parent
+  nanUnless     NaN in columns where a condition fails (a track's time where it has none)
+  timeAtOrigin  a hit's time minus the light's flight from the origin to it (comparable to tracks' t0)
 
 Tables here are an event's tables as the converter holds them: {name: (rows, {column: array})}.
 """

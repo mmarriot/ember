@@ -1,17 +1,14 @@
-"""From a reconstruction (EDM) file to the NanoAOD the converter reads: ember writes a cmsRun configuration of its own
-(cmsrun/) from the modules of the user's release, and runs it:
-
-    ember_cfg.py   the configuration, which the user can keep and run again (cmsRun ember_cfg.py)
-    ember_nano.root  its output, then converted
+"""From a reconstruction (EDM) file to the NanoAOD the converter reads: ember writes its own cmsRun configuration,
+ember_cfg.py (cmsrun/), from the modules of the user's release, and runs it to write ember_nano.root.
 
 The job needs the era, geometry and conditions the file was made with. The file records its global tags and, for
-Phase 2, the list of geometry files (in its stored parameter sets); the era is not recorded anywhere. Phase 2: the era
-is the release's default for that geometry (Configuration.PyReleaseValidation.upgradeWorkflowComponents). Run 3: the
-geometry comes from the conditions, and the era from the year (of the run number for data, of the global tag for
-simulation). Each can be given instead (--era, --geometry, --conditions).
+Phase 2, its geometry files (in its stored parameter sets), but not its era. Phase 2: the era is the release's default
+for that geometry (Configuration.PyReleaseValidation.upgradeWorkflowComponents). Run 3: the geometry comes from the
+conditions, and the era from the year (of the run for data, of the global tag for simulation). Each can be given
+instead (--era, --geometry, --conditions).
 
-A MiniAOD file is turned into standard NanoAOD (cmsDriver.py -s NANO), which the `nano` profile draws. With `pat`,
-a reconstruction file gets PAT and standard NanoAOD too (cmsDriver.py -s PAT,NANO), with ember's tables appended.
+A MiniAOD file is turned into standard NanoAOD (cmsDriver.py -s NANO), which the `nano` profile draws. With `pat`, a
+reconstruction file gets PAT and standard NanoAOD too (cmsDriver.py -s PAT,NANO), with ember's tables appended.
 """
 
 import json
@@ -26,10 +23,10 @@ from . import Problem, __version__, cmsrun
 
 OUTPUT = cmsrun.OUTPUT
 
-# The first run of each year of Run 3 data (the era of a data file follows its run number), and the last run known to
-# be of the last year listed. The release records no such table: the year starts are those of each year's first
-# runs, consistent with the runs of the release's data RelVals (Configuration/PyReleaseValidation relval_steps.py:
-# 2022A 353015 ... 2025 UPC 400387). A later run gets the last era with a warning: 2026 has its own era (Run3_2026).
+# The first run of each year of Run 3 data (a data file's era follows its run number), and the last run known to be of
+# the last year listed. The release records no such table: these agree with the runs of its data RelVals
+# (Configuration/PyReleaseValidation relval_steps.py: 2022A 353015 ... 2025 UPC 400387). A later run gets the last
+# era, with a warning (2026 has its own era, Run3_2026).
 RUN3_YEARS = [(2022, 352319), (2023, 365739), (2024, 378238), (2025, 390000)]
 RUN3_LAST_KNOWN = 400387
 
@@ -88,9 +85,9 @@ def unreadable(inv, prefix=(), env=None):
 
 
 def cmssw_output(command, env, what, data=None):
-    """The output of a command run in the CMSSW environment (`data`: JSON on its input); a Problem that says to run
-    cmsenv if it fails: CMSSW_BASE set by one shell and another python3 or PATH in this one (an LCG view sourced
-    after cmsenv) break it in ways whose own messages do not say so."""
+    """The output of a command run in the CMSSW environment (`data`: JSON on its input). If it fails, a Problem that
+    says to run cmsenv: a broken environment (e.g. an LCG view sourced after cmsenv) fails in ways whose own messages
+    do not say so."""
     try:
         result = subprocess.run(
             command, input=None if data is None else json.dumps(data), capture_output=True, text=True, env=env,
@@ -124,8 +121,7 @@ print(json.dumps({
 
 def truth_maps(inv, prefix=(), env=None):
     """{association table label: (module, instance) of its map} of the release (cmsrun.config), for an input with the
-    truth graph; {} otherwise. Cost: a python start and the import of the release's truth configuration, 0.2 s
-    with a warm file cache (more on a cold CVMFS cache)."""
+    truth graph; {} otherwise. Cost: about 0.2 s (a python start and an import) with a warm CVMFS cache."""
     if not inv.has("truthLogicalGraphProducer"):
         return {}
     out = cmssw_output([*prefix, "python3", "-c", _TRUTH_MAPS], env, "reading the release's truth tables")
@@ -193,9 +189,9 @@ print(json.dumps(out))
 
 
 def _environment(cmssw):
-    """How to run a command in a CMSSW environment: (prefix of the command line, environment). `cmssw`: a CMSSW
-    area to set up for it (cron jobs: the caller's own environment is not passed on, as another python's library
-    paths would break cmsRun); None: this process's environment, which must be one."""
+    """How to run a command in a CMSSW environment: (prefix of the command line, environment). `cmssw`: a CMSSW area
+    to set up (cron jobs; the caller's environment is not passed on, as another python's library paths would break
+    cmsRun); None: this process's environment, which must be a CMSSW one."""
     if cmssw is None:
         if not os.environ.get("CMSSW_BASE"):
             raise Problem(
@@ -380,10 +376,7 @@ def export(
     associators=True,
 ):
     """Write the cmsRun configuration for the EDM files `inputs` in `workdir` (a copy to `config` if given), run it
-    there, and return the NanoAOD file it wrote. `pat`: for a reconstruction file, the physics objects of PAT and
-    standard NanoAOD instead of ember's own tables of the RECO collections (cmsrun.config); `associators`: run the
-    truth associators when the input holds no maps of its own (about 1 s per event of wall time at 200 pileup, 3 s of
-    CPU). When the job fails, the
+    there, and return the NanoAOD file it wrote. `pat` and `associators`: see cmsrun.config. When the job fails, the
     Problem raised shows the end of the job's output and where all of it was kept."""
     prefix, env = _environment(cmssw)
     inv = inventory(inputs[0])

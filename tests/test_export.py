@@ -250,16 +250,20 @@ RELEASE = {
 }  # fmt: skip
 
 
-def configuration(settings, branches, release=RELEASE):
+PHASE2_SIMULATION = cmsrun.Settings(True, False, "Phase2C22I13M9", "ExtendedRun4D104", "auto:phase2_realistic_T35")
+RUN3_DATA = cmsrun.Settings(False, True, "Run3_2025", "", "161X_dataRun3_Prompt_frozen_v1")
+
+
+def configuration(settings, branches, release=RELEASE, **options):
     text, notes = cmsrun.config(
-        settings, ["file:/in/step3.root"], 5, cmsrun.Inventory(cmsrun.products(branches)), release
+        settings, ["file:/in/step3.root"], 5, cmsrun.Inventory(cmsrun.products(branches)), release, **options
     )
     ast.parse(text)  # valid Python
     return text, notes
 
 
 def test_the_phase2_configuration_has_what_the_input_and_the_release_have():
-    s = cmsrun.Settings(True, False, "Phase2C22I13M9", "ExtendedRun4D104", "auto:phase2_realistic_T35")
+    s = PHASE2_SIMULATION
     text, notes = configuration(s, PHASE2)
     assert 'cms.Process("EMBER", Phase2C22I13M9)' in text and "GeometryExtendedRun4D104Reco_cff" in text
     assert "PhysicsTools.TruthInfo.recHitTable_cfi" in text and "TICLGeom_cff" in text
@@ -286,7 +290,7 @@ def test_the_phase2_configuration_has_what_the_input_and_the_release_have():
 def test_identification_impact_and_flight_columns():
     """e/gamma ID (HGCal's shower shapes for the HGCal objects), what the converter needs for impact parameters and
     flight distances, and the muons' and jets' own starting points."""
-    s = cmsrun.Settings(True, False, "Phase2C22I13M9", "ExtendedRun4D104", "auto:phase2_realistic_T35")
+    s = PHASE2_SIMULATION
     hgcal = [f"HGCRecHits_HGCalRecHit_{h}RecHits_RECO." for h in ("HGCHEF", "HGCHEB")]  # the value maps read all three
     text, notes = configuration(s, PHASE2 + hgcal + ["recoPhotons_photonsHGC__RECO."])
 
@@ -321,7 +325,7 @@ def test_identification_impact_and_flight_columns():
 
 
 def test_the_whole_detector_is_written_from_what_the_release_and_the_input_have():
-    s = cmsrun.Settings(True, False, "Phase2C22I13M9", "ExtendedRun4D104", "auto:phase2_realistic_T35")
+    s = PHASE2_SIMULATION
     text, notes = configuration(s, PHASE2)
     # PF candidates with their PUPPI weight and the rows of what they were made from (references' keys)
     pf = text.split('name=cms.string("PFCandidates")')[1].split("table(")[0]
@@ -352,7 +356,7 @@ def test_the_whole_detector_is_written_from_what_the_release_and_the_input_have(
     assert "PFCandidates" not in text and "leadCandIdx" not in text
     assert "this release has no SimplePFCandidateFlatTableProducer" in notes
     # with PAT, the PF candidates point at no physics object (the PAT ones are in another order)
-    text, _ = cmsrun.config(s, ["file:/in.root"], 5, cmsrun.Inventory(cmsrun.products(PHASE2)), RELEASE, pat=True)
+    text, _ = configuration(s, PHASE2, pat=True)
     assert "PFCandidates" in text and "trackIdx=ref(" in text and "muonIdx" not in text and "electronIdx" not in text
 
 
@@ -379,7 +383,7 @@ FULL = [
 
 
 def test_each_cmssw_branch_s_producers_are_used_once_the_release_has_them():
-    s = cmsrun.Settings(True, False, "Phase2C22I13M9", "ExtendedRun4D104", "auto:phase2_realistic_T35")
+    s = PHASE2_SIMULATION
     plugins = set().union(*cmsrun.BRANCHES.values())
     text, notes = configuration(s, PHASE2 + FULL, RELEASE | plugins)
     assert not [n for n in notes if "cms-merge-topic" in n and "cluster" not in n and "truth" not in n]
@@ -435,7 +439,7 @@ def test_each_cmssw_branch_s_producers_are_used_once_the_release_has_them():
 
 
 def test_the_run3_configuration_remakes_the_pf_rechits_and_has_no_hgcal():
-    s = cmsrun.Settings(False, True, "Run3_2025", "", "161X_dataRun3_Prompt_frozen_v1")
+    s = RUN3_DATA
     text, notes = configuration(s, RUN3)
     assert "GeometryRecoDB_cff" in text and "TICLGeom" not in text and "recHitTable" not in text
     assert '"particleFlowRecHitPS"' in text and "Reconstruction_Data_cff" in text
@@ -538,17 +542,16 @@ def test_a_failure_keeps_the_job_output_where_it_survives(tools, monkeypatch, tm
 
 
 def test_products_the_release_cannot_read_are_dropped_on_input_with_nothing_else():
-    s = cmsrun.Settings(True, False, "Phase2C22I13M9", "ExtendedRun4D104", "auto:phase2_realistic_T35")
+    s = PHASE2_SIMULATION
     drop = cmsrun.products(["ticlInterpretationHypotheses_ticlTracksterInterpretations_hypotheses_RECO."])
-    text, notes = cmsrun.config(s, ["file:/in.root"], 5, cmsrun.Inventory(cmsrun.products(PHASE2)), RELEASE, drop=drop)
-    ast.parse(text)
+    text, notes = configuration(s, PHASE2, drop=drop)
     assert '"drop ticlInterpretationHypotheses_ticlTracksterInterpretations_hypotheses_RECO",' in text
     assert "dropDescendantsOfDroppedBranches = cms.untracked.bool(False)" in text  # PF and muons descend from TICL
     assert any("no dictionary" in n for n in notes)
 
 
 def test_a_phase2_input_without_tracksters_still_gets_its_tracks_and_layer_clusters():
-    s = cmsrun.Settings(True, False, "Phase2C22I13M9", "ExtendedRun4D104", "auto:phase2_realistic_T35")
+    s = PHASE2_SIMULATION
     no_ticl = [b for b in PHASE2 if not b.startswith("ticlTracksters_")]
     text, notes = configuration(s, no_ticl, RELEASE | cmsrun.CLUSTER_HITS)
     assert "TICL tracksters and candidates: the input has none" in notes
@@ -561,7 +564,7 @@ def test_a_phase2_input_without_tracksters_still_gets_its_tracks_and_layer_clust
 
 
 def test_an_aod_without_the_rechits_to_remake_pf_rechits_gets_a_note():
-    s = cmsrun.Settings(False, True, "Run3_2025", "", "161X_dataRun3_Prompt_frozen_v1")
+    s = RUN3_DATA
     aod = [b for b in RUN3 if "RecHitsSorted" not in b]
     text, notes = configuration(s, aod)
     assert "pfRecHitTable" not in text and "Reconstruction_Data_cff" not in text
@@ -578,10 +581,8 @@ def test_a_broken_cmssw_environment_says_to_run_cmsenv(monkeypatch, tmp_path):
 
 
 def test_with_pat_ember_appends_its_tables_but_its_physics_objects_to_the_standard_configuration():
-    s = cmsrun.Settings(True, False, "Phase2C22I13M9", "ExtendedRun4D104", "auto:phase2_realistic_T35")
-    text, _ = cmsrun.config(
-        s, ["file:/in.root"], 5, cmsrun.Inventory(cmsrun.products(PHASE2)), RELEASE | cmsrun.CLUSTER_HITS, pat=True
-    )
+    s = PHASE2_SIMULATION
+    text, _ = configuration(s, PHASE2, RELEASE | cmsrun.CLUSTER_HITS, pat=True)
     ast.parse("import FWCore.ParameterSet.Config as cms\nprocess = None\n" + text)
     assert 'cms.Process("EMBER"' not in text and "process.source =" not in text and "process.output =" not in text
     # the PF rechits it remakes (HF, HO here) come from the reconstruction's configuration without redefining PAT's
@@ -593,7 +594,7 @@ def test_with_pat_ember_appends_its_tables_but_its_physics_objects_to_the_standa
     assert 'process.NANOAODSIMoutput.outputCommands.append("keep nanoaodFlatTable_*_*_EMBER")' in text
     assert "process.schedule.append(process.emberTablesPath)" in text
     data = cmsrun.Settings(False, True, "Run3_2025", "", "GT")
-    text, _ = cmsrun.config(data, ["file:/in.root"], 5, cmsrun.Inventory(cmsrun.products(RUN3)), RELEASE, pat=True)
+    text, _ = configuration(data, RUN3, pat=True)
     assert "process.NANOAODoutput.outputCommands" in text
 
 
@@ -634,7 +635,7 @@ def test_the_release_truth_maps_are_read_only_for_an_input_with_the_graph(monkey
 
 
 def test_the_truth_tables_are_written_when_the_release_and_the_input_have_them():
-    s = cmsrun.Settings(True, False, "Phase2C22I13M9", "ExtendedRun4D104", "auto:phase2_realistic_T35")
+    s = PHASE2_SIMULATION
     maps = {
         "truthGraphGeneralTracksToTruthTable": ("allTrackToTruthBranchAssociators", "generalTracksRecoToTruthAdaptiveNominal"),
         "truthGraphTiclCandidateToTruthTable": ("truthBranchTracksterAssociators", "ticlCandidateRecoToTruthAdaptiveNominal"),
@@ -642,11 +643,7 @@ def test_the_truth_tables_are_written_when_the_release_and_the_input_have_them()
     }  # fmt: skip
 
     def truth(branches, release=RELEASE | TRUTH, **options):
-        text, notes = cmsrun.config(
-            s, ["file:/in.root"], 5, cmsrun.Inventory(cmsrun.products(branches)), release, truth_maps=maps, **options
-        )
-        ast.parse(text)
-        return text, notes
+        return configuration(s, branches, release, truth_maps=maps, **options)
 
     text, notes = truth(PHASE2)
     assert "truth: the input has no truth graph (truthLogicalGraphProducer)" in notes and "truthGraph" not in text
@@ -681,16 +678,10 @@ def test_the_truth_tables_are_written_when_the_release_and_the_input_have_them()
     assert "keepVerticesMatchedBy=[]" in text and "Vertices" not in text.split("own: the tables read them")[1]
     assert any("TiclCandidateToTruth: the input's own maps do not have them" in n for n in notes)
     # a stored map of a class this release cannot read is dropped on input, so not read
-    text, notes = cmsrun.config(
-        s, ["file:/in.root"], 5, cmsrun.Inventory(cmsrun.products([*PHASE2, *GRAPH, stored])), RELEASE | TRUTH,
-        truth_maps=maps, drop=cmsrun.products([stored]),
-    )  # fmt: skip
+    text, notes = truth([*PHASE2, *GRAPH, stored], drop=cmsrun.products([stored]))
     assert "truthGraphNanoAssociatorsTask" in text
     # a release whose truth tables name no association tables
-    text, notes = cmsrun.config(
-        s, ["file:/in.root"], 5, cmsrun.Inventory(cmsrun.products([*PHASE2, *GRAPH])), RELEASE | TRUTH, truth_maps={}
-    )
-    ast.parse(text)
+    text, notes = configuration(s, [*PHASE2, *GRAPH], RELEASE | TRUTH, truth_maps={})
     assert "truthGraphTable" in text and "ToTruthTable" not in text and "truthGraphNanoAssociatorsTask" not in text
     assert any("name no association tables" in n for n in notes)
     run3 = cmsrun.Settings(False, True, "Run3_2025", "", "GT")

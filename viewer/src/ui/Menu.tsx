@@ -12,7 +12,9 @@ import {
   focusHistory,
   highlight,
   labelsOn,
+  rest,
   selection,
+  setRest,
   stepEvent,
   stepFocusLevel,
   theme,
@@ -83,6 +85,7 @@ export function Menu() {
           off: !anchor.value && !focusHistory.value.length,
           run: back,
         },
+        { label: `Others around it: ${rest.value} (next)`, keys: "H", run: () => setRest() },
         { label: "One level down", keys: "↓", off: !levels, run: () => stepFocusLevel(1) },
         { label: "One level up", keys: "↑", off: !levels, run: () => stepFocusLevel(-1) },
         {

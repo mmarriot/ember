@@ -9,7 +9,6 @@ import {
   commonFields,
   CULL,
   drawBehind,
-  FADE_GLSL,
   interleave,
   type Layer,
   type LayerInput,
@@ -31,7 +30,7 @@ export function cells(input: LayerInput): Layer {
   g.setAttribute("position", base.getAttribute("position"));
   const material = new THREE.ShaderMaterial({
     // A background layer is thinner, so cells drawn at the same place by another layer enclose it and show.
-    uniforms: { ...baseUniforms(input.pal), uThick: { value: d.context ? 0.1 : 0.3 } },
+    uniforms: { ...baseUniforms(input.pal, input.d.context), uThick: { value: d.context ? 0.1 : 0.3 } },
     vertexShader: /* glsl */ `
       attribute float ix, iy, iz, isize, isel, ipsel, icut, iT;
       attribute vec3 icol;
@@ -51,9 +50,10 @@ export function cells(input: LayerInput): Layer {
         // offset per cell decides which is in front. 3 steps of 2e-7 in NDC stay below the depth gap between layers
         // 1 cm apart up to ~1000 cm away.
         gl_Position.z -= gl_Position.w * 2e-7 * float(gl_InstanceID % 4);
+        gl_Position = inFront(gl_Position, s);
         // The colour is A * light * icol + B: the light comes per face in the fragment shader (12 shared corners per
         // cell, no normals), the flash, selection fade and replay fade here: mix(fade(mix(icol * light, 1, f), s), bg, g).
-        float f = uFlash * p, k = ${FADE_GLSL} * selActive() * (1.0 - s), g = faded();
+        float f = uFlash * p, k = uRest * selActive() * (1.0 - s), g = faded();
         vCol = icol;
         vA = (1.0 - g) * (1.0 - k) * (1.0 - f) * (1.0 - PIN * gPin);
         vB = ((1.0 - g) * ((1.0 - k) * vec3(f) + k * uBg) + g * uBg) * (1.0 - PIN * gPin) + PIN * gPin * uRim; // the selected cell: as fade()
@@ -150,7 +150,7 @@ function solidCells(
   g.setAttribute("position", base.getAttribute("position"));
   g.setAttribute("normal", base.getAttribute("normal"));
   const material = new THREE.ShaderMaterial({
-    uniforms: { ...baseUniforms(input.pal), uDisc: { value: disc ? 1 : 0 } },
+    uniforms: { ...baseUniforms(input.pal, input.d.context), uDisc: { value: disc ? 1 : 0 } },
     vertexShader: /* glsl */ `
       attribute float isel, ipsel, icut, iT;
       attribute vec3 icol;
@@ -164,7 +164,7 @@ function solidCells(
         vec3 c, nrm;
         ${body}
         if (uProj > 0.5) c = projectRZ(c, s * 2.0, ipos.y >= 0.0 ? 1.0 : -1.0); // one side of the axis per object
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(c, 1.0);
+        gl_Position = inFront(projectionMatrix * modelViewMatrix * vec4(c, 1.0), s);
         float light = uProj > 0.5 ? 1.0 : 0.7 + 0.3 * abs(dot(normalize(nrm), normalize(vec3(0.4, 0.7, 0.6))));
         vCol = mix(fade(mix(icol * light, vec3(1.0), uFlash * p), s), uBg, faded());
       }`,

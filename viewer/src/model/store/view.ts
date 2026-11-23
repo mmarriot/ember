@@ -10,6 +10,23 @@ import { drawsLayer, sharedDomains } from "../domains";
 import { bundle } from "./data";
 import { layerKey } from "./names";
 
+// The user's choices remembered in this browser when storage is available (not always, e.g. in a private window),
+// under keys that keep their "evd." prefix: see model/library.ts.
+function remembered(key: string) {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+function remember(key: string, value: string) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    /* not remembered */
+  }
+}
+
 // ---- What is drawn
 
 /** Per display layer key: ticked in the side panel. Set to the bundle's defaults (`visible`) when it opens. */
@@ -99,6 +116,19 @@ export const legends = signal<Record<string, Legend>>({});
 /** Per display layer key: how many objects pass the cuts (written by control/scene.ts). */
 export const shown = signal<Record<string, number>>({});
 
+/** How the rest of the event is drawn while something is selected: dimmed (readable around it), faint (a trace of
+ *  it) or hidden (only the selection, its parts and its truth). The user's choice, remembered in this browser like the
+ *  theme; render/layers/layer.ts REST_FADE says how far each fades. */
+export type Rest = "dim" | "faint" | "hidden";
+export const RESTS: Rest[] = ["dim", "faint", "hidden"];
+const savedRest = remembered("evd.rest");
+export const rest = signal<Rest>(RESTS.includes(savedRest as Rest) ? (savedRest as Rest) : "faint");
+/** Choose how the rest is drawn (`to`), or the next way after the current one (key H). */
+export function setRest(to?: Rest) {
+  rest.value = to ?? RESTS[(RESTS.indexOf(rest.value) + 1) % RESTS.length];
+  remember("evd.rest", rest.value);
+}
+
 /** The camera preset. */
 export const view = signal<ViewName>("3d");
 /** Labels on the leading objects (layer hint `labels`) and on the focus (key L). */
@@ -125,25 +155,13 @@ export function toast(text: string, kind: "info" | "error" = "info") {
   setTimeout(() => (toasts.value = toasts.value.filter((t) => t.id !== id)), kind === "error" ? 8000 : 2500);
 }
 
-// The colour theme: dark unless the user picked light before (remembered in this browser when storage is available,
-// under a key that keeps its "evd." prefix: see model/library.ts).
-const savedTheme = (() => {
-  try {
-    return localStorage.getItem("evd.theme");
-  } catch {
-    return null;
-  }
-})();
-export const theme = signal<ThemeName>(savedTheme === "light" ? "light" : "dark");
+// The colour theme: dark unless the user picked light before.
+export const theme = signal<ThemeName>(remembered("evd.theme") === "light" ? "light" : "dark");
 // The page's CSS follows the theme through <html data-theme>.
 effect(() => {
   document.documentElement.dataset.theme = theme.value;
 });
 export function toggleTheme() {
   theme.value = theme.value === "dark" ? "light" : "dark";
-  try {
-    localStorage.setItem("evd.theme", theme.value);
-  } catch {
-    /* not remembered */
-  }
+  remember("evd.theme", theme.value);
 }

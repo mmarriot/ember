@@ -434,7 +434,23 @@ async function checkObjectRows(page, h, fail, shot, tag) {
     fail(`a click on a ${d.label} row did not select it (s=${s})`);
   if (!marked?.includes("selected")) fail("the selected object's row is not marked");
   await shot("1_rows");
+  // With a selection, the view offers how the rest of the event is drawn; H steps through dim, faint and hidden.
+  const others = () =>
+    page
+      .locator(".viewchips .rest button.on")
+      .innerText({ timeout: 5000 })
+      .catch(() => "");
+  const was = await others();
+  await page.keyboard.press("h");
+  await page.waitForTimeout(600);
+  const now = await others();
+  log(`${tag}: the rest of the event: ${was || "no choice shown"} -> H -> ${now}`);
+  if (!was) fail("no choice of how the rest of the event is drawn while something is selected");
+  else if (now === was) fail("H did not change how the rest of the event is drawn");
+  for (let i = 0; i < 2; i++) await page.keyboard.press("h"); // back to the level it had
   await page.keyboard.press("Escape");
+  await page.waitForTimeout(600);
+  if (await page.locator(".viewchips .rest").count()) fail("the rest's choice stays without a selection");
 }
 
 /** A selection draws its objects that a layer's filter hides (cuts still apply), and its levels drawn as lines (e.g. a

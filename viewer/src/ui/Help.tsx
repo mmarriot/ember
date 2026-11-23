@@ -68,6 +68,11 @@ export function HelpDialog() {
           "Next / previous object of the selected kind, largest first (e.g. the next jet, the next track); with nothing selected, the leading object",
         ],
         [
+          ["H"],
+          "Others: Dim | Faint | Hide, on the view while something is selected",
+          "How the rest of the event is drawn around the selection: dimmed, as a faint trace, or not at all (for a picture of just the selection)",
+        ],
+        [
           ["Esc"],
           "click on empty space",
           "Leave the object; Esc also shows the whole event (and closes this dialog or the menu)",

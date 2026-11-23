@@ -107,16 +107,22 @@ export interface LayerInput {
 /** Three columns, one value per object each (x, y, z). */
 export type Vec3s = [Float32Array, Float32Array, Float32Array];
 
-/** How far towards the background everything unrelated to a selection fades (0..1): one level for every layer, and
- *  for what is drawn beside the layers (cone wedges, arrow heads, the detector outlines), so nothing out-shouts it. */
-export const FADE = 0.85;
-/** FADE as a GLSL float literal. */
-export const FADE_GLSL = FADE.toFixed(2);
+/** How far towards the background everything unrelated to a selection fades (0..1), per choice of the user
+ *  (model/store view.ts `rest`): dimmed, it stays readable around the selection; faint, a trace of it is left; hidden
+ *  (1), it is not drawn at all (see `gone` in SHADER_COMMON). One level for every layer and for what is drawn beside
+ *  them (cone wedges, arrow heads), so nothing out-shouts the selection. */
+export const REST_FADE = { dim: 0.85, faint: 0.95, hidden: 1 } as const;
+/** The level of the rest, as the uniform `uRest` of every layer's material: one object shared by them all, so setting
+ *  its value changes every layer at the next frame, with no per-layer call. Context layers (the detector drawn
+ *  behind the event) and the detector outlines keep the dim level: they are the detector, not the event. */
+export const restUniform = { value: REST_FADE.dim as number };
+/** The dim level as a GLSL float literal, for the detector outlines. */
+export const FADE_GLSL = REST_FADE.dim.toFixed(2);
 
 /** GLSL shared by the shader-drawn layers: the uniforms every one of them has (see baseUniforms) and small helpers for
  *  the rho-z projection, the selection fade and the replay. */
 export const SHADER_COMMON = /* glsl */ `
-uniform float uProj, uAct0, uAct1, uMix, uCut, uClock, uFlash, uRetire, uPin0, uPin1;
+uniform float uProj, uAct0, uAct1, uMix, uCut, uClock, uFlash, uRetire, uPin0, uPin1, uRest;
 uniform vec3 uBg, uRim, uGrey, uFade;
 vec3 projectRZ(vec3 c, float depth) { return vec3(c.z, length(c.xy) * (c.y >= 0.0 ? 1.0 : -1.0), depth); }
 // A line keeps one side of the axis (the side of its end, \`side\`), so a line crossing y = 0 does not jump across it.
@@ -129,7 +135,16 @@ float selected(float before, float now) { return mix(before, now, uMix); }
 // line drawn as a ribbon is three times as wide and a marker larger.
 float gPin = 0.0;
 const float PIN = 0.55;
-vec3 fade(vec3 col, float s) { return mix(mix(col, uBg, ${FADE_GLSL} * selActive() * (1.0 - s)), uRim, PIN * gPin); }
+vec3 fade(vec3 col, float s) { return mix(mix(col, uBg, uRest * selActive() * (1.0 - s)), uRim, PIN * gPin); }
+// With the rest hidden (uRest 1), what is not the selection's is not drawn, from half way through the cross-fade on.
+bool gone(float s) { return uRest > 0.99 && selActive() * (1.0 - s) > 0.5 && gPin < 0.5; }
+// While something is selected, its objects are drawn in front of the rest: the selection's objects take the near half
+// of the depth range and the rest the far half, each keeping its own order, so a faded block nearer the camera never
+// covers the selection. \`p\`: the final clip-space position.
+vec4 inFront(vec4 p, float s) {
+  if (selActive() > 0.5) p.z = 0.5 * p.z + (s > 0.5 ? -0.5 : 0.5) * p.w;
+  return p;
+}
 // The halo pass (see halo): the selected object again, wider by HALO_PX px, behind it.
 #ifdef HALO
 const float HALO_PX = 6.0;
@@ -142,8 +157,8 @@ float remaining() { return uClock > 1e29 ? 1.0 : clamp(1.0 - (uClock - uRetire) 
 // Replay: how far the layer has faded towards the background (uFade: from, to, amount; none outside a replay).
 float faded() { return uClock > 1e29 ? 0.0 : uFade.z * smoothstep(uFade.x, uFade.y, uClock); }`;
 
-/** The first lines of a vertex shader's main(): an instance that is cut away, not yet there in a replay, or retired
- *  is moved outside the clip volume, so it draws nothing. Instances uPin0 <= id < uPin1 belong to the pinned object
+/** The first lines of a vertex shader's main(): an instance that is cut away, not yet there in a replay, retired, or
+ *  hidden with the rest of the event (`gone`) is moved outside the clip volume, so it draws nothing. Instances uPin0 <= id < uPin1 belong to the pinned object
  *  (the selected one), which is drawn whatever the cut. `id`: the instance's number (markers: the vertex's). */
 export const CULL = (id = "gl_InstanceID") => `
   #ifdef HALO
@@ -152,7 +167,7 @@ export const CULL = (id = "gl_InstanceID") => `
   float pinned = float(${id}) >= uPin0 && float(${id}) < uPin1 ? 1.0 : 0.0;
   #endif
   gPin = pinned;
-  if ((icut < uCut && pinned < 0.5) || iT > uClock || remaining() <= 0.0) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }`;
+  if ((icut < uCut && pinned < 0.5) || iT > uClock || remaining() <= 0.0 || gone(selected(ipsel, isel))) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }`;
 
 /** Fragment shader of lines that may be truth: simulation truth (uniform uDash) is dashed, 4 cm on and 3 cm off along
  *  the line (varying vS, in cm), and dimmer than reconstructed tracks, so it never looks like one. */
@@ -168,8 +183,10 @@ export const rawColour = (c: number | string) =>
     ? new THREE.Color().setHex(c, THREE.LinearSRGBColorSpace)
     : new THREE.Color().setStyle(c, THREE.LinearSRGBColorSpace);
 
-/** The uniforms of SHADER_COMMON, in their resting state: nothing selected or pinned, no cut, no replay. */
-export const baseUniforms = (pal: Pal) => ({
+/** The uniforms of SHADER_COMMON, in their resting state: nothing selected or pinned, no cut, no replay. `context`: a
+ *  context layer, which keeps the dim level whatever the rest's (restUniform). */
+export const baseUniforms = (pal: Pal, context = false) => ({
+  uRest: context ? { value: REST_FADE.dim } : restUniform,
   uProj: { value: 0 },
   uPin0: { value: -1 },
   uPin1: { value: -1 },

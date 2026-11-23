@@ -32,7 +32,7 @@ export function segments(input: LayerInput): Layer {
   const g = new THREE.InstancedBufferGeometry();
   g.setAttribute("position", new THREE.Float32BufferAttribute([0, 0, 0, 1, 0, 0], 3)); // x: 0 at the start, 1 at the end
   const material = new THREE.ShaderMaterial({
-    uniforms: { ...baseUniforms(input.pal), uDash: { value: d.truth ? 1 : 0 } },
+    uniforms: { ...baseUniforms(input.pal, input.d.context), uDash: { value: d.truth ? 1 : 0 } },
     vertexShader: /* glsl */ `
       attribute float ix, iy, iz, jx, jy, jz, isel, ipsel, icut, iT;
       attribute vec3 icol;
@@ -46,7 +46,7 @@ export function segments(input: LayerInput): Layer {
         vS = position.x * grow * length(vec3(jx, jy, jz) - vec3(ix, iy, iz));
         float s = selected(ipsel, isel);
         if (uProj > 0.5) c = projectRZ(c, s * 2.0, jy >= 0.0 ? 1.0 : -1.0);
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(c, 1.0);
+        gl_Position = inFront(projectionMatrix * modelViewMatrix * vec4(c, 1.0), s);
         vCol = fade(mix(icol, vec3(1.0), uFlash * pop(iT)), s) * remaining() + uBg * (1.0 - remaining());
       }`,
     fragmentShader: DASHED_LINE_FRAGMENT,
@@ -112,7 +112,7 @@ function wideSegments(input: LayerInput, start: Vec3s, end: Vec3s): Layer {
   const px = globalThis.devicePixelRatio ?? 1;
   const material = new THREE.ShaderMaterial({
     uniforms: {
-      ...baseUniforms(input.pal),
+      ...baseUniforms(input.pal, input.d.context),
       uWidth: { value: (d.width ?? 2) * px },
       uRes: { value: new THREE.Vector2(1, 1) },
       uDash: { value: d.truth ? 1 : 0 },
@@ -136,7 +136,7 @@ function wideSegments(input: LayerInput, start: Vec3s, end: Vec3s): Layer {
         vec2 along = (B.xy / B.w - A.xy / A.w) * uRes, across = length(along) > 1e-6 ? normalize(vec2(-along.y, along.x)) : vec2(0.0, 1.0);
         vec4 P = mix(A, B, position.x);
         P.xy += across * position.y * (uWidth * (1.0 + 0.5 * s * selActive() + 2.0 * gPin) + HALO_PX) / uRes * P.w; // half the width each side, in NDC
-        gl_Position = P;
+        gl_Position = inFront(P, s);
         vCol = fade(mix(icol, vec3(1.0), uFlash * pop(iT)), s) * remaining() + uBg * (1.0 - remaining());
       }`,
     fragmentShader: DASHED_LINE_FRAGMENT,
@@ -171,10 +171,12 @@ function wideSegments(input: LayerInput, start: Vec3s, end: Vec3s): Layer {
       ${SHADER_COMMON}
       void main() {
         gPin = iflags.z;
+        float s = selected(iflags.y, iflags.x);
+        if (gone(s)) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
         #ifdef USE_INSTANCING_COLOR
-        vCol = fade(instanceColor, selected(iflags.y, iflags.x));
+        vCol = fade(instanceColor, s);
         #endif
-        gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(position, 1.0);
+        gl_Position = inFront(projectionMatrix * modelViewMatrix * instanceMatrix * vec4(position, 1.0), s);
       }`,
           fragmentShader: `varying vec3 vCol; void main() { gl_FragColor = vec4(vCol, 1.0); }`,
         }),

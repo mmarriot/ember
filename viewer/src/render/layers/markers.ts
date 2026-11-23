@@ -37,7 +37,7 @@ export function markers(input: LayerInput): Layer {
   const g = new THREE.BufferGeometry();
   const material = new THREE.ShaderMaterial({
     uniforms: {
-      ...baseUniforms(input.pal),
+      ...baseUniforms(input.pal, input.d.context),
       uPx: { value: window.devicePixelRatio },
       uSized: { value: sizeCol ? 1 : 0 },
       uHollow: { value: d.truth ? 1 : 0 },

@@ -107,12 +107,18 @@
   background: var(--accent);
 }
 
-/* In a detector part's view: the chip that draws the shared parts' layers (Physics) over it. */
-.overlaychip {
+/* Above the views: the chips that change what is drawn around the event (Viewport.tsx). */
+.viewchips {
   position: absolute;
   left: 12px;
   bottom: 42px;
   z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+/* In a detector part's view: the chip that draws the shared parts' layers (Physics) over it. */
+.overlaychip {
   padding: 2px 10px;
   font-size: 12px;
   border-radius: 12px;
@@ -123,6 +129,26 @@
   background: var(--accent-soft);
   border-color: var(--accent);
   color: var(--accent);
+}
+
+/* While something is selected: how the rest of the event is drawn. */
+.viewchips .rest {
+  align-items: center;
+  background: var(--overlay);
+  font-size: 12px;
+}
+.viewchips .rest .label {
+  padding: 0 8px;
+  color: var(--muted);
+  border-right: 1px solid var(--line);
+}
+.viewchips .rest button {
+  padding: 2px 9px;
+  font-size: 12px;
+  background: transparent;
+}
+.viewchips .rest button.on {
+  background: var(--accent);
 }
 
 /* One kind alone: the note on the view while it lasts. */

@@ -54,7 +54,7 @@ export function pointPaths(input: LayerInput): Layer {
   else g.setAttribute("position", new THREE.Float32BufferAttribute([0, 0, 0, 1, 0, 0], 3)); // x: 0 at the start, 1 at the end
   const material = new THREE.ShaderMaterial({
     uniforms: {
-      ...baseUniforms(input.pal),
+      ...baseUniforms(input.pal, input.d.context),
       uWidth: { value: (d.width ?? 1) * (globalThis.devicePixelRatio ?? 1) },
       uRes: { value: new THREE.Vector2(1, 1) },
     },
@@ -79,6 +79,7 @@ export function pointPaths(input: LayerInput): Layer {
         vec2 along = (B.xy / B.w - A.xy / A.w) * uRes, across = length(along) > 1e-6 ? normalize(vec2(-along.y, along.x)) : vec2(0.0, 1.0);
         gl_Position.xy += across * position.y * (uWidth * (1.0 + 0.5 * s * selActive() + 2.0 * gPin) + HALO_PX) / uRes * gl_Position.w;
         #endif
+        gl_Position = inFront(gl_Position, s);
         vCol = fade(mix(mix(icol, vec3(1.0), 0.3 * s * selActive()), vec3(1.0), uFlash * pop(iT)), s) * remaining() + uBg * (1.0 - remaining());
       }`,
     fragmentShader: `varying vec3 vCol; void main() { gl_FragColor = vec4(vCol, 1.0); }`,

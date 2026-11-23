@@ -100,6 +100,9 @@ with a message while an old one is set without its new name. `deploy.sh` links `
   - The selection owns the view: it is framed in the part the card leaves free (also for links, X and F),
     everything unrelated fades by the same amount (cones, MET and outlines too), a selected line has a halo, and
     labels keep off the card.
+  - Around a selection, the rest of the event is dimmed, faint (the default) or hidden, as chosen with **Others** on
+    the view or `H`, and remembered in the browser; hidden, a picture shows only the selection, its parts and its
+    truth. The selection is drawn in front of the rest, so a faded block nearer the camera never covers it.
   - A part of the detector draws the physics objects only as an overlay ("Physics overlay"); a selection still draws
     its own.
   - Truth colours go to the particles that matter in the view (the selection's, else by simulated energy in that part

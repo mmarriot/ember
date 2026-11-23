@@ -108,6 +108,7 @@ It shows each control's key and whether it is on. The colour theme is there too.
 | zoom | scroll (it zooms towards the cursor) |
 | switch view: 3D, front, side, ρ–z | `1`, `2`, `3`, `4`, or the buttons at the bottom left of the view (in the top bar for a bundle without parts of the detector) |
 | zoom to an object | double-click it, or `F`: it fills the part of the view the card leaves free |
+| dim, fade or hide the rest of the event around a selection | `H`, or **Others** at the bottom left of the view while something is selected |
 | show the whole event | `Home`, or Reset |
 | go back to the normal view, or close a dialog | `Esc`, or click on empty space |
 | previous / next event | `←` / `→`, or the arrows at the top |
@@ -153,8 +154,13 @@ The selected object stands out in the view:
 - a line becomes a ribbon three times as wide, and a marker becomes larger;
 - a line (a track, a particle, a muon's path, MET) gets a halo in the accent colour, a few pixels wider than the
   line, so even a track one pixel wide is found at once;
-- everything not related to it fades 85 % of the way to the background: hits, clusters, tracks, jet cones and their
-  outlines, the MET arrow and the detector's outlines alike. Showers not related to it are not drawn.
+- it is drawn in front of everything else, so a block of the rest nearer the camera never covers it;
+- everything not related to it, the rest of the event, is drawn as you choose with **Others** at the bottom left of
+  the view (or `H`, which steps through the three): **Dim** fades it 85 % of the way to the background, so it stays
+  readable around the selection; **Faint** (the default) 95 %, a trace of it; **Hide** does not draw it at all, so
+  a picture shows only the selection, its parts and its truth. Hits, clusters, tracks, jet cones and their outlines
+  and the MET arrow alike. The detector's outlines, and a layer drawn as the detector's context, are dimmed whatever
+  the choice. Showers not related to it are not drawn. The choice is remembered in this browser.
 
 The view then shows the object with its smallest parts, one kind per branch. Parts drawn as lines do not hide the
 others. For example, a candidate is shown with its calorimeter hits, its track and the track's hits; a vertex with

@@ -54,7 +54,8 @@ export function outlineSegments(outlines: readonly Outline[]): {
 
 /** The outlines as one LineSegments in a colour between `colour` and `background` (raw sRGB, as the layers); faded
  *  parts are mixed further towards the background (no blending, so no sorting). While something is selected they fade
- *  as far as the layers' unrelated objects (FADE), cross-faded like them (uAct0 -> uAct1 by uMix). */
+ *  as far as the layers' dimmed objects (REST_FADE.dim, whatever the user's level for the rest: they are the detector,
+ *  not the event), cross-faded like them (uAct0 -> uAct1 by uMix). */
 export function outlineObject(outlines: readonly Outline[], colour: THREE.Color, background: THREE.Color) {
   const { position, side, kind } = outlineSegments(outlines),
     g = new THREE.BufferGeometry();

@@ -78,11 +78,9 @@ def check_shape(profile, where):
             if section == "display":  # a layer takes the keys of its kind (display.py)
                 entry = {**kinds.get(entry.get("kind"), {}), **entry}
             label = f"{section}[{k}]" + (f" ({entry['name']})" if "name" in entry else "")
-            needed = (
-                [*keys, *(("via",) if entry.get("kind") == "compose" else ("from", "to"))]
-                if section == "relations"
-                else keys
-            )
+            needed = list(keys)
+            if section == "relations":
+                needed += ["via"] if entry.get("kind") == "compose" else ["from", "to"]
             missing = [key for key in needed if key not in entry]
             if missing:
                 raise Problem(f"profile {where}: {label} has no {', '.join(repr(m) for m in missing)}")

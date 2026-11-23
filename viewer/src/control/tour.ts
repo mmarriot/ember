@@ -1,5 +1,5 @@
 // The guided tour (key P), event after event until any key or touch, or the play button:
-// 1. The event is built up step by step (model/tourPlan.ts: outwards from the collision point, from the detector's hits to
+// 1. The event is built up step by step (control/tourPlan.ts: outwards from the collision point, from the detector's hits to
 //    the physics objects). Each step's objects grow in while the camera frames them and a caption says what they are.
 //    A bundle without the kinds of object the steps name (test beam, cosmics) is replayed instead (render/replay.ts).
 // 2. The event as the bundle shows it: its leading objects (else its main showers) are visited one by one, each
@@ -29,12 +29,12 @@ import {
   drawnLayers,
   visible,
 } from "../model/store";
-import { filterMask, filters } from "../model/custom";
-import { passes } from "../model/objects";
-import { related, type Ref } from "../model/relations";
+import { filterMask, filters } from "../model/custom/custom";
+import { passes } from "../model/event/objects";
+import { related, type Ref } from "../model/event/relations";
 import { isShower, type Caption } from "../render/replay";
-import { startDomain } from "../model/domains";
-import { stepMs, tourPlan } from "../model/tourPlan";
+import { startDomain } from "../model/event/domains";
+import { stepMs, tourPlan } from "./tourPlan";
 import { chooseDomain, ranked } from "./navigate";
 import { engine, growTables, replayEvent } from "./scene";
 

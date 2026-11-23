@@ -141,7 +141,7 @@ export async function checkBundle(run, file, tag, state) {
       .innerText()
       .catch(() => "");
     // A bundle without truth opens no pair (src/model/store/selection.ts pairView), and neither does a kind with no
-    // truth of its own (src/model/pair.ts pairFor): a truthGap and neither a match to a truth layer nor a fact into it
+    // truth of its own (src/model/truth/pair.ts pairFor): a truthGap and neither a match to a truth layer nor a fact into it
     // (e.g. a stock release's TICL candidates). Ember derives none (docs/truth.md).
     const rels = Object.values(h.relations),
       truthTables = new Set(h.display.filter((d) => d.truth).map((d) => d.table));
@@ -466,7 +466,7 @@ async function checkFocusFilters(page, h, fail, tag) {
         .map((r) => r.name)
         .find((n) => n.includes(f)); // ?t= after hot updates
     const store = await import(url("/src/model/store/index.ts")),
-      custom = await import(url("/src/model/custom.ts"));
+      custom = await import(url("/src/model/custom/custom.ts"));
     const frames = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
     const b = store.bundle.peek(),
       ev = store.event.peek(),

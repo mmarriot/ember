@@ -83,7 +83,7 @@ setting in the profile (`"particle": {"bit": 2}`). Bit 2 is the default until th
 
 The truth colours have seven colours of their own (one per particle, never repeated); every other signal particle is
 grey, and pile-up is a smaller warm grey. Which seven depends on what is looked at, and the colour key's line under its
-title always says which rule is in force (`model/relations.ts` `identities`):
+title always says which rule is in force (`model/event/relations.ts` `identities`):
 
 | looking at | the seven slots go to | key says |
 |---|---|---|
@@ -143,7 +143,7 @@ the colour), and the pair view (its own bars, from the hits: below).
 ### The pair view
 
 With a truth particle, a matched reco object or a hit selected, the view shows one **pair**
-(`viewer/src/model/pair.ts`):
+(`viewer/src/model/truth/pair.ts`):
 
 - **The truth side is one branch, exactly**: the particle selected; for a reco object, its best match (the
   associator's, at the kind's target); for a hit, the particle that left the most simulated energy in it; for a part
@@ -254,7 +254,7 @@ The thresholds follow each domain's reference validation, so Ember agrees with D
 ## Where truth stops
 
 Every drawn kind has one truth status. The viewer works it out from the bundle (`truthStatus`,
-`viewer/src/model/match.ts`), in this order:
+`viewer/src/model/truth/match.ts`), in this order:
 
 1. **match**: the kind has its own reco → truth relation with a `match` hint;
 2. **fact**: hits with a `fact` relation;
@@ -344,7 +344,7 @@ tracks show in their own particles' colours: each colour is that track's own sta
 ## Physics from the graph
 
 The particle card states what the truth graph itself says of a particle, read from its particles and vertices alone
-(`viewer/src/model/truth.ts`, unit-tested in `truth.test.ts`). These are summaries of the simulation, never
+(`viewer/src/model/truth/truth.ts`, unit-tested in `truth.test.ts`). These are summaries of the simulation, never
 associations: nothing is matched by ΔR or by hits.
 
 | line | for | how it is computed |

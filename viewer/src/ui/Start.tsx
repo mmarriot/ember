@@ -3,10 +3,10 @@
 // Also the hint shown while a file is dragged over the page.
 import { useState } from "preact/hooks";
 import logo from "../../logo.svg";
-import { DOCS_URL, mine, PUBLISH_COMMAND, titleOf } from "../model/library";
-import { readLink } from "../model/link";
+import { DOCS_URL, mine, PUBLISH_COMMAND, titleOf } from "../model/site/library";
+import { readLink } from "../model/site/link";
 import { bundle, catalogue, openBundle, openFailure, opening, started } from "../model/store";
-import { chooserOpen, pickLocalFile } from "./Chooser";
+import { chooserOpen, pickLocalFile } from "./topbar/Chooser";
 
 export function Start() {
   const failure = openFailure.value,

@@ -165,7 +165,7 @@ table.kv.keys td:nth-child(2) {
 .toast-error {
   background: var(--error);
 }
-/* Descriptions on request (ui/Info.tsx): the "i", and the pop-up it opens. */
+/* Descriptions on request (ui/common/Info.tsx): the "i", and the pop-up it opens. */
 .info {
   display: inline-flex;
   align-items: center;

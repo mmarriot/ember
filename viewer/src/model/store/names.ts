@@ -2,8 +2,8 @@
 // functions: they read the signals when called, so a component that calls them re-renders when those change.
 import { computed } from "@preact/signals";
 import { type DisplayLayer, kindName, type Table } from "../../io/format";
-import { cardName, chipName, describeRow, labelName, objectName } from "../describe";
-import { ranks } from "../objects";
+import { cardName, chipName, describeRow, labelName, objectName } from "../event/describe";
+import { ranks } from "../event/objects";
 import { bundle, event } from "./data";
 
 /** The key of a display layer, unique in a bundle: "table:repr". Signals keyed per layer use it. */
@@ -117,14 +117,14 @@ export function truthText(table: string, row: number, energy = false): string {
 }
 
 /** A short name for one object's values, from its layer's `describe` hint (e.g. "π+ · E 88.9 GeV"), or "" without
- *  one (model/describe.ts describeRow). `skip`: columns to leave out (those shown next to it anyway, e.g. in object
+ *  one (model/event/describe.ts describeRow). `skip`: columns to leave out (those shown next to it anyway, e.g. in object
  *  rows). */
 export function describe(table: string, row: number, skip: string[] = []): string {
   const b = bundle.value;
   return b ? describeRow(b.header, layerOf(table), event.value?.tables[table], row, skip) : "";
 }
 
-/** An object's one name (model/describe.ts objectName): "Jet 1 · AK4 · pT 99.6 GeV"; `skip`: values to leave out;
+/** An object's one name (model/event/describe.ts objectName): "Jet 1 · AK4 · pT 99.6 GeV"; `skip`: values to leave out;
  *  `cmssw`: with the CMSSW collection (a chip's tooltip; the card's header is cardNameOf). A table without a layer: its name and number. */
 export function nameOf(ref: { table: string; row: number }, skip: string[] = [], cmssw = false) {
   const b = bundle.value,
@@ -134,7 +134,7 @@ export function nameOf(ref: { table: string; row: number }, skip: string[] = [],
     : `${ref.table} ${ref.row + 1}`;
 }
 
-/** An object's label in the view (model/describe.ts labelName): "Jet 1 · pT 46 GeV"; `labelled`: the layers of the
+/** An object's label in the view (model/event/describe.ts labelName): "Jet 1 · pT 46 GeV"; `labelled`: the layers of the
  *  labels shown, which say whether its collection must be named. */
 export function labelText(ref: { table: string; row: number }, skip: string[], labelled: DisplayLayer[]) {
   const b = bundle.value,
@@ -144,7 +144,7 @@ export function labelText(ref: { table: string; row: number }, skip: string[], l
     : `${ref.table} ${ref.row + 1}`;
 }
 
-/** The card's header (model/describe.ts cardName): [name with its values, its collection]. */
+/** The card's header (model/event/describe.ts cardName): [name with its values, its collection]. */
 export function cardNameOf(ref: { table: string; row: number }): [string, string] {
   const b = bundle.value,
     d = layerOf(ref.table);
@@ -153,7 +153,7 @@ export function cardNameOf(ref: { table: string; row: number }): [string, string
     : [`${ref.table} ${ref.row + 1}`, ""];
 }
 
-/** An object's name in a list of its kind (model/describe.ts chipName): "AK4 CHS · pT 52.8 GeV". */
+/** An object's name in a list of its kind (model/event/describe.ts chipName): "AK4 CHS · pT 52.8 GeV". */
 export function chipText(table: string, row: number) {
   const b = bundle.value,
     d = layerOf(table);

@@ -10,7 +10,7 @@ import * as THREE from "three";
 import { type DisplayLayer, type Table, toF32, type ViewName } from "../../io/format";
 import type { Pal } from "../colour";
 import type { Field } from "../helix";
-import { HIDDEN } from "../../model/cuts";
+import { HIDDEN } from "../../model/custom/cuts";
 import { REPLAY_OFF } from "../replay";
 
 /** A drawn layer, as the engine sees it: its three.js object, where its objects are (for picking and framing), and
@@ -84,7 +84,7 @@ export interface Layer {
 }
 
 /** What a layer is built from: the table and its display hint, the theme's palette, the colours per object and the
- *  values the cut compares (model/cuts.ts cutValues). */
+ *  values the cut compares (model/custom/cuts.ts cutValues). */
 export interface LayerInput {
   key: string;
   d: DisplayLayer;

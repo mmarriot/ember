@@ -3,7 +3,7 @@
 // computed on the CPU, per path, when first needed.
 import * as THREE from "three";
 import { type Table, toF32 } from "../../io/format";
-import { HIDDEN } from "../../model/cuts";
+import { HIDDEN } from "../../model/custom/cuts";
 import { endsOrCylinder, isToCylinder } from "../geometry";
 import { helixPaths, type Paths, polylines } from "../helix";
 import {

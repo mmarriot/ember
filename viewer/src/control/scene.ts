@@ -9,11 +9,11 @@
 import { effect, signal, untracked } from "@preact/signals";
 import { Color, LinearSRGBColorSpace } from "three";
 import type { DisplayLayer, EventData, Header, Table } from "../io/format";
-import { colourBy, filterMask, filters } from "../model/custom";
-import { cutMin, cutValues, HIDDEN, rescued } from "../model/cuts";
-import { madeOfSimCells } from "../model/facts";
-import { PAIR, type Pair, pairKey } from "../model/pair";
-import { identities, type SlotRank } from "../model/relations";
+import { colourBy, filterMask, filters } from "../model/custom/custom";
+import { cutMin, cutValues, HIDDEN, rescued } from "../model/custom/cuts";
+import { madeOfSimCells } from "../model/truth/facts";
+import { PAIR, type Pair, pairKey } from "../model/truth/pair";
+import { identities, type SlotRank } from "../model/event/relations";
 import {
   activeMode,
   bundle,
@@ -68,9 +68,9 @@ interface Entry {
   d: DisplayLayer; // its display hints as drawn: with the colour mode's and the user's colours (store/colours.ts shownLayer)
   t: Table; // its table in the event
   key: string; // layerKey(d)
-  cut?: Float32Array; // per row, the value compared with the cut; filtered-out rows hidden (model/cuts.ts cutValues)
+  cut?: Float32Array; // per row, the value compared with the cut; filtered-out rows hidden (model/custom/cuts.ts cutValues)
   keep: Float32Array | null; // its filter, per row (null: no filter)
-  rescued: string; // the focus's rows that the filter hides but that are drawn anyway (model/cuts.ts rescued)
+  rescued: string; // the focus's rows that the filter hides but that are drawn anyway (model/custom/cuts.ts rescued)
   rgb: Float32Array; // colour per row
   emphasis?: Uint8Array; // per row, 0 for an object drawn small (outside the truth <-> reco pair)
   layer: Layer; // what the engine draws
@@ -642,7 +642,7 @@ function slotsKey(header: Header, ev: EventData, rank: SlotRank) {
   return `${r.top.join(",")}|${r.preferred}|${JSON.stringify(r.rule)}`;
 }
 
-/** The pair view's colours: one per class (model/pair.ts); objects outside the pair drawn small. */
+/** The pair view's colours: one per class (model/truth/pair.ts); objects outside the pair drawn small. */
 function pairColours(cls: Uint8Array, classRgb: number[][]) {
   const rgb = new Float32Array(3 * cls.length),
     emphasis = new Uint8Array(cls.length);

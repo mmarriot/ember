@@ -4,9 +4,9 @@
 import { batch, computed, signal } from "@preact/signals";
 import { around, blobSource, Bundle, HttpError, httpSource, type Source } from "../../io/bundle";
 import { type DisplayLayer, type EventData, type IndexEntry, REPRS } from "../../io/format";
-import { loadCustom } from "../custom";
-import { startDomain } from "../domains";
-import { findEvent } from "../find";
+import { loadCustom } from "../custom/custom";
+import { startDomain } from "../event/domains";
+import { findEvent } from "../event/find";
 import {
   cleanList,
   describeFailure,
@@ -20,7 +20,7 @@ import {
   ownerOf,
   readIndex,
   titleOf,
-} from "../library";
+} from "../site/library";
 import { colourChoice, truthLevel } from "./colours";
 import { bundle, bundleName, eventIndex, loadMs, loading, rawEvent, shownEntry, shownOf } from "./data";
 import { layerKey } from "./names";

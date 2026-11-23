@@ -73,7 +73,7 @@
   padding: 3px 8px;
   border-radius: 6px;
 }
-/* A first visit's hints (ui/Hint.tsx): readable, with a way to dismiss them. */
+/* A first visit's hints (ui/viewport/Hint.tsx): readable, with a way to dismiss them. */
 .hintbar.first {
   display: flex;
   gap: 10px;
@@ -164,7 +164,7 @@
     top: 84px;
   }
 }
-/* The view's title, top left (ui/TitleBox.tsx): the event, the physics objects in one line, and "Only …". */
+/* The view's title, top left (ui/viewport/TitleBox.tsx): the event, the physics objects in one line, and "Only …". */
 .titlebox {
   position: absolute;
   top: 10px;

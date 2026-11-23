@@ -4,10 +4,10 @@
 // one table a colour each, and the objects linked to them the same colour. Computed once per event on the CPU, so
 // shaders and legend agree.
 import { type DisplayLayer, type EventData, type Header, kindName, type Table, toF32, unitOf } from "../io/format";
-import { kindLabel } from "../model/describe";
-import { bestPurities, percent } from "../model/match";
-import { bestPartners, contentPartners, identities, type SlotRank, truthClasses } from "../model/relations";
-import { ruleText } from "../model/truth";
+import { kindLabel } from "../model/event/describe";
+import { bestPurities, percent } from "../model/truth/match";
+import { bestPartners, contentPartners, identities, type SlotRank, truthClasses } from "../model/event/relations";
+import { ruleText } from "../model/truth/truth";
 
 export const PALETTES = {
   light: {
@@ -60,7 +60,7 @@ export const PALETTES = {
     // Violet is the truth's (the TRUTH badge, truth labels): no category here or above is violet (CIELAB hue 260-350
     // with chroma above 8 was replaced; the replacement is at least 19 CIEDE2000 from both themes' truth violet).
     others: ["#001100", "#CC7788", "#884400", "#555500", "#005544", "#776677", "#889955", "#333344"],
-    // The pair view (model/pair.ts), by class: other, matched, contamination, split, missed, reco (part of a match,
+    // The pair view (model/truth/pair.ts), by class: other, matched, contamination, split, missed, reco (part of a match,
     // no truth statement of its own: neutral), branch (the branch's other particles), uncompared (the branch's hits
     // where no reco kind has an association).
     pair: ["#cdd2d8", "#117733", "#AA4499", "#B8860B", "#D55E00", "#4d5560", "#44AA99", "#6a7fa0"],
@@ -219,7 +219,7 @@ interface Coloured {
 /** Options of `colours`. `range` shares one value scale between layers; without it the layer's own values set the
  *  scale. `layerFor` gives the colouring of related tables (default: their display hints), so colours follow chains:
  *  a hit takes its layer cluster's colour, which is its candidate's. `rank`: how identity colours give their slots
- *  (model/relations.ts identities: the domain, the selection, the truth level). */
+ *  (model/event/relations.ts identities: the domain, the selection, the truth level). */
 interface ColourOptions {
   range?: Range;
   layerFor?: LayerFor;

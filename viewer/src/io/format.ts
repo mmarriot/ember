@@ -55,7 +55,7 @@ export interface Header {
  *  other side's own relations. `best`: the weight that picks one partner where only one can be shown (colours).
  *  `inverseOf`: the relation points from a part back up to its container, the inverse of the named relation (a
  *  track's vertex, next to the vertex's tracks). `fact`: truth -> hits, the simulated energy per particle and cell
- *  (a simulation fact, not a match; model/facts.ts). */
+ *  (a simulation fact, not a match; model/truth/facts.ts). */
 export interface RelationInfo {
   from: string;
   to: string;
@@ -85,7 +85,7 @@ export interface Match {
   /** A weight that already is the purity (constituent-based maps, e.g. a vertex's pT² share), instead of shared / over. */
   purity?: string;
 }
-/** A truth -> hit relation of simulated energy per particle and cell, in detector `in` (model/facts.ts). `unit`: what
+/** A truth -> hit relation of simulated energy per particle and cell, in detector `in` (model/truth/facts.ts). `unit`: what
  *  one row of the simulation's record covers when it is coarser than a hit, in words: a phrase, or one per value of a
  *  hit column (e.g. {"column": "subdet", "names": {"2": "CSC layer"}}), so a hit says "in this CSC layer". */
 export interface Fact {

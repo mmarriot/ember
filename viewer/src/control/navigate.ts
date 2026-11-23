@@ -3,9 +3,9 @@
 // focus.
 import { batch, computed, effect, signal } from "@preact/signals";
 import { type DisplayLayer, kindName } from "../io/format";
-import { filterMask, filters } from "../model/custom";
-import { rowsInDomain, stepDomain, withFocus } from "../model/domains";
-import { passes, stepRow, topRows } from "../model/objects";
+import { filterMask, filters } from "../model/custom/custom";
+import { rowsInDomain, stepDomain, withFocus } from "../model/event/domains";
+import { passes, stepRow, topRows } from "../model/event/objects";
 import {
   anchor,
   bundle,
@@ -36,9 +36,9 @@ import {
   unlook,
   view,
 } from "../model/store";
-import type { Ref } from "../model/relations";
-import { inText } from "../model/describe";
-import { leadChoice, partChoices, type PartChoice } from "../model/statement";
+import type { Ref } from "../model/event/relations";
+import { inText } from "../model/event/describe";
+import { leadChoice, partChoices, type PartChoice } from "../model/truth/statement";
 import { engine } from "./scene";
 
 /** Frame the focus in the part of the view the card leaves free (engine.frame, store `framed`): `F`, a double click,
@@ -105,7 +105,7 @@ const same = (a: Ref | null | undefined, b: Ref | null | undefined) =>
 
 /** A particle X can go to from an object without a truth link of its own: one of its parts' own matches. */
 export type CrossChoice = PartChoice;
-/** The card object's parts' particles, all of them, largest part first (model/statement.ts partChoices); X's chooser
+/** The card object's parts' particles, all of them, largest part first (model/truth/statement.ts partChoices); X's chooser
  *  lists the first CHOOSER. */
 export const partParticles = computed<CrossChoice[]>(() => {
   const st = statement.value,
@@ -226,7 +226,7 @@ export function chooseDomain(name: string | null, animate = true) {
   else engine?.frame(undefined, animate);
 }
 
-/** The focus's objects (`hl`: of its highlight) that domain `name` draws as its own (model/domains.ts rowsInDomain);
+/** The focus's objects (`hl`: of its highlight) that domain `name` draws as its own (model/event/domains.ts rowsInDomain);
  *  null without a focus. */
 function focusIn(name: string | null, hl = highlight.peek()) {
   const h = bundle.peek()?.header;

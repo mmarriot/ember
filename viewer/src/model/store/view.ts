@@ -6,12 +6,12 @@ import type { DisplayLayer, Header, ViewName } from "../../io/format";
 import type { Legend, ThemeName } from "../../render/colour";
 import type { Hit } from "../../render/picking";
 import type { Caption } from "../../render/replay";
-import { drawsLayer, sharedDomains } from "../domains";
+import { drawsLayer, sharedDomains } from "../event/domains";
 import { bundle } from "./data";
 import { layerKey } from "./names";
 
 // The user's choices remembered in this browser when storage is available (not always, e.g. in a private window),
-// under keys that keep their "evd." prefix: see model/library.ts.
+// under keys that keep their "evd." prefix: see model/site/library.ts.
 function remembered(key: string) {
   try {
     return localStorage.getItem(key);

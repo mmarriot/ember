@@ -1,6 +1,6 @@
 // The selection, the focus and what they show.
 //
-// The selection is the object the card (ui/Card.tsx) describes. The focus is the object clicked from outside any
+// The selection is the object the card (ui/card/Card.tsx) describes. The focus is the object clicked from outside any
 // focus (e.g. a candidate). While a focus lasts, it is drawn with its smallest parts (e.g. hits) and, on request, one
 // level in between (see `levels`), and only its objects can be picked. Selecting one of them keeps the focus;
 // selecting anything else focuses on it (the old focus is kept for "back"); clearing the selection (a click on
@@ -12,14 +12,14 @@
 // is the card's object, shown as it was (in its own focus), never the object looked at.
 import { batch, computed, effect, signal } from "@preact/signals";
 import type { DisplayLayer } from "../../io/format";
-import { matchClass, recoLadder, recoOfTruth } from "../chain";
-import { focusLevels, levelLayers, mergeAcrossDomains, partsFirst, scopeLevels, stepLevel } from "../levels";
-import { delegatedPart, PAIR, type Pair, pairFor, pairShows } from "../pair";
-import { simEnergyByParticle } from "../match";
-import { cached, levelsOf, type Related, relatedParts, sameRef, type Ref, type SlotRank } from "../relations";
+import { matchClass, recoLadder, recoOfTruth } from "../event/chain";
+import { focusLevels, levelLayers, mergeAcrossDomains, partsFirst, scopeLevels, stepLevel } from "../event/levels";
+import { delegatedPart, PAIR, type Pair, pairFor, pairShows } from "../truth/pair";
+import { simEnergyByParticle } from "../truth/match";
+import { cached, levelsOf, type Related, relatedParts, sameRef, type Ref, type SlotRank } from "../event/relations";
 import { activeMode, modes, truthLevel, truthStatuses } from "./colours";
-import { truthStatement } from "../statement";
-import { isFactTable } from "../facts";
+import { truthStatement } from "../truth/statement";
+import { isFactTable } from "../truth/facts";
 import { bundle, event } from "./data";
 import { layerKey, layerOf } from "./names";
 import { domain, drawnLayers, inDomain, shared, visible } from "./view";
@@ -45,7 +45,7 @@ let anchorFocus: Ref | null = null;
 /** The object the card describes: the anchor while another is looked at, else the selection. */
 export const subject = computed(() => anchor.value ?? selection.value);
 
-/** What `ref` is made of, part of and linked to (model/relations.ts relatedParts), or null without it in the event. */
+/** What `ref` is made of, part of and linked to (model/event/relations.ts relatedParts), or null without it in the event. */
 const partsOf = (ref: Ref | null) => {
   const b = bundle.value,
     ev = event.value;
@@ -130,7 +130,7 @@ export function focusBack(): Ref | null {
 
 // ---- What the card shows
 
-/** The ladder of the card's object (model/chain.ts): for a reco object, what it is part of, itself and what it is made
+/** The ladder of the card's object (model/event/chain.ts): for a reco object, what it is part of, itself and what it is made
  *  of, each step with its link to the truth; null for a truth object. */
 export const ladder = computed(() => {
   const b = bundle.value,
@@ -141,7 +141,7 @@ export const ladder = computed(() => {
   return recoLadder(ev, b.header, sel, parts, truthStatuses.value);
 });
 
-/** What the truth says about the card's reco object (model/statement.ts): its kind's own association, and its parts'
+/** What the truth says about the card's reco object (model/truth/statement.ts): its kind's own association, and its parts'
  *  own matches; null for a truth object, and in a bundle without truth. */
 export const statement = computed(() => {
   const b = bundle.value,
@@ -151,7 +151,7 @@ export const statement = computed(() => {
 });
 
 /** For a truth object on the card: what was reconstructed from it, per reco kind, and the hits it left
- *  (model/chain.ts recoOfTruth); null for anything else. */
+ *  (model/event/chain.ts recoOfTruth); null for anything else. */
 export const reconstructed = computed(() => {
   const b = bundle.value,
     ev = event.value,
@@ -160,7 +160,7 @@ export const reconstructed = computed(() => {
   return recoOfTruth(ev, b.header, sel);
 });
 
-/** What the CMSSW associator says of a reco object of a matched kind: clean, impure or unmatched (model/chain.ts
+/** What the CMSSW associator says of a reco object of a matched kind: clean, impure or unmatched (model/event/chain.ts
  *  matchClass); undefined for any other kind. It colours the object's name in lists. */
 export function matchOf(table: string, row: number) {
   const b = bundle.value,
@@ -175,7 +175,7 @@ export function matchOf(table: string, row: number) {
  *  with each new focus. */
 export const hitPair = signal(false);
 
-/** In the "pid" and "truth" modes with something focused: its truth <-> reco pair (model/pair.ts), which colours every
+/** In the "pid" and "truth" modes with something focused: its truth <-> reco pair (model/truth/pair.ts), which colours every
  *  layer. Null when the pair has nothing to show, for a kind with no association of its own (a jet, a PF candidate, a
  *  TICL candidate: their parts may open one), and in a bundle with no truth at all (data, a standard NanoAOD). */
 export const pairView = computed<Pair | null>(() => {
@@ -187,14 +187,14 @@ export const pairView = computed<Pair | null>(() => {
     return null;
   if (isFactTable(b.header, f.table) && !hitPair.value) return null;
   let pair = pairFor(ev, b.header, f, roots.truth);
-  // An object with no truth of its own may stand in for its one matched part (model/pair.ts delegatedPart).
+  // An object with no truth of its own may stand in for its one matched part (model/truth/pair.ts delegatedPart).
   const part = pair ? null : delegatedPart(ev, b.header, f, roots.truth);
   const theirs = part && pairFor(ev, b.header, part, roots.truth);
   if (theirs) pair = { ...theirs, via: f };
   return pair && pairShows(pair) ? pair : null;
 });
 
-/** How the truth colours give their slots (model/relations.ts identities), in the truth mode: the domain looked at, the
+/** How the truth colours give their slots (model/event/relations.ts identities), in the truth mode: the domain looked at, the
  *  level chosen and, with a selection that has no pair of its own (a jet, an electron, a PF candidate), the particles
  *  its parts are matched to (by pT), then those that left simulated energy in its hits (by energy, detector by
  *  detector). Outside the truth mode, nothing: a truth particle drawn for a selection keeps the plain ranking. */
@@ -348,7 +348,7 @@ effect(() => {
 export const levelTop = computed<Ref | null>(() => pairView.value?.via ?? pairView.value?.from ?? focus.value);
 const topParts = computed(() => (sameRef(levelTop.value, focus.value) ? focusParts.value : partsOf(levelTop.value)));
 
-/** The kinds of object the focus is made of, top first (model/levels.ts); its own kind and truth are not levels. */
+/** The kinds of object the focus is made of, top first (model/event/levels.ts); its own kind and truth are not levels. */
 export const levels = computed(() => {
   const b = bundle.value,
     top = levelTop.value,
@@ -374,7 +374,7 @@ export const levels = computed(() => {
 });
 
 /** The levels ↓ ↑ step through and the card's chain offers to show: those the current domain draws as its own or
- *  shares (model/levels.ts scopeLevels). */
+ *  shares (model/event/levels.ts scopeLevels). */
 export const focusBar = computed(() => scopeLevels(levels.value, domain.value, shared.value));
 
 /** The chosen level, if the focus has it and it is not one drawn anyway (the bottom ones, lines); else null. */

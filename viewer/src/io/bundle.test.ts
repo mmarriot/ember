@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
-import { related } from "../model/relations";
+import { related } from "../model/event/relations";
 import { around, blobSource, Bundle, FormatError, httpSource, type Source } from "./bundle";
 import { gatedSource, testBundle } from "./testing";
 

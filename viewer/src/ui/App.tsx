@@ -8,9 +8,9 @@
 import { batch, effect, signal } from "@preact/signals";
 import { useEffect } from "preact/hooks";
 import type { ViewName } from "../io/format";
-import { startDomain } from "../model/domains";
-import { readLink, writeLink } from "../model/link";
-import { loadIdentity, loadRecent, mine, pruneRecent, refreshMine } from "../model/library";
+import { startDomain } from "../model/event/domains";
+import { readLink, writeLink } from "../model/site/link";
+import { loadIdentity, loadRecent, mine, pruneRecent, refreshMine } from "../model/site/library";
 import {
   activeMode,
   anchor,
@@ -46,15 +46,15 @@ import {
   unlook,
   view,
 } from "../model/store";
-import { COLOUR_LEVELS } from "../model/truth";
-import { chooserOpen } from "./Chooser";
-import { Header } from "./Header";
-import { HelpDialog } from "./Help";
-import { PictureDialog } from "./Picture";
-import { Popover, popover } from "./Info";
-import { Card } from "./Card";
-import { menuOpen } from "./Menu";
-import { Sidebar } from "./Sidebar";
+import { COLOUR_LEVELS } from "../model/truth/truth";
+import { chooserOpen } from "./topbar/Chooser";
+import { Header } from "./topbar/Header";
+import { HelpDialog } from "./dialogs/Help";
+import { PictureDialog } from "./dialogs/Picture";
+import { Popover, popover } from "./common/Info";
+import { Card } from "./card/Card";
+import { menuOpen } from "./topbar/Menu";
+import { Sidebar } from "./sidebar/Sidebar";
 import { DropHint, Start } from "./Start";
 import {
   back,
@@ -68,8 +68,8 @@ import {
 } from "../control/navigate";
 import { stopTour, toggleTour } from "../control/tour";
 import { replayEvent } from "../control/scene";
-import { Viewport } from "./Viewport";
-import { Toasts } from "./widgets";
+import { Viewport } from "./viewport/Viewport";
+import { Toasts } from "./common/widgets";
 
 const VIEW_KEYS: Record<string, ViewName> = { "1": "3d", "2": "front", "3": "side", "4": "rz" };
 const ALL = "All"; // the address's name for everything (domain null), in a bundle that opens on a domain

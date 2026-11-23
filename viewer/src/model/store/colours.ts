@@ -1,21 +1,21 @@
 // What the colours show: the colour mode (particle type, each layer its own, or truth) and, per layer, the display
 // hint as drawn in that mode; and what the truth graph says of each kind of object (docs/truth.md), in the words the
-// colour key and the cards use. The rules are in model/modes.ts and model/match.ts; this file holds the signals.
+// colour key and the cards use. The rules are in model/colour/modes.ts and model/truth/match.ts; this file holds the signals.
 import { computed, signal } from "@preact/signals";
 import type { DisplayLayer, EventData, Header } from "../../io/format";
 import { colours, describeNoLink, type Legend, type Pal } from "../../render/colour";
-import { colourBy, type ColourMode, withColour } from "../custom";
-import { inText } from "../describe";
-import { facts } from "../facts";
-import { truthStatus, type TruthStatus } from "../match";
-import { type ColourLevel, graphOf } from "../truth";
-import { modeColouring, modeRoots, recoColourOf } from "../modes";
+import { colourBy, type ColourMode, withColour } from "../custom/custom";
+import { inText } from "../event/describe";
+import { facts } from "../truth/facts";
+import { truthStatus, type TruthStatus } from "../truth/match";
+import { type ColourLevel, graphOf } from "../truth/truth";
+import { modeColouring, modeRoots, recoColourOf } from "../colour/modes";
 import { bundle, event } from "./data";
 import { kindOf, labelOf, layerKey, layerOf } from "./names";
 import { domain } from "./view";
 
 /** The bundle's two colour roots (the truth particles, the candidates) and how each table reaches them
- *  (model/modes.ts). Computed once per bundle. */
+ *  (model/colour/modes.ts). Computed once per bundle. */
 export const modes = computed(() => {
   const h = bundle.value?.header,
     roots = h ? modeRoots(h) : {};
@@ -30,7 +30,7 @@ export const modes = computed(() => {
  *  truth. Not remembered: a bundle opens on the reconstruction. */
 export const colourChoice = signal<"reco" | "truth">("reco");
 
-/** The truth level the truth colours group the particles by (model/truth.ts COLOUR_LEVELS), as chosen in the colour
+/** The truth level the truth colours group the particles by (model/truth/truth.ts COLOUR_LEVELS), as chosen in the colour
  *  key; null: the profile's (the truth particles' `particle` bit). */
 export const truthLevel = signal<ColourLevel | null>(null);
 
@@ -92,7 +92,7 @@ export const caloView = computed(() => {
   );
 });
 
-/** The truth particles as a graph (model/truth.ts): parents, children and vertices, once per event; null without truth
+/** The truth particles as a graph (model/truth/truth.ts): parents, children and vertices, once per event; null without truth
  *  particles. Their vertex table is the other truth table a plain relation from them reaches. */
 export const truthGraph = computed(() => {
   const b = bundle.value,
@@ -115,7 +115,7 @@ export const truthGraph = computed(() => {
 /** How far a kind with no truth is mixed towards the background in the truth mode. */
 export const FAINT = 0.6;
 
-/** Each drawn table's truth status (model/match.ts truthStatus). Computed once per bundle. */
+/** Each drawn table's truth status (model/truth/match.ts truthStatus). Computed once per bundle. */
 export const truthStatuses = computed(() => {
   const b = bundle.value,
     out = new Map<string, TruthStatus>();

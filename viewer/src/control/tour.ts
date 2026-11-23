@@ -23,7 +23,7 @@ import {
   showAll,
   showEvent,
   sizeColumn,
-  solo,
+  lookAlone,
   touring,
   view,
   drawnLayers,
@@ -35,7 +35,6 @@ import { related, type Ref } from "../model/relations";
 import { isShower, type Caption } from "../render/replay";
 import { startDomain } from "../model/domains";
 import { stepMs, tourPlan } from "../model/tourPlan";
-import { stopLive } from "./live";
 import { chooseDomain, ranked } from "./navigate";
 import { engine, growTables, replayEvent } from "./scene";
 
@@ -86,9 +85,8 @@ async function startTour() {
   const me = ++generation,
     e = engine;
   if (!e) return;
-  stopLive();
   touring.value = true;
-  solo.value = null; // the tour builds the whole event up, not one kind
+  lookAlone(null); // the tour builds the whole event up, not one kind
   view.value = "3d";
   // Real time per unit of the durations below: 1, or in development builds window.emberTourPace (2 is half speed).
   const pace = import.meta.env.DEV ? Number((window as { emberTourPace?: number }).emberTourPace ?? 1) : 1;

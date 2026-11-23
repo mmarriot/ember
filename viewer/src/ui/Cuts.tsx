@@ -2,6 +2,7 @@
 // its pop-up a slider on a log scale with the exact value. A cut applies to every collection of its group.
 import { computed } from "@preact/signals";
 import type { DisplayLayer } from "../io/format";
+import { cutAmount, cutName } from "../model/cuts";
 import { cutGroups, cuts, event, labelOf, layerName, short } from "../model/store";
 import { togglePopover } from "./Info";
 import { Icon } from "./widgets";
@@ -33,19 +34,18 @@ const sliderRanges = computed(() => {
 
 /** A cut group's minimum as one chip, "pT ≥ 30 GeV" ("no cut" at 0; marked when it is not the profile's): a click
  *  opens its slider in a pop-up. */
-export function CutChip({ name, here }: { name: string; here: DisplayLayer[] }) {
+export function CutChip({ name, here, row }: { name: string; here: DisplayLayer[]; row?: string }) {
   const g = cutGroups.value.get(name);
   if (!g) return null;
-  const cut = g.layers[0].cut!,
-    v = cuts.value[name] ?? g.default,
-    what = cut.label ?? cut.column;
+  const v = cuts.value[name] ?? g.default,
+    what = cutName(g.layers[0].cut!, row);
   return (
     <button
       class={v !== g.default ? "cutchip changed" : "cutchip"}
       title={`${name}: the minimum drawn. Click to change it`}
       onClick={(e) => togglePopover(e, () => <CutRow name={name} here={here} />, name, true)}
     >
-      {v > 0 ? `${what} ≥ ${short(v)}${g.unit ? ` ${g.unit}` : ""}` : `no ${what} cut`}
+      {v > 0 ? `${what} ≥ ${cutAmount(v, g.unit)}`.trim() : `no ${what} cut`.replace("  ", " ")}
     </button>
   );
 }
@@ -65,7 +65,7 @@ function CutRow({ name, here }: { name: string; here: DisplayLayer[] }) {
   return (
     <div class="cut" title={`Minimum ${name.toLowerCase()} for ${g.layers.map(layerName).join(", ")}`}>
       <div class="cutrow">
-        <span class="cutname">{cut.label ?? cut.column} ≥</span>
+        <span class="cutname">{cutName(cut)} ≥</span>
         <input
           type="range"
           aria-label={name}

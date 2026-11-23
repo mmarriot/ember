@@ -23,12 +23,13 @@ import {
   selection,
   short,
   shownLayer,
-  solo,
   unlook,
   view,
 } from "../model/store";
 import type { ViewName } from "../io/format";
 import { Labels } from "./Labels";
+import { Hint } from "./Hint";
+import { TitleBox } from "./TitleBox";
 import { jump } from "../control/navigate";
 import { engine, startScene } from "../control/scene";
 import { stopTour, tourCaption } from "../control/tour";
@@ -134,18 +135,9 @@ export function Viewport() {
       <Labels />
       <Tooltip />
       <ReplayCaption />
-      {solo.value && (
-        <div class="solobar" role="status">
-          Only <b>{solo.value.split("|").filter(Boolean).reverse().join(" · ")}</b>{" "}
-          <button class="link" title="Draw everything ticked again" onClick={() => (solo.value = null)}>
-            show everything
-          </button>
-        </div>
-      )}
+      <TitleBox />
       {(bundle.value?.header.domains?.length ?? 0) >= 2 && <Views />}
-      <div class="hintbar">
-        Click an object to select it · <kbd>?</kbd> help
-      </div>
+      <Hint />
     </div>
   );
 }

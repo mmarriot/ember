@@ -127,9 +127,13 @@ These are for the people who run a site ([Hosting](hosting.md): the CMS site is 
 ```
 ember sync --config campaigns.json [--max-files N] [--dry-run]       convert new files of the campaigns, rewrite the index
 ember publish B.ember --campaign X --title T [--name N] [--file-title T] [--site DIR]    add a bundle to a shared group
-ember simulate SRC.ember [--campaign C] [--events N] [--interval S]  publish a bundle a few events at a time (Live demo)
+ember simulate SRC.ember [--campaign C] [--events N] [--interval S]  publish a bundle a few events at a time, as if data were arriving
 ember clean [--days 30] [--dry-run] [--site DIR]                     remove users' bundles older than 30 days
 ```
+
+`ember simulate` is for trying a site whose data arrive while people look: it publishes the events of a bundle a few at
+a time, as new files of one campaign (`live_demo` by default), and rewrites the index each time. The viewer reads the
+index again every 30 s, so the new files appear in the data set chooser.
 
 `ember clean`:
 

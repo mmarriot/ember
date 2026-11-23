@@ -13,6 +13,7 @@ const {
   keepShown,
   openBundle,
   opened,
+  openSameEvent,
   openFailure,
   opening,
   rawEvent,
@@ -166,7 +167,7 @@ describe("openBundle", () => {
     expect(recent.value).toEqual([]);
   });
 
-  // Review, finding 1: opens overlap (a slow link, then a choice in the chooser; Live; two quick picks).
+  // Review, finding 1: opens overlap (a slow link, then a choice in the chooser; two quick picks).
   it("does not let an earlier, slower open replace the data set chosen after it", async () => {
     let arrive!: () => Promise<void>;
     const slow = () =>
@@ -337,5 +338,21 @@ describe("switching data sets", () => {
     showAll.value = { "T:markers": true };
     await openBundle("data/sim/b.ember", async () => blobSource(testBundle()));
     expect(showAll.value).toEqual({});
+  });
+});
+
+describe("opening another data set on the same event", () => {
+  it("shows the event with the same run, lumi section and event number when it has it", async () => {
+    await openBundle("data/sim/a.ember", async () => blobSource(testBundle({ events: 5 })), 3);
+    await openSameEvent("data/sim/b.ember", async () => blobSource(testBundle({ events: 4 })), indexes());
+    expect(bundleName.value).toBe("data/sim/b.ember");
+    expect(eventIndex.value).toBe(3);
+    expect(toasts.value.at(-1)?.text).toBe("Opened on Run 1 · LS 1 · Event 3, as before");
+  });
+  it("shows the first event, saying so, when it does not", async () => {
+    await openBundle("data/sim/a.ember", async () => blobSource(testBundle({ events: 5 })), 3);
+    await openSameEvent("data/sim/b.ember", async () => blobSource(testBundle({ events: 2 })), indexes());
+    expect(eventIndex.value).toBe(0);
+    expect(toasts.value.at(-1)?.text).toBe("Run 1 · LS 1 · Event 3 is not in this data set: its first event is shown");
   });
 });

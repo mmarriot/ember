@@ -98,7 +98,12 @@
   margin-top: 8px;
   padding-top: 8px;
 }
+/* A kind's heading: one line that wraps (its "only" kept at the right), so no chip overlaps the rows. */
 .tabpanel section > h3 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  row-gap: 2px;
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -109,6 +114,10 @@
   text-transform: none;
   letter-spacing: 0;
   font-weight: 400;
+}
+/* One tick for all of a kind's collections, or of a part's (Layers.tsx TickAll). */
+.tickall {
+  margin: 0 6px 0 0;
 }
 /* A kind's heading folds it (Layers.tsx). */
 .tabpanel section > h3 .fold {
@@ -133,21 +142,15 @@
 
 /* A kind's "only": draws that kind alone (the view says so while it lasts, viewport.css). */
 .tabpanel section > h3 .only {
-  float: right;
-  font-size: 10px;
+  margin-left: auto;
+  font-size: 11px;
   padding: 0 6px;
   border-radius: 8px;
   text-transform: none;
   letter-spacing: 0;
   color: var(--muted);
-  opacity: 0.55;
-}
-.tabpanel section > h3:hover .only,
-.tabpanel section > h3 .only:focus-visible {
-  opacity: 1;
 }
 .tabpanel section > h3 .only.on {
-  opacity: 1;
   background: var(--accent);
   border-color: var(--accent);
   color: #fff;
@@ -172,11 +175,10 @@
   flex: 1;
   min-width: 0;
 }
+/* A long name wraps rather than being cut ("ECA…"). */
 .layer .row .name {
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: break-word;
 }
 .layer .row .tag {
   flex: none;
@@ -225,7 +227,7 @@
 /* Truth colours: one word on a kind's heading (or row), rows of kinds without truth faint. */
 .truthword {
   margin-left: 6px;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 500;
   letter-spacing: 0;
   text-transform: none;
@@ -240,14 +242,16 @@
   border-style: solid;
   color: var(--text);
 }
-.layer.faint {
-  opacity: 0.5;
+/* Faint by colour, not opacity, so its text keeps a contrast of at least 4.5:1 (muted on the panel: about 5.6:1). */
+.layer.faint .row .name,
+.layer.faint .count {
+  color: var(--muted);
 }
 /* The side panel's rows: state as chips, the cut as a chip that opens its slider. */
 .cutchip,
 .rowchip {
   flex: none;
-  font-size: 10.5px;
+  font-size: 11px;
   line-height: 1.5;
   padding: 0 6px;
   border-radius: 8px;
@@ -330,7 +334,7 @@
 .filterpop code {
   display: block;
   margin: 0 0 8px;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 /* Under a row: its colour scale, and behind ⋯ its colour choice, expression form and custom columns. */

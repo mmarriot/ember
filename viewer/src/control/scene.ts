@@ -23,7 +23,6 @@ import {
   focusHidden,
   focusIsTruth,
   focusLayers,
-  following,
   highlight,
   hover,
   inDomain,
@@ -40,7 +39,7 @@ import {
   shown,
   shownLayer,
   shownLevel,
-  solo,
+  lookAlone,
   theme,
   touring,
   view,
@@ -80,7 +79,7 @@ const replaying = signal(false);
 export function replayEvent(pace = 1): Plan | null {
   if (!engine) return null;
   engine.stopReplay(); // a running replay ends first (its end resets `replaying`), so the rebuild below sticks
-  solo.value = null; // the replay builds the whole event up, not one kind
+  lookAlone(null); // the replay builds the whole event up, not one kind
   replaying.value = true; // rebuilds the layers at once (an effect), including the hidden stages
   if (!entries.length) {
     replaying.value = false; // nothing to replay, so no replay's end will reset it
@@ -344,7 +343,7 @@ export function startScene(canvas: HTMLCanvasElement): () => void {
     eng.setLayers(entries.map((e) => e.layer));
     applyCuts(false);
     const raw = rawEvent.peek(); // not `ev`: adding a custom column makes a new event object for the same event
-    if (raw !== lastEvent && !touring.peek() && !following.peek()) eng.frame(); // tour and Live fly there themselves
+    if (raw !== lastEvent && !touring.peek()) eng.frame(); // the tour flies there itself
     lastEvent = raw;
     pinSelection(); // the new layers know the selected object: drawn whatever the cut, and standing out
     showFocus(0);

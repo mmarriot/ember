@@ -1,5 +1,6 @@
 // What is known about the data set open, in words: for the chooser's header and the Event tab's Source section.
 import type { Bundle } from "../io/bundle";
+import type { Header } from "../io/format";
 import { expiryText, ownerOf } from "./library";
 import type { Opened } from "./store";
 
@@ -8,6 +9,20 @@ export const when = (iso?: string) =>
   iso && !Number.isNaN(Date.parse(iso))
     ? new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })
     : "";
+
+/** Whether an event is simulated. No header field says so; the bundle has truth only from a simulation, and CMSSW
+ *  numbers every simulated run 1 (data runs are in the hundreds of thousands). */
+export const isSimulation = (h: Pick<Header, "display">, run: number) => run === 1 || h.display.some((d) => d.truth);
+
+/** The event in one line, for the view's title and a picture's caption: "SIMULATION · ttbar 0PU · Run 1 · LS 1 ·
+ *  Event 18". Data are named by their run alone: "DATA · Run 392294 · LS 21 · Event 11805516". `sample`: the data
+ *  set's title, of which the first part (before " · ") is kept. */
+export function eventTitle(sim: boolean, sample: string, id: { run: number; lumi: number; event: number }): string {
+  const name = sim ? sample.split(" · ")[0] : "";
+  return [sim ? "SIMULATION" : "DATA", name, `Run ${id.run}`, `LS ${id.lumi}`, `Event ${id.event}`]
+    .filter(Boolean)
+    .join(" · ");
+}
 
 /** One line: how many events, whose it is (or that it is local, or from another site), when it expires. */
 export function summary(o: Opened, b: Bundle, now = new Date()): string {

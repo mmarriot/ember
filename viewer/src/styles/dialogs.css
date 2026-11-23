@@ -36,6 +36,21 @@
 .modal-body h3:first-child {
   margin-top: 0;
 }
+/* Save picture (Picture.tsx): the size, the caption, the button. */
+.picture-size {
+  margin: 10px 0;
+}
+.picture-size small {
+  color: var(--muted);
+  margin-left: 4px;
+}
+.picture-size .on small {
+  color: inherit;
+}
+.picture-caption {
+  display: block;
+  margin: 0 0 12px;
+}
 /* Help: a key column, then what it does (and the mouse or button that does it too). */
 table.kv.keys {
   table-layout: fixed;
@@ -55,6 +70,9 @@ table.kv.keys td:nth-child(2) {
   bottom: 16px;
   left: 50%;
   transform: translateX(-50%);
+  /* Positioned at 50 %, the box would shrink to the right half of the page; size it to its text instead. */
+  width: max-content;
+  max-width: min(560px, calc(100vw - 32px));
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -67,9 +85,10 @@ table.kv.keys td:nth-child(2) {
   border-radius: 6px;
   box-shadow: var(--shadow);
   font-size: 12px;
-  max-width: 70vw;
+  line-height: 1.4;
 }
-.toast.error {
+/* The kind is `toast-<kind>`, not a bare `info`, which is the ⓘ button's class (below). */
+.toast-error {
   background: var(--error);
 }
 /* Descriptions on request (ui/Info.tsx): the "i", and the pop-up it opens. */

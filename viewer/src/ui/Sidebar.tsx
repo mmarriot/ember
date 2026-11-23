@@ -7,13 +7,13 @@
 import { signal } from "@preact/signals";
 import type { ComponentChildren } from "preact";
 import { activePreset } from "../model/custom";
-import { applyPreset } from "../model/presets";
+import { applyPreset, presetFits } from "../model/presets";
 import type { DisplayLayer } from "../io/format";
 import { bundle, bundleName, DETECTOR, domain, openTab } from "../model/store";
 import { chooseDomain } from "../control/navigate";
 import { EventInfo } from "./EventInfo";
 import { ColourKey } from "./Key";
-import { Collections, tabOf } from "./Layers";
+import { Collections, TickAll, tabOf } from "./Layers";
 import { treeRelations } from "./Tree";
 import { TruthTab } from "./TruthTab";
 import { stopTour } from "../control/tour";
@@ -62,7 +62,9 @@ function startResize(e: PointerEvent) {
 export function Sidebar() {
   const b = bundle.value,
     display = b?.header.display ?? [],
-    presets = b?.header.presets ?? [];
+    presets = (b?.header.presets ?? []).map((p, i) => [p, i] as const).filter(([p]) => presetFits(p, b!.header));
+  // The preset remembered for this profile may not be offered for this bundle: then the first one that is.
+  const chosen = presets.some(([, i]) => i === activePreset.value) ? activePreset.value : (presets[0]?.[1] ?? 0);
   const reco = display.filter((d) => !d.truth),
     truth = display.some((d) => d.truth);
   // One tab per part, in the order of the header's `domains` (as the top bar's buttons), then the others in display order.
@@ -105,13 +107,13 @@ export function Sidebar() {
             {/* blurred once chosen: a focused list would take the view's keys (arrows, letters) */}
             <select
               aria-label="Preset"
-              value={activePreset.value}
+              value={chosen}
               onChange={(e) => {
                 applyPreset(Number((e.target as HTMLSelectElement).value));
                 (e.target as HTMLSelectElement).blur();
               }}
             >
-              {presets.map((p, i) => (
+              {presets.map(([p, i]) => (
                 <option value={i}>{p.name}</option>
               ))}
             </select>
@@ -120,7 +122,7 @@ export function Sidebar() {
               title="Apply this preset again: undoes filters and colours changed by hand"
               onClick={(e) => {
                 e.preventDefault();
-                applyPreset(activePreset.value);
+                applyPreset(chosen);
               }}
             >
               <Icon name="reset" />
@@ -153,6 +155,10 @@ function Detector({ names, layers }: { names: string[]; layers: DisplayLayer[] }
         return (
           <details class="part" open={here || !current} key={`${bundleName.value}|${name}|${current}`}>
             <summary>
+              <TickAll
+                layers={layers.filter((d) => d.domain === name)}
+                name={`collections of ${name}, of every kind`}
+              />
               <b>{name}</b>{" "}
               <span
                 class="muted"

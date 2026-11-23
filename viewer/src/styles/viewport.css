@@ -73,6 +73,19 @@
   padding: 3px 8px;
   border-radius: 6px;
 }
+/* A first visit's hints (ui/Hint.tsx): readable, with a way to dismiss them. */
+.hintbar.first {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  font-size: 12px;
+  color: var(--text);
+  border: 1px solid var(--accent);
+  pointer-events: auto;
+}
+.hintbar.first button {
+  font-size: 12px;
+}
 .viewport > .views {
   position: absolute;
   left: 12px;
@@ -95,17 +108,69 @@
 }
 
 /* One kind alone: the note on the view while it lasts. */
-.solobar {
+/* Where the view is too narrow for the title (top left) and a caption (top centre) side by side, the caption goes
+   under the title. The view is a width container, so this follows its width, not the window's. */
+.viewport {
+  container-type: inline-size;
+}
+@container (max-width: 1150px) {
+  .caption {
+    top: 84px;
+  }
+}
+/* The view's title, top left (ui/TitleBox.tsx): the event, the physics objects in one line, and "Only …". */
+.titlebox {
   position: absolute;
   top: 10px;
   left: 12px;
+  max-width: min(520px, calc(100% - 24px));
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  z-index: 3;
+  pointer-events: none;
+}
+.titlebox .title,
+.titlebox .headline {
+  background: var(--overlay);
+  border-radius: 6px;
+  padding: 3px 8px;
+  margin: 0;
+}
+.titlebox .title {
+  font-size: 13px;
+  font-weight: 600;
+}
+.titlebox .headline {
+  font-size: 12px;
+  color: var(--muted);
+}
+.titlebox .headline b {
+  color: var(--text);
+}
+.titlebox .badge {
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  padding: 1px 6px;
+  border-radius: 4px;
+  margin-right: 2px;
+  border: 1px solid currentColor;
+}
+.titlebox .badge.sim {
+  color: var(--accent);
+}
+.titlebox .badge.data {
+  color: var(--clean);
+}
+.solobar {
+  pointer-events: auto;
   background: var(--surface);
   border: 1px solid var(--accent);
   border-radius: 14px;
   padding: 3px 12px;
   font-size: 12px;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
-  z-index: 3;
   display: flex;
   gap: 8px;
   align-items: baseline;

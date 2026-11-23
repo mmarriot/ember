@@ -3,9 +3,10 @@
 // last one asked for always wins.
 import { batch, computed, signal } from "@preact/signals";
 import { around, blobSource, Bundle, HttpError, httpSource, type Source } from "../../io/bundle";
-import { type DisplayLayer, type EventData, REPRS } from "../../io/format";
+import { type DisplayLayer, type EventData, type IndexEntry, REPRS } from "../../io/format";
 import { loadCustom } from "../custom";
 import { startDomain } from "../domains";
+import { findEvent } from "../find";
 import {
   cleanList,
   describeFailure,
@@ -21,10 +22,10 @@ import {
   titleOf,
 } from "../library";
 import { colourChoice } from "./colours";
-import { bundle, bundleName, eventIndex, loadMs, loading, rawEvent, shownOf } from "./data";
+import { bundle, bundleName, eventIndex, loadMs, loading, rawEvent, shownEntry, shownOf } from "./data";
 import { layerKey } from "./names";
 import { selection } from "./selection";
-import { cutGroups, cuts, domain, hover, openTab, showAll, solo, tabOfDomain, toast, view, visible } from "./view";
+import { cutGroups, cuts, domain, hover, lookAlone, openTab, showAll, tabOfDomain, toast, view, visible } from "./view";
 
 export type { Listed };
 
@@ -66,8 +67,6 @@ export const opening = signal<string | null>(null);
 export const openFailure = signal<Failure | null>(null);
 /** Start-up is over: the lists were read and the first data set, if any, was asked for (set by ui/App.tsx). */
 export const started = signal(false);
-/** Live mode (control/live.ts): new data sets are opened as they appear. */
-export const following = signal(false);
 
 /** Re-read index.json, bypassing caches (it changes as new data arrive). Only well-formed entries are kept
  *  (library.ts cleanList). An index whose `updated` time has not changed changes nothing, so that nothing that depends
@@ -92,13 +91,14 @@ let opens = 0;
 /** Open a bundle and show its event `start` (a shared link's event: only that one is read, not event 0 first).
  *  `local`: a file from this computer (read through `open`), which the address bar and the recent list cannot open
  *  again. `asked`, when not local, is a file of this site or an address elsewhere (library.ts locate); anything else
- *  is refused. An old link to a site file `x.evdb` that is gone opens `x.ember`, its name since the rename. Opens may overlap (a slow link and a choice made meanwhile, Live, two quick picks): the last one asked for
+ *  is refused. An old link to a site file `x.evdb` that is gone opens `x.ember`, its name since the rename. Opens may overlap (a slow link and a choice made meanwhile, two quick picks): the last one asked for
  *  wins, whatever order they finish in, and one that was overtaken changes nothing and says nothing. Returns whether
- *  this open is the one on screen with its event read (then a link's view and selection can be applied). */
+ *  this open is the one on screen with its event read (then a link's view and selection can be applied). `start`
+ *  can also choose from the new bundle's index (openSameEvent). */
 export async function openBundle(
   asked: string,
   open?: () => Promise<Source>,
-  start = 0,
+  start: number | ((events: IndexEntry[]) => number) = 0,
   local = false,
   index = readIndex,
 ): Promise<boolean> {
@@ -130,8 +130,9 @@ export async function openBundle(
     // The data set on screen keeps only the event shown meanwhile: its neighbours read ahead (100 MB each at PU200)
     // would otherwise be held alongside the new data set's first event.
     bundle.peek()?.keep([eventIndex.peek()]);
-    const n = b.events.length,
-      at = n && Number.isInteger(start) ? ((start % n) + n) % n : 0,
+    const want = typeof start === "function" ? Math.max(0, start(b.events)) : start, // a function: -1 for none
+      n = b.events.length,
+      at = n && Number.isInteger(want) ? ((want % n) + n) % n : 0,
       t0 = performance.now(),
       ev = n ? await b.event(at) : null;
     if (overtaken()) return false;
@@ -142,7 +143,7 @@ export async function openBundle(
     // one's event, selection or settings.
     batch(() => {
       bundle.value = b;
-      solo.value = null;
+      lookAlone(null);
       colourChoice.value = "reco";
       bundleName.value = name;
       openedAs.value = { local, external };
@@ -178,6 +179,30 @@ export async function openBundle(
   } finally {
     if (!overtaken()) opening.value = null;
   }
+}
+
+/** Open another data set on the event shown (the same run, lumi section and event) when it has it, to compare the
+ *  same events in two data sets (e.g. TICL v5 and v6); else on its first event, saying so. */
+export async function openSameEvent(file: string, open?: () => Promise<Source>, index = readIndex) {
+  const was = shownEntry.peek();
+  if (!was) return openBundle(file, open, 0, false, index);
+  let found = true;
+  const ok = await openBundle(
+    file,
+    open,
+    (events) => {
+      const i = findEvent(events, was);
+      found = i >= 0;
+      return i;
+    },
+    false,
+    index,
+  );
+  // Said either way: simulated samples all number their events from Run 1 · LS 1, so the same numbers in two of
+  // them need not be the same collision.
+  const id = `Run ${was.run} · LS ${was.lumi} · Event ${was.event}`;
+  if (ok) toast(found ? `Opened on ${id}, as before` : `${id} is not in this data set: its first event is shown`);
+  return ok;
 }
 
 /** The server has no such file (what library.ts describeFailure calls "gone"). */

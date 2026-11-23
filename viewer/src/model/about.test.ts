@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Bundle } from "../io/bundle";
-import { provenance, summary } from "./about";
+import { eventTitle, isSimulation, provenance, summary } from "./about";
 
 const NOW = new Date("2026-11-13T12:00:00Z");
 const bundle = (source: object) =>
@@ -64,5 +64,24 @@ describe("what is known about the data set open", () => {
     expect(summary(external, b, NOW)).toBe("50 events · not on this site: read from elsewhere.example");
     expect(names(provenance(external, b, NOW))).toEqual(["Events", "Profile", "From", "Address"]);
     expect(provenance(null, b)).toEqual([]);
+  });
+});
+
+describe("the event's title", () => {
+  it("names a simulated event's sample, and data by their run alone", () => {
+    const id = { run: 1, lumi: 1, event: 18 };
+    expect(eventTitle(true, "ttbar 0PU · Phase 2 · 10 events", id)).toBe(
+      "SIMULATION · ttbar 0PU · Run 1 · LS 1 · Event 18",
+    );
+    expect(eventTitle(false, "Run 3 JetMET data", { run: 392294, lumi: 21, event: 11805516 })).toBe(
+      "DATA · Run 392294 · LS 21 · Event 11805516",
+    );
+  });
+  it("calls an event simulated when the bundle has truth or its run is 1", () => {
+    const reco = { display: [{ table: "Jet" }] } as never,
+      truth = { display: [{ table: "Jet" }, { table: "TruthParticles", truth: true }] } as never;
+    expect(isSimulation(truth, 392294)).toBe(true);
+    expect(isSimulation(reco, 1)).toBe(true);
+    expect(isSimulation(reco, 392294)).toBe(false);
   });
 });

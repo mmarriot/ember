@@ -10,7 +10,6 @@ import {
   focus,
   focusBar,
   focusHistory,
-  following,
   highlight,
   labelsOn,
   selection,
@@ -22,7 +21,6 @@ import {
   truthColours,
   view,
 } from "../model/store";
-import { toggleLive } from "../control/live";
 import { back, cross, nextDomain, nextObject, showWhole } from "../control/navigate";
 import { stopTour, toggleTour } from "../control/tour";
 import { engine, replayEvent } from "../control/scene";
@@ -57,6 +55,7 @@ export function Menu() {
           run: () => engine?.frame(highlight.value ?? undefined, true),
         },
         { label: "Labels", keys: "L", on: labelsOn.value, run: () => (labelsOn.value = !labelsOn.value) },
+        { label: "Save picture…", off: !bundle.value, run: () => (dialog.value = "picture") },
       ],
     ],
     [
@@ -120,7 +119,6 @@ export function Menu() {
       [
         { label: "Replay the event, step by step", keys: "R", run: () => void replayEvent() },
         { label: "Tour, event after event", keys: "P", on: touring.value, run: toggleTour },
-        { label: "Live: new data as it comes", on: following.value, run: toggleLive },
       ],
     ],
     [

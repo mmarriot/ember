@@ -33,6 +33,7 @@ import {
   selection,
   shownEntry,
   shownLevel,
+  lookAlone,
   solo,
   soloKey,
   started,
@@ -45,13 +46,13 @@ import {
 import { chooserOpen } from "./Chooser";
 import { Header } from "./Header";
 import { HelpDialog } from "./Help";
+import { PictureDialog } from "./Picture";
 import { Popover, popover } from "./Info";
 import { Card } from "./Card";
 import { menuOpen } from "./Menu";
 import { Sidebar } from "./Sidebar";
 import { DropHint, Start } from "./Start";
 import { back, chooseDomain, cross, nextDomain, nextObject, showWhole } from "../control/navigate";
-import { stopLive } from "../control/live";
 import { stopTour, toggleTour } from "../control/tour";
 import { engine, replayEvent } from "../control/scene";
 import { Viewport } from "./Viewport";
@@ -84,6 +85,7 @@ export function App() {
         <Card />
       </main>
       {dialog.value === "help" && <HelpDialog />}
+      {dialog.value === "picture" && <PictureDialog />}
       <Popover />
       <Toasts />
       {dropping.value && <DropHint />}
@@ -93,7 +95,7 @@ export function App() {
 
 /** Open what the page's address names, with its event, view, selection and colours. The state is in the hash
  *  (#b=…&e=…); an address written as a query (?b=…&e=…) works too. `e` is the event's place in the file, from 0 (the
- *  top bar counts from 1: "2 of 50"), not its event number (the "Event…" box takes that). */
+ *  top bar counts from 1: "2 of 50"), not its event number (the top bar's event box takes that, or run:lumi:event). */
 function openFromAddress() {
   const link = readLink(location.hash.slice(1) || location.search.slice(1));
 
@@ -117,7 +119,7 @@ function openFromAddress() {
       const { domain: d, view: v, only, selection: s, truth, level } = link;
       if (d) chooseDomain(d === ALL ? null : d, false);
       if (v && (Object.values(VIEW_KEYS) as string[]).includes(v)) view.value = v as ViewName;
-      if (only && bundle.peek()?.header.display.some((l) => soloKey(l) === only)) solo.value = only;
+      if (only && bundle.peek()?.header.display.some((l) => soloKey(l) === only)) lookAlone(only);
       // A link made before the data set was converted again may name a row that no longer exists.
       if (s && s.row < (event.peek()?.tables[s.table]?.n ?? 0)) selection.value = s;
       if (truth && truthColours.peek()) colourChoice.value = "truth";
@@ -242,7 +244,6 @@ function listenForDrops() {
     dropping.value = false;
     const file = e.dataTransfer?.files[0];
     if (file) {
-      stopLive();
       stopTour();
       void openLocal(file);
     }

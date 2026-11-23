@@ -22,6 +22,11 @@ chooser**. It has a filter and three kinds of list:
 
 Other people's files are in no list. You reach them only through a link.
 
+A data set chosen in the chooser opens on the event shown (the same run, lumi section and event) when it has it, so
+the same event can be compared in two data sets, for example TICL v5 and v6. It says which event it opened on either
+way: simulated samples all start at Run 1 · LS 1, so the same numbers in two of them need not be the same collision.
+When it does not have the event, it opens on its first event.
+
 In the chooser, type to filter. Use ↑ ↓ and Enter to open a data set, and Esc to close the chooser. **Open a local
 file…** at the bottom picks a `.ember` file (or a `.evdb` file, from before the project was called Ember) from your
 computer. Dropping a file on the page does the same.
@@ -58,6 +63,15 @@ and explains how to publish the file.
 
 The address bar always holds the same link. [The address](#the-address) lists what it keeps.
 
+## Saving a picture
+
+**Menu → Save picture…** saves the view alone as a PNG: without the side panel, the card, the labels or the axes.
+Choose 1×, 2× or 4× the view's size on screen; lines and markers keep their size relative to the picture, so it looks
+like the screen, only sharper. The caption, on by default, is the view's title and its line of physics objects. A
+graphics card that cannot draw the size asked for says so; choose a smaller one. A 4× picture of a view of 1260 × 890
+pixels takes about 72 MB for its pixels, and its antialiasing several times that on the graphics card, for the moment
+it is drawn.
+
 ## Controls
 
 Press `?` for the viewer's help. It lists the same controls as this section, grouped, with their keys. The **Menu**
@@ -76,6 +90,8 @@ It shows each control's key and whether it is on. The colour theme is there too.
 | show the whole event | `Home`, or Reset |
 | go back to the normal view, or close a dialog | `Esc`, or click on empty space |
 | previous / next event | `←` / `→`, or the arrows at the top |
+| go to an event | type `run:lumi:event`, `run:event` or the event number in the box next to the arrows, then Enter |
+| find objects in the event | type a kind in the same box, optionally with a condition on its columns: `electron`, `jet pt > 50`. The largest that passes is selected |
 | resize the side panel | drag its edge; double-click the edge to reset it |
 
 **Parts of the detector.** Press `D` (`Shift+D` to go backwards), or use the **Look at** bar at the top: Physics ·
@@ -90,6 +106,17 @@ drop-down list. Looking at one part:
 The side panel keeps your ticks. A shared part (for example **Physics**) draws only its own layers and the layers of
 no part. A bundle opens on the part named in its `view.domain`. A selected object stays selected when you change
 part: the view frames the object's pieces in that part, and `D` skips the parts where it has nothing.
+
+**Hints.** On a first visit, a line at the bottom left of the view names the keys to start with: click an object,
+`X` for its truth and `T` for truth colours (when the bundle has truth), `D` for the parts of the detector, `?` for
+help. **Got it** hides it for good in this browser; the line then says only "Click an object to select it · ? help".
+
+**The view's title.** The top left of the view says what is on screen, so that a screenshot says it too:
+`SIMULATION · ttbar 0PU · Run 1 · LS 1 · Event 18`, or `DATA · Run 392294 · LS 21 · Event 11805516`. Under it is the
+event in one line, as at the top of the Physics tab ("Jets 4 · Electrons 0 · … · Puppi MET 38.1 GeV"). No header
+field says whether a bundle is simulation: the viewer calls an event simulated when the bundle has truth or the run
+is 1 (CMSSW numbers every simulated run 1). A simulated event is named by the first part of the data set's title,
+and data by their run.
 
 ### Selecting an object
 
@@ -170,7 +197,8 @@ the barrel's.
   If none is ticked, it draws all the kind's collections.
 - Selecting an object brings back its parts and its truth.
 - "show everything" on the view ends it. A replay or a tour also ends it. Your ticks are kept.
-- **only** is not offered for kinds that are drawn only for a selection (such as the hits on a track).
+- On a kind that is drawn only for a selection (such as the hits on tracks), **only** also switches it to **all**
+  of its objects while it lasts, so the view is not empty.
 
 ### Colours
 
@@ -205,14 +233,13 @@ leptons with photons and missing momentum, b tagging. An event of the whole dete
 - Planned: a speed control in the tour bar (1×, 1.5×, 2×, remembered in this browser), and → to go to the next
   step.
 
-**Live** (the Live button) plays new files as they appear in the site's index.
-
 ## Side panel
 
 From top to bottom, the side panel has:
 
 1. the **Preset** list, when the bundle has more than one preset, with a button to apply the chosen preset again.
-   This undoes filters and colours that you changed by hand;
+   This undoes filters and colours that you changed by hand. A preset ticks the layers it colours. A preset that
+   needs a table or a column the bundle lacks is not offered;
 2. tabs;
 3. the colour key.
 
@@ -239,10 +266,16 @@ accent colour when the cut differs from the profile's. Click it to open a slider
 
 - the slider has a log scale over the values of the group in the event shown. Its lowest position means no cut;
 - it applies to every layer of the group, including layers listed elsewhere (the pop-up names them);
-- it is named after the cut's `label`, or else its column;
+- it is named after the cut's `label`, or else its group ("hit energy ≥ 35 MeV"), never the raw column. Energies
+  below 1 GeV are given in MeV;
 - the pop-up opens beside the panel, so the counts of the rows it cuts stay in sight.
 
-A kind with several cuts (one per calorimeter) shows each cut on the first row it cuts.
+A kind with several cuts (one per calorimeter) shows each cut on the first row it cuts, without the row's name
+("energy ≥ 1 GeV" on the ECAL barrel row). A long name wraps onto a second line instead of being cut short.
+
+A kind with several collections, and each part of the detector in the Detector tab, has a tick of its own on its
+heading: one click ticks all of its collections, or unticks them all when all are ticked. It is half ticked when
+only some are.
 
 Clicking a kind's heading folds it. The folded heading says how many of its collections are drawn. This lasts for
 the life of the page. A slider shared with a later kind moves to that kind.
@@ -253,7 +286,7 @@ there is its colour scale, if the colour key does not already explain it. The ch
 | chip | meaning |
 |---|---|
 | **filter** | the layer has a filter. Click to see the expression and remove it. |
-| **selected** / **all** | for an `onSelection` layer: drawn only for the selected object, or all of its objects. Click to switch. |
+| **with selection** / **all** | for an `onSelection` layer: drawn only with the selected object, or all of its objects. Click to switch. |
 | **show** | the layer is hidden while something is selected, because only one of the selection's levels is drawn at a time. Click to draw this one. |
 | **shown** | the layer is not ticked, but it is drawn because it holds objects of the selection |
 
@@ -532,9 +565,10 @@ They are in the part after `#` (`#b=…&e=…`). A query (`?b=…&e=…`) is rea
 
 - `b` is the bundle's path, relative to the site: `data/u/<login>/<name>.ember` for a file in a user area.
 - `e` is the event's position in the file, counted from 0. The top bar counts from 1. It is not the event number:
-  type the event number in the **Event…** box.
+  type the event number (or `run:lumi:event`) in the event box.
 
 A local file is not written to the address.
 
 **Remembered in this browser, not in links:** custom columns, filters, colour choices and the active preset (per
-profile), the theme, the width of the side panel, the login you typed, and the recent data sets.
+profile), the theme, the width of the side panel, the login you typed, the recent data sets, and whether the
+first-visit hints were dismissed.

@@ -1,5 +1,5 @@
 /* The top bar (Header.tsx): the brand, the data set chooser, the event's navigation, the parts of the detector or
-   the views, Live, the menu and the actions; with the pop-ups it opens (the chooser's panel, the menu, sharing). */
+   the views, the menu and the actions; with the pop-ups it opens (the chooser's panel, the menu, sharing). */
 .topbar {
   position: relative;
   display: flex;
@@ -60,34 +60,7 @@
   flex: none;
 }
 
-/* Live, and the bar that moves under the top bar while a data set or an event is read. */
-.live {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  padding: 4px 10px;
-}
-.live .dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--muted);
-}
-.live.on {
-  border-color: var(--error);
-  color: var(--error);
-}
-.live.on .dot {
-  background: var(--error);
-  animation: pulse 1.6s ease-in-out infinite;
-}
-@keyframes pulse {
-  50% {
-    opacity: 0.3;
-  }
-}
+/* The bar that moves under the top bar while a data set or an event is read. */
 .progress {
   position: absolute;
   left: 0;
@@ -145,7 +118,7 @@
 }
 .dataset .tag {
   flex: none;
-  font-size: 10px;
+  font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--muted);

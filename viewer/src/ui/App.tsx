@@ -5,7 +5,7 @@
 // How the components read the state (model/store/), here and in every file of ui/: a component that reads a
 // signal's `.value` while it renders is rendered again whenever that signal changes. Event handlers and effects read
 // `.peek()` where they must not depend on a signal, and assign `.value` to change it, which updates every reader.
-import { effect, signal } from "@preact/signals";
+import { batch, effect, signal } from "@preact/signals";
 import { useEffect } from "preact/hooks";
 import type { ViewName } from "../io/format";
 import { startDomain } from "../model/domains";
@@ -136,8 +136,11 @@ function openFromAddress() {
       if (v && (Object.values(VIEW_KEYS) as string[]).includes(v)) view.value = v as ViewName;
       if (only && bundle.peek()?.header.display.some((l) => soloKey(l) === only)) lookAlone(only);
       if (s) selection.value = s;
-      if (truth && truthColours.peek()) colourChoice.value = "truth";
-      truthLevel.value = COLOUR_LEVELS.find((l) => l.id === group) ?? null; // an unknown level: the profile's
+      batch(() => {
+        // one rebuild of every layer for both
+        if (truth && truthColours.peek()) colourChoice.value = "truth";
+        truthLevel.value = COLOUR_LEVELS.find((l) => l.id === group) ?? null; // an unknown level: the profile's
+      });
       if (level && selection.peek()) focusLevel.value = level; // a level the focus does not have is ignored (store/selection.ts shownLevel)
       if (s) requestAnimationFrame(() => frameFocus(0)); // beside its card, once the card is drawn (measured)
     })
@@ -175,7 +178,8 @@ function writeTitle() {
 }
 
 /** Keep the address in step with what is shown, so that it is always a link to this view (the share button copies
- *  it): data set, event, view, domain, selection and its level, truth colours and the kind drawn alone. */
+ *  it): data set, event, view, domain, selection and its level, truth colours and their grouping, and the kind drawn
+ *  alone. */
 function writeAddress() {
   return effect(() => {
     const s = selection.value,

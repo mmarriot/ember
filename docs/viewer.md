@@ -760,7 +760,7 @@ The address keeps what a link needs:
 - the part of the detector (`All` when a bundle that opens on one part shows everything);
 - a kind of object shown alone (`only`);
 - the selection, and the level shown (`lv`);
-- the truth colours (`c=truth`).
+- the truth colours (`c=truth`) and what they group by (`g`, e.g. `g=collision`).
 
 They are in the part after `#` (`#b=…&e=…`). A query (`?b=…&e=…`) is read too.
 

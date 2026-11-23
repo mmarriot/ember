@@ -209,7 +209,7 @@ export const truthRank = computed<SlotRank>(() => {
       ? { domain: domain.value, classes: level.classes }
       : { domain: domain.value, level: level?.mask, only: level?.only };
   const parts = relatives.value;
-  if (!sel || pairView.value || !parts) return base;
+  if (!sel || pairView.value || !parts || level?.classes) return base; // a class level has no slots to give
   const pt = ev.tables[root]?.columns.pt,
     matched = [...(parts.linked.get(root) ?? [])].sort((a, c) => (pt ? Number(pt[c]) - Number(pt[a]) : a - c));
   const deposits = simEnergyByParticle(ev, b.header, parts.madeOf).flatMap((g) => g.particles.map(([p]) => p));

@@ -111,8 +111,9 @@ size too): collision (signal collision, pile-up), signal process / underlying ev
 (bit 11, bit 12). A particle takes the class of its nearest ancestor (or itself) with one of the classes' bits, else
 "rest of the signal collision" (grey); pile-up is its own class whatever its bits (bit 6 is set on pile-up too). Hits
 and matched reco objects follow their particle as in every truth colouring, and a selection changes no colour. The key
-lists the classes of the particles that left hits or are matched. Bits 4–6 and 11–12 are set only in samples made with
-a truth preset at DIGI (`applyTruthPreset`).
+lists the classes of the particles that left hits or are matched, and hits without simulated energy as "no in-time
+truth" (noise, out-of-time pile-up), drawn small. Bits 4–6 are set only in samples made with a truth preset at DIGI
+(`applyTruthPreset`); bits 11–12 in every sample.
 
 **Before a selection.** In the truth colours the signal particles of the level with pT ≥ 1 GeV are drawn as dashed
 lines (the truth layer is otherwise drawn only for a selection). Pile-up stays off.

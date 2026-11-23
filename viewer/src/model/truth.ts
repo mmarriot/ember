@@ -43,7 +43,12 @@ export const LEVELS: Level[] = [
     flag: "ReconstructableFromSignal",
     what: "a first reconstructable decay product of the signal process (a π⁰ as one, no neutrinos)",
   },
-  { bit: 6, name: "underlying event", flag: "UnderlyingEvent", what: "a stable leg of the underlying event" },
+  {
+    bit: 6,
+    name: "underlying event",
+    flag: "UnderlyingEvent",
+    what: "a stable leg of a collision's underlying event (pile-up's too)",
+  },
   { bit: 7, name: "parton jet", flag: "PartonJets", what: "a hard-process parton, standing for everything below it" },
   { bit: 8, name: "b hadron", flag: "BHadrons", what: "the weakly decaying hadron of a b chain" },
   { bit: 9, name: "c hadron", flag: "CHadrons", what: "the weakly decaying hadron of a c chain" },
@@ -74,7 +79,7 @@ export interface ColourLevel {
   only?: boolean; // only the level's particles take colours (the rest grey)
   classes?: TruthClass[];
 }
-/** The levels offered in the colour key's picker. Bits 4-6 and 11-12 are set only by a truth preset at DIGI. */
+/** The levels offered in the colour key's picker. Bits 4-6 are set only by a truth preset at DIGI. */
 export const COLOUR_LEVELS: ColourLevel[] = [
   { id: "gen", name: "generator particle", flag: "bit 2, StableDecayProducts", mask: 1 << 2 },
   { id: "calo", name: "entered the calorimeter", flag: "bit 3, CaloBoundary", mask: 1 << 3 },

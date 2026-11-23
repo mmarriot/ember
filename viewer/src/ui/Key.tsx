@@ -180,7 +180,7 @@ function LevelPicker() {
   const option = (l: ColourLevel, j: number) => (
     <option value={l.id} title={l.flag} disabled={!!l.mask && !counts[j] && l.id !== current}>
       {l.name}
-      {l.mask ? ` (${counts[j]})` : ""}
+      {l.classes ? "" : ` (${counts[j]})`}
       {l === profile ? " · default" : ""}
     </option>
   );
@@ -263,7 +263,7 @@ function TruthKey({ entries }: { entries: KeyEntry[] }) {
           <p>
             Grouped by class ("one colour per class"), a particle takes the class of its nearest ancestor (or itself)
             with that class's level, and pile-up is a class of its own; every class is drawn alike, and a selection
-            changes no colour. The signal, underlying-event and τ levels are set only in samples made with a truth
+            changes no colour. The signal process and underlying event are set only in samples made with a truth
             preset.
           </p>
           <p>No simulated energy: noise, out-of-time pile-up, or a particle the export left out.</p>

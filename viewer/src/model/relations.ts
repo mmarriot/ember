@@ -337,7 +337,7 @@ export function truthClasses(d: DisplayLayer, t: Table, ev: EventData, header: H
         continue;
       }
       let f = 0; // the bits of the nearest particle with any (at most n steps: no endless loop on a cycle)
-      for (let j = i, steps = 0; flags && j >= 0 && steps < t.n && !f; j = parent[j], steps++)
+      for (let j = i, steps = 0; any && flags && j >= 0 && steps < t.n && !f; j = parent[j], steps++)
         f = Number(flags[j]) & any;
       const k = f ? classes.findIndex((c) => (c.mask ?? 0) & f) : -1;
       out[i] = k >= 0 ? k : all >= 0 ? all : classes.length;

@@ -283,8 +283,8 @@ export function colours(
     return { rgb: out, legend: { kind: "category", text: noLinkText(d) } };
   }
   if (d.colourBy === "identity" && d.truth && rank?.classes) {
-    // A class level: one colour per class, every class drawn alike (pile-up too, small by particle). The classes take
-    // the identity colours but the second, which is pile-up's in every class level; the rest of the collision is grey.
+    // A class level: one colour per class, every class drawn alike, pile-up too (drawn small per particle). The classes
+    // take the identity colours but the second, pile-up's in every class level; the rest of the collision is grey.
     const cls = truthClasses(d, t, ev, header, rank.classes),
       { anchor } = identities(d, t, ev, header, 0),
       names = [...rank.classes.map((c) => c.name), "rest of the signal collision", "pile-up"],
@@ -300,7 +300,7 @@ export function colours(
       emphasis: new Uint8Array(t.n).fill(1),
       legend: {
         kind: "category",
-        text: "a particle: the class of its nearest ancestor in one; a hit: its particle's with most simulated energy",
+        text: "each particle in the class of its nearest flagged ancestor; each hit in its particle's with most energy",
         items: names.map((label, k) => ({ label, colour: hexes[k] })).filter((_, k) => present[k]),
       },
     };

@@ -123,7 +123,7 @@ export const modeKey = computed<KeyGroup | null>(() => {
                 : { label: "other signal", colours: [pal.other] },
               ...(pileup ? [{ label: "pile-up", colours: [pal.pileup], small: true }] : []),
             ]),
-        none("no simulated energy, or not cleanly matched"),
+        none(`${level.classes ? "no in-time truth" : "no simulated energy"}, or not cleanly matched`),
       ],
     };
   }

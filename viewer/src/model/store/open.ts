@@ -21,7 +21,7 @@ import {
   readIndex,
   titleOf,
 } from "../library";
-import { colourChoice } from "./colours";
+import { colourChoice, truthLevel } from "./colours";
 import { bundle, bundleName, eventIndex, loadMs, loading, rawEvent, shownEntry, shownOf } from "./data";
 import { layerKey } from "./names";
 import { selection } from "./selection";
@@ -159,6 +159,7 @@ export async function openBundle(
       lookAlone(null);
       overlay.value = false; // not in the address: each bundle opens without the physics overlay
       colourChoice.value = "reco";
+      truthLevel.value = null; // the profile's: another bundle may have none of the level's particles
       bundleName.value = name;
       openedAs.value = { local, external };
       openFailure.value = null;

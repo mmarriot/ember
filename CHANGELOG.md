@@ -54,6 +54,9 @@ with a message while an old one is set without its new name. `deploy.sh` links `
   - "Save picture…" makes a figure: the view with the CMS label, a caption and the colour key over it, every part
     editable in a preview (retyped, renamed, left out, dragged) and remembered for the next picture; as PNG (saying
     where it comes from), SVG (text as text) or to the clipboard;
+  - the truth colours group by class too, one colour each: collision (signal or pile-up), signal process or
+    underlying event, τ decay (hadronic or leptonic); and by parton jet or τ, one colour per particle. The link keeps
+    the grouping;
   - the event box takes run:lumi:event and finds objects ("jet pt>50"); another data set opens on the same event;
   - clicking a hit shows the hit, with its particles' simulated (deposited, not calibrated) energy.
 - **Converter:** e/γ identification and HGCal shower shapes, impact parameters to the leading vertex and the beam line

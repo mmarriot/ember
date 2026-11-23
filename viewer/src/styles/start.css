@@ -1,7 +1,5 @@
-/* What the view shows while no data set is open (Start.tsx): the start panel, the reason a data set did not open,
-   or that one is on its way; and the hint shown while a file is dragged over the page. */
-/* No data set open (Start.tsx): over the empty view, under the top bar's panels; the side panel, which would be
-   empty, gives its place to it. */
+/* While no data set is open (Start.tsx): the start panel over the empty view, under the top bar's panels, in place
+   of the empty side panel; and the hint shown while a file is dragged over the page. */
 .app.nodata .sidebar,
 .app.nodata .resizer {
   display: none;
@@ -66,11 +64,7 @@
   gap: 8px 12px;
 }
 .startpanel .detail {
-  font:
-    11px ui-monospace,
-    SFMono-Regular,
-    Menlo,
-    monospace;
+  font: 11px var(--mono);
   color: var(--muted);
   overflow-wrap: anywhere;
 }

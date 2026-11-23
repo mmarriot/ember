@@ -1,5 +1,5 @@
-/* Things that open over the page: the help dialog (Help.tsx), the passing messages, and the descriptions behind an
-   "i" (Info.tsx). */
+/* What opens over the page: the dialogs (widgets.tsx Modal; Help.tsx, Picture.tsx), the passing messages and the
+   descriptions behind an "i" (Info.tsx). */
 .backdrop {
   position: fixed;
   inset: 0;
@@ -36,8 +36,7 @@
 .modal-body h3:first-child {
   margin-top: 0;
 }
-/* Save picture (Picture.tsx): the preview (the label and the key are dragged on it), the size and the formats, then
-   the label and caption beside the key's lines. */
+/* Save picture (Picture.tsx): the preview, the size and the formats, then the label and caption beside the key. */
 .modal.wide {
   width: min(980px, calc(100vw - 32px));
 }
@@ -59,7 +58,7 @@
 }
 .picture-form fieldset {
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius);
   padding: 6px 10px 10px;
   margin: 0;
   min-width: 0;
@@ -125,7 +124,7 @@
 .picture-size .on small {
   color: inherit;
 }
-/* Help: a key column, then what it does (and the mouse or button that does it too). */
+/* Help: a key column, then what it does. */
 table.kv.keys {
   table-layout: fixed;
 }
@@ -144,7 +143,7 @@ table.kv.keys td:nth-child(2) {
   bottom: 16px;
   left: 50%;
   transform: translateX(-50%);
-  /* Positioned at 50 %, the box would shrink to the right half of the page; size it to its text instead. */
+  /* positioned at 50%, the box would shrink to the right half of the page: sized to its text instead */
   width: max-content;
   max-width: min(560px, calc(100vw - 32px));
   display: flex;
@@ -161,7 +160,7 @@ table.kv.keys td:nth-child(2) {
   font-size: 12px;
   line-height: 1.4;
 }
-/* The kind is `toast-<kind>`, not a bare `info`, which is the ⓘ button's class (below). */
+/* `toast-<kind>`, not a bare `info`, which is the "i" button's class (below). */
 .toast-error {
   background: var(--error);
 }

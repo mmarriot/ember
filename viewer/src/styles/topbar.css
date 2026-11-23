@@ -1,5 +1,4 @@
-/* The top bar (Header.tsx): the brand, the data set chooser, the event's navigation, the parts of the detector or
-   the views, the menu and the actions; with the pop-ups it opens (the chooser's panel, the menu, sharing). */
+/* The top bar (Header.tsx) and the pop-ups it opens: the data set chooser, the share pop-up and the menu. */
 .topbar {
   position: relative;
   display: flex;
@@ -20,7 +19,7 @@
   white-space: nowrap;
 }
 
-/* Event navigation: previous and next, the event's name, the tour, and the box that jumps to an event number. */
+/* Event navigation: previous, the event's name, next, the tour, and the event box. */
 .eventnav {
   display: flex;
   align-items: center;
@@ -48,7 +47,7 @@
   margin-left: 6px;
 }
 
-/* The parts of the detector ("Look at"): buttons, or a drop-down list in narrow windows (narrow.css). */
+/* The domain bar ("Look at"): buttons, or a drop-down list in narrow windows (narrow.css). */
 .domainbar {
   flex: none;
   display: flex;
@@ -79,11 +78,9 @@
     background-position: 150% 0;
   }
 }
-/* The data set chooser (Chooser.tsx): a button and its panel. The button's width is set by the window alone: what the
-   bar's other items leave at that width in the worst case (measured: about 1180 px of them without the parts of the
-   detector, more with their buttons, which the narrower bars below fold away). So it is the same for every data set of
-   a kind, whatever the length of its name or of its event's title, and the bar does not move when another one opens.
-   It may still shrink (to 120 px) before the bar overflows. */
+/* The data set chooser (Chooser.tsx). The button's width depends on the window alone, so the bar does not move when
+   another data set opens: what the bar's other items leave in the worst case (measured: about 1180 px of them, more
+   with the domain bar; narrow.css folds them away). It may still shrink to 120 px before the bar overflows. */
 .chooser {
   position: relative;
   flex: 0 1 clamp(120px, calc(100vw - 1180px), 340px);
@@ -118,13 +115,9 @@
 }
 .dataset .tag {
   flex: none;
-  font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--muted);
-  border: 1px solid var(--line-strong);
   border-radius: 3px;
-  padding: 0 4px;
 }
 .chooserpanel {
   position: absolute;
@@ -196,7 +189,6 @@
 }
 .sectionhead .count {
   margin-left: auto;
-  font-variant-numeric: tabular-nums;
 }
 .sectionhead .link {
   font-size: 11px;
@@ -282,11 +274,7 @@
 /* The share pop-up (Share.tsx): the link, whether it was copied, and what it opens. */
 .sharepop input {
   width: 100%;
-  font:
-    11.5px ui-monospace,
-    SFMono-Regular,
-    Menlo,
-    monospace;
+  font: 11.5px var(--mono);
   background: var(--surface-2);
 }
 .sharepop .status {

@@ -1,8 +1,7 @@
 // Where the camera goes, as pure geometry (render/engine.ts moves the cameras): the preset directions, fitting a box
-// into a 2D view, the bounding box of what is drawn, and the envelope the tour camera stays out of.
+// into a 2D view, and the bounding box of what is drawn.
 import * as THREE from "three";
 import type { ViewName } from "../io/format";
-import { toCylinder } from "./geometry";
 import type { Layer } from "./layers";
 
 /** Rows to frame, per table. */
@@ -167,31 +166,3 @@ export function boxOf(
   }
   return [lo, hi];
 }
-
-/** An angle in (-pi, pi]. */
-export const angle = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
-
-/** The cylinder around the beam axis (z) that the tour camera stays out of: radius `r` and half length `z` (cm). */
-export interface Envelope {
-  r: number;
-  z: number;
-}
-
-/** The drawn objects' extent with 10% + 15 cm to spare. Lines (tracks, particles) are left out: they reach past
- *  the detector. */
-export function envelopeOf(layers: Layer[]): Envelope {
-  let r2 = 0,
-    z = 0;
-  for (const l of layers) {
-    if (l.line) continue;
-    for (let i = 0; i < l.x.length; i++) {
-      r2 = Math.max(r2, l.x[i] * l.x[i] + l.y[i] * l.y[i]);
-      z = Math.max(z, Math.abs(l.z[i]));
-    }
-  }
-  return { r: 1.1 * Math.sqrt(r2) + 15, z: 1.1 * z + 15 };
-}
-
-/** How far from `p` along the unit direction `dir` the envelope is left (0 if `p` is outside it). */
-export const exitDistance = (env: Envelope, p: THREE.Vector3, dir: THREE.Vector3) =>
-  toCylinder(p.x, p.y, p.z, dir.x, dir.y, dir.z, env.r, env.z);

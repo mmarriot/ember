@@ -8,8 +8,6 @@ import {
   type Area,
   boxOf,
   DIRECTIONS,
-  type Envelope,
-  envelopeOf,
   FLAT_DISTANCE,
   flatAim,
   flatView,
@@ -21,7 +19,7 @@ import type { Layer } from "./layers";
 import { outlineObject } from "./outlines";
 import { type Hit, pickAll } from "./picking";
 import { REPLAY_OFF } from "./replay";
-import { TourCamera } from "./tourCamera";
+import { type Envelope, envelopeOf, TourCamera } from "./tourCamera";
 
 type Pose = [position: THREE.Vector3, target: THREE.Vector3, zoom: number];
 

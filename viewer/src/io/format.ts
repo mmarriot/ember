@@ -152,8 +152,8 @@ export interface DisplayLayer {
    *  is near. */
   context?: boolean;
   dim?: number; // 0..1: how far its colours are mixed towards the background
-  /** How to name an object in lists (related objects, tree): these columns, with value names, e.g. pdgId 211 -> "π+". */
-  /** How to name an object: its columns' values, by `names` if listed, else after their `prefix` (e.g. "St 4"). */
+  /** How to name an object: these columns' values, by `names` if listed (pdgId 211 -> "π+"), else after their
+   *  `prefix` (e.g. "St 4"). */
   describe?: {
     columns: string[];
     names?: Record<string, Record<string, string>>;

@@ -15,7 +15,7 @@ import re
 import textwrap
 from collections import namedtuple
 
-from . import Problem
+from .. import Problem
 
 Product = namedtuple("Product", "type module instance process")
 
@@ -23,7 +23,7 @@ Product = namedtuple("Product", "type module instance process")
 def plugins(prefix=(), env=None):
     """The names of the module plugins (EDProducers and others) of the CMSSW release that `prefix` / `env` set up
     (see export._environment): those of edmPluginDump's "CMS EDM Framework Module" category."""
-    from .export import cmssw_output
+    from ..export import cmssw_output
 
     names = module_plugins(cmssw_output([*prefix, "edmPluginDump", "-a"], env, "listing the release's plugins"))
     if not names:

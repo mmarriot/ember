@@ -50,10 +50,7 @@
   overflow-wrap: anywhere; /* a CMSSW collection with its instance is one long word */
 }
 .inspector .kind.truth {
-  color: #d7a6ff;
-}
-[data-theme="light"] .inspector .kind.truth {
-  color: #7a3fb0;
+  color: var(--truth);
 }
 .inspector .navbody {
   padding: 0 12px 12px;
@@ -183,14 +180,11 @@
   border-radius: 3px;
   border: 1px solid currentColor;
   background: none;
-  color: #d7a6ff;
+  color: var(--truth);
   white-space: nowrap;
 }
 .rlink .lk:hover {
   background: var(--surface-2);
-}
-[data-theme="light"] .rlink .lk {
-  color: #7a3fb0;
 }
 .rlink .partner {
   display: inline-flex;

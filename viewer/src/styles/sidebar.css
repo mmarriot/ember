@@ -446,11 +446,7 @@
   padding: 5px 8px;
 }
 .exprform .expr {
-  font:
-    12px ui-monospace,
-    SFMono-Regular,
-    Menlo,
-    monospace;
+  font: 12px var(--mono);
 }
 .exprform details {
   margin-top: 0;

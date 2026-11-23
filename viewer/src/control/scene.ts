@@ -13,7 +13,7 @@ import { colourBy, filterMask, filters } from "../model/custom/settings";
 import { cutMin, cutValues, HIDDEN, rescued } from "../model/custom/cuts";
 import { madeOfSimCells } from "../model/truth/facts";
 import { PAIR, type Pair, pairKey } from "../model/truth/pair";
-import { identities, type SlotRank } from "../model/event/relations";
+import { identities, type SlotRank } from "../model/colour/identities";
 import {
   activeMode,
   bundle,

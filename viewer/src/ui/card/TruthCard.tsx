@@ -9,7 +9,8 @@ import { signal } from "@preact/signals";
 import type { ComponentChildren } from "preact";
 import type { Header } from "../../io/format";
 import { completeness, percent, quality, TARGETS } from "../../model/truth/match";
-import { bestPartners, identities } from "../../model/event/relations";
+import { identities } from "../../model/colour/identities";
+import { bestPartners } from "../../model/event/relations";
 import { withUnit } from "../../model/event/describe";
 import {
   bundle,

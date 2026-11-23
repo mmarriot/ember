@@ -8,7 +8,8 @@ import { matchTally } from "../../model/event/chain";
 import { factIn, facts } from "../../model/truth/facts";
 import { particlesInView, topCopy, type ViewRow } from "../../model/truth/graph";
 import { percent, TARGETS, type TruthStatus } from "../../model/truth/match";
-import { bestPartners, cached } from "../../model/event/relations";
+import { cached } from "../../model/event/cache";
+import { bestPartners } from "../../model/event/relations";
 import {
   bundle,
   chipText,

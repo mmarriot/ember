@@ -16,15 +16,9 @@ import type { EventData, Header, RelationInfo } from "../../io/format";
 import { facts } from "./facts";
 import { byHit, truthStatus } from "./match";
 import { type ColourBy, modeColouring } from "../colour/modes";
-import {
-  backPointers,
-  bestPartners,
-  cached,
-  contentPartners,
-  identities,
-  type Ref,
-  type Related,
-} from "../event/relations";
+import { identities } from "../colour/identities";
+import { cached } from "../event/cache";
+import { backPointers, bestPartners, contentPartners, type Ref, type Related } from "../event/relations";
 
 /** What an object is in the pair view:
  *  - matched: the branch's, in its match (for a hit: the branch left the most simulated energy in it);

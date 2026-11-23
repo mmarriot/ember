@@ -6,7 +6,8 @@ import type { DisplayLayer, EventData, Fact, Header, Match } from "../../io/form
 import { evaluate } from "../custom/settings";
 import { facts } from "./facts";
 import { type ColourBy, modeColouring, modeRoots } from "../colour/modes";
-import { bestPartners, cached, type Related } from "../event/relations";
+import { cached } from "../event/cache";
+import { bestPartners, type Related } from "../event/relations";
 
 /** What a reco kind reconstructs, in words, per `match.target`. */
 export const TARGETS: Record<NonNullable<Match["target"]>, string> = {

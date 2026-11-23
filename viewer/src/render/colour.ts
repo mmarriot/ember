@@ -6,7 +6,8 @@
 import { type DisplayLayer, type EventData, type Header, kindName, type Table, toF32, unitOf } from "../io/format";
 import { kindLabel } from "../model/event/describe";
 import { bestPurities, percent } from "../model/truth/match";
-import { bestPartners, contentPartners, identities, type SlotRank, truthClasses } from "../model/event/relations";
+import { identities, type SlotRank, truthClasses } from "../model/colour/identities";
+import { bestPartners, contentPartners } from "../model/event/relations";
 import { ruleText } from "../model/truth/graph";
 
 export const PALETTES = {

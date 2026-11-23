@@ -5,7 +5,7 @@
 // without candidates or truth, and a domain coloured layer by layer, have no key: each layer shows its own colours.
 import { CLASSES, type KeyEntry, modeKey, truthLevelOf } from "../../model/colour/key";
 import { percent } from "../../model/truth/match";
-import { cached } from "../../model/event/relations";
+import { cached } from "../../model/event/cache";
 import { COLOUR_LEVELS, type ColourLevel, colourLevel } from "../../model/truth/graph";
 import {
   activeMode,

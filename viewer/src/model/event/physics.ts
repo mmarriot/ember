@@ -9,7 +9,7 @@
 import type { EventData, Header } from "../../io/format";
 import { evaluate } from "../custom/settings";
 import { byHit } from "../truth/match";
-import { cached } from "./relations";
+import { cached } from "./cache";
 
 /** The objects holding row `row` of `table` through a plain relation with a weight (vertexTracks, svTracks): their
  *  table, row and that weight (the relation's first). Read from the relation pointing back up (`inverseOf`) where

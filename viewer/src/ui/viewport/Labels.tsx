@@ -6,7 +6,7 @@
 import { computed, signal } from "@preact/signals";
 import { useEffect, useRef } from "preact/hooks";
 import type { Ref } from "../../model/event/relations";
-import { filters } from "../../model/custom/custom";
+import { filters } from "../../model/custom/settings";
 import {
   bundle,
   caloView,

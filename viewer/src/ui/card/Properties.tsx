@@ -1,7 +1,7 @@
 // An object's columns in the selection's card (Card.tsx): its main ones, then all of them folded, and for a reco
 // object with energy fractions (e.g. a jet) those as one bar.
 import type { Table } from "../../io/format";
-import { colourBy, customColumns, customDoc } from "../../model/custom/custom";
+import { colourBy, customColumns, customDoc } from "../../model/custom/settings";
 import { cellText, isCopied, isIndex } from "../../model/event/describe";
 import { bundle, layerKey, layerOf, sizeColumn } from "../../model/store";
 

@@ -3,7 +3,7 @@
 // focus.
 import { batch, computed, effect, signal } from "@preact/signals";
 import { type DisplayLayer, kindName } from "../io/format";
-import { filterMask, filters } from "../model/custom/custom";
+import { filterMask, filters } from "../model/custom/settings";
 import { rowsInDomain, stepDomain, withFocus } from "../model/event/domains";
 import { passes, stepRow, topRows } from "../model/event/objects";
 import {

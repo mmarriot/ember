@@ -8,7 +8,7 @@
 // Its width can be dragged; on phones it is a sheet under the view, folded until a tab or its handle opens it.
 import { signal } from "@preact/signals";
 import type { ComponentChildren } from "preact";
-import { activePreset } from "../../model/custom/custom";
+import { activePreset } from "../../model/custom/settings";
 import { applyPreset, presetFits } from "../../model/custom/presets";
 import type { DisplayLayer } from "../../io/format";
 import { bundle, bundleName, COLLECTIONS, domain, openTab, overlay, shared } from "../../model/store";

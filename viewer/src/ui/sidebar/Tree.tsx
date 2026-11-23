@@ -4,7 +4,7 @@
 // truth levels and what a particle did (docs/viewer.md "Truth tab").
 import { useEffect, useMemo, useState } from "preact/hooks";
 import type { Relation } from "../../io/format";
-import { filterMask, filters } from "../../model/custom/custom";
+import { filterMask, filters } from "../../model/custom/settings";
 import {
   bundle,
   caloView,

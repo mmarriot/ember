@@ -2,7 +2,7 @@
 // shader and Layer.passes() compare with the cut's minimum, so filters and "only the selection's objects" ride on
 // the same comparison: a hidden object's value is below any minimum, a forced one above.
 import { type DisplayLayer, type Table, toF32 } from "../../io/format";
-import { filterMask } from "./custom";
+import { filterMask } from "./settings";
 
 export const HIDDEN = -3e38; // below any minimum: never shown
 const SHOWN = 3e38,

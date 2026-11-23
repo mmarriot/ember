@@ -2,7 +2,7 @@
 // largest objects, one row each with its columns (ObjectRows). A click on a row selects the object; pointing at one
 // rings it in the view.
 import { type DisplayLayer, kindName, unitOf } from "../../io/format";
-import { filterMask, filters } from "../../model/custom/custom";
+import { filterMask, filters } from "../../model/custom/settings";
 import { columnName, passes, topRows, whyHidden } from "../../model/event/objects";
 import { plain } from "../../model/event/describe";
 import {

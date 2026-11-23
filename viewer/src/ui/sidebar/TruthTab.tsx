@@ -3,7 +3,7 @@
 // the truth graph browser (the truth collections and the trees of objects linked to objects of the same table,
 // Tree.tsx). A bundle with such trees but no truth calls the tab "Tree", and folds nothing.
 import { effect, signal } from "@preact/signals";
-import { filterMask, filters } from "../../model/custom/custom";
+import { filterMask, filters } from "../../model/custom/settings";
 import { matchTally } from "../../model/event/chain";
 import { factIn, facts } from "../../model/truth/facts";
 import { particlesInView, topCopy, type ViewRow } from "../../model/truth/truth";

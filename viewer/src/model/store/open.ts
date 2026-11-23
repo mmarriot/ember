@@ -4,7 +4,7 @@
 import { batch, computed, signal } from "@preact/signals";
 import { around, blobSource, Bundle, HttpError, httpSource, type Source } from "../../io/bundle";
 import { type DisplayLayer, type EventData, type IndexEntry, REPRS } from "../../io/format";
-import { loadCustom } from "../custom/custom";
+import { loadCustom } from "../custom/settings";
 import { startDomain } from "../event/domains";
 import { findEvent } from "../event/find";
 import {

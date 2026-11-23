@@ -7,7 +7,7 @@ import { useEffect, useRef } from "preact/hooks";
 import type { Caption } from "../../render/replay";
 import { sameRef } from "../../model/event/relations";
 import { unitOf } from "../../io/format";
-import { colourBy } from "../../model/custom/custom";
+import { colourBy } from "../../model/custom/settings";
 import {
   activeMode,
   anchor,

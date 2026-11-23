@@ -7,7 +7,7 @@
 // - for a one-object kind with a direction (MET): the other collections of its kind, and the angle to the leading
 //   objects of another kind.
 import type { EventData, Header } from "../../io/format";
-import { evaluate } from "../custom/custom";
+import { evaluate } from "../custom/settings";
 import { byHit } from "../truth/match";
 import { cached } from "./relations";
 

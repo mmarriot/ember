@@ -466,7 +466,7 @@ async function checkFocusFilters(page, h, fail, tag) {
         .map((r) => r.name)
         .find((n) => n.includes(f)); // ?t= after hot updates
     const store = await import(url("/src/model/store/index.ts")),
-      custom = await import(url("/src/model/custom/custom.ts"));
+      custom = await import(url("/src/model/custom/settings.ts"));
     const frames = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
     const b = store.bundle.peek(),
       ev = store.event.peek(),

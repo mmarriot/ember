@@ -4,7 +4,7 @@
 import { computed, signal } from "@preact/signals";
 import type { DisplayLayer, EventData, Header } from "../../io/format";
 import { colours, describeNoLink, type Legend, type Pal } from "../../render/colour";
-import { colourBy, type ColourMode, withColour } from "../custom/custom";
+import { colourBy, type ColourMode, withColour } from "../custom/settings";
 import { inText } from "../event/describe";
 import { facts } from "../truth/facts";
 import { truthStatus, type TruthStatus } from "../truth/match";

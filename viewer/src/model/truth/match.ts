@@ -3,7 +3,7 @@
 // particle's hits or energy that the object has), from an association's `match` hint. The associator's own score is
 // a ranking (0 best, squared for calorimeter objects), not a fraction, so it is shown next to these, never instead.
 import type { DisplayLayer, EventData, Fact, Header, Match } from "../../io/format";
-import { evaluate } from "../custom/custom";
+import { evaluate } from "../custom/settings";
 import { facts } from "./facts";
 import { type ColourBy, modeColouring, modeRoots } from "../colour/modes";
 import { bestPartners, cached, type Related } from "../event/relations";

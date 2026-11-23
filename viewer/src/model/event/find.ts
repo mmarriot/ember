@@ -2,7 +2,7 @@
 // separated by ":" or spaces, as DQM and pick lists write them), or objects of the event shown: a kind, then
 // optionally an expression on its columns ("electron", "jet pt > 50", model/custom/expr.ts).
 import { type DisplayLayer, kindName, type Table } from "../../io/format";
-import { evaluate } from "../custom/custom";
+import { evaluate } from "../custom/settings";
 
 export interface EventId {
   run?: number;

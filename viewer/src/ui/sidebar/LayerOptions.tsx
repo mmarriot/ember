@@ -1,7 +1,7 @@
 // A collection's colours: its scale under its row (Scale), and behind its ⋯ what colours it, with a filter or a new
 // column for its table (Options, ExprForm.tsx) and the table's custom columns.
 import { type DisplayLayer } from "../../io/format";
-import { colourBy, customColumns, RELATION } from "../../model/custom/custom";
+import { colourBy, customColumns, RELATION } from "../../model/custom/settings";
 import { PALETTES, relatedColourText, type Legend } from "../../render/colour";
 import { layerEntries } from "../../model/colour/key";
 import { activeMode, bundle, event, layerKey, modes, shownLayer, theme } from "../../model/store";

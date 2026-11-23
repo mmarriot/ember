@@ -2,7 +2,7 @@
 // where it is 0 are hidden, on top of the cuts) or as a new column, computed in the browser for every event, shown in
 // the inspector and usable for colour and filters.
 import { useState } from "preact/hooks";
-import { customColumns, evaluate, setFilter } from "../../model/custom/custom";
+import { customColumns, evaluate, setFilter } from "../../model/custom/settings";
 import { FUNCTION_NAMES } from "../../model/custom/expr";
 import { event, full } from "../../model/store";
 

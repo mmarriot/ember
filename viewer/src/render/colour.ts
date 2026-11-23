@@ -262,7 +262,7 @@ export function colours(
     return { rgb: out, legend: { kind: "category", text: "one colour per object" } };
   }
   // A kind's own colour (display hint `fixedColour`), also over "none", which bundles give as old viewers' fallback; the
-  // truth mode and a user's colour choice drop the hint (store/colours.ts shownLayer, custom.ts withColour). A kind
+  // truth mode and a user's colour choice drop the hint (store/colours.ts shownLayer, custom/settings.ts withColour). A kind
   // named after a particle type (electrons, muons, photons; jets) takes that type's colour in this theme, and so does
   // a layer that the profile gives the same colour (a global muon track: the muon's).
   if (d.fixedColour && (d.colourBy === undefined || d.colourBy === "none")) {

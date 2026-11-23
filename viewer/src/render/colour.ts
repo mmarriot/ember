@@ -1,8 +1,7 @@
-// Colours per theme. Sequential scales fade towards the background at low values and stand out at high values
-// (log10 for positive quantities such as energies, linear otherwise); categorical colours tell objects apart
-// (one per trackster; its layer clusters share it). Identity colours (the colour modes) give the largest objects of
-// one table a colour each, and the objects linked to them the same colour. Computed once per event on the CPU, so
-// shaders and legend agree.
+// Colours per theme, and each object's colour with its legend. Sequential scales fade towards the background at low
+// values (log10 for positive quantities such as energies, linear otherwise); categorical colours tell objects apart;
+// identity colours (the colour modes) give the largest objects of one table a colour each, and the objects linked to
+// them the same. Computed once per event on the CPU, so shaders and legend agree.
 import { type DisplayLayer, type EventData, type Header, kindName, type Table, toF32, unitOf } from "../io/format";
 import { kindLabel } from "../model/event/describe";
 import { bestPurities, percent } from "../model/truth/match";
@@ -198,9 +197,8 @@ export function relatedColourText(header: Header, table: string, relation?: stri
   return `colour of its ${info?.association ? "matched " : ""}${tableName(header, table)}${info?.association && info.best ? `, best by ${info.best.weight}` : ""}`;
 }
 
-/** The words under a layer drawn in one neutral colour (`colourBy: "none"`: nothing to take a colour from in this
- *  mode). A hook: the truth mode words it from the layer's truth status (e.g. "no truth for jets: no associator in
- *  CMSSW") with `describeNoLink`. */
+/** The words under a layer drawn in one neutral colour (`colourBy: "none"`). A hook: the truth mode words it from
+ *  the layer's truth status (e.g. "no truth for jets: no associator in CMSSW") with `describeNoLink`. */
 let noLinkText = (_d: DisplayLayer) => "one colour: no link to the colour's source";
 export const describeNoLink = (text: (d: DisplayLayer) => string) => {
   noLinkText = text;
@@ -216,10 +214,10 @@ interface Coloured {
   emphasis?: Uint8Array;
 }
 
-/** Options of `colours`. `range` shares one value scale between layers; without it the layer's own values set the
- *  scale. `layerFor` gives the colouring of related tables (default: their display hints), so colours follow chains:
- *  a hit takes its layer cluster's colour, which is its candidate's. `rank`: how identity colours give their slots
- *  (model/event/relations.ts identities: the domain, the selection, the truth level). */
+/** Options of `colours`. `range`: a value scale shared between layers (default: the layer's own). `layerFor`: the
+ *  colouring of related tables (default: their display hints), so colours follow chains: a hit takes its layer
+ *  cluster's colour, which is its candidate's. `rank`: how identity colours give their slots (relations.ts
+ *  identities). */
 interface ColourOptions {
   range?: Range;
   layerFor?: LayerFor;

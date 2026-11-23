@@ -24,7 +24,11 @@ export function HelpDialog() {
         ],
         [["F"], "double-click it", "Zoom to the selection"],
         [["Home"], "the reset button", "Show the whole event"],
-        [[], "Menu → Save picture…", "A PNG of the view alone, at 1×, 2× or 4×, with the view's title as a caption"],
+        [
+          [],
+          "Menu → Save picture…",
+          "The view as a figure: the CMS label, a caption and the colour key over it, all editable; PNG, SVG or the clipboard",
+        ],
       ],
     ],
     [

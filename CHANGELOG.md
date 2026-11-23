@@ -49,8 +49,11 @@ with a message while an old one is set without its new name. `deploy.sh` links `
     to it), each documented in `docs/truth.md`;
   - the Truth tab opens on the hard process and the particles in the view, and searches the truth by name, pdgId,
     level and process; the colour key has a level picker ("generator particle", "entered the calorimeter", ...);
-  - a title in the view (data or simulation, run, lumi section, event, the physics objects), "Save picture…" with a
-    caption, a hint line on a first visit, and one-click ticks for a kind or a part of the detector;
+  - a title in the view (data or simulation, run, lumi section, event, the physics objects), a hint line on a first
+    visit, and one-click ticks for a kind or a part of the detector;
+  - "Save picture…" makes a figure: the view with the CMS label, a caption and the colour key over it, every part
+    editable in a preview (retyped, renamed, left out, dragged) and remembered for the next picture; as PNG (saying
+    where it comes from), SVG (text as text) or to the clipboard;
   - the event box takes run:lumi:event and finds objects ("jet pt>50"); another data set opens on the same event;
   - clicking a hit shows the hit, with its particles' simulated (deposited, not calibrated) energy.
 - **Converter:** e/γ identification and HGCal shower shapes, impact parameters to the leading vertex and the beam line

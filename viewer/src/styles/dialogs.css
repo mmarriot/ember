@@ -36,9 +36,87 @@
 .modal-body h3:first-child {
   margin-top: 0;
 }
-/* Save picture (Picture.tsx): the size, the caption, the button. */
+/* Save picture (Picture.tsx): the preview (the label and the key are dragged on it), the size and the formats, then
+   the label and caption beside the key's lines. */
+.modal.wide {
+  width: min(980px, calc(100vw - 32px));
+}
+.picture-preview {
+  /* the whole picture in sight, at its own aspect ratio (so a pointer maps onto it by scaling alone) */
+  display: block;
+  max-width: 100%;
+  max-height: 50vh;
+  margin: 0 auto;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  cursor: move;
+  touch-action: none;
+}
+.picture-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 12px;
+}
+.picture-form fieldset {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px 10px 10px;
+  margin: 0;
+  min-width: 0;
+  max-height: 280px;
+  overflow-y: auto;
+}
+.picture-form legend {
+  font-weight: 600;
+  padding: 0 4px;
+}
+.picture-form .line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 3px 0;
+}
+.picture-form .line input:not([type]),
+.picture-form textarea {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: 12px;
+}
+.picture-form textarea {
+  width: 100%;
+  resize: vertical;
+}
+.picture-form .line input.experiment {
+  flex: 0 0 56px;
+  font-weight: 700;
+}
+.picture-form .group + .group {
+  margin-top: 8px;
+}
+.picture-form .title input:not([type]) {
+  font-weight: 600;
+}
+.picture-form .line > i {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex: none;
+}
+.picture-form .line > i.small {
+  width: 6px;
+  height: 6px;
+  margin: 0 2px;
+}
+.picture-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0 12px;
+}
 .picture-size {
-  margin: 10px 0;
+  margin-right: auto;
 }
 .picture-size small {
   color: var(--muted);
@@ -46,10 +124,6 @@
 }
 .picture-size .on small {
   color: inherit;
-}
-.picture-caption {
-  display: block;
-  margin: 0 0 12px;
 }
 /* Help: a key column, then what it does (and the mouse or button that does it too). */
 table.kv.keys {

@@ -3,16 +3,13 @@
 // they are made of in the same colour), the truth (everything by the generator particle it comes from), or, with
 // something selected, its truth <-> reco pair. The "Colour by: reco type | truth particle" switch (key T) chooses between the first two. Bundles
 // without candidates or truth, and a domain coloured layer by layer, have no key: each layer shows its own colours.
-import type { Header } from "../io/format";
-import { PAIR, type PairClass } from "../model/pair";
+import { CLASSES, type KeyEntry, modeKey, truthLevelOf } from "../model/key";
 import { percent } from "../model/match";
 import { cached } from "../model/relations";
 import { COLOUR_LEVELS, colourLevel } from "../model/truth";
-import { PALETTES } from "../render/colour";
 import {
   activeMode,
   bundle,
-  caloView,
   colourChoice,
   drawnLayers,
   event,
@@ -22,49 +19,61 @@ import {
   modes,
   pairView,
   selection,
-  theme,
   truthColours,
   truthLevel,
   truthName,
   truthRank,
   truthStatuses,
-  truthText,
 } from "../model/store";
 import { Info } from "./Info";
 import { jump } from "../control/navigate";
 
-/** The pair view's classes (model/pair.ts): colour, plain name, definition (behind the ⓘ). "Its match": the objects
- *  the associator rates best for the branch, in each detector's compared kind (named in the card). */
-const CLASSES: [Exclude<PairClass, 0>, string, string][] = [
-  [PAIR.matched, "found", "the particle's (its branch's) hits and objects, in its match"],
-  [PAIR.split, "in another object", "the particle's, in another object of the kind compared (split off)"],
-  [PAIR.missed, "in no object", "the particle's, in no object of the kind compared (missed)"],
-  [PAIR.contamination, "not from it", "in its match, but from other particles or from none (contamination)"],
-  [PAIR.reco, "part of its match", "part of a matched object, with no truth of its own (e.g. layer clusters)"],
-  [PAIR.branch, "rest of its branch", "other particles of the branch that left hits (e.g. an interaction's products)"],
-  [PAIR.uncompared, "not compared", "the particle's hits where no reco kind has an association (HF, HO)"],
-];
+/** A key line's colours, as a saved picture draws them too: a dot (small: pile-up, no truth), a few dots (one colour
+ *  per object), or a value ramp. */
+export function Swatch({ e }: { e: KeyEntry }) {
+  if (e.ramp) return <span class="ramp" style={{ background: `linear-gradient(to right, ${e.colours.join(",")})` }} />;
+  if (e.colours.length > 1)
+    return (
+      <span class="dots">
+        {e.colours.map((c) => (
+          <i style={{ background: c }} />
+        ))}
+      </span>
+    );
+  return <i class={e.small ? "small" : undefined} style={{ background: e.colours[0] }} />;
+}
+
+/** The mode's key lines; a line that names a truth particle is a chip that selects it. */
+function Lines({ entries }: { entries: KeyEntry[] }) {
+  return (
+    <ul class="key inline">
+      {entries.map((e) => (
+        <li>
+          <Swatch e={e} />
+          {e.ref ? (
+            <button class="chip" onClick={() => jump(e.ref!)}>
+              {e.label}
+            </button>
+          ) : (
+            e.label
+          )}
+        </li>
+      ))}
+    </ul>
+  );
+}
 
 export function ColourKey() {
-  const pair = pairView.value,
-    pal = PALETTES[theme.value],
-    mode = activeMode.value,
-    b = bundle.value;
-  if (!b || (!truthColours.value && mode !== "pid")) return null;
+  const key = modeKey.value,
+    pair = pairView.value,
+    mode = activeMode.value;
+  if (!key) return null;
   const shown = new Set<number>();
   for (const cls of pair?.classes.values() ?? []) for (const c of cls) shown.add(c);
-  const level = truthLevelOf(b.header),
-    title = pair
-      ? "Colour = truth ↔ reco pair"
-      : mode === "truth"
-        ? `Colour = ${level.name} (truth)`
-        : mode === "pid"
-          ? "Colour = candidate type (reco)"
-          : "Colour = each layer's own";
   return (
     <details class="colourkey" open>
       <summary>
-        {title}
+        Colour = {key.title}
         {truthColours.value && (
           <span class="switch" role="group" aria-label="What the colours show (T)" title="What the colours show (T)">
             <span class="muted">Colour by:</span>
@@ -83,23 +92,12 @@ export function ColourKey() {
           </span>
         )}
       </summary>
-      {!pair && mode === "pid" && <PidKey />}
+      {!pair && mode === "pid" && <PidKey entries={key.entries} />}
       {!pair && mode === "truth" && <LevelPicker />}
-      {!pair && mode === "truth" && <TruthKey />}
+      {!pair && mode === "truth" && <TruthKey entries={key.entries} />}
       {pair && ( // the pair itself and its numbers are in the selection's card; here only what each colour means
         <>
-          <ul class="key inline">
-            {CLASSES.filter(([c]) => shown.has(c)).map(([c, name]) => (
-              <li>
-                <i style={{ background: pal.pair[c] }} />
-                {c === PAIR.reco && pair.particle < 0 ? "no particle: nothing confirmed" : name}
-              </li>
-            ))}
-            <li>
-              <i class="small" style={{ background: pal.unassigned }} />
-              everything else
-            </li>
-          </ul>
+          <Lines entries={key.entries} />
           <p class="hint keyhelp">
             Where the particle's hits and energy went{" "}
             <Info title="Colour = truth ↔ reco pair">
@@ -123,26 +121,11 @@ export function ColourKey() {
 }
 
 /** Candidates by particle type: what the reconstruction says, not the truth. */
-function PidKey() {
-  const { roots } = modes.value,
-    pal = PALETTES[theme.value];
-  const candLayer = roots.reco ? layerOf(roots.reco) : undefined,
-    pid = candLayer ? legends.value[layerKey(candLayer)] : undefined;
+function PidKey({ entries }: { entries: KeyEntry[] }) {
+  const { roots } = modes.value;
   return (
     <>
-      <ul class="key inline">
-        {pid?.kind === "category" &&
-          pid.items?.map((it) => (
-            <li>
-              <i style={{ background: it.colour }} />
-              {it.label}
-            </li>
-          ))}
-        <li>
-          <i class="small" style={{ background: pal.unassigned }} />
-          in no candidate
-        </li>
-      </ul>
+      <Lines entries={entries} />
       <p class="hint keyhelp">
         {roots.truth ? "Select anything for its truth ↔ reco pair " : "The reconstruction's particle type "}
         <Info title="Colour = candidate type">
@@ -155,14 +138,6 @@ function PidKey() {
       </p>
     </>
   );
-}
-
-/** The colour level the truth colours use: the one chosen in the key, else the profile's (the truth particles'
- *  `particle` bit). */
-function truthLevelOf(header: Header) {
-  const root = modes.value.roots.truth,
-    d = root ? header.display.find((l) => l.table === root) : undefined;
-  return colourLevel(truthLevel.value ?? 2 ** (d?.particle?.bit ?? 2));
 }
 
 /** Why the view is grey in the truth colours with a selection whose particles take no colour, from what the truth
@@ -229,9 +204,8 @@ function LevelPicker() {
 }
 
 /** Everything by the generator particle it comes from; reco objects only where they are a clean match. */
-function TruthKey() {
+function TruthKey({ entries }: { entries: KeyEntry[] }) {
   const { roots } = modes.value,
-    pal = PALETTES[theme.value],
     b = bundle.value!;
   const truthLayer = roots.truth ? layerOf(roots.truth) : undefined,
     legend = truthLayer ? legends.value[layerKey(truthLayer)] : undefined;
@@ -256,42 +230,15 @@ function TruthKey() {
         `${percent(info.match.good)} of its ${info.match.measure === "hits" ? "hits" : "energy"} (${[...w].join(", ")})`,
       );
     }
-  // In a calorimeter's view the particles are named by their energy, elsewhere by pT and η (docs/truth.md).
-  const calo = caloView.value;
-  const items = legend?.kind === "category" ? (legend.items ?? []) : [],
-    selected = truthRank.value.prefer !== undefined;
+  const selected = truthRank.value.prefer !== undefined,
+    coloured = legend?.kind === "category" && !!legend.items?.length;
   return (
     <>
       <p class="keyrule" title="Which particles have a colour of their own">
         {legend?.kind === "category" ? legend.text : ""}
       </p>
-      {selected && !items.length && <p class="hint">{greyWhy()}</p>}
-      <ul class="key inline">
-        {items.map((it) => (
-          <li>
-            <i style={{ background: it.colour }} />
-            {it.ref ? (
-              <button class="chip" onClick={() => jump(it.ref!)}>
-                {truthText(it.ref.table, it.ref.row, calo) || it.label}
-              </button>
-            ) : (
-              it.label
-            )}
-          </li>
-        ))}
-        <li>
-          <i style={{ background: pal.other }} />
-          other signal
-        </li>
-        <li>
-          <i class="small" style={{ background: pal.pileup }} />
-          pile-up
-        </li>
-        <li>
-          <i class="small" style={{ background: pal.unassigned }} />
-          no simulated energy, or not cleanly matched
-        </li>
-      </ul>
+      {selected && !coloured && <p class="hint">{greyWhy()}</p>}
+      <Lines entries={entries} />
       <p class="hint keyhelp">
         {faint.length > 0 && <span class="faintkinds">faint: no CMSSW associator for that kind </span>}
         <Info title="Colour = truth particle">

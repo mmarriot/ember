@@ -67,12 +67,31 @@ The address bar always holds the same link. [The address](#the-address) lists wh
 
 ## Saving a picture
 
-**Menu → Save picture…** saves the view alone as a PNG: without the side panel, the card, the labels or the axes.
-Choose 1×, 2× or 4× the view's size on screen; lines and markers keep their size relative to the picture, so it looks
-like the screen, only sharper. The caption, on by default, is the view's title and its line of physics objects. A
-graphics card that cannot draw the size asked for says so; choose a smaller one. A 4× picture of a view of 1260 × 890
+**Menu → Save picture…** saves the view alone, without the side panel, the card, the labels or the axes, with what a
+figure needs drawn over it: the experiment's label in the CMS style ("**CMS** *Phase-2 Simulation Private Work*" for
+Phase-2 simulation, "*Simulation Private Work*" for other simulation, "*Private Work*" for data), a caption (the
+event), and the colour key: what each colour in the view means, as the side panel's key and each collection's scale
+say it (the truth particles, the candidate types, the truth ↔ reco pair of a selection, an energy ramp, ...), without
+the collections that draw nothing.
+
+The dialog shows the picture as it will be saved. Everything over the view can be changed there: retype the label and
+the caption, rename a line or a title of the key or leave it out, change the text size or the panel behind the text,
+and drag the label and the key anywhere on the picture (the key goes under the label where the two would meet). The
+choices are kept in the browser for the next picture, so a series of pictures looks the same; a renamed line stays
+renamed in every event; **Reset** goes back to the defaults. Papers usually want a white background: the dialog
+offers the light theme.
+
+- **Save PNG**, at 1×, 2× or 4× the view's size on screen; lines and markers keep their size relative to the picture,
+  so it looks like the screen, only sharper. The file says in its text fields what it shows and where it comes from:
+  the link to the view (a local file: its name), which opens the data set, event, part of the detector, selection and
+  colours again (not the camera).
+- **Save SVG**: the view as an image, the label, the caption and the key as text and shapes over it, to edit further in
+  Inkscape or Illustrator. `rsvg-convert -f pdf -o picture.pdf picture.svg` makes a PDF of it with the text as text.
+- **Copy** puts the PNG on the clipboard, to paste into a slide or a message.
+
+A graphics card that cannot draw the size asked for says so; choose a smaller one. A 4× picture of a view of 1260 × 890
 pixels takes about 72 MB for its pixels, and its antialiasing several times that on the graphics card, for the moment
-it is drawn.
+it is drawn. Drawing the view again holds the page for that moment: seconds for an event at 200 pile-up.
 
 ## Controls
 

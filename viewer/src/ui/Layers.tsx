@@ -8,6 +8,7 @@ import { signal } from "@preact/signals";
 import { useState } from "preact/hooks";
 import type { DisplayLayer } from "../io/format";
 import { filters, removeFilter } from "../model/custom";
+import { explainedByKey } from "../model/key";
 import {
   activeMode,
   bundle,
@@ -30,7 +31,7 @@ import {
 } from "../model/store";
 import { CutChip } from "./Cuts";
 import { Info, popover, togglePopover } from "./Info";
-import { explainedByKey, Options, Scale } from "./LayerOptions";
+import { Options, Scale } from "./LayerOptions";
 import { Headline, ObjectRows } from "./ObjectRows";
 import { summaryLayers } from "./TitleBox";
 

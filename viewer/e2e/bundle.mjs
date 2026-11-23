@@ -14,6 +14,7 @@
 // - "only" draws one kind alone; the Truth tab has the event's scorecard (folded);
 // - for one bundle, the interaction checks (deepChecks); for a bundle whose paths are built from their parts (`grow`),
 //   the replay (checkReplay).
+import { readFileSync } from "node:fs";
 import { BIG, bigEvents, eventRead, expected404, log } from "./common.mjs";
 
 /** In an older bundle's header, as stored: a layer the viewer leaves out (io/bundle.ts oneSourcePerKind). */
@@ -716,6 +717,23 @@ async function deepChecks(page, h, fail, shot) {
   if (!(await page.locator(".inspector").count())) fail("a rotate drag cleared the selection");
   await page.keyboard.press("?");
   await shot("6_help");
+  await page.keyboard.press("Escape");
+  // Save picture: the preview with the label and the key over the view; a PNG of the size chosen that says, in its
+  // text fields, where it comes from.
+  await menu.click();
+  await item("Save picture").click();
+  await page.waitForSelector(".picture-preview");
+  await page.waitForTimeout(500);
+  await shot("6_picture");
+  const lines = await page.locator(".picture-form .line").count();
+  const [download] = await Promise.all([
+    page.waitForEvent("download", { timeout: 120000 }),
+    page.getByRole("button", { name: "Save PNG" }).click(),
+  ]);
+  const png = readFileSync(await download.path());
+  log(`  picture: ${download.suggestedFilename()}, ${png.length} bytes; ${lines} lines to edit`);
+  if (png.readUInt32BE(0) !== 0x89504e47) fail("the saved picture is not a PNG");
+  if (!png.includes("iTXtSource")) fail("the saved picture does not say where it comes from");
   await page.keyboard.press("Escape");
 
   // From the first layer's ⋯: custom column r = hypot(x, y) on its table (abs of its first float column if it has no

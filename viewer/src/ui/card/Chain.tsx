@@ -1,8 +1,7 @@
-// A reco object's chain in its card (Card.tsx): what it is part of, itself, and what it is made of (model/event/chain.ts).
-// A step with a truth statement of its own has a tag (match: the associator's; sim: the simulated energy in its hits);
-// steps whose kinds have no associator have none, and are named once behind the chain's i. A step names its
-// objects when they are few, and counts them otherwise (a click lists them). "show" draws a step in the view (↓ ↑ step
-// through them), and a step in another part of the detector has a link that looks there.
+// A reco object's chain in its card: what it is part of, itself, and what it is made of (model/event/chain.ts). A step
+// with a truth statement of its own has a tag (match: the associator's; sim: the simulated energy in its hits); kinds
+// without an associator are named once behind the chain's i. A step names its objects when they are few and counts
+// them otherwise; "show" draws it in the view, and a step in another part of the detector has a link that looks there.
 import type { ComponentChildren } from "preact";
 import { useState } from "preact/hooks";
 import type { Link, Rung } from "../../model/event/chain";
@@ -58,7 +57,7 @@ const CHAIN_HELP = (
 export function Chain() {
   const l = ladder.value;
   if (!l) return null;
-  // every collection of a step without an associator, also inside a step that has one (PF clusters: HCAL outer)
+  // Every collection of a step without an associator, also inside a step that has one (PF clusters: HCAL outer).
   const none = [...l.above, ...l.below, ...l.beside].flatMap((r) =>
     r.links.flatMap((x) => (x.kind === "none" ? [[r.kind, x] as const] : [])),
   );
@@ -127,20 +126,20 @@ function steps(rungs: Rung[], role: "above" | "below" | "beside", key: string) {
   return rungs.map((r) => <RungRow rung={r} role={role} key={`${key}|${r.kind}`} />);
 }
 
-/** One step of the chain: its kind, its objects (named when few, else counted, unfolding to a list), whether the view
- *  shows it, and its truth links. */
+/** One step of the chain: its kind, its objects (named when few, else counted and unfolding to a list), whether the
+ *  view shows it, and its truth links. */
 function RungRow({ rung, role }: { rung: Rung; role: "above" | "self" | "below" | "beside" | "other" }) {
   const [open, setOpen] = useState(false);
   const tables = new Set(rung.groups.map((g) => g.table)),
     few = rung.count <= INLINE;
-  // The level of the focus this step is (store/selection.ts levels): one drawn on request, or always (the smallest objects,
-  // lines). Not while another object is looked at: the view's levels are then that object's (ViewLevels).
+  // The focus's level this step is (store/selection.ts levels). Not while another object is looked at: the view's
+  // levels are then that object's (Card.tsx ViewLevels).
   const level =
     !anchor.value && (role === "below" || role === "beside")
       ? focusBar.value.find((lv) => lv.layers.some((x) => tables.has(x.table)))
       : undefined;
   const on = !!level && shownLevel.value === level.name;
-  // A step in a part of the detector the view is not looking at: one click looks there, keeping the selection.
+  // A step in a part of the detector the view is not looking at: a click looks there, keeping the selection.
   const cur = domain.value,
     parts = [
       ...new Set(
@@ -203,8 +202,7 @@ function RungRow({ rung, role }: { rung: Rung; role: "above" | "self" | "below" 
           also via {rung.via.join(", ")}
         </div>
       )}
-      {/* The selection's own truth is the card's truth block; a step without a statement is named behind the chain's
-          i. */}
+      {/* The selection's own truth is in the card's truth block. */}
       {role !== "self" &&
         says(rung) &&
         rung.links.map((link) => (
@@ -241,10 +239,9 @@ const Tag = ({ word, children }: { word: string; children: ComponentChildren }) 
   </button>
 );
 
-/** What the truth says about one step, in one line: a tag and numbers. Every line is that step's own statement: its
- *  objects' own matches, counted; the simulated energy in its own hits; never a match of the selected object through
- *  its parts. `at`: the step's first collection and row, for the simulation's unit of a hit. `whose`: for a step that
- *  holds the selection (its vertex), the kind whose own truth it is, said so it does not read as the selection's. */
+/** What the truth says about one step, in one line: its objects' own matches, counted, or the simulated energy in its
+ *  own hits; never a match of the selected object through its parts. `at`: the step's first collection and rows, for
+ *  the simulation's unit. `whose`: for a step that holds the selection, the kind whose own truth it is. */
 function LinkLine({
   link,
   single,
@@ -380,5 +377,5 @@ function LinkLine({
       </div>
     );
   }
-  return null; // none (said behind the chain's i), or no truth of its own (a track's hits: it goes with what contains it)
+  return null; // none (behind the chain's i), or truth of what contains it (a track's hits)
 }

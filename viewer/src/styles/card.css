@@ -1,6 +1,6 @@
-/* The selection's card (Card.tsx): its header, its chain with the truth link of every step (Chain.tsx), the
-   truth card and lineage (TruthCard.tsx), the pair (PairBars.tsx), the levels in the view, the object looked at, its
-   associations and its columns (Properties.tsx). The card is the element with class `inspector`. */
+/* The selection's card (ui/card/), the element with class `inspector`: its header, its chain with the truth link of
+   every step, the truth card and lineage, the pair, the levels in the view, the object looked at, its associations
+   and its columns. */
 .inspector {
   position: absolute;
   top: 12px;
@@ -365,7 +365,7 @@ ul.matches li {
 .lineage {
   margin: 0 0 8px;
 }
-/* A truth particle's head (TruthCard.tsx ParticleFacts): kinematics, vertices, levels, physics from the graph. */
+/* A truth particle's head (ParticleFacts.tsx): kinematics, vertices, levels, physics from the graph. */
 .pfacts {
   margin: 4px 0 8px;
   font-size: 12px;

@@ -1,13 +1,12 @@
-// A hit's truth in the card's truth block (TruthBlock.tsx): the simulated energy each particle deposited in it, and its
-// particle's pair on request (a click on a hit shows the hit, not the pair).
+// A hit's truth in the card's truth block (docs/truth.md "Measures"): the simulated energy each particle deposited in
+// it, not calibrated, from the hit index (in HF: photoelectrons), and its particle's pair on request (a click on a hit
+// shows the hit, not the pair).
 import { simUnit } from "../../model/truth/facts";
 import { percent } from "../../model/truth/match";
 import { withUnit } from "../../model/event/describe";
 import { describe, hitPair, ladder, layerOf, pairView } from "../../model/store";
 import { chip } from "./chips";
 
-/** A hit's truth (docs/truth.md "Measures"): the simulated energy each particle deposited in it, not calibrated, from
- *  the hit index (in HF: photoelectrons); its particle's pair on request. */
 export function HitTruth() {
   const fact = ladder.value?.self.links.find((l) => l.kind === "fact"),
     pair = pairView.value;
@@ -17,7 +16,7 @@ export function HitTruth() {
     amount = (x: number) => withUnit(x, unit),
     what = unit === "GeV" ? "simulated energy" : `simulated ${unit}`;
   if (!shown.length) return <p class="truthline nolink">No {what} in this hit (from an exported particle).</p>;
-  // the particle by its first `describe` value alone ("π⁻"), for the button
+  // The particle by its first `describe` value alone ("π⁻"), for the button.
   const first = (row: number) => describe(fact.truth, row, layerOf(fact.truth)?.describe?.columns.slice(1));
   return (
     <div class="hittruth">

@@ -1,5 +1,6 @@
-// The truth <-> reco pair the view is coloured by, in the selection's card (Card.tsx; model/truth/pair.ts): which truth it
-// stands for, and per detector what it is compared with and where the branch's simulated energy went.
+// The truth <-> reco pair the view is coloured by (model/truth/pair.ts), in the card: the branch it stands for, then
+// per detector what it is compared with and where the branch's energy went, as the simulated energy (Geant4, in the
+// sensors, not calibrated: compared only within one detector) or the reconstructed hits' energy.
 import { percent } from "../../model/truth/match";
 import { PAIR, type PairDetector } from "../../model/truth/pair";
 import { PALETTES } from "../../render/colour";
@@ -9,14 +10,10 @@ import { Info } from "../common/Info";
 
 type Part = [number, string, string]; // amount, colour, label
 
-/** The pair (model/truth/pair.ts): the branch it stands for, then one block per detector, each saying which energy it
- *  counts: the simulated energy (Geant4, deposited in the sensors, not calibrated: compare it only within one
- *  detector) or the reconstructed hits' energy. */
 export function PairBars() {
   const pair = pairView.value,
     pal = PALETTES[theme.value];
   if (!pair) return null;
-  const c = (t: string, r: number) => chip(t, r);
   const bar = (parts: Part[], total: number) => (
     <div class="pairbar">
       {parts
@@ -88,7 +85,7 @@ export function PairBars() {
             <span class="muted">its match{d.matches.length > 1 ? "es" : ""} (associator):</span>{" "}
             {d.matches.length ? (
               <>
-                {d.matches.slice(0, 3).map((m) => c(d.kind!, m))}
+                {d.matches.slice(0, 3).map((m) => chip(d.kind!, m))}
                 {d.matches.length > 3 && <span class="muted"> and {d.matches.length - 3} more</span>}
               </>
             ) : (
@@ -175,7 +172,7 @@ export function PairBars() {
         <span class="badge truth">truth</span>{" "}
         {pair.particle >= 0 ? (
           <>
-            {c(pair.truth, pair.particle)} <span class="muted">and everything below it</span>
+            {chip(pair.truth, pair.particle)} <span class="muted">and everything below it</span>
           </>
         ) : (
           <span class="muted">no particle: the associator matches this object to none</span>
@@ -183,13 +180,14 @@ export function PairBars() {
         {pair.from && (
           <>
             {" "}
-            <span aria-hidden="true">↔</span> <span class="badge reco">reco</span> {c(pair.from.table, pair.from.row)}
+            <span aria-hidden="true">↔</span> <span class="badge reco">reco</span>{" "}
+            {chip(pair.from.table, pair.from.row)}
           </>
         )}
       </p>
       {pair.hitsOf >= 0 && pair.hitsOf !== pair.particle && (
         <p class="hint">
-          {c(pair.truth, pair.particle)} is inside the shower of {c(pair.truth, pair.hitsOf)}, which entered the
+          {chip(pair.truth, pair.particle)} is inside the shower of {chip(pair.truth, pair.hitsOf)}, which entered the
           calorimeter: the file has no hits of its own for it, so the hits and energies shown are that whole shower's.
           Its matches are its own (the associator's) first.
         </p>
@@ -202,7 +200,7 @@ export function PairBars() {
           {pair.owners.length} other particle{pair.owners.length > 1 ? "s" : ""} of the branch entered the calorimeter
           on {pair.owners.length > 1 ? "their" : "its"} own:{" "}
           {pair.owners.slice(0, 3).map((o) => (
-            <> {c(pair.truth, o)}</>
+            <> {chip(pair.truth, o)}</>
           ))}
           {pair.owners.length > 3 ? " …" : ""}
         </p>

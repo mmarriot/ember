@@ -99,10 +99,9 @@ export function Card() {
   );
 }
 
-/** The object looked at from this card (a click on one of its objects): what it is, its own truth match and its main
- *  numbers, with the way into its own card and back. The view shows it as a selection. It sits at the bottom edge of
- *  the card, over its content: nothing in the card moves when it appears, so the second click of a double click
- *  lands on the same name. */
+/** The object looked at from this card: its name, truth match and main numbers, with the way into its card and back.
+ *  It sits over the card's bottom edge, so nothing in the card moves when it appears and the second click of a double
+ *  click lands on the same name. */
 function Looking() {
   const a = anchor.value,
     sel = selection.value,
@@ -141,7 +140,7 @@ function Looking() {
 }
 
 /** The levels drawn on request (↓ ↑) when they are not the card's own steps: those of the object the view is built
- *  around (the object looked at; the pair's candidate for a hit or a truth particle; the focus for one of its parts). */
+ *  around (the object looked at, the pair's candidate, or the focus). */
 function ViewLevels() {
   const top = levelTop.value,
     bar = focusBar.value,
@@ -157,7 +156,7 @@ function ViewLevels() {
           const on = l.always || l.name === chosen;
           return (
             <>
-              {/* what is only built from its parts: ↓ ↑ skip it, a click draws it */}
+              {/* objects only built from its parts: ↓ ↑ skip them, a click draws them */}
               {l.beside && !bar[i - 1]?.beside && <span class="muted">built from its parts:</span>}
               <button
                 class={on ? "level on" : "level"}
@@ -180,9 +179,8 @@ const weightsText = (w: Record<string, number>) =>
     .map(([k, v]) => `${k} ${plain(v)}`)
     .join(" · ");
 
-/** Every object an association relation (e.g. reco <-> truth) links to this one, with the relation's weights as
- *  stored, best first (by its `best` weight), one group per partner table: the associator's other partners behind
- *  the best match (the particles sharing an impure trackster), folded. */
+/** Every object an association links to this one, with the weights as stored, best first, one group per partner
+ *  table (folded): e.g. the other particles sharing an impure trackster. */
 function Associations({ table, row }: { table: string; row: number }) {
   const b = bundle.value,
     ev = event.value;
@@ -192,7 +190,7 @@ function Associations({ table, row }: { table: string; row: number }) {
     const rel = ev.relations[relName];
     if (!info.association || !rel || (info.from !== table && info.to !== table)) continue;
     const rows: { row: number; weights: Record<string, number> }[] = [];
-    // Named by what they hold: a hit-based association (tracks) stores shared hit counts under its energy names.
+    // A hit-based association (tracks) stores shared hit counts under its energy names.
     const label = (w: string) =>
       info.match?.measure === "hits" && (w === "sharedEnergy" || w === "sharedFraction") ? "shared hits" : w;
     const weights = (k: number) => Object.fromEntries(Object.entries(rel.weights).map(([w, a]) => [label(w), a[k]]));

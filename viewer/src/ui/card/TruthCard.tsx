@@ -10,9 +10,8 @@ import { named, ObjChip, truthChip } from "./chips";
 import { Info } from "../common/Info";
 import { Lineage } from "./Lineage";
 
-const chipAs = (t: string, r: number, text: string) => <ObjChip table={t} row={r} text={text} />;
-/** A collision's truth vertex, by whether it is the signal (the truth particles' `first` column, e.g. isSignal, on the
- *  vertex table too): what a primary vertex's match means, not its generator step (e.g. "shower branching"). */
+/** A collision's truth vertex, by whether it is the signal (the particles' `first` column, e.g. isSignal, is on the
+ *  vertex table too): what a primary vertex's match means, not its generator step ("shower branching"). */
 function collision(truth: string, t: string, r: number) {
   const first = layerOf(truth)?.particle?.first,
     v = first ? event.value?.tables[t]?.columns[first]?.[r] : undefined;
@@ -38,22 +37,21 @@ function distance(a: string, ra: number, b: string, rb: number) {
   return Math.hypot(...[0, 1, 2].map((i) => Number(ca[pa[i]][ra]) - Number(cb[pb[i]][rb])));
 }
 
-/** The reco -> truth relations that carry a `match` contract, from `table` (to the truth particles, or to the truth
- *  vertices for vertices). */
+/** The reco -> truth relations with a `match` contract from `table` (to the truth particles, or truth vertices). */
 const matchRelations = (header: Header, table: string) =>
   Object.entries(header.relations).filter(
     ([, r]) => (r.match?.shared ?? r.match?.purity) && r.from === table && !!layerOf(r.to)?.truth,
   );
 
-/** The truth card of reco object `row` of `table`: for a kind with an association, its best match and how good it is;
- *  for a kind with no truth of its own, why (docs/truth.md "Where truth stops"); null otherwise. */
+/** The truth card of reco object `row` of `table`: its best match and how good it is; null for a kind without a match
+ *  relation (TruthBlock.tsx says why). */
 export function TruthCard({ table, row }: { table: string; row: number }) {
   const b = bundle.value,
     ev = event.value,
     truth = modes.value.roots.truth;
   if (!b || !ev || !truth) return null;
   const rels = matchRelations(b.header, table).filter(([name]) => ev.relations[name]);
-  if (!rels.length) return null; // why it has none, and its parts' matches: the card's truth block (TruthBlock.tsx)
+  if (!rels.length) return null;
   const [name, info] = rels[0],
     rel = ev.relations[name],
     m = info.match!,
@@ -65,7 +63,8 @@ export function TruthCard({ table, row }: { table: string; row: number }) {
   const amount = (x: number) => (m.measure === "hits" ? `${Math.round(x)}` : short(x));
   const c = p >= 0 ? completeness(ev, b.header, target, p, table, row) : undefined;
   const particles = target === truth,
-    generator = p >= 0 && particles ? generatorOf(truth, p) : -1;
+    generator = p >= 0 && particles ? generatorOf(truth, p) : -1,
+    away = p >= 0 && !particles ? distance(table, row, target, p) : undefined;
   const what =
     m.measure === "hits"
       ? "hits"
@@ -117,18 +116,18 @@ export function TruthCard({ table, row }: { table: string; row: number }) {
         ) : (
           <>
             match{" "}
-            {particles
-              ? truthChip(target, p, m.measure)
-              : chipAs(
-                  target,
-                  p,
-                  m.target === "interaction" ? collision(truth, target, p) : vertexName(truth, target, p),
-                )}
+            {particles ? (
+              truthChip(target, p, m.measure)
+            ) : (
+              <ObjChip
+                table={target}
+                row={p}
+                text={m.target === "interaction" ? collision(truth, target, p) : vertexName(truth, target, p)}
+              />
+            )}
           </>
         )}
-        {p >= 0 && !particles && distance(table, row, target, p) !== undefined && (
-          <span class="muted">{withUnit(distance(table, row, target, p)!, "cm")} away</span>
-        )}
+        {away !== undefined && <span class="muted">{withUnit(away, "cm")} away</span>}
         <Info title="Truth match">{help}</Info>
       </p>
       {p < 0 ? null : (
@@ -169,8 +168,8 @@ export function TruthCard({ table, row }: { table: string; row: number }) {
   );
 }
 
-/** A purity or completeness as a bar (linear, 0 to 100%), with what it counts under it; `good`: the kind's clean-match
- *  threshold, marked on the bar, which is green from there and amber below. */
+/** A purity or completeness as a linear bar, with what it counts under it; `good`: the clean-match threshold, marked
+ *  on the bar, green from there and amber below. */
 function Meter({ name, value, good, note }: { name: string; value: number; good?: number; note: string }) {
   const state = good === undefined ? "" : value >= good ? "clean" : "impure";
   return (

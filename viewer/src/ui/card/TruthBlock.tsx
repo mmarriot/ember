@@ -1,9 +1,8 @@
-// The card's truth block, right under its header (Card.tsx; model/truth/statement.ts): what the truth says about the object,
-// in one line first. Its kind's own association (its match, with purity and completeness: TruthCard.tsx); else the
-// match of its parts that are alone in their step when they name one particle (model/truth/statement.ts leadChoice), named as
-// that part's ("via its track: e⁻ · pT 12.6 · from Z decay · purity 100%"); else that its kind has none. Each part's
-// own match, the associator's answer for that part and never a verdict for the object, is folded below. "Go to truth
-// (X)" crosses over (or back, when X led here), or opens a chooser of the parts' particles.
+// The card's truth block, under its header (model/truth/statement.ts; docs/viewer.md): what the truth says about the
+// object, in one line first. Its kind's own match (TruthCard.tsx); else its lead part's match, named as that part's
+// ("via its track: e⁻ · pT 12.6 · from Z decay · purity 100%"); else that its kind has none. Each part's own match is
+// folded below, never a verdict for the object. "Go to truth (X)" crosses over, or opens a chooser of the parts'
+// particles.
 import { DOCS_URL } from "../../model/site/library";
 import { measureWords, percent } from "../../model/truth/match";
 import { leadChoice, type PartLine } from "../../model/truth/statement";
@@ -29,7 +28,7 @@ export const GapLink = ({ gap }: { gap?: number }) =>
 const kinds = (table: string) => inText(kindOf(table));
 
 /** Where a truth particle comes from, as the graph names the vertex that made it ("Z decay", "K⁺ decay"); "" when the
- *  graph names neither the particle that came in nor why (a pile-up collision's vertex, an unnamed pdgId). */
+ *  graph names neither the particle that came in nor why. */
 function originOf(row: number) {
   const tg = truthGraph.value;
   if (!tg?.vertices) return "";
@@ -124,9 +123,8 @@ export function TruthBlock({ table, row }: { table: string; row: number }) {
   );
 }
 
-/** The one line for an object without a match of its own: its lead part's match, named as that part's; else that its
- *  kind has none, with the number of particles its parts are matched to (X chooses among them). `reason`: why its kind
- *  has none (no CMSSW associator), behind the line's i. */
+/** The line for an object without a match of its own: its lead part's match; else that its kind has none, with the
+ *  number of particles its parts are matched to. `reason`: why its kind has none, behind the line's i. */
 function Answer({ table, reason }: { table: string; reason?: { reason: string; gap?: number } }) {
   const choices = partParticles.value,
     lead = leadChoice(choices),
@@ -170,8 +168,8 @@ function Answer({ table, reason }: { table: string; reason?: { reason: string; g
   );
 }
 
-/** One line per step of parts with their own association; `beside`: of the objects built only from its parts (an
- *  electron's PF cluster, all of whose hits are in its supercluster), which no relation names as its parts. */
+/** One line per step of parts with their own association; `beside`: objects built only from its parts, which no
+ *  relation names as its parts (an electron's PF clusters, inside its supercluster). */
 function Parts({ lines, beside }: { lines: PartLine[]; beside?: boolean }) {
   if (!lines.length) return null;
   return (
@@ -251,8 +249,8 @@ export function Quality({ purity, completeness, clean }: { purity?: number; comp
   );
 }
 
-/** When the pair the view shows is that of the object's part (model/truth/pair.ts delegatedPart), says so at the top, so
- *  it never reads as the object's own truth. */
+/** When the view's pair is that of the object's part (model/truth/pair.ts delegatedPart), says so, so that it never
+ *  reads as the object's own truth. */
 function Delegated() {
   const p = pairView.value;
   if (!p?.via || !p.from) return null;

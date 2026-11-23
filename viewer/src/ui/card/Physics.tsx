@@ -1,10 +1,7 @@
-// The card's physics block, under its truth (Card.tsx): what the object is made of and its main numbers, before the
-// chain. Its energy split by type (the layer's `fractions`), its constituents by type and what their layer's filter
-// keeps (a jet's PF candidates: PUPPI), its key columns and the profile's named groups of columns (`inspectGroups`:
-// b-tags, e/γ ID, ...; a group shows once the bundle has its columns; not the values its title gives), the objects holding
-// it with a weight (a track in its primary vertex), the objects sharing its parts, and for MET the other MET and the
-// angle to the leading jets. Raw indices, copied positions
-// and derived components stay under "All columns" (Properties.tsx).
+// The card's physics block (docs/viewer.md): what a reco object is made of and its main numbers. Its energy fractions,
+// its constituents by type and what their layer's filter keeps (a jet's PF candidates: PUPPI), its key columns and the
+// profile's groups of columns (`inspectGroups`: b-tags, e/γ ID), the objects holding it with a weight (a track in its
+// vertex), the objects sharing its parts, and for MET the other METs and the angle to the leading jets.
 import { kindName } from "../../io/format";
 import { plain } from "../../model/event/describe";
 import { constituents, deltaPhi, memberships } from "../../model/event/physics";
@@ -20,7 +17,7 @@ export function Physics({ table, row }: { table: string; row: number }) {
     d = layerOf(table),
     t = ev?.tables[table];
   if (!b || !ev || !d || !t || d.truth) return null;
-  const key = keyColumns(table, t).filter((c) => !d.describe?.columns.includes(c)), // the title says those
+  const key = keyColumns(table, t).filter((c) => !d.describe?.columns.includes(c)), // the card's name gives those
     groups = (d.inspectGroups ?? [])
       .map((g) => ({ ...g, columns: g.columns.filter((c) => c in t.columns) }))
       .filter((g) => g.columns.length);
@@ -82,7 +79,7 @@ export function Physics({ table, row }: { table: string; row: number }) {
   );
 }
 
-/** A one-object kind with an azimuth (MET): the other collections of its kind, and the angle to the leading objects of
+/** A one-object kind with an azimuth (MET): the other collections of its kind, and the angle to the leading jets of
  *  the drawn jet layers. */
 function Met({ table, row }: { table: string; row: number }) {
   const b = bundle.value!,

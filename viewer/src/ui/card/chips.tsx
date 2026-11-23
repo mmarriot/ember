@@ -1,7 +1,6 @@
-// An object's name as a button, wherever the selection's card names one. A click looks at it: the view shows it as a
-// selection (with its parts), and the card stays where it is (store/selection.ts look). A double click opens its own card.
-// Pointing at it rings it in the view. For a kind the CMSSW associator matches, a dot says what it found for this
-// object: clean, impure or no match, so a list shows at a glance which are which.
+// An object's name as a button, wherever the card names one. A click looks at it (the view shows it, the card stays:
+// store/selection.ts look); a double click opens its card; pointing at it rings it in the view. For a kind the CMSSW
+// associator matches, a dot says what it found: clean, impure or no match.
 import type { ComponentChildren } from "preact";
 import { useEffect } from "preact/hooks";
 import { sameRef } from "../../model/event/relations";
@@ -28,10 +27,10 @@ const WORDS = { clean: "clean match", impure: "impure match", unmatched: "not ma
 const glide = () => frameFocus(800);
 
 /** The chip of row `r` of table `t`, named as in a list of its kind ("AK4 CHS · pT 52.8 GeV"); `title`: more to say on
- *  hover, after its one name. */
+ *  hover. */
 export const chip = (t: string, r: number, title = "") => <ObjChip table={t} row={r} title={title} />;
-/** The chip of truth particle `r`, named for what it is shown next to (docs/truth.md): by its energy next to a
- *  calorimeter object or hits (`measure` "energy"), else by pT and η ("μ⁺ · pT 96.6 · η 1.11"). */
+/** The chip of truth particle `r`, named by its energy next to calorimeter objects or hits (`measure` "energy"), else
+ *  by pT and η ("μ⁺ · pT 96.6 · η 1.11"). */
 export const truthChip = (t: string, r: number, measure?: string) => (
   <ObjChip table={t} row={r} text={truthText(t, r, measure === "energy")} />
 );
@@ -79,8 +78,8 @@ export function ObjChip({
   );
 }
 
-/** An object's chip; a truth particle's is named by pT and η, or by energy in a calorimeter's view (chips.tsx), a truth
- *  vertex by its reason ("decay 240"), as in its match (TruthCard.tsx; Relations.tsx names merges so too). */
+/** An object's chip, named by its `describe` hint or category ("decay 240" for a truth vertex); a truth particle's as
+ *  in ObjChip. */
 export const namedChip = (t: string, r: number) => (
   <ObjChip
     table={t}

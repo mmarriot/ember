@@ -1,8 +1,5 @@
-// How the card's object relates to others, from the file's own relations and associations, never matched in Ember:
-// - where its particle went among the objects of its kind, and the other particles whose best object it is
-//   (model/truth/statement.ts whereItWent): a split and a merge, under its match in the truth block (TruthBlock.tsx);
-// - the objects of other kinds with exactly its parts (model/event/physics.ts sharedParts): "same supercluster as Photon 1",
-//   in the physics block (Physics.tsx).
+// How the card's object relates to others, from the file's own relations and associations, never matched in Ember: a
+// split and a merge under its truth match (WentTo), and the objects with exactly its parts in its physics (Shares).
 import { inText, singular } from "../../model/event/describe";
 import { percent } from "../../model/truth/match";
 import { sharedParts } from "../../model/event/physics";
@@ -12,8 +9,7 @@ import { bundle, event, kindOf, ladder, layerOf, nameOf } from "../../model/stor
 import { chip, namedChip, ObjChip, truthChip } from "./chips";
 
 /** Where the object's particle went among the objects of its kind, and the other particles whose best object it is
- *  (model/truth/statement.ts whereItWent): a split and a merge, in the associator's own answers. Shown when there is more
- *  than this object to say. */
+ *  (model/truth/statement.ts whereItWent), when there is more than this object to say. */
 export function WentTo({ table, row, relation }: { table: string; row: number; relation: string }) {
   const b = bundle.value!,
     ev = event.value!,
@@ -69,13 +65,13 @@ export function WentTo({ table, row, relation }: { table: string; row: number; r
   );
 }
 
-/** The objects of other kinds with exactly its parts, or all of them and more (a tau's PF candidates in a jet): the
- *  relations name the same rows. Not those the chain shows it is part of. */
+/** The objects of other kinds with exactly its parts, or all of them and more (a tau's PF candidates in a jet;
+ *  model/event/physics.ts sharedParts). Not those the chain shows it is part of. */
 export function Shares({ table, row }: { table: string; row: number }) {
   const b = bundle.value!,
     ev = event.value!,
     above = new Set(ladder.value?.above.flatMap((r) => r.groups.map((g) => g.table)) ?? []);
-  // one line per wording, listing its objects: "same layer clusters as Trackster 4 · Candidate trackster 1"
+  // One line per wording: "same layer clusters as Trackster 4 · Candidate trackster 1".
   const lines = new Map<string, { table: string; row: number }[]>();
   for (const x of sharedParts(ev, b.header, table, row, above).slice(0, 4)) {
     const what = inText(kindOf(x.parts)),

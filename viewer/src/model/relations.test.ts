@@ -360,7 +360,10 @@ describe("truth classes", () => {
     particle: { flags: "flags", bit: 2, first: "signal" },
   } as DisplayLayer;
   it("puts a particle in the class of its nearest ancestor in one, the rest after the classes, pile-up last", () => {
-    const signalUE = [{ name: "signal", mask: 48 }, { name: "underlying event", mask: 64 }];
+    const signalUE = [
+      { name: "signal", mask: 48 },
+      { name: "underlying event", mask: 64 },
+    ];
     expect([...truthClasses(cd, cev.tables.P, cev, ch, signalUE)]).toEqual([0, 0, 0, 1, 1, 2, 3]);
   });
   it("puts every particle of the signal collision in a class without bits", () => {

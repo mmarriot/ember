@@ -4,8 +4,9 @@ import type { DisplayLayer, Header } from "../io/format";
 import { PALETTES, type Legend } from "../render/colour";
 // The store sets the page's theme as it loads: a stand-in page (the tests run without a DOM).
 Object.assign(globalThis, { document: { documentElement: { dataset: {} } } });
-const { bundle, colourChoice, layerKey, legends, rawEvent, shown, theme, truthLevel, visible } =
-  await import("./store");
+const { bundle, colourChoice, layerKey, legends, rawEvent, shown, theme, truthLevel, visible } = await import(
+  "./store"
+);
 const { layerEntries, modeKey, viewKey } = await import("./key");
 const { COLOUR_LEVELS } = await import("./truth");
 
@@ -133,10 +134,13 @@ describe("the truth group", () => {
   const labels = () => modeKey.value?.entries.map((e) => e.label);
 
   it("by class, lists the classes drawn and no other grey", () => {
-    openTruth([1, 0], [
-      { label: "signal collision", colour: "#D55E00" },
-      { label: "pile-up", colour: "#2E8FCB" },
-    ]);
+    openTruth(
+      [1, 0],
+      [
+        { label: "signal collision", colour: "#D55E00" },
+        { label: "pile-up", colour: "#2E8FCB" },
+      ],
+    );
     truthLevel.value = COLOUR_LEVELS.find((l) => l.id === "collision")!;
     expect(labels()).toEqual(["signal collision", "pile-up", "no in-time truth, or not cleanly matched"]);
   });

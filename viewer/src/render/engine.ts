@@ -315,10 +315,21 @@ export class Engine {
   }
 
   /** Fit the view to the drawn objects, or to the given rows per table; animated over `ms` if `animate`, swinging
-   *  `swing` radians around the vertical on the way (3D). `least`: the smallest radius framed (cm), instead of
-   *  minRadius. */
-  frame(selection?: Rows, animate = false, ms = 450, swing = 0, least?: number) {
-    this.fit(selection, animate, ms, swing, undefined, least);
+   *  `swing` radians around the vertical on the way (3D). `least`: the smallest radius framed (cm). `dir`: the 3D
+   *  direction to look along (default: the current one). */
+  frame(selection?: Rows, animate = false, ms = 450, swing = 0, least = this.minRadius, dir?: THREE.Vector3) {
+    const box = this.box(selection);
+    if (!box) return;
+    const [lo, hi] = box;
+    const ctr = lo.clone().add(hi).multiplyScalar(0.5),
+      size = hi.clone().sub(lo);
+    if (this.view !== "3d") {
+      // 2D: a margin, and at least the smallest radius framed, as in 3D (a jet's calorimeter part)
+      const [w, h] = flatView(this.view).extent(size);
+      return this.aimFlat(ctr, Math.max(1.2 * w, 2 * least), Math.max(1.2 * h, 2 * least), animate, ms);
+    }
+    const radius = Math.max(0.68 * size.length() + 0.22 * least, least); // cm: conservative
+    this.aim(ctr, radius, animate, ms, swing, dir);
   }
 
   /** Frame a cylinder around the beam axis (radius rMax, |z| up to zMax; cm), e.g. a part of the detector, from the
@@ -359,31 +370,7 @@ export class Engine {
   /** Back to the normal view, animated: the whole event from the current preset's direction (3D: the standard 3/4
    *  view). */
   home(ms = 700) {
-    this.fit(undefined, true, ms, 0, this.flat ? undefined : presetDirection(this.view));
-  }
-
-  /** frame(), looking along `dir` (3D; default: the current direction). */
-  private fit(
-    selection: Rows | undefined,
-    animate: boolean,
-    ms: number,
-    swing: number,
-    dir?: THREE.Vector3,
-    min = this.minRadius,
-  ) {
-    const box = this.box(selection);
-    if (!box) return;
-    const [lo, hi] = box;
-    const ctr = lo.clone().add(hi).multiplyScalar(0.5),
-      size = hi.clone().sub(lo);
-    if (this.view !== "3d") {
-      // 2D: a margin, and at least the smallest radius framed, as in 3D (a jet's calorimeter part)
-      const [w, h] = flatView(this.view).extent(size),
-        least = 2 * min;
-      return this.aimFlat(ctr, Math.max(1.2 * w, least), Math.max(1.2 * h, least), animate, ms);
-    }
-    const radius = Math.max(0.68 * size.length() + 0.22 * min, min); // cm: conservative
-    this.aim(ctr, radius, animate, ms, swing, dir);
+    this.frame(undefined, true, ms, 0, undefined, this.flat ? undefined : presetDirection(this.view));
   }
 
   /** The direction from the target to the 3D camera (unit). */

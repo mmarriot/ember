@@ -32,7 +32,7 @@ export function flatView(view: Exclude<ViewName, "3d">) {
 }
 
 /** Orthographic zoom that fits a width x height (cm) into a camera whose frustum at zoom 1 is frustumW x frustumH,
- *  with a margin. The smallest size framed is the caller's (Engine.fit: the profile's minRadius, e.g. 15 cm in the
+ *  with a margin. The smallest size framed is the caller's (Engine.frame: the profile's minRadius, e.g. 15 cm in the
  *  tracker), so a short track fills the view as a long one does. */
 export const flatZoom = (frustumW: number, frustumH: number, w: number, h: number) =>
   0.85 * Math.min(frustumW / Math.max(w, 1), frustumH / Math.max(h, 1));

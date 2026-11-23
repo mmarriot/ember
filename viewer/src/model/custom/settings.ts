@@ -3,6 +3,7 @@
 // shown (one loop per column).
 import { effect, signal } from "@preact/signals";
 import type { Column, DisplayLayer, EventData, Table } from "../../io/format";
+import { browserStorage } from "../site/library";
 import { compile } from "./expr";
 
 export interface CustomColumn {
@@ -101,7 +102,7 @@ export function loadCustom(profile: string, defaults: Record<string, string>, re
     preset: number;
   }> = {};
   try {
-    saved = JSON.parse(localStorage.getItem(`evd.custom.${profile}`) ?? "{}"); // old prefix kept: see model/site/library.ts
+    saved = JSON.parse(browserStorage.get(`evd.custom.${profile}`) ?? "{}"); // old prefix kept: see model/site/library.ts
   } catch {
     /* defaults */
   }
@@ -119,10 +120,5 @@ effect(() => {
     colourBy: colourBy.value,
     preset: activePreset.value,
   });
-  if (storageKey)
-    try {
-      localStorage.setItem(storageKey, data);
-    } catch {
-      /* not remembered */
-    }
+  if (storageKey) browserStorage.set(storageKey, data);
 });

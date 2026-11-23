@@ -7,25 +7,9 @@ import type { Legend, ThemeName } from "../../render/colour";
 import type { Hit } from "../../render/picking";
 import type { Caption } from "../../render/replay";
 import { drawsLayer, sharedDomains } from "../event/domains";
+import { browserStorage } from "../site/library";
 import { bundle } from "./data";
 import { layerKey } from "./names";
-
-// The user's choices remembered in this browser when storage is available (not always, e.g. in a private window),
-// under keys that keep their "evd." prefix: see model/site/library.ts.
-function remembered(key: string) {
-  try {
-    return localStorage.getItem(key);
-  } catch {
-    return null;
-  }
-}
-function remember(key: string, value: string) {
-  try {
-    localStorage.setItem(key, value);
-  } catch {
-    /* not remembered */
-  }
-}
 
 // ---- What is drawn
 
@@ -120,12 +104,12 @@ export const shown = signal<Record<string, number>>({});
  *  theme; render/layers/layer.ts REST_FADE says how far each fades. */
 export type Rest = "dim" | "faint" | "hidden";
 export const RESTS: Rest[] = ["dim", "faint", "hidden"];
-const savedRest = remembered("evd.rest");
+const savedRest = browserStorage.get("evd.rest");
 export const rest = signal<Rest>(RESTS.includes(savedRest as Rest) ? (savedRest as Rest) : "faint");
 /** Choose how the rest is drawn (`to`), or the next way after the current one (key H). */
 export function setRest(to?: Rest) {
   rest.value = to ?? RESTS[(RESTS.indexOf(rest.value) + 1) % RESTS.length];
-  remember("evd.rest", rest.value);
+  browserStorage.set("evd.rest", rest.value);
 }
 
 /** The camera preset. */
@@ -155,12 +139,12 @@ export function toast(text: string, kind: "info" | "error" = "info") {
 }
 
 // The colour theme: dark unless the user picked light before.
-export const theme = signal<ThemeName>(remembered("evd.theme") === "light" ? "light" : "dark");
+export const theme = signal<ThemeName>(browserStorage.get("evd.theme") === "light" ? "light" : "dark");
 // The page's CSS follows the theme through <html data-theme>.
 effect(() => {
   document.documentElement.dataset.theme = theme.value;
 });
 export function toggleTheme() {
   theme.value = theme.value === "dark" ? "light" : "dark";
-  remember("evd.theme", theme.value);
+  browserStorage.set("evd.theme", theme.value);
 }

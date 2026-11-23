@@ -22,7 +22,7 @@ import {
   withText,
 } from "../render/overlay";
 import { Swatch } from "./Key";
-import { shownSummary, shownTitle } from "./TitleBox";
+import { shownTitle } from "./TitleBox";
 import { Modal } from "./widgets";
 
 const SCALES = [1, 2, 4];
@@ -30,8 +30,9 @@ const SCALES = [1, 2, 4];
 const QUALIFIERS = ["Phase-2 Simulation Private Work", "Simulation Private Work", "Private Work", "Preliminary"];
 
 /** The choices remembered (localStorage "evd.picture"). `qualifier`: the label's italic text, per kind of data set
- *  (profile, simulation or data), so that Phase-2 simulation and Run 3 data each keep their own. `names`: key lines
- *  and titles renamed, by their text in the view's key (so a rename holds for every event); `hidden`: those left out. */
+ *  (profile, simulation or data), so that Phase-2 simulation and Run 3 data each keep their own. `names`: key titles
+ *  and lines renamed, `hidden`: those left out, by group id and text in the view's key ("pair|in no object"), so that
+ *  an edit holds for every event; a title left out leaves its lines. */
 interface Choices {
   scale: number;
   label: boolean;
@@ -59,6 +60,8 @@ const DEFAULT: Choices = {
   hidden: [],
 };
 const STORE = "evd.picture";
+/** The default caption: the event, after the label's word for what the data are ("ttbar · Run 1 · LS 1 · Event 4"). */
+const firstCaption = () => shownTitle().replace(/^(SIMULATION|DATA) · /, "");
 function load(): Choices {
   try {
     return { ...DEFAULT, ...JSON.parse(localStorage.getItem(STORE) ?? "{}") };
@@ -110,11 +113,13 @@ export function PictureDialog() {
     setChoices(next);
     if (keep) remember(next);
   };
-  const [caption, setCaption] = useState(() => [shownTitle(), shownSummary()].filter(Boolean).join("\n"));
+  const [caption, setCaption] = useState(firstCaption),
+    [busy, setBusy] = useState(false);
   const kind = `${b?.header.profile}|${!!b && !!e && isSimulation(b.header, e.run)}`,
     qualifier = c.qualifier[kind] ?? defaultQualifier(b?.header.profile, kind.endsWith("true"));
   const groups = viewKey.value,
-    named = (text: string) => c.names[text] ?? text;
+    named = (id: string, text: string) => c.names[id] ?? text,
+    shown = (id: string) => !c.hidden.includes(id);
   const overlay = (): Overlay => ({
     label: {
       bold: c.label ? c.experiment : "",
@@ -122,12 +127,12 @@ export function PictureDialog() {
       caption: c.caption ? caption.split("\n") : [],
     },
     key: c.key
-      ? groups
-          .filter((g) => !c.hidden.includes(g.title))
-          .map((g) => ({
-            title: named(g.title),
-            entries: g.entries.filter((x) => !c.hidden.includes(x.label)).map((x) => ({ ...x, label: named(x.label) })),
-          }))
+      ? groups.map((g) => ({
+          title: shown(g.id) ? named(g.id, g.title) : "",
+          entries: g.entries
+            .filter((x) => shown(`${g.id}|${x.label}`))
+            .map((x) => ({ ...x, label: named(`${g.id}|${x.label}`, x.label) })),
+        }))
       : undefined,
     text: c.text,
     panel: c.panel,
@@ -188,31 +193,41 @@ export function PictureDialog() {
     return new Blob([head, await dataUrl(await blobOf(v)), tail], { type: "image/svg+xml" });
   };
   const failed = (err: Error) => toast(err.message || "The picture could not be made", "error");
-  const save = (make: () => Promise<Blob>, ext: string) => () => make().then((x) => download(x, name(ext)), failed);
+  // Drawing the view again holds the page (seconds for a big event): say so first, with the buttons off, and start
+  // once the browser has shown it (a timer set in the next frame runs after its paint).
+  const save = (make: () => Promise<Blob>, ext: string) => () => {
+    setBusy(true);
+    requestAnimationFrame(() =>
+      setTimeout(() =>
+        make()
+          .then((x) => download(x, name(ext)), failed)
+          .finally(() => setBusy(false)),
+      ),
+    );
+  };
   const copy = () =>
     navigator.clipboard
       .write([new ClipboardItem({ "image/png": png() })]) // the promise itself: Safari allows it within the click only
       .then(() => toast("Copied: paste it into a slide or a message"), failed);
 
-  /** A key line or title in the editor: kept or left out, and its text as it will read. (A function, not a component:
-   *  one made anew at each render would be a new kind of element, and its field would lose the focus at each key.) */
-  const line = (text: string, entry?: KeyEntry) => (
+  /** A key title or line in the editor (`id`: what its edits are kept under): kept or left out, and its text as it
+   *  will read. (A function, not a component: one made anew at each render would be a new kind of element, and its
+   *  field would lose the focus at each key.) */
+  const line = (id: string, text: string, entry?: KeyEntry) => (
     <label class={entry ? "line" : "line title"}>
       <input
         type="checkbox"
-        checked={!c.hidden.includes(text)}
-        onChange={() =>
-          set({ hidden: c.hidden.includes(text) ? c.hidden.filter((h) => h !== text) : [...c.hidden, text] })
-        }
+        checked={shown(id)}
+        onChange={() => set({ hidden: shown(id) ? [...c.hidden, id] : c.hidden.filter((h) => h !== id) })}
       />
       {entry && <Swatch e={entry} />}
       <input
-        value={named(text)}
+        value={named(id, text)}
         placeholder={entry ? "" : "no title"}
         onInput={(ev) => {
           const v = (ev.target as HTMLInputElement).value,
-            { [text]: _, ...rest } = c.names;
-          set({ names: v === text ? rest : { ...rest, [text]: v } });
+            { [id]: _, ...rest } = c.names;
+          set({ names: v === text ? rest : { ...rest, [id]: v } });
         }}
       />
     </label>
@@ -265,22 +280,29 @@ export function PictureDialog() {
             </button>
           ))}
         </div>
-        <button class="primary" onClick={save(png, "png")} disabled={!e}>
-          Save PNG
+        <button class="primary" onClick={save(png, "png")} disabled={!e || busy}>
+          {busy ? "Saving…" : "Save PNG"}
         </button>
         <button
           onClick={save(svg, "svg")}
-          disabled={!e}
+          disabled={!e || busy}
           title="The label and the key as text, over the view: to edit, or as PDF with rsvg-convert -f pdf"
         >
           Save SVG
         </button>
         {"ClipboardItem" in window && (
-          <button onClick={copy} disabled={!e}>
+          <button onClick={copy} disabled={!e || busy}>
             Copy
           </button>
         )}
-        <button class="link" onClick={() => set(DEFAULT)} title="Back to the default label, key and places">
+        <button
+          class="link"
+          onClick={() => {
+            set(DEFAULT);
+            setCaption(firstCaption());
+          }}
+          title="Back to the default label, caption, key and places"
+        >
           Reset
         </button>
       </div>
@@ -328,8 +350,8 @@ export function PictureDialog() {
           {!groups.length && <p class="muted">Nothing in this view has a key.</p>}
           {groups.map((g) => (
             <div class="group">
-              {line(g.title)}
-              {g.entries.map((x) => line(x.label, x))}
+              {line(g.id, g.title)}
+              {g.entries.map((x) => line(`${g.id}|${x.label}`, x.label, x))}
             </div>
           ))}
         </fieldset>

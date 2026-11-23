@@ -4,7 +4,7 @@ import type { DisplayLayer, Header } from "../io/format";
 import { PALETTES, type Legend } from "../render/colour";
 // The store sets the page's theme as it loads: a stand-in page (the tests run without a DOM).
 Object.assign(globalThis, { document: { documentElement: { dataset: {} } } });
-const { bundle, layerKey, legends, rawEvent, theme, visible } = await import("./store");
+const { bundle, layerKey, legends, rawEvent, shown, theme, visible } = await import("./store");
 const { layerEntries, modeKey, viewKey } = await import("./key");
 
 const layer = (table: string, extra: Partial<DisplayLayer> = {}) =>
@@ -69,6 +69,7 @@ describe("the view's key", () => {
   it("is the mode's group, then the kinds in their own colour together, then each other layer's scale", () => {
     open();
     expect(modeKey.value).toEqual({
+      id: "pid",
       title: "candidate type (reco)",
       entries: [
         { label: "photon", colours: ["#2E9BD6"] },
@@ -80,6 +81,13 @@ describe("the view's key", () => {
       ["", ["Jets: AK4 PUPPI", "Muons"]],
       ["HGCal hits", ["energy 0.0100 – 20.0 GeV"]],
     ]);
+  });
+
+  it("leaves out a layer with nothing drawn (all of it cut away)", () => {
+    open();
+    shown.value = { "Hit:cells": 0 };
+    expect(viewKey.value.map((g) => g.id)).toEqual(["pid", "kinds"]);
+    shown.value = {};
   });
 
   it("follows what is drawn and the theme", () => {

@@ -70,6 +70,13 @@ describe("layout", () => {
     one.forEach((b, i) => four[i].box.forEach((v, j) => expect(v).toBeCloseTo(4 * b.box[j], 6)));
   });
 
+  it("puts the key under the label where the two would meet in their corners", () => {
+    const [label, key] = layout(overlay(), 500, H, 1, measure);
+    expect(key.box[1]).toBeGreaterThanOrEqual(label.box[1] + label.box[3]);
+    const [, apart] = layout(overlay(), W, H, 1, measure);
+    expect(apart.box[1]).toBe(label.box[1]); // side by side where there is room
+  });
+
   it("puts a block where it was dragged, and keeps it inside the picture", () => {
     const [label, key] = layout(overlay({ at: { label: [0.5, 0.5], key: [0.99, 0.99] } }), W, H, 1, measure);
     expect(label.box.slice(0, 2)).toEqual([600, 400]);

@@ -9,7 +9,7 @@ import type { KeyGroup } from "../model/key";
  *  view's background behind each block, so the text reads over hits. */
 export interface Overlay {
   label?: { bold: string; italic: string; caption: string[] };
-  key?: KeyGroup[];
+  key?: Omit<KeyGroup, "id">[];
   text: number;
   panel: boolean;
   at: Partial<Record<BlockName, [number, number]>>;
@@ -120,8 +120,11 @@ export function layout(o: Overlay, w: number, h: number, scale: number, measure:
   function placed(name: BlockName, { shapes, size: [bw, bh] }: { shapes: Shape[]; size: number[] }): Block {
     const at = o.at[name],
       m = MARGIN * u;
-    const x = Math.max(0, Math.min(w - bw, at ? at[0] * w : name === "label" ? m : w - bw - m)),
-      y = Math.max(0, Math.min(h - bh, at ? at[1] * h : m));
+    const x = Math.max(0, Math.min(w - bw, at ? at[0] * w : name === "label" ? m : w - bw - m));
+    // In its corner, the key goes under the label where the two would meet (a narrow picture, large text).
+    const label = !at && blocks.find((b) => b.name === "label")?.box,
+      under = label && x < label[0] + label[2] && m < label[1] + label[3] ? label[1] + label[3] + m / 2 : m;
+    const y = Math.max(0, Math.min(h - bh, at ? at[1] * h : under));
     return { name, box: [x, y, bw, bh], shapes: shapes.map((s) => moved(s, x, y)) };
   }
 }

@@ -13,12 +13,14 @@ import {
   bundle,
   caloView,
   drawnLayers,
+  event,
   layerKey,
   layerOf,
   legends,
   modes,
   pairView,
   short,
+  shown,
   shownLayer,
   theme,
   truthColours,
@@ -37,7 +39,10 @@ export interface KeyEntry {
   small?: boolean;
   ref?: { table: string; row: number };
 }
+/** A group of lines under a title. `id`: what it is, whatever its title says ("truth", "pair", "pid", "kinds", or a
+ *  layer's key), so that a user's edits of it (ui/Picture.tsx) hold from event to event. */
 export interface KeyGroup {
+  id: string;
   title: string;
   entries: KeyEntry[];
 }
@@ -80,6 +85,7 @@ export const modeKey = computed<KeyGroup | null>(() => {
   if (pair) {
     const shown = new Set([...pair.classes.values()].flatMap((cls) => [...cls]));
     return {
+      id: "pair",
       title: "truth ↔ reco pair",
       entries: [
         ...CLASSES.filter(([c]) => shown.has(c)).map(([c, name]) => ({
@@ -92,6 +98,7 @@ export const modeKey = computed<KeyGroup | null>(() => {
   }
   if (mode === "truth")
     return {
+      id: "truth",
       title: `${truthLevelOf(b.header).name} (truth)`,
       entries: [
         ...legendOf(roots.truth).map((it) => ({
@@ -106,13 +113,14 @@ export const modeKey = computed<KeyGroup | null>(() => {
     };
   if (mode === "pid")
     return {
+      id: "pid",
       title: "candidate type (reco)",
       entries: [
         ...legendOf(roots.reco).map((it) => ({ label: it.label, colours: [it.colour] })),
         none("in no candidate"),
       ],
     };
-  return { title: "each layer's own", entries: [] };
+  return { id: "layers", title: "each layer's own", entries: [] };
 });
 
 /** Whether the colour key at the bottom of the panel explains the layer's colours (particle type, generator
@@ -158,21 +166,29 @@ export function layerEntries(d: DisplayLayer, legend: Legend, pal: Pal, column =
 export const layerTitle = (d: DisplayLayer) =>
   d.label.toLowerCase().includes(d.group.toLowerCase()) ? d.label : `${d.group}: ${d.label}`;
 
-/** The whole key of the view as drawn now: the mode's group, then each drawn layer whose colours it does not explain
- *  (as the side panel shows them under the layers' rows). Layers in one colour of their kind, which the panel names
- *  by their row alone, share one untitled group ("● Jets ● Muons"). What a saved picture's key starts from. */
+/** The whole key of the view as drawn now, for a picture that stands alone: the mode's group (the pair's titled with
+ *  its particle), then each layer with something drawn whose colours the mode does not explain (as the side panel
+ *  shows them under the layers' rows). Layers in one colour of their kind, which the panel names by their row alone,
+ *  share one untitled group ("● Jets ● Muons"). */
 export const viewKey = computed<KeyGroup[]>(() => {
   const pal = PALETTES[theme.value],
+    pair = pairView.value,
     mode = modeKey.value,
-    kinds: KeyGroup = { title: "", entries: [] },
+    kinds: KeyGroup = { id: "kinds", title: "", entries: [] },
     own: KeyGroup[] = [];
   for (const d of bundle.value?.header.display ?? []) {
-    const legend = legends.value[layerKey(d)];
-    if (!drawnLayers.value[layerKey(d)] || !legend || explainedByKey(d)) continue;
+    const key = layerKey(d),
+      legend = legends.value[key],
+      drawn = shown.value[key] ?? event.value?.tables[d.table]?.n ?? 0;
+    if (!drawnLayers.value[key] || !drawn || !legend || explainedByKey(d)) continue;
     const entries = layerEntries(d, legend, pal);
     if (entries.length === 1 && entries[0].label === d.label)
       kinds.entries.push({ ...entries[0], label: layerTitle(d) });
-    else own.push({ title: layerTitle(d), entries });
+    else own.push({ id: key, title: layerTitle(d), entries });
   }
-  return [mode, kinds, ...own].filter((g): g is KeyGroup => !!g?.entries.length);
+  const named =
+    mode && pair && pair.particle >= 0
+      ? { ...mode, title: `${mode.title}: ${truthText(pair.truth, pair.particle, caloView.value)}` }
+      : mode;
+  return [named, kinds, ...own].filter((g): g is KeyGroup => !!g?.entries.length);
 });

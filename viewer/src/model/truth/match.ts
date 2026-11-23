@@ -7,7 +7,7 @@ import { evaluate } from "../custom/settings";
 import { facts } from "./facts";
 import { type ColourBy, modeColouring, modeRoots } from "../colour/modes";
 import { cached } from "../event/cache";
-import { bestPartners, type Related } from "../event/relations";
+import { bestPartners, type Related, reversed } from "../event/relations";
 
 /** What a reco kind reconstructs, in words, per `match.target`. */
 export const TARGETS: Record<NonNullable<Match["target"]>, string> = {
@@ -152,29 +152,6 @@ export function truthStatus(
   return { kind: "none", reason: NO_EXPORT };
 }
 
-/** Truth -> hit relation `name` read from the hit side: per hit, its particles and their entries in the relation. Once
- *  per event (one pass over the relation: about 10 ms for the 600k HGCal entries of a PU200 event). */
-export function byHit(ev: EventData, name: string, nHits: number) {
-  return cached(ev, `byHit|${name}`, () => {
-    const rel = ev.relations[name],
-      offsets = new Uint32Array(nHits + 1);
-    for (let k = 0; k < rel.indices.length; k++) if (rel.indices[k] < nHits) offsets[rel.indices[k] + 1]++;
-    for (let h = 0; h < nHits; h++) offsets[h + 1] += offsets[h];
-    const fill = offsets.slice(0, nHits),
-      particle = new Int32Array(offsets[nHits]),
-      entry = new Uint32Array(offsets[nHits]);
-    for (let p = 0; p + 1 < rel.offsets.length; p++)
-      for (let k = rel.offsets[p]; k < rel.offsets[p + 1]; k++) {
-        const h = rel.indices[k];
-        if (h < nHits) {
-          particle[fill[h]] = p;
-          entry[fill[h]++] = k;
-        }
-      }
-    return { offsets, particle, entry };
-  });
-}
-
 /** What truth particles left in the given objects' hits, one group per detector (simulated energy is never summed
  *  across detectors: sampling and homogeneous calorimeters, photoelectrons in HF): per particle, the sum of the fact
  *  relations' weight over those hits. Largest first; groups without any energy are left out. */
@@ -192,7 +169,7 @@ export function simEnergyByParticle(ev: EventData, header: Header, objects: Rela
     if (!rel || !rows || !w) continue;
     const g = groups.get(f.in) ?? { in: f.in, unit: f.unit, table: f.from, weight, total: 0, sums: new Map() };
     // Through the hits: the relation read from the hit side, once per event, so a selection costs its own hits.
-    const { offsets, particle, entry } = byHit(ev, f.name, ev.tables[f.to]?.n ?? 0);
+    const { offsets, from: particle, entry } = reversed(ev, f.name, ev.tables[f.to]?.n ?? 0);
     for (const h of rows)
       for (let j = offsets[h]; j < offsets[h + 1]; j++) {
         const p = particle[j],

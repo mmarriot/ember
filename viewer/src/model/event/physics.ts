@@ -7,13 +7,13 @@
 // - for a one-object kind with a direction (MET): the other collections of its kind, and the angle to the leading
 //   objects of another kind.
 import type { EventData, Header } from "../../io/format";
-import { evaluate } from "../custom/settings";
-import { byHit } from "../truth/match";
+import { filterMask } from "../custom/settings";
 import { cached } from "./cache";
+import { reversed } from "./relations";
 
 /** The objects holding row `row` of `table` through a plain relation with a weight (vertexTracks, svTracks): their
  *  table, row and that weight (the relation's first). Read from the relation pointing back up (`inverseOf`) where
- *  there is one, else from the relation read from its `to` side (match.ts byHit: one pass per event, then each
+ *  there is one, else from the relation read from its `to` side (relations.ts reversed: one pass per event, then each
  *  lookup costs its own entries). Once per event and object. */
 export function memberships(ev: EventData, header: Header, table: string, row: number) {
   return cached(ev, `members|${table}|${row}`, () => {
@@ -41,7 +41,7 @@ export function memberships(ev: EventData, header: Header, table: string, row: n
         continue;
       }
       const w = rel.weights[weightName],
-        { offsets, particle: holder, entry } = byHit(ev, name, ev.tables[table]?.n ?? 0);
+        { offsets, from: holder, entry } = reversed(ev, name, ev.tables[table]?.n ?? 0);
       for (let j = offsets[row]; j < offsets[row + 1]; j++)
         out.push({ table: info.from, row: holder[j], weight: w?.[entry[j]], weightName });
     }
@@ -90,9 +90,8 @@ export function constituents(ev: EventData, header: Header, table: string, row: 
 /** A layer filter's mask over a whole table, once per event and expression. */
 const passMask = (ev: EventData, table: string, expr: string) =>
   cached(ev, `filter|${table}|${expr}`, () => {
-    const t = ev.tables[table],
-      r = t ? evaluate(t, expr) : null;
-    return r && "values" in r ? r.values : null;
+    const t = ev.tables[table];
+    return t ? filterMask(t, expr) : null;
   });
 
 /** The angle between two azimuths, in [0, π]. */
@@ -123,7 +122,7 @@ export function sharedParts(ev: EventData, header: Header, table: string, row: n
         if (o.to !== r.to || o.from === table || skip.has(o.from)) continue;
         // the objects holding its first part (the relation read from its parts' side), then those holding them all
         const orel = ev.relations[other],
-          { offsets, particle: holder } = byHit(ev, other, ev.tables[r.to]?.n ?? 0);
+          { offsets, from: holder } = reversed(ev, other, ev.tables[r.to]?.n ?? 0);
         for (let j = offsets[first]; j < offsets[first + 1]; j++) {
           const x = holder[j],
             lo = orel.offsets[x],

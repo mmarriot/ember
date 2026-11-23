@@ -14,11 +14,11 @@
 //   are not drawn as part of the pair: they have no truth of their own.
 import type { EventData, Header, RelationInfo } from "../../io/format";
 import { facts } from "./facts";
-import { byHit, truthStatus } from "./match";
+import { truthStatus } from "./match";
 import { type ColourBy, modeColouring } from "../colour/modes";
 import { identities } from "../colour/identities";
 import { cached } from "../event/cache";
-import { backPointers, bestPartners, contentPartners, type Ref, type Related } from "../event/relations";
+import { backPointers, bestPartners, contentPartners, type Ref, type Related, reversed } from "../event/relations";
 
 /** What an object is in the pair view:
  *  - matched: the branch's, in its match (for a hit: the branch left the most simulated energy in it);
@@ -111,7 +111,7 @@ export interface Pair {
 
 /** The reco -> truth relations that carry a `match` contract into the truth particles, by reco table. */
 function matchRelations(header: Header, truth: string) {
-  return cached0(header, `match|${truth}`, () => {
+  return cached(header, `match|${truth}`, () => {
     const out = new Map<string, [string, RelationInfo]>();
     for (const [name, r] of Object.entries(header.relations))
       if ((r.match?.shared ?? r.match?.purity) && r.to === truth && r.from !== truth && !out.has(r.from))
@@ -136,15 +136,8 @@ export function truthToReco(header: Header, truth: string, table: string) {
     ([, r]) => r.association && r.from === truth && r.to === table && r.best,
   );
 }
-const perHeader = new WeakMap<Header, Map<string, unknown>>();
-function cached0<T>(header: Header, what: string, make: () => T): T {
-  let m = perHeader.get(header);
-  if (!m) perHeader.set(header, (m = new Map()));
-  if (!m.has(what)) m.set(what, make());
-  return m.get(what) as T;
-}
 /** The colouring that leads every table to `root` through the reconstruction (model/colour/modes.ts), once per header. */
-const towards = (header: Header, root: string) => cached0(header, `towards|${root}`, () => modeColouring(header, root));
+const towards = (header: Header, root: string) => cached(header, `towards|${root}`, () => modeColouring(header, root));
 
 /** The rows of `table` reached from `rows` through plain relations (what they are made of), themselves included. */
 function madeOf(ev: EventData, header: Header, table: string, rows: number[]): Related {
@@ -350,7 +343,7 @@ export function pairFor(ev: EventData, header: Header, focus: Ref, truth: string
       const energy = energyOf(header, ev, f.to);
       if (hits && energy) {
         const reco = (det.reco ??= { branch: 0, other: 0, noTruth: 0 }),
-          { offsets, particle: who, entry } = byHit(ev, f.name, nHits);
+          { offsets, from: who, entry } = reversed(ev, f.name, nHits);
         for (const h of hits) {
           let mine = 0,
             all = 0;

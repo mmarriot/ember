@@ -3,7 +3,7 @@
 import type { DisplayLayer, EventData, Header, Table } from "../../io/format";
 import { cached } from "../event/cache";
 import { bestPartners } from "../event/relations";
-import { facts, isFactTable } from "../truth/facts";
+import { facts, isFactTable, simEnergyIn } from "../truth/facts";
 import type { TruthClass } from "../truth/levelFlags";
 
 /** The rule the truth colours give their slots by (model/event/relations.ts identities), as the colour key's title says it:
@@ -180,15 +180,7 @@ function rankKeys(
       // photoelectrons): each detector ranks its own keys, and the slots take each detector's next in turn.
       const detectors = [...new Set(mine.map((f) => f.in))];
       const lists = detectors.map((det) => {
-        const sum = new Float64Array(t.n); // per key, in this detector only
-        for (const f of mine.filter((x) => x.in === det)) {
-          const info = header.relations[f.name],
-            rel = ev.relations[f.name],
-            w = rel.weights[info.best?.weight ?? info.weights[0]];
-          if (!w) continue;
-          for (let p = 0; p < t.n && p + 1 < rel.offsets.length; p++)
-            for (let k = rel.offsets[p]; k < rel.offsets[p + 1]; k++) sum[key[p]] += w[k];
-        }
+        const sum = simEnergyIn(ev, header, mine, det, t.n, key); // per key, in this detector only
         return eligible.filter((k) => sum[k] > 0).sort((a, b) => above(a) - above(b) || sum[b] - sum[a] || a - b);
       });
       const order: number[] = [],

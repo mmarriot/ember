@@ -4,7 +4,8 @@
 // across detectors (sampling and homogeneous calorimeters, HF photoelectrons). Bundles made before the hint, and
 // relations of profiles that do not set it (hgcal.json), keep the earlier rule: a truth association into a layer
 // drawn as cells is a fact, in that layer's domain.
-import type { DisplayLayer, Fact, Header } from "../../io/format";
+import type { DisplayLayer, EventData, Fact, Header } from "../../io/format";
+import { cached } from "../event/cache";
 
 const layerOf = (header: Header, table: string): DisplayLayer | undefined =>
   header.display?.find((l) => l.table === table);
@@ -24,20 +25,41 @@ export function factIn(header: Header, name: string): string | undefined {
 /** The fact relations of the bundle: name, truth table, hit table and detector. Once per header. */
 export type FactRelation = { name: string; from: string; to: string; in: string; unit?: Fact["unit"] };
 export function facts(header: Header): FactRelation[] {
-  let out = factsOf.get(header);
-  if (!out) {
-    out = Object.keys(header.relations).flatMap((name) => {
+  return cached(header, "facts", () =>
+    Object.keys(header.relations).flatMap((name) => {
       const where = factIn(header, name),
         r = header.relations[name];
       return where === undefined
         ? []
         : [{ name, from: r.from, to: r.to, in: where, ...(r.fact?.unit ? { unit: r.fact.unit } : {}) }];
-    });
-    factsOf.set(header, out);
-  }
-  return out;
+    }),
+  );
 }
-const factsOf = new WeakMap<Header, FactRelation[]>();
+
+/** Per particle (`n` of them), or per `key[particle]`, the simulated energy in detector `det`: the sum over the hits of
+ *  the fact relations `fs` there, by their `best` weight (else their first). */
+export function simEnergyIn(
+  ev: EventData,
+  header: Header,
+  fs: FactRelation[],
+  det: string,
+  n: number,
+  key?: Int32Array,
+): Float64Array {
+  const sum = new Float64Array(n);
+  for (const f of fs) {
+    if (f.in !== det) continue;
+    const info = header.relations[f.name],
+      rel = ev.relations[f.name],
+      w = rel.weights[info.best?.weight ?? info.weights[0]];
+    if (!w) continue;
+    for (let p = 0; p < n && p + 1 < rel.offsets.length; p++) {
+      const to = key ? key[p] : p;
+      for (let k = rel.offsets[p]; k < rel.offsets[p + 1]; k++) sum[to] += w[k];
+    }
+  }
+  return sum;
+}
 
 /** What one row of the simulation's record covers for hit `row` of a fact relation's table, when coarser than a hit
  *  (e.g. "CSC layer"); undefined when it is the hit itself. */

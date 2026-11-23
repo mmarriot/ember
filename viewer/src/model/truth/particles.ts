@@ -2,7 +2,7 @@
 // associator a particle could have reached.
 import type { EventData, Header } from "../../io/format";
 import { bestPartners } from "../event/relations";
-import { facts } from "./facts";
+import { facts, simEnergyIn } from "./facts";
 import type { Graph } from "./graph";
 import { completeness } from "./match";
 import { comparedKind, truthToReco } from "./pair";
@@ -108,15 +108,7 @@ export function particlesInView(
   // The detectors with simulated energy: per particle, the sum over its hits there.
   const mine = facts(header).filter((f) => f.from === truth && ev.relations[f.name] && inView(f.to));
   for (const det of [...new Set(mine.map((f) => f.in))]) {
-    const sum = new Float64Array(n);
-    for (const f of mine.filter((x) => x.in === det)) {
-      const info = header.relations[f.name],
-        rel = ev.relations[f.name],
-        w = rel.weights[info.best?.weight ?? info.weights[0]];
-      if (w)
-        for (let p = 0; p < n && p + 1 < rel.offsets.length; p++)
-          for (let k = rel.offsets[p]; k < rel.offsets[p + 1]; k++) sum[p] += w[k];
-    }
+    const sum = simEnergyIn(ev, header, mine, det, n);
     out.push(detector(det, "simEnergy", (p) => sum[p]));
   }
   return out.filter((d) => d.rows.length);

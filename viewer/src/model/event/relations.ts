@@ -230,6 +230,30 @@ function partnersOnce(rel: Relation, info: RelationInfo, forward: boolean, n: nu
   return { partner, entry };
 }
 
+/** Relation `name` read from its `to` side (`n` rows): per `to` row, the `from` rows pointing at it and their entries
+ *  in the relation (e.g. per hit, its particles). Once per event: one pass, about 10 ms for the 600k HGCal entries of a
+ *  PU200 event. */
+export function reversed(ev: EventData, name: string, n: number) {
+  return cached(ev, `reversed|${name}`, () => {
+    const rel = ev.relations[name],
+      offsets = new Uint32Array(n + 1);
+    for (let k = 0; k < rel.indices.length; k++) if (rel.indices[k] < n) offsets[rel.indices[k] + 1]++;
+    for (let h = 0; h < n; h++) offsets[h + 1] += offsets[h];
+    const fill = offsets.slice(0, n),
+      from = new Int32Array(offsets[n]),
+      entry = new Uint32Array(offsets[n]);
+    for (let p = 0; p + 1 < rel.offsets.length; p++)
+      for (let k = rel.offsets[p]; k < rel.offsets[p + 1]; k++) {
+        const h = rel.indices[k];
+        if (h < n) {
+          from[fill[h]] = p;
+          entry[fill[h]++] = k;
+        }
+      }
+    return { offsets, from, entry };
+  });
+}
+
 /** For each object of `table`, the object of `root` with the most weight in its parts (-1 for none): over each
  *  relation from `table` into a parts table (weighted by its first weight, e.g. a layer cluster's hit fraction, else
  *  1) and each relation from `root` into the same parts table (by its `best` weight, e.g. the simulated energy a

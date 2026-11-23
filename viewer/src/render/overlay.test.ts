@@ -54,10 +54,11 @@ describe("layout", () => {
     expect(qualifier.x).toBeGreaterThan(cms.x);
   });
 
-  it("lines every key label up, and draws a ramp and the small dots as such", () => {
+  it("lines a group's labels up after its widest swatch, and draws a ramp and the small dots as such", () => {
     const [, key] = layout(overlay(), W, H, 1, measure),
-      texts = key.shapes.filter((s) => "text" in s && !s.font.bold) as { x: number }[];
-    expect(new Set(texts.map((t) => t.x)).size).toBe(1);
+      [pion, pileup, energy] = key.shapes.filter((s) => "text" in s && !s.font.bold) as { x: number }[];
+    expect(pion.x).toBe(pileup.x);
+    expect(energy.x).toBeGreaterThan(pion.x); // after the ramp, wider than a dot
     expect(key.shapes.filter((s) => "ramp" in s)).toHaveLength(1);
     const [big, small] = key.shapes.filter((s) => "dot" in s) as { r: number }[];
     expect(small.r).toBeLessThan(big.r);

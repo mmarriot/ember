@@ -85,31 +85,33 @@ export function layout(o: Overlay, w: number, h: number, scale: number, measure:
 
   const groups = (o.key ?? []).filter((g) => g.entries.length);
   if (groups.length) {
-    // One column: each group's title, then its lines, every label at the same distance from the left.
+    // One column: each group's title, then its lines, the group's labels lined up after its widest swatch.
     const r = 0.38 * u,
-      swatchWidth = (e: KeyGroup["entries"][number]) => (e.ramp ? 3.5 * u : e.colours.length * 2.4 * r),
-      x = PAD * u + Math.max(...groups.flatMap((g) => g.entries.map(swatchWidth))) + 0.5 * u;
-    const rows = groups.flatMap((g, k) => [
-      ...(g.title ? [text(g.title, { size: u, bold: true })] : []),
-      ...g.entries.map((e) => ({
-        ...text(e.label, { size: u }, x),
-        shapes: (y: number): Shape[] => {
-          const mid = y - 0.35 * u; // the text's middle
-          return [
-            ...(e.ramp
-              ? [{ ramp: e.colours, box: [PAD * u, mid - 0.3 * u, 3.5 * u, 0.6 * u] as Box }]
-              : e.colours.map((c, j) => ({
-                  dot: c,
-                  x: PAD * u + (2.4 * j + 1.2) * r,
-                  y: mid,
-                  r: e.small ? 0.6 * r : r,
-                }))),
-            { text: e.label, x, y, font: { size: u } },
-          ];
-        },
-      })),
-      ...(k < groups.length - 1 ? [{ height: 0.4 * u, width: 0, shapes: () => [] }] : []),
-    ]);
+      swatchWidth = (e: KeyGroup["entries"][number]) => (e.ramp ? 3.5 * u : e.colours.length * 2.4 * r);
+    const rows = groups.flatMap((g, k) => {
+      const x = PAD * u + Math.max(...g.entries.map(swatchWidth)) + 0.5 * u;
+      return [
+        ...(g.title ? [text(g.title, { size: u, bold: true })] : []),
+        ...g.entries.map((e) => ({
+          ...text(e.label, { size: u }, x),
+          shapes: (y: number): Shape[] => {
+            const mid = y - 0.35 * u; // the text's middle
+            return [
+              ...(e.ramp
+                ? [{ ramp: e.colours, box: [PAD * u, mid - 0.3 * u, 3.5 * u, 0.6 * u] as Box }]
+                : e.colours.map((c, j) => ({
+                    dot: c,
+                    x: PAD * u + (2.4 * j + 1.2) * r,
+                    y: mid,
+                    r: e.small ? 0.6 * r : r,
+                  }))),
+              { text: e.label, x, y, font: { size: u } },
+            ];
+          },
+        })),
+        ...(k < groups.length - 1 ? [{ height: 0.4 * u, width: 0, shapes: () => [] }] : []),
+      ];
+    });
     blocks.push(placed("key", stack(rows)));
   }
   return blocks;

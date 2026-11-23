@@ -227,6 +227,30 @@
 .layer.off .row .name {
   color: var(--muted);
 }
+/* The controls used now and then (a kind's "only", a row's ⋯) show where the pointer is, so a long list reads as
+   names and counts. With nothing to hover (touch), or with the keyboard on them, they always show. A kind's "only"
+   is laid over the right end of its heading, so that hidden it leaves no gap (a heading with a long cut chip would
+   otherwise keep an empty second line for it). */
+@media (hover: hover) {
+  .tabpanel section > h3 {
+    position: relative;
+  }
+  .tabpanel section > h3 .only:not(.on) {
+    position: absolute;
+    right: 0;
+    background: var(--surface-2);
+    visibility: hidden;
+  }
+  .layer .more:not(.on) {
+    visibility: hidden;
+  }
+  .tabpanel section > h3:hover .only,
+  .tabpanel section > h3:focus-within .only,
+  .layer .row:hover .more,
+  .layer .row:focus-within .more {
+    visibility: visible;
+  }
+}
 .layer .glyph {
   width: 14px;
   text-align: center;
@@ -460,7 +484,7 @@
 .feedback.bad {
   color: var(--error);
 }
-/* Physics tab: the event in one line, and each kind's largest objects. */
+/* Physics section: the event in one line, and each kind's largest objects. */
 .headline {
   margin: 0 0 10px;
   font-size: 12.5px;
@@ -512,20 +536,25 @@ table.objects tr.more {
 table.objects tr.more td {
   text-align: left;
 }
-/* Detector tab: one folded section per part of the detector. */
+/* Collections tab: one section per part of the Look at bar, the panel's top level: a heading bar each. */
 details.part + details.part {
-  border-top: 1px solid var(--line);
   margin-top: 6px;
-  padding-top: 6px;
 }
 details.part > summary {
   display: flex;
   align-items: baseline;
   gap: 6px;
   cursor: pointer;
-  padding: 2px 0 6px;
-  font-size: 13px;
+  padding: 5px 8px;
+  margin: 0 -4px 4px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  font-size: 14px;
   color: inherit;
+}
+details.part:not([open]) > summary {
+  margin-bottom: 0;
 }
 details.part > summary::before {
   content: "▸";

@@ -46,12 +46,11 @@ export const inDomain = (d: DisplayLayer, current = domain.value) =>
 /** The side-panel tab to open: a domain's, when it is chosen. A new object each time, so that choosing the same domain
  *  again reopens its tab. */
 export const openTab = signal<{ name: string } | null>(null);
-/** The side-panel tab that lists the layers of the domains that are not shared. */
-export const DETECTOR = "Detector";
-/** The side-panel tab that lists a domain's layers: its own for a shared domain, else Detector (in bundles with
- *  domains, the Detector tab follows the domain bar). */
+/** The side-panel tab that lists the layers of the domain bar's parts, one section per part (it follows the bar). */
+export const COLLECTIONS = "Collections";
+/** The side-panel tab that lists a domain's layers: Collections in a bundle with a domain bar, else its own. */
 export const tabOfDomain = (h: Pick<Header, "domains">, name: string) =>
-  h.domains?.find((d) => d.name === name)?.shared ? name : DETECTOR;
+  (h.domains?.length ?? 0) >= 2 && h.domains!.some((d) => d.name === name) ? COLLECTIONS : name;
 
 /** One kind of object looked at alone (its heading's "only", e.g. the tracks, the jets), as `soloKey` names it: only
  *  its collections are drawn, whatever part of the detector is looked at; null: everything ticked. A view, like

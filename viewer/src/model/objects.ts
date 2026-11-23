@@ -1,4 +1,4 @@
-// The object rows of a layer with a `list` hint (the Physics tab's event summary): the largest objects that pass the
+// The object rows of a layer with a `list` hint (the Physics section's event summary): the largest objects that pass the
 // layer's cut and filter, and the headline that counts them.
 import type { DisplayLayer, Table } from "../io/format";
 

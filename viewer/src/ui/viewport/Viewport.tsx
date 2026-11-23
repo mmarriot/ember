@@ -1,18 +1,15 @@
-// The 3D view: the canvas (the engine draws on it: scene.ts) and what is drawn over it: labels, the tooltip, the replay
-// and tour captions, the note while one kind is drawn alone, the views' buttons and a hint. The pointer: hovering an
-// object shows its tooltip, a click selects it (again on the same spot: the next object under the pointer), a
-// double click zooms to the selection, and a drag rotates or pans without changing the selection.
+// The 3D view: the canvas (control/scene.ts draws on it) and what goes over it: labels, tooltip, captions, title, the
+// views' buttons, chips and hint. Hover shows a tooltip, a click selects (again on the same spot: the next object
+// under the pointer), a double click zooms to the selection, a drag rotates or pans.
 import { effect, signal, untracked } from "@preact/signals";
 import { useEffect, useRef } from "preact/hooks";
-import type { Caption } from "../../render/replay";
-import { sameRef } from "../../model/event/relations";
 import { unitOf } from "../../io/format";
 import { colourBy } from "../../model/custom/custom";
+import { sameRef } from "../../model/event/relations";
 import {
   activeMode,
   anchor,
   bundle,
-  domain,
   event,
   focus,
   focusBar,
@@ -23,36 +20,29 @@ import {
   isHitLayer,
   layerOf,
   nameOf,
-  overlay,
   replayCaption,
-  rest,
-  RESTS,
-  type Rest,
   selection,
-  setRest,
-  shared,
   short,
   shownLayer,
   shownLevel,
   subject,
   touring,
   unlook,
-  view,
 } from "../../model/store";
-import type { ViewName } from "../../io/format";
-import { Labels } from "./Labels";
-import { Hint } from "./Hint";
-import { TitleBox } from "./TitleBox";
 import { frameFocus, jump } from "../../control/navigate";
 import { engine, startScene } from "../../control/scene";
 import { stopTour, tourCaption } from "../../control/tour";
+import type { Caption } from "../../render/replay";
+import { Hint } from "./Hint";
+import { cardBox, Labels } from "./Labels";
+import { TitleBox } from "./TitleBox";
+import { hasDomainBar, OverlayChip, RestChoice, Views } from "./ViewControls";
 
-/** What ↓ / ↑ (or a chain step's "show") just drew: shown on the view for a moment (see stepCaptions). */
+/** What ↓ / ↑ (or a chain step's "show") just drew, shown for a moment (stepCaptions). */
 const stepCaption = signal<Caption | null>(null);
 
-/** Caption each level the user steps to inside the same focus (↓ / ↑, a chain step's "show"): its name and count, and
- *  where it is among the focus's steps. Not when the domain changes (D: the chosen level stays), nor for a level set
- *  with its focus (a link, which sets both at once); a new focus clears it. Returns the function that stops it. */
+/** Caption each level stepped to within the same focus: its name, count and place among the focus's steps. Not for a
+ *  level set with its focus (a link sets both at once); a new focus clears it. Returns the function that stops it. */
 function stepCaptions() {
   let last = focus.peek(),
     since = 0, // when the focus last changed (ms)
@@ -67,7 +57,7 @@ function stepCaptions() {
       return;
     }
     if (!f || touring.peek() || performance.now() - since < 100) return;
-    if (chosen === null) return void (stepCaption.value = null); // back to the object with its smallest parts
+    if (chosen === null) return void (stepCaption.value = null); // back to the focus's default level
     const steps = untracked(() => focusBar.value).filter((l) => !l.always),
       i = steps.findIndex((l) => l.name === untracked(() => shownLevel.value));
     if (i < 0) return;
@@ -94,16 +84,12 @@ export function Viewport() {
     const stop = startScene(canvas.current!);
     const eng = engine!;
     eng.onInteract = stopTour;
-    // The card covers part of the view while something is selected: framing leaves that part free. Measured at each
-    // framing (one layout read); a card not drawn yet (framing in the same step as the selection) is taken where
-    // styles/card.css puts it.
+    // Framing leaves the card's part of the view free: measured at each framing (one layout read), or where
+    // styles/card.css puts it when the card is not drawn yet (framing in the same step as the selection).
     eng.cover = () => {
       if (!subject.peek()) return null;
-      const box = canvas.current!.getBoundingClientRect(),
-        card = document.querySelector(".inspector")?.getBoundingClientRect();
-      return card
-        ? { x0: card.left - box.left, y0: card.top - box.top, x1: card.right - box.left, y1: card.bottom - box.top }
-        : { x0: box.width - CARD, y0: 12, x1: box.width - 12, y1: box.height - 12 };
+      const box = canvas.current!.getBoundingClientRect();
+      return cardBox(box) ?? { x0: box.width - CARD, y0: 12, x1: box.width - 12, y1: box.height - 12 };
     };
     const stopSteps = stepCaptions();
     return () => {
@@ -147,8 +133,8 @@ export function Viewport() {
       setCursor(hits.length ? "pointer" : "grab");
     });
   };
-  // Several objects can be stacked under the cursor (a candidate, its tracksters, a hit, a truth line): clicking
-  // again on the same spot selects the next one. A click on nothing ends the focus (and the selection).
+  // A click again on the same spot selects the next of the objects stacked under the cursor. A click on nothing ends
+  // the selection.
   let lastClick: { x: number; y: number } | null = null;
   const onClick = (e: MouseEvent) => {
     if (e.detail > 1 || dragged) return;
@@ -158,17 +144,17 @@ export function Viewport() {
     lastClick = { x: e.clientX, y: e.clientY };
     const at = again && cur ? hits.findIndex((h) => h.table === cur.table && h.row === cur.row) : -1;
     const hit = hits[(at + 1) % Math.max(hits.length, 1)];
-    // An object linked to the focus (its truth particle; a truth particle's reco objects), other than single hits:
-    // the focus moves there, keeping the way back.
+    // An object linked to the focus (its truth particle; a truth particle's reco objects), not a hit: jump there,
+    // keeping the way back.
     if (hit && !isHitLayer(layerOf(hit.table)) && focusLinked.peek()?.get(hit.table)?.has(hit.row))
       return jump({ table: hit.table, row: hit.row });
-    // A click on nothing while another object is looked at from a card: back to the card's object, which is not lost.
+    // A click on nothing while looking at another object from a card: back to the card's object.
     if (!hit && anchor.peek()) return unlook();
     selection.value = hit ? { table: hit.table, row: hit.row } : null;
   };
   const onDoubleClick = (e: MouseEvent) => {
     if (dragged) return;
-    // The first click already selected (and focused) the object: zoom to it, conservatively.
+    // The first click already selected the object: zoom to it.
     if (!selection.value) {
       const hit = engine?.pick(e.clientX, e.clientY, inFocus);
       if (!hit) return;
@@ -192,84 +178,12 @@ export function Viewport() {
       <Tooltip />
       <ReplayCaption />
       <TitleBox />
-      {(bundle.value?.header.domains?.length ?? 0) >= 2 && <Views />}
+      {hasDomainBar(bundle.value?.header) && <Views />}
       <div class="viewchips">
         <OverlayChip />
         <RestChoice />
       </div>
       <Hint />
-    </div>
-  );
-}
-
-export const VIEWS: [ViewName, string, string][] = [
-  ["3d", "3D", "1"],
-  ["front", "Front", "2"],
-  ["side", "Side", "3"],
-  ["rz", "ρ–z", "4"],
-];
-/** The views (3D, front, side, ρ–z): on the canvas for a bundle with a domain bar (which takes their place in the top
- *  bar), else in the top bar. */
-export function Views() {
-  return (
-    <div class="segmented views" role="group" aria-label="View">
-      {VIEWS.map(([v, name, key]) => (
-        <button
-          class={view.value === v ? "on" : ""}
-          title={`${name} view (${key})`}
-          disabled={!bundle.value}
-          onClick={() => (view.value = v)}
-        >
-          {name}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-/** In a detector part's view, the chip that draws the shared parts' layers (e.g. Physics: jets, MET) over it. A
- *  selection draws its own objects of those parts whatever the chip (store/selection.ts focusLayers). */
-function OverlayChip() {
-  const d = domain.value,
-    names = [...shared.value];
-  if (!d || !names.length || shared.value.has(d)) return null;
-  const on = overlay.value,
-    name = names.join(" · ");
-  return (
-    <button
-      class={on ? "overlaychip on" : "overlaychip"}
-      aria-pressed={on}
-      title={`${on ? "Stop drawing" : "Draw"} the ${name} objects over this part of the detector`}
-      onClick={() => (overlay.value = !on)}
-    >
-      {name} overlay
-    </button>
-  );
-}
-
-export const REST_NAMES: Record<Rest, [string, string]> = {
-  dim: ["Dim", "Dim the rest of the event: it stays readable around the selection"],
-  faint: ["Faint", "Leave a faint trace of the rest of the event"],
-  hidden: ["Hide", "Hide the rest of the event: only the selection, its parts and its truth are drawn"],
-};
-/** While something is selected: how the rest of the event is drawn (dimmed, faint, hidden; key H steps through). */
-function RestChoice() {
-  if (!focus.value) return null;
-  return (
-    <div class="segmented rest" role="group" aria-label="The rest of the event">
-      <span class="label" title="How the rest of the event is drawn while something is selected (H)">
-        Others
-      </span>
-      {RESTS.map((r) => (
-        <button
-          class={rest.value === r ? "on" : ""}
-          aria-pressed={rest.value === r}
-          title={`${REST_NAMES[r][1]} (H)`}
-          onClick={() => setRest(r)}
-        >
-          {REST_NAMES[r][0]}
-        </button>
-      ))}
     </div>
   );
 }

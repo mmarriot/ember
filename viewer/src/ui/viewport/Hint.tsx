@@ -1,9 +1,9 @@
-// The line at the bottom left of the view that says how to start. On a first visit it names the keys that matter most
-// (click, X, T, D: those this data set has), until it is dismissed, which this browser remembers; then only "Click an
-// object to select it · ? help".
+// The line at the bottom left of the view: on a first visit the keys that matter most (those this data set has),
+// until dismissed (remembered in this browser); then only "Click an object to select it · ? help".
 import { signal } from "@preact/signals";
 import { browserStorage } from "../../model/site/library";
 import { bundle, truthColours } from "../../model/store";
+import { hasDomainBar } from "./ViewControls";
 
 const KEY = "evd.hint.seen"; // the prefix all of this page's keys share (model/site/library.ts)
 const seen = signal(browserStorage.get(KEY) === "1");
@@ -15,7 +15,7 @@ export function Hint() {
         Click an object to select it · <kbd>?</kbd> help
       </div>
     );
-  const parts = (bundle.value?.header.domains?.length ?? 0) >= 2,
+  const parts = hasDomainBar(bundle.value?.header),
     truth = truthColours.value;
   return (
     <div class="hintbar first" role="note">

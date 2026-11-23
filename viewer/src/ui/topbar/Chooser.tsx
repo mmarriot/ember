@@ -1,6 +1,6 @@
-// The data set chooser of the top bar: a button naming the data set open, and a panel with what it is, a filter and
-// the lists to choose from: the ones opened lately from links, the site's shared ones by group, and my files
-// (published with `ember file.root`). The filter keeps the focus; ↑ ↓ move along the rows, Enter opens, Esc closes.
+// The top bar's data set chooser: a button naming the data set open, and a panel with its details, a filter and the
+// lists: recent (opened from links), the site's shared ones by group, and my files. The filter keeps the focus;
+// ↑ ↓ move along the rows, Enter opens, Esc closes.
 import { signal } from "@preact/signals";
 import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import { provenance, summary } from "../../model/site/about";
@@ -36,10 +36,10 @@ import {
 } from "../../model/store";
 import { Icon, usePressOutside } from "../common/widgets";
 
-/** Open or closed; the start panels open it too (ui/Start.tsx). */
+/** Whether the panel is open (the start panels open it too: ui/Start.tsx). */
 export const chooserOpen = signal(false);
 
-/** Ask for a file of this computer and open it (the chooser's "Open a local file…" and the start panel's). */
+/** Ask for a local file and open it. */
 export function pickLocalFile() {
   const input = Object.assign(document.createElement("input"), { type: "file", accept: BUNDLE_EXTENSIONS.join(",") });
   input.onchange = () => {
@@ -75,8 +75,8 @@ function noteOf(x: Listed, now: Date): string {
   return [events, expiryText(x.expires, now)].filter(Boolean).join(" · ");
 }
 
-/** The lists, each without the rows the filter leaves out: the recent ones, the site's groups in the order of its
- *  index (newest data first), then my files (last: before any are published, it is a note on how to publish). */
+/** The lists, filtered: recent, the site's groups in the order of its index (newest first), then my files (last:
+ *  before any are published, it is a note on how to publish). */
 function sections(filter: string, now: Date): Section[] {
   const shared = catalogue.value.bundles,
     own = mine.value;
@@ -123,8 +123,8 @@ export function Chooser() {
     button = useRef<HTMLButtonElement>(null),
     open = chooserOpen.value;
   usePressOutside(ref, open, () => (chooserOpen.value = false));
-  // And so does the focus going elsewhere (Tab past its last link): a panel left open over the view, with the keys
-  // back at the view, is in the way. A press on the panel's own background moves the focus nowhere, and keeps it.
+  // The focus leaving the panel (Tab past its last link) closes it too. A press on its background moves the focus
+  // nowhere, and keeps it open.
   const onFocusOut = (e: FocusEvent) => {
     if (e.relatedTarget instanceof Node && !ref.current?.contains(e.relatedTarget)) chooserOpen.value = false;
   };
@@ -168,7 +168,7 @@ function Panel({ close }: { close: () => void }) {
   const [filter, setFilter] = useState(""),
     now = new Date();
   // The lists are checked where they are read (library.ts cleanList); should building the rows fail all the same, the
-  // panel still comes up, with the login and the way out of it ("not you?"), rather than not at all.
+  // panel still comes up, with the login and its "not you?".
   let list: Section[];
   try {
     list = sections(filter, now);
@@ -178,9 +178,8 @@ function Panel({ close }: { close: () => void }) {
   }
   const rows = list.flatMap((s) => s.rows);
   const first = () => rows.findIndex((r) => !r.local);
-  // The row the keys act on: the data set open when the panel opens, the first one once a filter is typed; never one
-  // that cannot be opened (a local file's), never past the end of a list that got shorter; none (-1) when no row can
-  // be opened.
+  // The row the keys act on: the open data set's at first, the first once a filter is typed; never a local file's
+  // (which cannot be opened by name) nor past the end; -1 when no row can be opened.
   const [chosen, setActive] = useState(() => {
     const i = rows.findIndex((r) => r.file === bundleName.value && !r.local);
     return i >= 0 ? i : first();
@@ -188,8 +187,8 @@ function Panel({ close }: { close: () => void }) {
   const active = rows[chosen] && !rows[chosen].local ? chosen : first();
   const input = useRef<HTMLInputElement>(null),
     scroller = useRef<HTMLDivElement>(null);
-  // The focus goes to the filter as the panel appears, not a frame later: keys pressed at once (↓, a first letter)
-  // are the panel's, and a field clicked meanwhile keeps the focus.
+  // Focus the filter before the first paint (a layout effect): keys pressed at once (↓, a first letter) are the
+  // panel's.
   useLayoutEffect(() => input.current?.focus(), []);
   useEffect(() => {
     void refreshCatalogue();
@@ -206,9 +205,8 @@ function Panel({ close }: { close: () => void }) {
     else keepShown(); // an open asked for meanwhile must not replace it
   };
   const step = (d: number) => {
-    // to the next row that can be opened, stopping at the ends
+    // To the next row that can be opened, stopping at the ends; from no row (-1), ↓ starts at the top and ↑ stays.
     for (let i = active + d; i >= 0 && i < rows.length; i += d) if (!rows[i].local) return setActive(i);
-    // (from no row, ↓ starts at the top; ↑ stays)
   };
   const forget = (at: number) => {
     rows[at].forget!();
@@ -229,14 +227,14 @@ function Panel({ close }: { close: () => void }) {
       e.preventDefault();
       pick(rows[active]);
     }
-    // Delete forgets the recent row only with nothing typed: in a filter it deletes a character, as in any text field.
+    // Delete forgets the recent row only with nothing typed: in a filter it deletes a character.
     else if (e.key === "Delete" && !filter && rows[active]?.forget) {
       e.preventDefault();
       forget(active);
     }
   };
 
-  let i = 0; // rows are numbered through the sections, as the keys walk them
+  let i = 0; // rows are numbered across the sections, as the keys walk them
   const filtering = !!filter.trim(),
     nothing = filtering && !rows.length;
   const shown = list.filter((s) => s.rows.length || (s.mine && !filtering));
@@ -338,7 +336,7 @@ function Panel({ close }: { close: () => void }) {
   );
 }
 
-/** My files, while there are none to list: who am I (asked once, where the site does not say), or how files get here. */
+/** My files while there are none to list: the login (where the site does not say who I am), or how to publish. */
 function Mine() {
   const [text, setText] = useState(""),
     [bad, setBad] = useState(false);
@@ -391,7 +389,7 @@ function Mine() {
   );
 }
 
-/** What is known about the data set open: one line, and on request where it comes from. */
+/** The open data set in one line, and on request where it comes from. */
 function About() {
   const o = opened.value,
     b = bundle.value,

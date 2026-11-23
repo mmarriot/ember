@@ -1,5 +1,4 @@
-// The share button's pop-up (Header.tsx): it copies the link to this view and says what the link opens, or why a
-// local file has none.
+// The share button (Header.tsx): copies the link to this view and says what it opens, or why a local file has none.
 import { signal } from "@preact/signals";
 import { DOCS_URL, expiryText, ownerOf, PUBLISH_COMMAND } from "../../model/site/library";
 import {
@@ -17,14 +16,14 @@ import {
   view,
 } from "../../model/store";
 import { togglePopover } from "../common/Info";
-import { VIEWS } from "../viewport/Viewport";
+import { soloName } from "../viewport/TitleBox";
+import { hasDomainBar, VIEWS } from "../viewport/ViewControls";
 
 /** Whether the link of the open share pop-up reached the clipboard ("": not known yet). */
 const copied = signal<"" | "yes" | "no">("");
 
-/** The share button: copy the link to this view, and say what it is a link to (or why a local file has none). The
- *  pop-up describes the link it holds: both are taken at the click, so it stays true to its link if the view moves on
- *  while it is open. */
+/** Copy the link to this view and open the pop-up that says what it opens. Both are taken at the click, so the
+ *  pop-up stays true to its link if the view moves on while it is open. */
 export function share(e: Event) {
   const o = opened.peek(),
     link = location.href;
@@ -43,32 +42,32 @@ export function share(e: Event) {
     o.local ? "A local file has no link" : "Link to this view",
   );
   if (o.local) return;
-  const failed = () => (copied.value = "no"); // no clipboard here (not a secure page, or not allowed): the link is there to copy
+  const failed = () => (copied.value = "no"); // no clipboard (not a secure page, or not allowed): copied by hand
   if (navigator.clipboard) navigator.clipboard.writeText(link).then(() => (copied.value = "yes"), failed);
   else failed();
 }
 
-/** What the link opens, in the reader's words: each part of the view that the address keeps. */
+/** What the link opens, in words: each part of the view that the address keeps. */
 function captured(): string[] {
   const b = bundle.peek(),
     o = opened.peek(),
     e = shownEntry.peek(),
     s = selection.peek();
   if (!b || !o || !e) return o ? [o.title] : [];
-  const parts = (b.header.domains?.length ?? 0) >= 2,
+  const parts = hasDomainBar(b.header),
     level = shownLevel.peek();
   return [
     o.title,
     `event ${eventIndex.peek() + 1} of ${b.events.length} (run ${e.run}, event ${e.event})`,
     parts ? (domain.peek() ? `the ${domain.peek()} part of the detector` : "every part of the detector") : "",
     `the ${VIEWS.find(([v]) => v === view.peek())?.[1] ?? view.peek()} view`,
-    solo.peek() ? `only the ${solo.peek()!.split("|").filter(Boolean).reverse().join(" · ")}` : "",
+    solo.peek() ? `only the ${soloName(solo.peek()!)}` : "",
     s ? `the selected ${nameOf(s)}${level ? `, down to its ${level}` : ""}` : "",
     activeMode.peek() === "truth" ? "truth colours" : "",
   ].filter(Boolean);
 }
 
-/** The pop-up for a data set on a site: the link (copied, or to copy by hand), what it opens, and how long it works. */
+/** The pop-up for a data set on a site: the link, whether it was copied, what it opens and how long it works. */
 function ShareLink({
   link,
   opens,

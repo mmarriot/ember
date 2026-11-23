@@ -1,5 +1,5 @@
-// The top bar's menu: every control of the view in one place, grouped, with its key and whether it is on. Many of
-// them have no button of their own (labels, replay, next object, levels), so the menu is where they can be found.
+// The top bar's menu: every control in one place, grouped, with its key and whether it is on. Many have no button
+// of their own (labels, replay, next object, levels).
 import { signal } from "@preact/signals";
 import { useRef } from "preact/hooks";
 import {
@@ -26,10 +26,10 @@ import {
 import { back, cross, frameFocus, nextDomain, nextObject, showWhole } from "../../control/navigate";
 import { stopTour, toggleTour } from "../../control/tour";
 import { replayEvent } from "../../control/scene";
-import { REST_NAMES, VIEWS } from "../viewport/Viewport";
+import { hasDomainBar, REST_NAMES, VIEWS } from "../viewport/ViewControls";
 import { usePressOutside } from "../common/widgets";
 
-/** Open or closed; Esc closes it first (App.tsx). */
+/** Whether the menu is open (Esc closes it: App.tsx). */
 export const menuOpen = signal(false);
 
 type Item = { label: string; keys?: string; on?: boolean; off?: boolean; run: () => void };
@@ -39,7 +39,7 @@ export function Menu() {
     open = menuOpen.value;
   usePressOutside(ref, open, () => (menuOpen.value = false));
 
-  const parts = (bundle.value?.header.domains?.length ?? 0) >= 2,
+  const parts = hasDomainBar(bundle.value?.header),
     f = focus.value;
   const levels = !!f && focusBar.value.some((l) => !l.always);
   const groups: [string, Item[]][] = [

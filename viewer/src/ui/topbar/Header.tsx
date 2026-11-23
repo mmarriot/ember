@@ -1,5 +1,5 @@
-// The top bar: the data set chooser, the event's navigation (with a box to jump to an event), the parts of the
-// detector (or the views), the menu of every control, and the actions (show everything, share, help).
+// The top bar: the data set chooser, the event navigation (with the box that finds an event or objects), the domain
+// bar (or the views), the menu, and the actions (show everything, share, help).
 import logo from "../../../logo.svg";
 import { type Domain, kindName } from "../../io/format";
 import {
@@ -26,41 +26,19 @@ import { Menu } from "./Menu";
 import { chooseDomain, showWhole } from "../../control/navigate";
 import { share } from "./Share";
 import { stopTour, toggleTour } from "../../control/tour";
-import { Views } from "../viewport/Viewport";
+import { hasDomainBar, Views } from "../viewport/ViewControls";
 import { Icon } from "../common/widgets";
 
 export function Header() {
-  // The event named is the one shown (store/data.ts shownEntry). While another data set opens, the one on screen stays
-  // whole, its event included, until the new one's first event is read (store/open.ts openBundle).
+  // The event shown (store/data.ts shownEntry): while another data set opens, the one on screen stays whole until the
+  // new one's first event is read (store/open.ts openBundle).
   const b = bundle.value,
     e = shownEntry.value;
-  // An event, else objects of the event shown: the largest of them is selected.
-  const find = (value: string) => {
-    const id = parseEventId(value);
-    if (id) {
-      const i = b ? findEvent(b.events, id) : -1;
-      if (i >= 0) void showEvent(i);
-      else toast(`Event ${value} is not in this file`, "error");
-      return;
-    }
-    const ev = event.value;
-    if (!b || !ev || !value) return;
-    const ticked = visible.value,
-      layers = b.header.display.filter((d) => !d.truth && !d.context),
-      found = findObjects(value, [...layers.filter((d) => ticked[layerKey(d)]), ...layers], ev.tables);
-    if (typeof found === "string") return toast(found, "error");
-    const { layer, rows, where } = found,
-      kind = kindName(layer).toLowerCase(),
-      one = kind.replace(/ices$/, "ex").replace(/([^s])s$/, "$1"), // "jets" -> "jet", "vertices" -> "vertex"
-      cond = where ? ` with ${where}` : "";
-    selection.value = { table: layer.table, row: largestFirst(layer.table, rows)[0] };
-    toast(rows.length === 1 ? `1 ${one}${cond}: selected` : `${rows.length} ${kind}${cond}: the largest is selected`);
-  };
-  const parts = (b?.header.domains?.length ?? 0) >= 2; // the domain bar takes the views' place, which go on the canvas
+  const parts = hasDomainBar(b?.header); // the domain bar takes the views' place, which go on the canvas
 
   return (
     <header
-      class={parts ? "topbar parts" : "topbar"} // a touch here stops the tour, but on its own button and the menu (whose items do)
+      class={parts ? "topbar parts" : "topbar"} // a touch here stops the tour, except on its button and the menu (whose items do)
       onPointerDown={(e) => {
         if (!(e.target as HTMLElement).closest(".tour-button, .menu")) stopTour();
       }}
@@ -136,8 +114,32 @@ export function Header() {
   );
 }
 
-/** <domain> · <domain> · All: look at one part of the detector (its layers, region and view), or at everything. Below
- *  1100 px wide, a drop-down list instead (CSS shows one of the two). */
+/** The event box: go to an event, else find objects of the event shown and select the largest. */
+function find(value: string) {
+  const b = bundle.peek(),
+    id = parseEventId(value);
+  if (id) {
+    const i = b ? findEvent(b.events, id) : -1;
+    if (i >= 0) void showEvent(i);
+    else toast(`Event ${value} is not in this file`, "error");
+    return;
+  }
+  const ev = event.peek();
+  if (!b || !ev || !value) return;
+  const ticked = visible.peek(),
+    layers = b.header.display.filter((d) => !d.truth && !d.context),
+    found = findObjects(value, [...layers.filter((d) => ticked[layerKey(d)]), ...layers], ev.tables);
+  if (typeof found === "string") return toast(found, "error");
+  const { layer, rows, where } = found,
+    kind = kindName(layer).toLowerCase(),
+    one = kind.replace(/ices$/, "ex").replace(/([^s])s$/, "$1"), // "jets" -> "jet", "vertices" -> "vertex"
+    cond = where ? ` with ${where}` : "";
+  selection.value = { table: layer.table, row: largestFirst(layer.table, rows)[0] };
+  toast(rows.length === 1 ? `1 ${one}${cond}: selected` : `${rows.length} ${kind}${cond}: the largest is selected`);
+}
+
+/** <domain> · <domain> · All: look at one domain (its layers, region and view), or at everything. Below 1100 px wide,
+ *  a drop-down list instead (narrow.css shows one of the two). */
 function Domains() {
   const list = bundle.value?.header.domains ?? [];
   if (list.length < 2) return null;

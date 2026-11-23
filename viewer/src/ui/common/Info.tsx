@@ -1,13 +1,12 @@
-// Descriptions on request. The page itself carries names and numbers; what something is, and how a number is
-// counted, is one click away: a small "i" next to it (or the word itself, where it is a tag) opens a pop-up. One pop-up
-// at a time, placed under what opened it and kept inside the window; a press elsewhere or Esc closes it.
+// Descriptions on request: an "i" (or a tag) opens a pop-up saying what something is or how it is counted. One at a
+// time, placed under what opened it and kept inside the window; a press elsewhere or Esc closes it.
 import { effect, signal } from "@preact/signals";
 import type { ComponentChildren } from "preact";
 import { useEffect, useRef } from "preact/hooks";
 import { event, selection } from "../../model/store";
 
-/** The open pop-up: where it was opened from, and its content, rendered on every update (it may hold controls).
- *  `beside`: placed to the right of its owner, not under it (a cut's slider, which must not cover the rows it cuts). */
+/** The open pop-up: its owner and content, rendered on every update (it may hold controls). `beside`: to the right
+ *  of the owner's panel, not under the owner (a cut's slider must not cover the rows it cuts). */
 export const popover = signal<{
   owner: Element;
   at: DOMRect;
@@ -15,7 +14,7 @@ export const popover = signal<{
   body: () => ComponentChildren;
   beside?: boolean;
 } | null>(null);
-// What it describes is the selection or the event: it closes with either, never showing another object's numbers.
+// It closes when the selection or the event changes, never showing another object's numbers.
 effect(() => {
   selection.value;
   event.value;
@@ -53,10 +52,14 @@ export function Popover() {
     if (!p || !el) return;
     const w = el.offsetWidth,
       h = el.offsetHeight,
-      below = p.at.bottom + 6;
+      below = p.at.bottom + 6,
+      clamp = (v: number, max: number) => Math.max(8, Math.min(v, max)); // 8 px inside the window
     const panel = p.owner.closest(".sidebar")?.getBoundingClientRect().right; // beside: clear of the panel it was opened in
-    el.style.left = `${Math.max(8, Math.min(p.beside ? (panel ?? p.at.right) + 8 : p.at.left, innerWidth - w - 8))}px`;
-    el.style.top = `${p.beside ? Math.max(8, Math.min(p.at.top - 8, innerHeight - h - 8)) : below + h > innerHeight - 8 ? Math.max(8, p.at.top - h - 6) : below}px`;
+    let top = below;
+    if (p.beside) top = clamp(p.at.top - 8, innerHeight - h - 8);
+    else if (below + h > innerHeight - 8) top = Math.max(8, p.at.top - h - 6); // no room below: above its owner
+    el.style.left = `${clamp(p.beside ? (panel ?? p.at.right) + 8 : p.at.left, innerWidth - w - 8)}px`;
+    el.style.top = `${top}px`;
     el.style.visibility = "visible";
     const outside = (e: Event) => !el.contains(e.target as Node) && !p.owner.contains(e.target as Node);
     // Close on a press elsewhere, or when its owner scrolled away.

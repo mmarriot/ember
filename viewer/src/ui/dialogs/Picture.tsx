@@ -1,12 +1,10 @@
-// "Save picture…" (the menu): the view alone, as on screen, at 1x, 2x or 4x its size, with what a figure needs over
-// it: the experiment's label and a caption (top left) and the colour key (top right, model/colour/key.ts). All of it is edited
-// in a preview: the texts retyped, key lines renamed or left out, the text size, the label and the key dragged
-// anywhere. The choices are remembered in this browser, so that a series of pictures looks the same. Saved as PNG (with
-// what it shows and the link to it in its text fields), as SVG (the view as an image, the label and the key as text
-// and shapes, to edit further), or copied to the clipboard. render/overlay.ts lays it out and draws it.
+// "Save picture…": the view at 1x, 2x or 4x, with the experiment's label, a caption and the colour key over it, all
+// edited in a preview and remembered in this browser (so a series of pictures looks the same). Saved as PNG (with
+// its source in its text fields), as SVG (label and key as text and shapes), or copied. render/overlay.ts draws it.
 import { useEffect, useRef, useState } from "preact/hooks";
 import { engine } from "../../control/scene";
 import { isSimulation } from "../../model/site/about";
+import { browserStorage } from "../../model/site/library";
 import { type KeyEntry, viewKey } from "../../model/colour/key";
 import { bundle, opened, shownEntry, theme, toast, toggleTheme } from "../../model/store";
 import { PALETTES } from "../../render/colour";
@@ -29,10 +27,10 @@ const SCALES = [1, 2, 4];
 /** Label qualifiers to pick from (any text can be typed). */
 const QUALIFIERS = ["Phase-2 Simulation Private Work", "Simulation Private Work", "Private Work", "Preliminary"];
 
-/** The choices remembered (localStorage "evd.picture"). `qualifier`: the label's italic text, per kind of data set
- *  (profile, simulation or data), so that Phase-2 simulation and Run 3 data each keep their own. `names`: key titles
- *  and lines renamed, `hidden`: those left out, by group id and their text in the view's key ("pair|in no object"),
- *  so that an edit holds for every event; a title left out leaves its lines. */
+/** The choices remembered (localStorage "evd.picture"). `qualifier`: the label's italic text per kind of data set
+ *  ("<profile>|<simulation>"), so Phase-2 simulation and Run 3 data each keep their own. `names` (key titles and lines
+ *  renamed) and `hidden` (left out) are keyed "<group id>|<text in the view's key>", so an edit holds for every event;
+ *  a title left out leaves its lines. */
 interface Choices {
   scale: number;
   label: boolean;
@@ -64,20 +62,14 @@ const STORE = "evd.picture";
 const firstCaption = () => shownTitle().replace(/^(SIMULATION|DATA) · /, "");
 function load(): Choices {
   try {
-    return { ...DEFAULT, ...JSON.parse(localStorage.getItem(STORE) ?? "{}") };
+    return { ...DEFAULT, ...JSON.parse(browserStorage.get(STORE) ?? "{}") };
   } catch {
     return DEFAULT;
   }
 }
-function remember(c: Choices) {
-  try {
-    localStorage.setItem(STORE, JSON.stringify(c));
-  } catch {
-    /* not remembered */
-  }
-}
+const remember = (c: Choices) => browserStorage.set(STORE, JSON.stringify(c));
 
-/** The label's qualifier unless one was typed: what the data are, and that the picture is no approved result. */
+/** The label's qualifier unless one was typed: what the data are, and that the picture is not an approved result. */
 const defaultQualifier = (profile: string | undefined, sim: boolean) =>
   `${sim ? `${profile === "phase2" ? "Phase-2 " : ""}Simulation ` : ""}Private Work`;
 
@@ -145,7 +137,7 @@ export function PictureDialog() {
   });
 
   // The preview: the view drawn once at its size on screen (again when the theme changes), the overlay over it at
-  // every change. Its blocks are kept for dragging.
+  // every render. Its blocks are kept for dragging.
   const [view, setView] = useState<HTMLCanvasElement | null>(null),
     preview = useRef<HTMLCanvasElement>(null),
     blocks = useRef<Block[]>([]),
@@ -196,8 +188,8 @@ export function PictureDialog() {
     return new Blob([head, await dataUrl(await blobOf(v)), tail], { type: "image/svg+xml" });
   };
   const failed = (err: Error) => toast(err.message || "The picture could not be made", "error");
-  // Drawing the view again holds the page (seconds for a big event): say so first, with the buttons off, and start
-  // once the browser has shown it (a timer set in the next frame runs after its paint).
+  // Drawing the view again holds the page (seconds for a big event): show "Saving…" first, and start once the browser
+  // has painted it (a timer set in the next frame runs after its paint).
   const save = (make: () => Promise<Blob>, ext: string) => () => {
     setBusy(true);
     requestAnimationFrame(() =>
@@ -216,9 +208,8 @@ export function PictureDialog() {
       .finally(() => setBusy(false));
   };
 
-  /** A key title or line in the editor (`id`: what its edits are kept under): kept or left out, and its text as it
-   *  will read. (A function, not a component: one made anew at each render would be a new kind of element, and its
-   *  field would lose the focus at each key.) */
+  /** A key title or line in the editor (`id`: what its edits are kept under): its checkbox and its text. A function,
+   *  not a component: a component defined in a render is a new type each render, so its field would lose the focus. */
   const line = (id: string, text: string, entry?: KeyEntry) => (
     <label class={entry ? "line" : "line title"}>
       <input

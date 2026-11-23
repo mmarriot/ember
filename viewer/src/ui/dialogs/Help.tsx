@@ -1,5 +1,5 @@
-// The help dialog (key ?): every control with its key and the mouse or button that does it too, grouped as the menu
-// is, then what the side panel, the colours, expressions and sharing are.
+// The help dialog (key ?): every control with its key and its mouse or button equivalent, grouped as in the menu,
+// then notes on the side panel, the colours, expressions and sharing.
 import { PUBLISH_COMMAND } from "../../model/site/library";
 import { bundle, tabOfDomain } from "../../model/store";
 import { SYNTAX } from "../sidebar/ExprForm";
@@ -10,7 +10,7 @@ export function HelpDialog() {
   const h = bundle.value?.header,
     listed = h?.domains?.find((d) => d.shared && h.display.some((l) => l.list && l.domain === d.name))?.name,
     listTab = h && listed ? tabOfDomain(h, listed) : undefined;
-  // Grouped as the menu is; each row: its keys, the mouse or button that does it too, what it does.
+  // Each row: its keys, the mouse or button that does it too, what it does.
   const groups: [string, [string[], string, string][]][] = [
     [
       "Look around",

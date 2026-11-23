@@ -5,7 +5,7 @@ import { dialog, toasts } from "../../model/store";
 
 /** Tabs named "Name" or "Name · count". The chosen one is remembered by name, so it stays chosen as counts change
  *  and other tabs come and go; while it is absent, the first is shown. `open`: a tab to choose from outside, each time
- *  a new object is passed (if there is such a tab). */
+ *  a new object is passed. */
 export function Tabs({ tabs, open }: { tabs: [string, () => ComponentChildren][]; open?: { name: string } | null }) {
   const id = (name: string) => name.split(" · ")[0];
   const [chosen, choose] = useState("");
@@ -34,8 +34,7 @@ export function Tabs({ tabs, open }: { tabs: [string, () => ComponentChildren][]
   );
 }
 
-/** While `open`, call `close` on a press anywhere outside the element of `ref` (a menu, a panel). A hook: it adds a
- *  document listener when `open` turns true, and removes it when `open` turns false or the component goes. */
+/** While `open`, call `close` on a press anywhere outside the element of `ref` (a menu, a panel). */
 export function usePressOutside(ref: RefObject<HTMLElement>, open: boolean, close: () => void) {
   useEffect(() => {
     if (!open) return;

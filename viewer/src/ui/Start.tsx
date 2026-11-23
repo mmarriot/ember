@@ -1,6 +1,5 @@
-// What the view shows while no data set is open: the start panel of a site with nothing to open yet (what this is,
-// how data gets in), the reason a data set did not open (a link to a file that is gone), or that one is on its way.
-// Also the hint shown while a file is dragged over the page.
+// What the view shows while no data set is open: the welcome panel, why a data set did not open, or that one is on
+// its way; and the hint shown while a file is dragged over the page.
 import { useState } from "preact/hooks";
 import logo from "../../logo.svg";
 import { DOCS_URL, mine, PUBLISH_COMMAND, titleOf } from "../model/site/library";
@@ -19,10 +18,10 @@ export function Start() {
       </div>
     );
   if (failure) return <Failed />;
-  return started.value ? <Welcome /> : null; // not before the lists are read: the first data set may be about to open
+  return started.value ? <Welcome /> : null; // not before the lists are read: a data set may be about to open
 }
 
-/** A command to copy: the text, and a button that says it did. */
+/** A command, with a button that copies it. */
 function Command({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
   const copy = () =>
@@ -101,9 +100,8 @@ function Welcome() {
 function Failed() {
   const f = openFailure.value!,
     signOn = !f.external && (f.kind === "denied" || f.kind === "offline");
-  // Trying again: a file of this computer cannot be fetched by its name (it is chosen again); a link's data set is
-  // opened as the link says (its event and view are still in the address), by loading the page again; one chosen
-  // here is simply opened again.
+  // Trying again: a local file must be chosen again; a link's data set is reloaded with the page, as the address still
+  // holds the link's event and view; one chosen here is opened again.
   const linked = readLink(location.hash.slice(1) || location.search.slice(1))?.bundle === f.name;
   const again =
     f.local || f.kind === "gone" || f.kind === "badname"

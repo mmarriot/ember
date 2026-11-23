@@ -1,17 +1,15 @@
-// The renderer and its cameras: the 3D view and the 2D views (front, side, rho-z), navigation (presets, framing,
-// smooth flights, the tour camera), the replay clock and picking. It draws a frame only when something changed. It
-// knows nothing about bundles or tables beyond the Layer interface (render/layers).
+// The renderer and its cameras: the 3D view and the 2D views (front, side, rho-z), framing and flights, the replay
+// clock and picking. It draws a frame only when something changed, and knows the event only through the Layer
+// interface (render/layers).
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import type { Outline, ViewName } from "../io/format";
 import {
-  angle,
   type Area,
   boxOf,
   DIRECTIONS,
   type Envelope,
   envelopeOf,
-  exitDistance,
   FLAT_DISTANCE,
   flatAim,
   flatView,
@@ -23,18 +21,12 @@ import type { Layer } from "./layers";
 import { outlineObject } from "./outlines";
 import { type Hit, pickAll } from "./picking";
 import { REPLAY_OFF } from "./replay";
+import { TourCamera } from "./tourCamera";
 
 type Pose = [position: THREE.Vector3, target: THREE.Vector3, zoom: number];
 
 /** Default smallest radius (cm) framed around objects; profiles set their own (view.minRadius). */
 export const MIN_RADIUS = 70;
-
-// The tour camera: close-ups sway TOUR_SWAY rad around their view with a period of TOUR_PERIOD s; the whole event
-// turns once a minute. SPRUNG: the tour state that follows its goal on a spring (besides the target).
-const TOUR_SWAY = 0.35,
-  TOUR_PERIOD = 30;
-const TOUR_SPIN = (2 * Math.PI) / 60; // rad/s
-const SPRUNG = ["az", "el", "ld"] as const;
 
 export class Engine {
   private readonly renderer: THREE.WebGLRenderer;
@@ -49,8 +41,8 @@ export class Engine {
   private width = 1;
   private height = 1;
   private layers: Layer[] = [];
-  /** Layers taken out of the scene, freed after the next draw: by then the layers that replaced them have their shader
-   *  programs, which three.js frees with the last material using one (a new event would compile them all again). */
+  /** Layers taken out of the scene, freed after the next draw: three.js frees a shader program with the last material
+   *  using it, so freeing them before the replacements are drawn would compile every program again. */
   private retired: Layer[] = [];
   private outlines: ReturnType<typeof outlineObject> | null = null; // the detector's outlines (header `outlines`)
   private view: ViewName = "3d";
@@ -67,22 +59,9 @@ export class Engine {
   private highlightFade: { t0: number; ms: number } | null = null;
   /** Auto-rotation of the 3D view, turns per minute (0: none). */
   private orbit = 0;
-  /** Tour camera: looks at a target from a 3/4 angle, turning slowly (whole event) or swaying (close-ups). Angle,
-   *  elevation, ln(distance) and target follow their goals as critically damped springs, so glides start and settle
-   *  softly and a new goal mid-glide keeps the motion continuous. The camera stays out of the detector envelope:
-   *  where the ideal position is inside, it stops at the envelope and zooms optically by the difference. */
-  private tour: {
-    t: number;
-    az: number;
-    el: number;
-    ld: number;
-    target: THREE.Vector3;
-    spin: number;
-    spinW: number;
-    v: { az: number; el: number; ld: number; target: THREE.Vector3 }; // velocities
-    goal: { az: number; el: number; ld: number; target: THREE.Vector3; spinW: number; omega: number };
-  } | null = null;
-  /** The drawn layers' envelope (camera.ts envelopeOf), computed when the tour first needs it. */
+  /** The tour camera, while it drives the 3D view (beam tours). */
+  private tour: TourCamera | null = null;
+  /** The drawn layers' envelope (camera.ts envelopeOf), computed when the tour camera first needs it. */
   private envelope: Envelope | null = null;
   /** Smallest radius (cm) framed around objects (profile view.minRadius, set by control/scene.ts). */
   minRadius = MIN_RADIUS;
@@ -219,6 +198,19 @@ export class Engine {
     layer.setView?.(this.view);
   }
 
+  /** Put a layer in the scene, drawn as the current view asks. */
+  private attach(layer: Layer) {
+    layer.setProjection(this.rz);
+    this.showIn(layer);
+    this.scene.add(layer.object);
+  }
+
+  /** Take a layer out of the scene; it is freed after the next draw (see `retired`). */
+  private detach(layer: Layer) {
+    this.scene.remove(layer.object);
+    this.retired.push(layer);
+  }
+
   // What is drawn: the layers, the detector outlines, the background.
 
   /** Draw these layers instead of the current ones (a new event, new colours, new cuts). */
@@ -228,28 +220,18 @@ export class Engine {
       this.replayClock = null;
       this.onReplayTick(null);
     }
-    // Layers retired without a draw since (a background tab draws nothing) go now, so at most one
-    // event's layers wait.
+    // Layers retired without a draw since (a background tab draws nothing) go now: at most one event's layers wait.
     for (const l of this.retired.splice(0)) l.dispose();
-    for (const l of this.layers) {
-      this.scene.remove(l.object);
-      this.retired.push(l);
-    }
+    for (const l of this.layers) this.detach(l);
     this.layers = layers;
     this.envelope = null;
-    for (const l of layers) {
-      l.setProjection(this.rz);
-      this.showIn(l);
-      this.scene.add(l.object);
-    }
+    for (const l of layers) this.attach(l);
     this.requestRender();
   }
 
   /** Draw one more layer (e.g. a hidden layer the focus has objects in). */
   addLayer(layer: Layer) {
-    layer.setProjection(this.rz);
-    this.showIn(layer);
-    this.scene.add(layer.object);
+    this.attach(layer);
     this.layers.push(layer);
     this.envelope = null;
     this.requestRender();
@@ -259,8 +241,7 @@ export class Engine {
   removeLayer(layer: Layer) {
     const i = this.layers.indexOf(layer);
     if (i < 0) return;
-    this.scene.remove(layer.object);
-    this.retired.push(layer);
+    this.detach(layer);
     this.layers.splice(i, 1);
     this.envelope = null;
     this.requestRender();
@@ -270,11 +251,8 @@ export class Engine {
   replaceLayer(old: Layer, next: Layer) {
     const i = this.layers.indexOf(old);
     if (i < 0) return;
-    this.scene.remove(old.object);
-    this.retired.push(old);
-    next.setProjection(this.rz);
-    this.showIn(next);
-    this.scene.add(next.object);
+    this.detach(old);
+    this.attach(next);
     this.layers[i] = next;
     this.envelope = null;
     this.requestRender();
@@ -519,27 +497,12 @@ export class Engine {
 
   // The tour camera.
 
-  /** Start or stop the tour camera (see `tour`). Stopping hands the view back to the user with the same framing
-   *  (the optical zoom is turned into distance). */
+  /** Start or stop the tour camera (render/tourCamera.ts). Stopping hands the view back to the user with the same
+   *  framing (the optical zoom is turned into distance). */
   tourCamera(on: boolean) {
     if (on && !this.tour) {
       if (this.flat) this.setView("3d");
-      const target = this.ctl3d.target.clone(),
-        off = this.cam3d.position.clone().sub(target);
-      const ld = Math.log(Math.max(off.length() / this.cam3d.zoom, 50)),
-        az = Math.atan2(off.x, off.z),
-        el = Math.asin(THREE.MathUtils.clamp(off.y / off.length(), -1, 1));
-      this.tour = {
-        t: 0,
-        az,
-        el,
-        ld,
-        target,
-        spin: 0,
-        spinW: 1,
-        v: { az: 0, el: 0, ld: 0, target: new THREE.Vector3() },
-        goal: { az, el, ld, target: target.clone(), spinW: 1, omega: 3 },
-      };
+      this.tour = new TourCamera(this.cam3d.position, this.ctl3d.target, this.cam3d.zoom);
       this.flight = null;
       this.ctl3d.enabled = false;
     } else if (!on && this.tour) {
@@ -560,63 +523,17 @@ export class Engine {
   tourTo(selection: Rows | undefined, ms: number, room = 1.9) {
     const box = this.box(selection);
     if (!this.tour || !box) return;
-    const s = this.tour,
-      [lo, hi] = box,
-      ctr = lo.clone().add(hi).multiplyScalar(0.5);
-    const radius = Math.max(0.5 * lo.distanceTo(hi) + 15, MIN_RADIUS);
-    const dist = this.distanceFor((selection ? room : 1.05) * radius);
-    s.az += s.spin; // the turn so far becomes the starting angle of the glide
-    s.spin = 0;
-    // A 3/4 view: from the side for the whole event, from outside its end for a forward shower; the nearer of the
-    // two mirror angles, so the camera does not swing across.
-    const base = !selection || Math.abs(ctr.z) < 100 ? 1.2 : ctr.z > 0 ? 0.55 : Math.PI - 0.55;
-    const az = [base, -base].reduce((a, c) => (Math.abs(angle(c - s.az)) < Math.abs(angle(a - s.az)) ? c : a));
-    // Critically damped: about 99% of the way after 6.6 / omega seconds.
-    s.goal = {
-      az: s.az + angle(az - s.az),
-      el: selection ? 0.3 : 0.38,
-      ld: Math.log(dist),
-      target: ctr,
-      spinW: selection ? 0 : 1,
-      omega: 6.6 / Math.max(0.4, ms / 1000),
-    };
+    const [lo, hi] = box,
+      centre = lo.clone().add(hi).multiplyScalar(0.5),
+      radius = Math.max(0.5 * lo.distanceTo(hi) + 15, MIN_RADIUS);
+    this.tour.glideTo(centre, this.distanceFor((selection ? room : 1.05) * radius), !!selection, ms);
   }
 
-  /** One frame of the tour camera, `dt` seconds after the last: the springs move towards the goal, and the camera
-   *  is placed outside the envelope. */
+  /** One frame of the tour camera, `dt` seconds after the last. */
   private tourStep(dt: number) {
-    const s = this.tour!,
-      g = s.goal,
-      w = g.omega,
-      acc = new THREE.Vector3();
-    for (let left = dt; left > 1e-6; left -= 0.02) {
-      // small steps keep the springs stable on slow frames
-      const h = Math.min(0.02, left);
-      for (const k of SPRUNG) {
-        s.v[k] += (w * w * (g[k] - s[k]) - 2 * w * s.v[k]) * h;
-        s[k] += s.v[k] * h;
-      }
-      acc
-        .subVectors(g.target, s.target)
-        .multiplyScalar(w * w)
-        .addScaledVector(s.v.target, -2 * w);
-      s.v.target.addScaledVector(acc, h);
-      s.target.addScaledVector(s.v.target, h);
-    }
-    s.t += dt;
-    s.spinW += (g.spinW - s.spinW) * (1 - Math.exp(-dt * 1.5));
-    s.spin += dt * TOUR_SPIN * s.spinW;
-    const az = s.az + s.spin + (1 - s.spinW) * TOUR_SWAY * Math.sin((2 * Math.PI * s.t) / TOUR_PERIOD);
-    const dir = new THREE.Vector3(Math.cos(s.el) * Math.sin(az), Math.sin(s.el), Math.cos(s.el) * Math.cos(az));
     this.envelope ??= envelopeOf(this.drawn);
-    const dist = Math.exp(s.ld),
-      along = Math.max(dist, exitDistance(this.envelope, s.target, dir) + 20);
-    this.cam3d.position.copy(s.target).addScaledVector(dir, along);
-    this.cam3d.up.set(0, 1, 0);
-    this.cam3d.lookAt(s.target);
-    this.cam3d.zoom = along / dist;
-    this.cam3d.updateProjectionMatrix();
-    this.ctl3d.target.copy(s.target);
+    this.tour!.step(dt, this.envelope, this.cam3d);
+    this.ctl3d.target.copy(this.tour!.target);
     this.requestRender();
   }
 
@@ -693,12 +610,11 @@ export class Engine {
     return pickAll(this.drawn, view, clientX, clientY, accept);
   }
 
-  /** The view drawn `scale` times its size on screen (in CSS pixels), copied to a canvas of its own; null when the
-   *  graphics card cannot draw that large. Line widths and marker sizes (in drawing-buffer pixels, set from the
-   *  screen's pixel ratio) are scaled with it, so the picture looks like the screen, only sharper. WebGL clears its
-   *  drawing buffer once the browser has shown it, so the buffer is resized, drawn and copied in this one task, then
-   *  put back. Memory: the buffer and the copy are 4 B per pixel each (4x of a 1260x890 view: about 72 MB each), and
-   *  the buffer's antialiasing samples several times that, on the graphics card, until it is put back. */
+  /** The view drawn `scale` times its size on screen, copied to a canvas of its own; null when the graphics card
+   *  cannot draw that large. Line widths and marker sizes (drawing-buffer pixels) scale with it, so the picture looks
+   *  like the screen, only sharper. WebGL clears its drawing buffer once the browser has shown it, so the buffer is
+   *  resized, drawn and copied in this one task, then put back. Memory: 4 B per pixel for the buffer and the copy
+   *  each (4x of a 1260x890 view: ~72 MB), and several times that for the buffer's antialiasing samples on the GPU. */
   picture(scale: number): HTMLCanvasElement | null {
     const r = this.renderer,
       ratio = r.getPixelRatio(),

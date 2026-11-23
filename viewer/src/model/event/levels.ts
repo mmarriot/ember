@@ -1,7 +1,6 @@
 // The levels of a focus: the kinds of object it is made of, from the top down (a candidate: interpretations, linked
-// tracksters, tracksters, layer clusters, hits). The view shows the focus and its bottom levels (its smallest objects,
-// one per branch: a candidate's hits and its track's hits), with the levels drawn as lines (its track: lines do not
-// hide the hits); the other levels in between are shown one at a time, on request, so they do not cover each other.
+// tracksters, tracksters, layer clusters, hits). The view draws the bottom levels of each branch and the levels drawn
+// as lines (which hide nothing); the others one at a time, on request, so they do not cover each other.
 import { type DisplayLayer, type Header, kindName } from "../../io/format";
 import { ownDomains } from "./domains";
 import type { Related } from "./relations";
@@ -21,17 +20,13 @@ export interface Level {
 }
 type Relations = Header["relations"];
 
-/** The levels below the focus (`focus`: its table) that `hl` (its highlight) has objects in, top first. `own`: whether
- *  a table is reached through the focus's own relations (what it is made of or contains), not only through an
- *  association (e.g. its truth particle). Left out: the focus's own kind and reconstruction stage (e.g. a candidate's
- *  track), truth and background layers. Ordered by display order, as profiles list kinds from the top down
- *  (candidates first, hits last). With `relations`, a focus can have several branches (a candidate's tracksters and
- *  its track, each down to its own hits): a level that holds another (a chain of plain relations from one of its tables
- *  to the other's) comes before it, and the levels that hold none (the leaves: each branch's smallest objects) come
- *  last; without, the last level is the only leaf. Kinds that only share objects (jets and taus) hold each other only
- *  as reconstruction stages: the later holds the earlier. `holders`: with `relations`, the levels with a chain of
- *  relations to it that passes no table of another kind, or else the nearest that hold it; without, the level before
- *  it. */
+/** The levels below the focus (`focus`: its table) that its highlight `hl` has objects in, top first, in display order
+ *  (profiles list kinds top down). `own`: whether a table is reached through the focus's own relations, not only
+ *  through an association (its truth particle). Left out: the focus's own kind and stage (a candidate's track), truth
+ *  and background layers. With `relations`, a focus can have several branches (a candidate's tracksters and its
+ *  track): a level that holds another (through plain relations) comes before it, and the leaves (each branch's
+ *  smallest objects) come last; kinds that only share objects (jets and taus) hold each other only as stages, the
+ *  later holding the earlier. Without, the last level is the only leaf, held by the one before it. */
 export function focusLevels(
   display: DisplayLayer[],
   focus: string,
@@ -67,12 +62,11 @@ export function focusLevels(
       holders: i ? [levels[i - 1].name] : [],
     }));
   // What each level holds: the tables its objects lead to through plain relations, also through tables that are not
-  // levels (a candidate's interpretations hold its hits through layer clusters missing from a pair view's levels). Not
-  // through a relation that points back up (`inverseOf`: a track's vertex).
+  // levels (a pair view's levels may lack the layer clusters); never back up (`inverseOf`: a track's vertex).
   const down = Object.values(relations).filter((r) => !r.association && !r.inverseOf);
   type L = (typeof levels)[number];
-  // The tables a level's objects lead to; `near`: not going on through a table drawn as another kind (a jet's PF
-  // candidates reach calorimeter hits through PF clusters, and through electrons and their superclusters, not near).
+  // `near`: not going on through a table drawn as another kind (a jet's PF candidates reach calorimeter hits through
+  // PF clusters, and, not near, through electrons and their superclusters).
   const kindOf = new Map(display.map((d) => [d.table, kindName(d)]));
   const reached = (l: L, near: boolean) => {
     const seen = new Set<string>(),
@@ -90,15 +84,15 @@ export function focusLevels(
   const reach = new Map(levels.map((l) => [l, reached(l, false)] as const)),
     nearby = new Map(levels.map((l) => [l, reached(l, true)] as const));
   const leads = (a: L, b: L) => a !== b && [...b.tables].some((t) => reach.get(a)!.has(t));
-  // Two reconstruction stages that lead to the same objects without leading to each other (a hit's pair: its
-  // interpretations, linked tracksters and tracksters, each through layer clusters): the later stage holds the other.
-  // Not other kinds that share objects (jets and taus, both made of PF candidates): nothing says one holds the other.
+  // Two stages that lead to the same objects without leading to each other (a hit's pair: interpretations, linked
+  // tracksters and tracksters, each through layer clusters): the later holds the other. Not other kinds that share
+  // objects (jets and taus): nothing says one holds the other.
   const stage = (l: L) => Math.max(-1, ...l.layers.map((d) => d.stage ?? -1));
   const shares = (a: L, b: L) => [...reach.get(a)!].some((t) => reach.get(b)!.has(t));
   const holds = (a: L, b: L) => leads(a, b) || (stage(b) >= 0 && stage(a) > stage(b) && !leads(b, a) && shares(a, b));
   const above = (a: L, b: L) => holds(a, b) && !holds(b, a);
-  // Holds it directly: a chain of relations to it that passes no other kind, or else no level in between (linked
-  // tracksters hold tracksters, and candidates hold them only through those).
+  // Holds it directly: through no other kind, or else with no level in between (candidates hold tracksters only
+  // through linked tracksters).
   const direct = (a: L, b: L) =>
     above(a, b) &&
     ([...b.tables].some((t) => nearby.get(a)!.has(t)) || !levels.some((c) => above(a, c) && above(c, b)));
@@ -110,7 +104,7 @@ export function focusLevels(
     order.push(next);
     left.splice(left.indexOf(next), 1);
   }
-  // Depth: the longest chain of levels holding it (0: held by none), so levels of different branches can be compared.
+  // Depth: the longest chain of levels holding it (0: none), comparable across branches.
   const depth = new Map<(typeof levels)[number], number>();
   const depthOf = (l: (typeof levels)[number], seen = new Set<typeof l>()): number => {
     if (depth.has(l)) return depth.get(l)!;
@@ -137,12 +131,9 @@ export function focusLevels(
   return [...out.filter((l) => !l.always), ...out.filter((l) => l.always)];
 }
 
-/** The levels as the card's chain lists them, so that each branch reads down to its end before the next (a jet's TICL
- *  candidates down to their hits, then its tracks down to theirs): depth first from the levels held by none, each
- *  level as soon as the last of its holders is listed, ties in the order given. `indent`: one more than that last
- *  holder's, so a step sits under the closest step holding it; `via`: its other holders (a kind several kinds hold: a
- *  jet's tracks, through its PF candidates and its TICL candidates). The levels' own order (what the view steps
- *  through) is left as it is. */
+/** The levels as the card's chain lists them, each branch down to its end before the next: depth first from the
+ *  levels held by none, each as soon as the last of its holders is listed, ties in the order given. `indent`: one more
+ *  than that last holder's; `via`: its other holders (a jet's tracks, through its PF and its TICL candidates). */
 export function chainOrder(levels: Level[]): { level: Level; indent: number; via: string[] }[] {
   const names = new Set(levels.map((l) => l.name)),
     holders = (l: Level) => (l.holders ?? []).filter((h) => names.has(h));
@@ -165,17 +156,15 @@ export function chainOrder(levels: Level[]): { level: Level; indent: number; via
   return out;
 }
 
-/** The levels with the object's own parts first (`part`: a table it is made of, named by its relations or an earlier
- *  step of its reconstruction), then the others built only from its parts (a jet's taus), marked `beside`: ↓ steps
- *  through what it is made of only (stepLevel), and the card's chain shows the others on request. Otherwise in the
- *  order given. */
+/** The levels with the object's own parts first (`part`: a table it is made of), then those only built from its
+ *  parts (a jet's taus), marked `beside`: ↓ steps through its own parts only. */
 export const partsFirst = (levels: Level[], part: (table: string) => boolean) => {
   const own = (l: Level) => l.layers.some((d) => part(d.table));
   return [...levels.filter(own), ...levels.filter((l) => !own(l)).map((l) => ({ ...l, beside: true }))];
 };
 
-/** Which layers of the levels are drawn: those of the levels always drawn (the smallest objects, lines) and of the
- *  `chosen` level, each by its layers ticked in the side panel, or all of them if none is; the others are not. */
+/** Which layers of the levels are drawn: those of the levels always drawn and of the `chosen` one (their ticked
+ *  layers, or all if none is ticked); the others are hidden. */
 export function levelLayers(levels: Level[], chosen: string | null, ticked: (d: DisplayLayer) => boolean) {
   const draw: DisplayLayer[] = [],
     hide: DisplayLayer[] = [];
@@ -187,21 +176,19 @@ export function levelLayers(levels: Level[], chosen: string | null, ticked: (d: 
   return { draw, hide };
 }
 
-/** The level to show after stepping `by` levels down (+1) or up (-1) from `chosen`, among the focus's own parts not
- *  always drawn: from none to the first, and from the first back to none (null). */
+/** The level shown after stepping `by` down (+1) or up (-1) from `chosen`, among the own parts not always drawn;
+ *  null (none) before the first. */
 export function stepLevel(levels: Level[], chosen: string | null, by: number): string | null {
   const names = levels.filter((l) => !l.always && !l.beside).map((l) => l.name);
   const i = Math.min(Math.max((chosen ? names.indexOf(chosen) : -1) + by, -1), names.length - 1);
   return i < 0 ? null : names[i];
 }
 
-/** The parts of the detector (layer `domain`, not a shared one) a level's layers are in: none for shared or
- *  domain-less layers (e.g. physics objects), which every domain draws. */
+/** The detector parts a level's layers are in: none for shared or domain-less layers, which every domain draws. */
 const domainsOf = (l: Level, shared: Set<string>) => ownDomains(l.layers, shared);
 
-/** Levels at the same depth (see focusLevels) that lie in different parts of the detector become one level (e.g. a
- *  jet's tracks and calorimeter clusters): they cannot cover each other, and the bar gets shorter. For the view of
- *  everything; levels drawn always (leaves, lines) are left as they are. */
+/** For the view of everything: levels at the same depth in different parts of the detector become one (a jet's
+ *  tracks and calorimeter clusters), as they cannot cover each other. Levels always drawn are left as they are. */
 export function mergeAcrossDomains(levels: Level[], shared: Set<string>): Level[] {
   const out: Level[] = [],
     merged = new Map<number, Level>();
@@ -227,8 +214,7 @@ export function mergeAcrossDomains(levels: Level[], shared: Set<string>): Level[
   return out;
 }
 
-/** The levels that ↓ ↑ step through and the card's chain offers to show in domain `current` (null: everything): those
- *  it draws as its own or shares with every domain. */
+/** The levels ↓ ↑ step through in domain `current` (null: everything): those it draws as its own or shares. */
 export function scopeLevels(levels: Level[], current: string | null, shared: Set<string>) {
   if (!current) return levels;
   return levels.filter((l) => {

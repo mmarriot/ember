@@ -1,12 +1,7 @@
-// The ladder of a selection: its place in the chain of objects, and at every step what the truth says. One layout
-// for every kind (drawn by ui/card/Chain.tsx):
-// - a reco object: what it is part of (above), itself, what it is made of (below, top first) and what else is built
-//   only from its parts (beside: a secondary vertex whose tracks are all in the jet); each step with its link to the
-//   truth, in the words of docs/truth.md: matched by CMSSW, a simulation fact, or no truth for the kind;
-// - a truth object: per reco kind with an association, what was reconstructed from it (and where nothing was).
-// Nothing here is a new truth statement: the links are the associations and facts the bundle already has,
-// counted per step. A kind that gains an associator in CMSSW gets a relation with a `match` hint in its profile, and
-// its steps then show that match instead of "no truth" with no change here.
+// The chain of a selection (drawn by ui/card/Chain.tsx). For a reco object, its ladder: what it is part of (above),
+// itself, what it is made of (below) and what else is built only from its parts (beside), each step with its link to
+// the truth (docs/truth.md: a CMSSW match, a simulation fact, or no truth). For a truth object, what was reconstructed
+// from it per reco kind. Only the bundle's associations and facts, counted per step: no new truth statement.
 import { type DisplayLayer, type EventData, type Header, kindName } from "../../io/format";
 import { factIn, facts } from "../truth/facts";
 import { chainOrder, focusLevels } from "./levels";
@@ -14,17 +9,14 @@ import { bestPurities, percent, simEnergyByParticle, type TruthStatus } from "..
 import { bestPartners, contentPartners, levelsOf, type Ref, type Related } from "./relations";
 
 /** What the truth says about the objects of one step, one line per truth table, detector or reason:
- *  - `match`: the CMSSW associator's matches into truth table `truth`: of `of` objects, `matched` have a match and
- *    `clean` a clean one (purity >= `good`); `partners`: [truth row, objects matched to it], most objects first;
- *    `purity`: the purity of the match, for a step of one object;
- *  - `fact`: the simulated energy left in the hits in detector `in`, `total` in all; `particles`: [truth row, share
- *    0..1], largest first;
- *  - `none`: no truth for the kind, and why;
- *  - `container`: drawn in the colour of what contains it.
- *  `label`: the collections the line is about, where those of the step differ in truth (muon rechits: fact; hits on
- *  muon tracks: none). `unranked`: the particles are not listed, because the selected object's kind has no truth of
- *  its own and a ranking of the particles in its parts would be a match through them (docs/truth.md
- *  "Constituents"): the statement stays on each hit or cluster. */
+ *  - `match`: the associator's matches into `truth`: of `of` objects, `matched` have one and `clean` a clean one
+ *    (purity >= `good`); `partners`: [truth row, objects matched to it], most first; `purity`: for one object;
+ *  - `fact`: the simulated energy in the hits in detector `in`, `total` in all; `particles`: [truth row, share],
+ *    largest first;
+ *  - `none`: no truth for the kind, and why; `container`: coloured as what contains it.
+ *  `label`: the collections the line is about, where the step's differ in truth. `unranked`: the particles are not
+ *  listed, as the selection's kind has no truth of its own and a ranking of its parts' particles would be a match
+ *  through them (docs/truth.md "Constituents"). */
 export type Link = { label?: string } & (
   | {
       kind: "match";
@@ -42,15 +34,13 @@ export type Link = { label?: string } & (
   | { kind: "container" }
 );
 
-/** `held`: for an object no relation names as containing the selection (see `voted`), how many of the selection's
- *  `of` parts it holds. */
+/** `held`: for an object no relation names as containing the selection (see `voted`), [parts held, of]. */
 export interface Group {
   table: string;
   rows: number[];
   held?: [number, number];
 }
-/** One step of the ladder: the objects of one kind. `indent` and `via`: where it sits in its list's branches, and
- *  the other kinds that hold it (model/event/levels.ts chainOrder). */
+/** One step of the ladder: the objects of one kind. `indent`, `via`: see levels.ts chainOrder. */
 export interface Rung {
   kind: string;
   groups: Group[];
@@ -74,7 +64,7 @@ const stageOf = (header: Header, table: string) =>
   header.display.find((l) => l.table === table && l.stage !== undefined)?.stage;
 const sorted = (rows: Iterable<number>) => [...rows].sort((a, b) => a - b);
 
-/** The ladder of reco object `sel`. `parts`: its relatedParts; `statuses`: each table's truth status (model/truth/match.ts). */
+/** The ladder of reco object `sel`. `parts`: its relatedParts; `statuses`: each table's truth status. */
 export function recoLadder(
   ev: EventData,
   header: Header,
@@ -82,17 +72,16 @@ export function recoLadder(
   parts: { madeOf: Related; partOf: Related; linked: Related },
   statuses: Map<string, TruthStatus>,
 ): Ladder {
-  // What is inside it: what it is made of, and what is built only from that (model/event/relations.ts levelsOf).
   const inside = levelsOf(ev, header, sel, { ...parts, linked: new Map() });
   const below: Related = new Map(),
     beside: Related = new Map();
   for (const [t, rows] of inside) {
     if (t === sel.table || !rows.size) continue;
-    // Named by its relations, or an earlier step of its own reconstruction (a candidate's tracksters): below. Anything
-    // else built from its parts (a tau made of the jet's PF candidates) is beside it, not a part of it.
+    // Named by its relations, or an earlier step of its reconstruction (a candidate's tracksters): below. Anything
+    // else built from its parts (a tau made of the jet's PF candidates) is beside it.
     (parts.madeOf.has(t) || stageOf(header, t) !== undefined ? below : beside).set(t, rows);
   }
-  // A kind with truth of its own may list the particles in its parts; for any other that would be a match through them.
+  // Only a kind with truth of its own lists its parts' particles: for any other, that would be a match through them.
   const kind = statuses.get(sel.table)?.kind,
     ranked = kind === "match" || kind === "fact";
   const rung = (name: string, tables: string[], from: Related, rank: boolean): Rung => {
@@ -104,8 +93,6 @@ export function recoLadder(
       links: linksOf(ev, header, groups, statuses, rank),
     };
   };
-  // Holders before what they hold, one branch at a time (model/event/levels.ts chainOrder), so each list reads down the
-  // chain.
   const rungs = (from: Related, rank: boolean) =>
     chainOrder(focusLevels(header.display, sel.table, from, () => true, header.relations)).map(
       ({ level, indent, via }) => ({
@@ -116,8 +103,7 @@ export function recoLadder(
     );
   const own = layerOf(header, sel.table),
     self = rung(own ? kindName(own) : sel.table, [sel.table], new Map([[sel.table, new Set([sel.row])]]), true);
-  // A table read only as a polyline's points (a global muon track's hits, tracker ones too) is its shape, not other
-  // objects: not listed.
+  // A table read only as a polyline's points (a muon track's hits) is its shape, not other objects: not listed.
   const points = new Set(
     header.display.flatMap((d) => (d.points ? [header.relations[d.points.relation]?.to] : [])).filter(Boolean),
   );
@@ -134,9 +120,8 @@ export function recoLadder(
 }
 
 /** Later steps of the selection's reconstruction that no relation names as containing it (a trackster's linked
- *  trackster, interpretation and candidate): for each such table, the object holding the most of the selection's parts
- *  (contentPartners), if it holds at least half of them (counted: "3 of its 4 layer clusters"); latest step first, the
- *  collections of one kind in one step. Worked out in Ember, and marked as such (`held`). */
+ *  trackster, candidate): per table, the object holding most of the selection's parts (contentPartners), if at least
+ *  half ("3 of its 4 layer clusters"); latest step first. Worked out in Ember, and marked so (`held`). */
 function voted(
   ev: EventData,
   header: Header,
@@ -161,7 +146,7 @@ function voted(
       row = c.partner[sel.row],
       mine = parts.madeOf.get(c.parts);
     if (!c.parts || row === undefined || row < 0 || !mine?.size) continue;
-    const theirs = new Set<number>(); // the holder's parts in the same table, through any of its relations into it
+    const theirs = new Set<number>(); // the holder's parts in that table, through any of its relations into it
     for (const [name, info] of Object.entries(header.relations)) {
       const rel = ev.relations[name];
       if (rel && !info.association && info.from === d.table && info.to === c.parts)
@@ -183,8 +168,8 @@ function voted(
 }
 
 /** The truth links of the objects in `groups` (one kind): matches counted per truth table, facts per detector (never
- *  summed across detectors), or why there is none. `rank`: whether the particles behind a fact of several objects may
- *  be listed (see Link `unranked`); without it they are not worked out at all. */
+ *  summed across detectors), or why there is none. `rank`: whether a fact's particles for several objects may be
+ *  listed (see Link `unranked`); without it they are not worked out. */
 function linksOf(
   ev: EventData,
   header: Header,
@@ -281,18 +266,17 @@ function linksOf(
       tables: [...new Set(fs.map((f) => f.to))],
     });
   }
-  // Where the step's collections differ in truth, or each has its own line, each line names its own.
+  // Where the step's collections differ in truth, or each has its own line, each line names its collections.
   const differ = split || new Set(groups.map((g) => statuses.get(g.table)?.kind)).size > 1;
   return out.map(({ tables, ...l }) =>
     differ ? { ...l, label: [...new Set(tables.map((t) => layerOf(header, t)?.label ?? t))].join(", ") } : l,
   );
 }
 
-/** What was reconstructed from truth object `sel`, one entry per reco table with an association from its table (the
- *  truth -> reco maps), latest reconstruction step first: the objects sharing hits or energy with it, most complete
- *  first, each with its completeness (the share of the truth object it holds, where the association gives one) and
- *  whether the truth object is that reco object's own best match (`unmatched`: it has none at all). An empty entry:
- *  nothing of that kind shares anything with it. `hits`: per detector, the hits it left simulated energy in (facts). */
+/** What was reconstructed from truth object `sel`: per reco table with a truth -> reco association, latest step
+ *  first, the objects sharing hits or energy with it, most complete first, each with its completeness and whether
+ *  `sel` is that object's own best match (`unmatched`: it has none). `hits`: per detector, the hits it left simulated
+ *  energy in (facts). */
 export interface Reconstructed {
   table: string;
   measure?: string;
@@ -317,7 +301,6 @@ export function recoOfTruth(ev: EventData, header: Header, sel: Ref): { reco: Re
       hi = rel.offsets[sel.row + 1],
       where = factIn(header, name);
     if (where !== undefined) {
-      // a simulation fact: the hits it left energy in, per detector
       const weight = info.best?.weight ?? info.weights[0] ?? "",
         w = weight ? rel.weights[weight] : undefined;
       const d = hits.get(where) ?? { in: where, hits: 0, energy: 0, weight };
@@ -356,13 +339,11 @@ export function recoOfTruth(ev: EventData, header: Header, sel: Ref): { reco: Re
   return { reco, hits: [...hits.values()] };
 }
 
-/** "Reconstructed as" as the truth card lists it (recoOfTruth's entries with partners): per kind, the objects whose own
- *  best match it is, and those that hold at least `min` of the particle (all of them where the association gives no
- *  completeness), best first, at most `max` beside the best matches; `folded` counts the rest ("+N"). Kinds whose
- *  listed objects are the same ones (`same`: the same parts, e.g. one trackster's layer clusters at several levels),
- *  with the same completeness and best mark, in the same detector, are one entry naming every kind (`tables`), with
- *  the largest of their folded counts (the same objects again); kinds that list nothing are one entry too, their
- *  folded objects added up. */
+/** "Reconstructed as" as the truth card lists it: per kind, the objects whose own best match it is and those that
+ *  hold at least `min` of the particle (all, without a completeness), at most `max` beside the best matches;
+ *  `folded` counts the rest ("+N"). Kinds listing the same objects (`same`: e.g. one trackster at several levels) with
+ *  the same completeness, best mark and detector are one entry naming every kind (`tables`), with the largest folded
+ *  count; kinds that list nothing are one entry too, their folded counts added up. */
 export function foldReco(
   reco: Reconstructed[],
   same: (a: Ref, b: Ref) => boolean,
@@ -371,8 +352,8 @@ export function foldReco(
 ): { tables: string[]; measure?: string; in?: string; partners: Reconstructed["partners"]; folded: number }[] {
   const out: ReturnType<typeof foldReco> = [];
   for (const r of reco) {
-    // its own best match always shows (a pion's only track, at 0.8% of its hits with its secondaries'; each of the
-    // tracksters it is split into); the others from `min`, up to `max` in all
+    // its own best matches always show (a pion's only track, at 0.8% of its hits with its secondaries'); the others
+    // from `min`, up to `max` in all
     const listed = r.partners.filter((p) => p.best || p.completeness === undefined || p.completeness >= min),
       room = Math.max(0, max - listed.filter((p) => p.best).length);
     let others = 0;

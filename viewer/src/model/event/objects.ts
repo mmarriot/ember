@@ -1,11 +1,9 @@
-// The object rows of a layer with a `list` hint (the Physics section's event summary): the largest objects that pass the
-// layer's cut and filter, and the headline that counts them.
+// The object rows of a layer (its `list` hint): the largest objects that pass its cut and filter, their ranks and
+// column names, and stepping through them.
 import type { DisplayLayer, Table } from "../../io/format";
 
-/** The rows of `t` that `pass`, largest first by column `sort` (all of them if `t` has no such column, in row order),
- *  at most `max`. For a short list (the side panel's object rows) one pass keeps the `max` largest in order, without
- *  sorting the table: 110k layer clusters at PU200 are a scan, not a 40 ms sort on every render. Otherwise (N steps
- *  through all of them) a sort, O(n log n) in the passing rows. */
+/** The rows of `t` that `pass`, at most `max`, largest first by column `sort` (in row order without it). A short list
+ *  keeps the `max` largest in one pass: 110k layer clusters at PU200 are a scan, not a 40 ms sort on every render. */
 export function topRows(t: Table, sort: string | undefined, pass: (row: number) => boolean, max: number): number[] {
   const key = sort ? t.columns[sort] : undefined,
     rows: number[] = [];
@@ -24,8 +22,8 @@ export function topRows(t: Table, sort: string | undefined, pass: (row: number) 
   return rows.slice(0, max);
 }
 
-/** Each row's place among `n` values, largest first, from 1 (equal values keep row order; NaN last): an object's number
- *  in its name, so the leading jet is "Jet 1" (store/names.ts numberOf). One sort of the rows, O(n log n). */
+/** Each row's place among `n` values, largest first, from 1 (ties in row order; NaN last): the leading jet is
+ *  "Jet 1" (store/names.ts numberOf). */
 export function ranks(values: ArrayLike<number | bigint>, n: number): Uint32Array {
   const v = new Float64Array(n);
   for (let i = 0; i < n; i++) {
@@ -54,8 +52,7 @@ export function whyHidden(d: Pick<DisplayLayer, "cut">, t: Table, min: number, k
   return cut && filter ? "both" : cut ? "cut" : filter ? "filter" : undefined;
 }
 
-/** Readable names of common physics columns in the object rows' heading and in object names (store/names.ts
- *  describe); others keep their own name. */
+/** Readable names of common physics columns; others keep their own. */
 const NAMES: Record<string, string> = {
   pt: "pT",
   eta: "η",
@@ -73,8 +70,7 @@ const NAMES: Record<string, string> = {
 };
 export const columnName = (c: string) => NAMES[c] ?? c;
 
-/** The row after (`by` 1) or before (-1) `current` in `rows`, cycling; from outside them (or none), the first (or the
- *  last going back). Undefined for no rows. */
+/** The row after (`by` 1) or before (-1) `current` in `rows`, cycling; from outside them, the first (or the last). */
 export function stepRow(rows: number[], current: number | undefined, by: number): number | undefined {
   if (!rows.length) return undefined;
   const at = current === undefined ? -1 : rows.indexOf(current);

@@ -1,6 +1,6 @@
-// The guided tour's story (control/tour.ts runs it): an event built up outwards from the collision point and from the
-// detector's hits to the physics objects, one step per kind of object. Each step names the kinds it shows (the
-// display hint `kind`), so a bundle without them skips it. Pure functions of the header, so they can be tested.
+// The guided tour's story (control/tour.ts runs it): an event built up outwards from the collision point, from the
+// detector's hits to the physics objects. Each step names the kinds it shows (display hint `kind`); a bundle without
+// them skips it.
 import type { DisplayLayer } from "../io/format";
 
 export interface TourStep {

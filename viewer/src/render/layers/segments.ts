@@ -26,9 +26,8 @@ import {
   type Vec3s,
 } from "./layer";
 
-/** Lines from `position` to `end` (e.g. a track from its vertex to the calorimeter), or along `direction` for `length`
- *  (`centred`: half each way); in a replay each one shoots out from its start. WebGL draws them 1 pixel wide; with a
- *  `width` or an `arrow`, see wideSegments. Picked and framed by their end point. */
+/** Lines from `position` to `end`, or along `direction` for `length` (`centred`: half each way); in a replay each
+ *  shoots out from its start. 1 px wide (WebGL lines); with a `width` or an `arrow`, see wideSegments. */
 export function segments(input: LayerInput): Layer {
   const { d, t } = input;
   const [start, [x, y, z]] = segmentEnds(d, t, positions(input));
@@ -104,9 +103,9 @@ export function segmentEnds(d: DisplayLayer, t: Table, position: Vec3s): [Vec3s,
   return [a, b];
 }
 
-/** Segments `width` px wide (`d.width`, default 2), e.g. MET or a lepton: each line is a quad, its two sides offset by
- *  half the width across the line's direction on screen in the vertex shader (4 vertices per line, nothing on the
- *  CPU), so it keeps its width at any zoom. `arrow`: a cone head at the end, placed on the CPU (for a few objects). */
+/** Segments `width` px wide (default 2), e.g. MET or a lepton: each line a quad whose sides the vertex shader offsets
+ *  across the line on screen, so it keeps its width at any zoom. `arrow`: a cone head at the end, placed on the CPU
+ *  (for a few objects). */
 function wideSegments(input: LayerInput, start: Vec3s, end: Vec3s): Layer {
   const { d, t } = input,
     n = t.n,

@@ -62,10 +62,9 @@ const SHOWER_FRAGMENT = /* glsl */ `
     gl_FragColor = vec4(col, a);
   }`;
 
-/** Showers: translucent ellipsoids (2 sigma along each PCA axis, sigma clamped to sane sizes) plus a +-2 sigma
- *  principal-axis line; each `shape` has its own surface (SHOWER_FRAGMENT), so reconstruction stages are told apart
- *  at a glance. While something is selected, unrelated showers shrink away so they cannot cover it; in a replay each
- *  grows in over GROW seconds. Both are CPU updates per frame while they run (buffers rewritten in place). */
+/** Showers: translucent ellipsoids (2 sigma along each PCA axis, sigma clamped) plus a +-2 sigma principal-axis
+ *  line; each `shape` has its own surface, so reconstruction stages are told apart. While something is selected,
+ *  unrelated showers shrink away so they cannot cover it; in a replay each grows in over GROW s. */
 export function ellipsoids(input: LayerInput): Layer {
   const { d, t } = input;
   let rgb = input.rgb;

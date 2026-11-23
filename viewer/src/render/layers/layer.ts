@@ -1,11 +1,9 @@
-// What every drawn layer shares. A layer is one table drawn in one representation (cells, markers, lines, ...): one
-// three.js object, usually one instanced draw call, with its colours computed per object on the CPU beforehand
-// (render/colour.ts). The engine (render/engine.ts) talks to layers only through the `Layer` interface below.
+// What every drawn layer shares. A layer is one table drawn in one representation: one three.js object, usually one
+// instanced draw call, with colours computed per object on the CPU beforehand (render/colour.ts).
 //
 // Most representations do the per-frame work in their vertex shaders: the rho-z projection, the cut, the selection
 // fade and the replay clock are uniforms, so a slider step or a replay frame changes a few numbers, not the buffers.
-// `shaderLayer` builds the per-object attributes these shaders read. Showers (ellipsoids.ts) are the exception: a
-// few thousand objects at most, updated on the CPU.
+// Showers (ellipsoids.ts) are the exception: a few thousand objects at most, updated on the CPU.
 import * as THREE from "three";
 import { type DisplayLayer, type Table, toF32, type ViewName } from "../../io/format";
 import type { Pal } from "../colour";
@@ -14,7 +12,7 @@ import { HIDDEN } from "../../model/custom/cuts";
 import { REPLAY_OFF } from "../replay";
 
 /** A drawn layer, as the engine sees it: its three.js object, where its objects are (for picking and framing), and
- *  the setters control/scene.ts calls when the cut, the colours, the selection, the view or the replay clock change. */
+ *  the setters control/scene.ts calls. */
 export interface Layer {
   readonly key: string;
   readonly table: string;
@@ -83,8 +81,7 @@ export interface Layer {
   dispose(): void;
 }
 
-/** What a layer is built from: the table and its display hint, the theme's palette, the colours per object and the
- *  values the cut compares (model/custom/cuts.ts cutValues). */
+/** What a layer is built from. */
 export interface LayerInput {
   key: string;
   d: DisplayLayer;
@@ -113,20 +110,17 @@ export const newVec3s = (n: number): Vec3s => [new Float32Array(n), new Float32A
 /** Three columns of a table as floats (a missing column: zeros). */
 export const columns3 = (t: Table, names: readonly string[]) => names.map((c) => toF32(t.columns[c], t.n)) as Vec3s;
 
-/** How far towards the background everything unrelated to a selection fades (0..1), per choice of the user
- *  (model/store view.ts `rest`): dimmed, it stays readable around the selection; faint, a trace of it is left; hidden
- *  (1), it is not drawn at all (see `gone` in SHADER_COMMON). One level for every layer and for what is drawn beside
- *  them (cone wedges, arrow heads), so nothing out-shouts the selection. */
+/** How far towards the background everything unrelated to a selection fades (0..1), per the user's choice (store
+ *  `rest`); hidden (1) is not drawn at all (`gone` in SHADER_COMMON). */
 export const REST_FADE = { dim: 0.85, faint: 0.95, hidden: 1 } as const;
-/** The level of the rest, as the uniform `uRest` of every layer's material: one object shared by them all, so setting
- *  its value changes every layer at the next frame, with no per-layer call. Context layers (the detector drawn
- *  behind the event) and the detector outlines keep the dim level: they are the detector, not the event. */
+/** The uniform `uRest`, one object shared by every layer's material, so setting it changes them all at the next
+ *  frame. Context layers and the detector outlines keep the dim level: they are the detector, not the event. */
 export const restUniform = { value: REST_FADE.dim as number };
 /** The dim level as a GLSL float literal, for the detector outlines. */
 export const FADE_GLSL = REST_FADE.dim.toFixed(2);
 
-/** GLSL shared by the shader-drawn layers: the uniforms every one of them has (see baseUniforms) and small helpers for
- *  the rho-z projection, the selection fade and the replay. */
+/** GLSL shared by the shader-drawn layers: their common uniforms (baseUniforms) and helpers for the rho-z
+ *  projection, the selection fade and the replay. */
 export const SHADER_COMMON = /* glsl */ `
 uniform float uProj, uAct0, uAct1, uMix, uCut, uClock, uFlash, uRetire, uPin0, uPin1, uRest;
 uniform vec3 uBg, uRim, uGrey, uFade;
@@ -165,8 +159,8 @@ float remaining() { return uClock > 1e29 ? 1.0 : clamp(1.0 - (uClock - uRetire) 
 float faded() { return uClock > 1e29 ? 0.0 : uFade.z * smoothstep(uFade.x, uFade.y, uClock); }`;
 
 /** The first lines of a vertex shader's main(): an instance that is cut away, not yet there in a replay, retired, or
- *  hidden with the rest of the event (`gone`) is moved outside the clip volume, so it draws nothing. Instances uPin0 <= id < uPin1 belong to the pinned object
- *  (the selected one), which is drawn whatever the cut. `id`: the instance's number (markers: the vertex's). */
+ *  hidden with the rest (`gone`) is moved outside the clip volume, so it draws nothing. Instances uPin0 <= id < uPin1
+ *  are the pinned (selected) object's, drawn whatever the cut. `id`: the instance's number (markers: the vertex's). */
 export const CULL = (id = "gl_InstanceID") => `
   #ifdef HALO
   float pinned = 1.0; // the halo pass holds only the pinned object's instances
@@ -210,8 +204,8 @@ export const baseUniforms = (pal: Pal, context = false) => ({
   uGrey: { value: rawColour(pal.unassigned) },
 });
 
-/** Cut bookkeeping shared by all layer kinds: `values` per object (or none: everything passes) against the current
- *  minimum. A pinned object (the selected one) passes whatever the cut. `onChange` gets each new minimum. */
+/** Cut bookkeeping: `values` per object (none: everything passes) against the current minimum; the pinned object
+ *  passes whatever the cut. `onChange` gets each new minimum. */
 export function cutter(n: number, values: Float32Array | undefined, onChange: (min: number) => void) {
   let min = -Infinity,
     pinned = -1;
@@ -233,22 +227,17 @@ export function cutter(n: number, values: Float32Array | undefined, onChange: (m
   };
 }
 
-/** What the shader-drawn layers (cells, markers, segments, helices, cones, polylines) share: the geometry's
- *  per-object attributes and the Layer setters that change them.
+/** The per-object attributes of a shader-drawn layer and the Layer setters that change them. Per object the shaders
+ *  get `attributes` (one float each), `vec3` (three floats each), the cut value `icut`, the colour `icol`, the
+ *  selection as two byte masks (`ipsel` previous, `isel` current, cross-faded by uMix) and the replay times `iT`, `iL`.
  *
- *  Per object the shaders get the given float attributes (`attributes`: one float each; `vec3`: three floats each),
- *  the cut value (`icut`), the colour (`icol`), the selection as two byte masks (`ipsel`, previous, and `isel`,
- *  current, cross-faded by the uniform uMix) and the replay times (`iT`, `iL`). A cut or a replay frame then changes
- *  one uniform; a selection change copies one mask.
+ *  Rows hidden for good (cut value HIDDEN: filtered out, or not the selection's in a layer drawn for it) get no
+ *  instance: every instance runs the vertex shader on every frame, even when cut away (100k truth helices of 48
+ *  points are 5M runs), and a layer rebuilt on every click then uploads only the selection's rows.
  *
- *  Instances are made only for the rows that can be shown: rows whose cut value hides them for good (a filter, or a
- *  layer that shows only the selection's objects) get none. Every instance runs the vertex shader on every frame,
- *  even when its object is cut away (100k truth helices of 48 points each are 5M vertex-shader runs), and a layer
- *  rebuilt on every click (the hits of the selection's tracks) then uploads only the selection's rows.
- *
- *  `pieces` (instanced only): the number of instances per row, for a row drawn in several pieces (a helix of many
- *  turns, a path through many points); each instance gets its piece number in attribute `ipiece` and its row's count
- *  in `ipieces`. `toInstances` turns a per-row array into the per-instance array the geometry holds. */
+ *  `pieces` (instanced only): instances per row, for a row drawn in several pieces (a looping helix, a path through
+ *  many points); each gets its piece number in `ipiece` and its row's count in `ipieces`. `toInstances` turns a
+ *  per-row array into the per-instance array the geometry holds. */
 export function shaderLayer(
   input: LayerInput,
   g: THREE.BufferGeometry,
@@ -263,8 +252,8 @@ export function shaderLayer(
     Attr = instanced ? THREE.InstancedBufferAttribute : THREE.BufferAttribute;
   const cut = cutter(n, input.cut, (m) => (u.uCut.value = Math.max(m, -1e30)));
 
-  // The row of each instance, when it is not one instance per row (`rows` null); `slot`: each row's first instance,
-  // -1 for a row without any.
+  // The row of each instance, unless there is one instance per row (`rows` null); `slot`: each row's first
+  // instance, -1 for a row without any.
   let rows: Uint32Array | null = null,
     slot: Int32Array | null = null,
     piece: Float32Array | null = null;
@@ -387,8 +376,8 @@ export const interleave = (a: readonly [Float32Array, Float32Array, Float32Array
   return out;
 };
 
-/** A background layer (display hint `context`): drawn first and without writing depth, so it never hides the event
- *  in front of it or behind it. */
+/** A background layer (display hint `context`): drawn first and without writing depth, so it never hides the
+ *  event. */
 export function drawBehind(object: THREE.Object3D, material: THREE.Material) {
   material.depthWrite = false;
   object.renderOrder = -1;
@@ -413,8 +402,7 @@ export function setLineQuad(g: THREE.BufferGeometry) {
   g.setIndex([0, 2, 1, 2, 3, 1]);
 }
 
-/** The halo's colour per theme: the page's accent (styles/base.css --accent), the colour of the selection's label and
- *  ring. */
+/** The halo's colour per theme: the page's accent (styles/base.css --accent). */
 const HALO_COLOUR = { light: "#0969da", dark: "#4493f8" };
 const HALO_FRAGMENT = /* glsl */ `uniform vec3 uHalo;
   #if HALO_DASH
@@ -428,13 +416,11 @@ const HALO_FRAGMENT = /* glsl */ `uniform vec3 uHalo;
     gl_FragColor = vec4(uHalo, 1.0);
   }`;
 
-/** A halo around the selected line (the pinned instances of a line layer: tracks, particles, muon paths): the same
- *  instances drawn again before it as a strip HALO_PX px wider in the accent colour, so even a line one pixel wide
- *  stands out. It shares the layer's uniforms and shader (with HALO and WIDE defined) and draws from copies of the
- *  pinned instances' attributes only (`pin`, on each new selection: a few pieces), so a frame costs a draw call of a
- *  few hundred vertices, not a second pass over the layer. `refresh` copies them again after the layer rewrote them
- *  (a new highlight, a replay's times). `shape`: the strip's corners (setLineQuad, or a helix's strip of points),
- *  which the halo shares and never frees; `order`: the layer's renderOrder. */
+/** A halo around the selected line (a line layer's pinned instances): the same instances drawn again before it as a
+ *  strip HALO_PX px wider in the accent colour, so even a 1 px line stands out. It shares the layer's uniforms and
+ *  shader (with HALO and WIDE defined) and draws copies of the pinned instances' attributes only, so a frame costs a
+ *  draw call of a few hundred vertices, not a second pass over the layer. `shape`: the strip's corners (setLineQuad,
+ *  or a helix's strip), shared and never freed here; `order`: the layer's renderOrder. */
 export function halo(
   source: THREE.InstancedBufferGeometry,
   material: THREE.ShaderMaterial,

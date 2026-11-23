@@ -1,6 +1,6 @@
 // Charged particles' paths in the solenoid field (`helix`, the maths in render/helix.ts). The GPU gets a few numbers
-// per path and the vertex shader puts each point of a line strip on it; picking and framing use a coarser polyline
-// computed on the CPU, per path, when first needed.
+// per path and the vertex shader puts each point of a line strip on it; picking and framing use a coarser CPU
+// polyline, computed per path when first needed.
 import * as THREE from "three";
 import { type Table, toF32 } from "../../io/format";
 import { HIDDEN } from "../../model/custom/cuts";
@@ -38,9 +38,8 @@ const pathCache = new WeakMap<
   Map<string, { paths: Paths; pieces: Uint16Array; ends: Float32Array[]; pick: NonNullable<Layer["path"]> }>
 >();
 
-/** Charged particles' paths, drawn and picked like segments (cuts, selection, replay, truth dashes). Per object the
- *  GPU gets the start, the unit direction, the curvature, two lengths and the end point, and the vertex shader puts
- *  each point of the strip on the path: 48 bytes per path, not a polyline. */
+/** Charged particles' paths, drawn and picked like segments. Per path the GPU gets the start, the unit direction, the
+ *  curvature, two lengths and the end point (48 bytes, not a polyline). */
 export function helices(input: LayerInput): Layer {
   const { d, t, field } = input;
   const start = positions(input);

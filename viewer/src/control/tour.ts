@@ -1,14 +1,9 @@
-// The guided tour (key P), event after event until any key or touch, or the play button:
-// 1. The event is built up step by step (control/tourPlan.ts: outwards from the collision point, from the detector's hits to
-//    the physics objects). Each step's objects grow in while the camera frames them and a caption says what they are.
-//    A bundle without the kinds of object the steps name (test beam, cosmics) is replayed instead (render/replay.ts).
-// 2. The event as the bundle shows it: its leading objects (else its main showers) are visited one by one, each
-//    selected so that the card describes it.
-// 3. The next event.
-// An event of the whole detector takes about 50 s at pace 1, plus the time to build its layers. Every duration below
-// is multiplied by the pace: the holds, the camera's flights, the grow-in and the replay's clock.
-// The camera follows the profile's view.tour: "beam" (collider data) starts on the whole detector and never enters it
-// (Engine.tourCamera); "orbit" (the default) frames the objects at their own scale and orbits them.
+// The guided tour (key P, or the play button; docs/viewer.md "Playing"), event after event until any key or touch:
+// the event built up step by step (control/tourPlan.ts), or replayed for bundles without the steps' kinds; then its
+// leading objects (else its main showers) visited one by one, selected so that the card describes each.
+// Every duration is multiplied by the pace. The camera follows the profile's view.tour: "beam" (collider data) starts
+// on the whole detector and never enters it (render/tourCamera.ts); "orbit" (the default) frames the objects at their
+// own scale and orbits them.
 import { batch, signal } from "@preact/signals";
 import type { DisplayLayer } from "../io/format";
 import {
@@ -196,9 +191,8 @@ async function startTour() {
     if (!(await fly(undefined, steps.length ? 3000 : 1600, 0.3))) return;
     tourCaption.value = null; // the inspector describes each object visited
     for (const [k, ref] of targets.entries()) {
-      // the selection cross-fades while the camera glides over
-      // To the next one: out towards the whole event and back in without stopping (the next goal arrives
-      // mid-glide); the current one stays selected on the way out.
+      // To the next one: out towards the whole event and back in without stopping (the next goal arrives mid-glide);
+      // the current one stays selected on the way out, and the selection cross-fades while the camera glides over.
       if (k > 0) {
         move(undefined, 1200, 0);
         if (!(await wait(beam ? 600 : 1200))) return;

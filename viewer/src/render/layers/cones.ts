@@ -37,10 +37,9 @@ export function unitCone(segments = 32) {
 }
 
 /** Objects with an eta-phi extent seen from a point, e.g. jets: a translucent cone from `position` along `direction`
- *  ([eta, phi] columns), its base the circle of `radius` (eta-phi) at `length` cm (a number, a column, a scaled
- *  column, or `{to: {r, z}}`: to that cylinder's surface). The vertex shader places each vertex at apex + L dir(eta +
- *  R cos t, phi + R sin t); in rho-z each cone becomes a wedge on its axis's side. `setOutline`: the rim only, so
- *  the cone stays out of the way of what is inside it (e.g. in a detector's view). Picked along its axis. */
+ *  ([eta, phi] columns), its base the circle of `radius` (eta-phi) at `length` cm (`{to: {r, z}}`: to that
+ *  cylinder's surface). The vertex shader places each vertex at apex + L dir(eta + R cos t, phi + R sin t).
+ *  `setOutline`: the rim only, so the cone does not cover what is inside it. Picked along its axis. */
 export function cones(input: LayerInput): Layer {
   const { d, t } = input,
     n = t.n;
@@ -119,12 +118,10 @@ export function cones(input: LayerInput): Layer {
   const mesh = new THREE.Mesh(g, material);
   mesh.frustumCulled = false;
   mesh.renderOrder = 3; // after the opaque objects, so they show through
-  // Outline in the 2D views: the base circle alone would be stray arcs (rho-z) or big overlapping circles (front, side),
-  // so each cone is drawn as its wedge in the view's plane: the two lines from the apex to the outermost points of its
-  // base, and between them the base (rho-z: its projected arc, as before) or its chord (front, side). A cone seen along
-  // its axis has no wedge: then its base circle. CPU lines, for tens of jets; they follow the cut and the colours, and
-  // the cone's own mesh is hidden meanwhile. They share the cones' uniforms, so they fade with a selection as the cones
-  // do (per vertex: its row selected before and now, and pinned).
+  // Outline in the 2D views: the base circle alone would be stray arcs (rho-z) or big overlapping circles (front,
+  // side), so each cone is drawn as its wedge in the view's plane: lines from the apex to the outermost points of its
+  // base, and the base between them (rho-z: its arc; front, side: its chord); seen along its axis, its base circle.
+  // CPU lines (tens of jets), drawn instead of the mesh; they share its uniforms, so they fade with a selection.
   let rgb = input.rgb,
     rz = false,
     outlined = false,

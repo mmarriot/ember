@@ -93,9 +93,8 @@ export function cells(input: LayerInput): Layer {
 }
 
 /** Unit hexagonal prism for cells: corners at radius 1 in the z plane (as CylinderGeometry(1, 1, 1, 6) rotated onto
- *  z, so cells tile as before), z = +-1/2; 12 shared corners and 20 outward triangles (the cylinder has 40 vertices),
- *  so the vertex shader runs ~12 times per cell, not ~40: the cost of 400k HGCal cells at PU200. No normals: the
- *  fragment shader lights each face from its derivatives. */
+ *  z), z = +-1/2. 12 shared corners and 20 outward triangles, so the vertex shader runs ~12 times per cell, not ~40
+ *  (the cylinder's vertices): 400k HGCal cells at PU200. No normals: the fragment shader lights faces from derivatives. */
 export function hexPrism() {
   const cyl = new THREE.CylinderGeometry(1, 1, 1, 6).rotateX(Math.PI / 2),
     p = cyl.getAttribute("position"),
@@ -134,9 +133,9 @@ export function hexPrism() {
   return g;
 }
 
-/** A cells layer drawn as instanced solids of another shape (towers, boxes): `base` is a unit box whose corners the
- *  vertex shader `body` places (it sets `c`, the point, and `nrm`, the normal, from the instance's attributes; uniform
- *  `uDisc` from `disc`). Lighting, selection fade, replay pop and the background (context) mode are as for hexagons. */
+/** A cells layer drawn as instanced solids of another shape (towers, boxes): the vertex shader `body` places a unit
+ *  box's corners (setting the point `c` and the normal `nrm` from the instance's attributes; uniform `uDisc` from
+ *  `disc`). Lighting, selection fade, replay pop and context mode are as for hexagons. */
 function solidCells(
   input: LayerInput,
   declarations: string,
@@ -191,10 +190,9 @@ function solidCells(
 }
 
 /** Calorimeter cells as eta-phi towers seen from the origin (`cell.shape: "tower"`): the bin [eta +- dEta/2] x
- *  [phi +- dPhi/2] of the cell whose front-face centre is `position`, from that face (a cylinder rho = const, or a
- *  `disc` |z| = const) outwards by `depth` cm, e.g. a crystal's length or its energy. The vertex shader builds the
- *  corners (geometry.ts towerPoint is its CPU twin): 6 floats per cell besides the common ones, no geometry on the
- *  CPU. Picked along the axis, front to back. */
+ *  [phi +- dPhi/2] of the cell whose front-face centre is `position`, from that face (rho = const, or a `disc`
+ *  |z| = const) outwards by `depth` cm. The vertex shader builds the corners (CPU twin: geometry.ts towerPoint).
+ *  Picked along the axis, front to back. */
 function towers(input: LayerInput): Layer {
   const { d, t } = input,
     n = t.n,

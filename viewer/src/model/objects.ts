@@ -24,11 +24,34 @@ export function topRows(t: Table, sort: string | undefined, pass: (row: number) 
   return rows.slice(0, max);
 }
 
+/** Each row's place among `n` values, largest first, from 1 (equal values keep row order; NaN last): an object's number
+ *  in its name, so the leading jet is "Jet 1" (store/names.ts numberOf). One sort of the rows, O(n log n). */
+export function ranks(values: ArrayLike<number | bigint>, n: number): Uint32Array {
+  const v = new Float64Array(n);
+  for (let i = 0; i < n; i++) {
+    const x = Number(values[i]);
+    v[i] = x === x ? x : -Infinity; // NaN, which compares with nothing, last
+  }
+  const order = new Uint32Array(n).map((_, i) => i).sort((a, b) => (v[b] > v[a] ? 1 : v[b] < v[a] ? -1 : a - b)),
+    out = new Uint32Array(n);
+  order.forEach((row, k) => (out[row] = k + 1));
+  return out;
+}
+
 /** Whether row `i` of a layer's table passes its cut (minimum `min` on the cut column) and its filter (`keep`, from
  *  filterMask: non-zero to keep). */
 export function passes(d: Pick<DisplayLayer, "cut">, t: Table, min: number, keep: Float32Array | null) {
   const c = d.cut ? t.columns[d.cut.column] : undefined;
   return (i: number) => (!keep || !!keep[i]) && (!c || Number(c[i]) >= min);
+}
+
+/** Why row `i` does not pass its layer's cut and filter (see passes): "cut" when the cut alone leaves it out (the
+ *  filter keeps it), "filter" when the filter does, "both"; undefined when it passes. */
+export function whyHidden(d: Pick<DisplayLayer, "cut">, t: Table, min: number, keep: Float32Array | null, i: number) {
+  const c = d.cut ? t.columns[d.cut.column] : undefined,
+    cut = !!c && !(Number(c[i]) >= min),
+    filter = !!keep && !keep[i];
+  return cut && filter ? "both" : cut ? "cut" : filter ? "filter" : undefined;
 }
 
 /** Readable names of common physics columns in the object rows' heading and in object names (store/names.ts

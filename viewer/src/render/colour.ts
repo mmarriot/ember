@@ -4,8 +4,10 @@
 // one table a colour each, and the objects linked to them the same colour. Computed once per event on the CPU, so
 // shaders and legend agree.
 import { type DisplayLayer, type EventData, type Header, kindName, type Table, toF32, unitOf } from "../io/format";
+import { kindLabel } from "../model/describe";
 import { bestPurities, percent } from "../model/match";
-import { bestPartners, contentPartners, identities } from "../model/relations";
+import { bestPartners, contentPartners, identities, type SlotRank } from "../model/relations";
+import { ruleText } from "../model/truth";
 
 export const PALETTES = {
   light: {
@@ -20,12 +22,12 @@ export const PALETTES = {
     categories: [
       "#1f77b4",
       "#2ca02c",
-      "#9467bd",
+      "#8c564b",
       "#17becf",
       "#e377c2",
       "#393b79",
       "#637939",
-      "#7b4173",
+      "#bcbd22",
       "#3182bd",
       "#31a354",
     ],
@@ -55,7 +57,9 @@ export const PALETTES = {
     },
     // Categories that are not particle types (e.g. a hit's subdetector) take these first: at least 15 CIEDE2000 from
     // every type colour and the greys (8 in each simulated colour vision), so a hit's colour never reads as a type.
-    others: ["#001100", "#CC7788", "#884400", "#554488", "#005544", "#776677", "#889955", "#333344"],
+    // Violet is the truth's (the TRUTH badge, truth labels): no category here or above is violet (CIELAB hue 260-350
+    // with chroma above 8 was replaced; the replacement is at least 19 CIEDE2000 from both themes' truth violet).
+    others: ["#001100", "#CC7788", "#884400", "#555500", "#005544", "#776677", "#889955", "#333344"],
     // The pair view (model/pair.ts), by class: other, matched, contamination, split, missed, reco (part of a match,
     // no truth statement of its own: neutral), branch (the branch's other particles), uncompared (the branch's hits
     // where no reco kind has an association).
@@ -73,12 +77,12 @@ export const PALETTES = {
     categories: [
       "#4ea1ff",
       "#5fd068",
-      "#b48cff",
+      "#e0b25c",
       "#3dd6e0",
       "#ff8fd1",
       "#8e95ff",
       "#b5d94c",
-      "#e08fd0",
+      "#c9a27e",
       "#76b8ff",
       "#7be39a",
     ],
@@ -96,7 +100,7 @@ export const PALETTES = {
       "HF EM": "#7FA3B8",
       jet: "#A898C8",
     },
-    others: ["#FFDDCC", "#007733", "#8855AA", "#99BB66", "#998866", "#EEAABB", "#BB6699", "#996655"],
+    others: ["#FFDDCC", "#007733", "#ff8855", "#99BB66", "#998866", "#EEAABB", "#BB6699", "#996655"],
     pair: ["#3a424d", "#009E73", "#CC79A7", "#F0E442", "#D55E00", "#d9dde2", "#7fd6b0", "#8fa3c2"],
   },
 } as const;
@@ -163,6 +167,11 @@ export function valueRange(values: ArrayLike<number>): Range {
     : { scale: log ? "log" : "linear", lo: lo - 0.5, hi: lo + 0.5 };
 }
 
+/** A shim for bundles converted before the profiles stopped using violet, the truth's colour (docs/truth.md "One
+ *  look for truth"): their RPC hits (#c070d0) and taus (#a070e0) are drawn in the profiles' new colours. Remove it once
+ *  no such bundle is served. */
+const RETIRED: Record<string, string> = { "#c070d0": "#ff7799", "#a070e0": "#d4b44a" };
+
 /** The colour of a particle type by its name ("electron", "charged hadron"; "jet"), or undefined for another name. */
 export const typeColour = (pal: Pal, name: string | undefined): string | undefined =>
   name !== undefined && Object.hasOwn(pal.types, name) ? (pal.types as Record<string, string>)[name] : undefined;
@@ -209,10 +218,14 @@ interface Coloured {
 
 /** Options of `colours`. `range` shares one value scale between layers; without it the layer's own values set the
  *  scale. `layerFor` gives the colouring of related tables (default: their display hints), so colours follow chains:
- *  a hit takes its layer cluster's colour, which is its candidate's. */
+ *  a hit takes its layer cluster's colour, which is its candidate's. `rank`: how identity colours give their slots
+ *  (model/relations.ts identities: the domain, the selection, the truth level). */
 interface ColourOptions {
   range?: Range;
   layerFor?: LayerFor;
+  rank?: SlotRank;
+  /** An object's number in its name (store/names.ts numberOf; default: its row + 1), for the key's "Jet 1". */
+  numberOf?: (table: string, row: number) => number;
 }
 
 /** Per-object RGB (n * 3), the legend describing it, and (for relation colouring) which objects to emphasise:
@@ -227,7 +240,12 @@ export function colours(
   opts: ColourOptions = {},
   seen: ReadonlySet<string> = new Set(),
 ): Coloured {
-  const { range, layerFor = (table: string) => header.display.find((l) => l.table === table) } = opts;
+  const {
+    range,
+    layerFor = (table: string) => header.display.find((l) => l.table === table),
+    rank,
+    numberOf = (_: string, row: number) => row + 1,
+  } = opts;
   const out = new Float32Array(3 * t.n),
     cats = pal.categories.map(rgb);
   // Named categories other than particle types (e.g. a hit's subdetector) take colours apart from the types first.
@@ -249,7 +267,8 @@ export function colours(
   // a layer that the profile gives the same colour (a global muon track: the muon's).
   if (d.fixedColour && (d.colourBy === undefined || d.colourBy === "none")) {
     const kin = header.display.find((l) => l.fixedColour === d.fixedColour && typeColour(pal, l.kind));
-    const colour = typeColour(pal, d.kind) ?? typeColour(pal, kin?.kind) ?? d.fixedColour,
+    const colour =
+        typeColour(pal, d.kind) ?? typeColour(pal, kin?.kind) ?? RETIRED[d.fixedColour.toLowerCase()] ?? d.fixedColour,
       c = rgb(colour);
     for (let i = 0; i < t.n; i++) set(i, c);
     return {
@@ -264,7 +283,7 @@ export function colours(
     return { rgb: out, legend: { kind: "category", text: noLinkText(d) } };
   }
   if (d.colourBy === "identity") {
-    const { key, used, top, others } = identities(d, t, ev, header, pal.identity.length);
+    const { key, used, top, others, rule, preferred } = identities(d, t, ev, header, pal.identity.length, rank);
     const slot = new Map(top.map((k, j) => [k, j])),
       ids = pal.identity.map(rgb),
       other = rgb(pal.other),
@@ -278,13 +297,24 @@ export function colours(
       set(i, !used[key[i]] ? none : j !== undefined ? ids[j] : background ? pileup : other);
       emphasis[i] = used[key[i]] && !background ? 1 : 0;
     }
-    const items = top.map((row, j) => ({ label: `#${row}`, colour: pal.identity[j], ref: { table: d.table, row } }));
+    // With a selection, the key lists only its own particles: the other colours are faded with what is not selected.
+    const items = top
+      .map((row, j) => ({
+        label: `${kindLabel(d)} ${numberOf(d.table, row)}`,
+        colour: pal.identity[j],
+        ref: { table: d.table, row },
+      }))
+      .slice(0, rank?.prefer ? preferred : undefined);
     return {
       rgb: out,
       emphasis,
       legend: {
         kind: "category",
-        text: top.length === 1 ? "one colour for the largest" : `one colour each for the ${top.length} largest`,
+        text: d.truth
+          ? ruleText(rule, top.length)
+          : top.length === 1
+            ? "one colour for the largest"
+            : `one colour each for the ${top.length} largest`,
         items,
         ...(others ? { note: first ? `grey: the other ${others}; pile-up small` : `grey: the other ${others}` } : {}),
       },
@@ -333,7 +363,9 @@ export function colours(
       ot = ev.tables[otherTable],
       next = new Set(seen).add(d.table);
     const from =
-      od && ot && od.colourBy && !next.has(otherTable) ? colours(od, ot, ev, header, pal, { layerFor }, next) : null;
+      od && ot && od.colourBy && !next.has(otherTable)
+        ? colours(od, ot, ev, header, pal, { layerFor, rank }, next)
+        : null;
     const grey = rgb(pal.unassigned),
       emphasis = new Uint8Array(t.n);
     for (let i = 0; i < t.n; i++) {

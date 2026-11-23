@@ -10,10 +10,10 @@ Open https://marriot-evd.web.cern.ch, and sign on with your CERN account. It ope
 To open another one, click the button at the left of the top bar. It shows the name of the data set that is open.
 The data set chooser lists:
 
+- **Recent**: the data sets you opened from someone's link, and local files by name;
 - the site's **shared groups**: ttbar events at 0 and 200 pile-up, HGCal cassette tests at P5 (cosmic muons) and
   test beam data;
-- **My files**: bundles you published to this site (see [Publish to a site](#publish-to-a-site));
-- **Recent**: the data sets you opened from someone's link, and local files by name.
+- **My files**: bundles you published to this site (see [Publish to a site](#publish-to-a-site)).
 
 Type to filter the list. Use ↑ ↓ and Enter to open a data set, and Esc to close the chooser.
 
@@ -92,7 +92,7 @@ or only the ones you want, each with its own `git cms-merge-topic mmarriot:<bran
 | `nanoaod-vertex-tracks` | which tracks each primary and secondary vertex is made of |
 | `nanoaod-pfcandidate-links` | each PF candidate's PF clusters and TICL candidate: the whole detector takes the candidates' colours |
 | `nanoaod-reco-constituents` | the PF candidates of each jet and tau: select a jet, see what it is made of |
-| `nanoaod-jet-tags` | the b-tags of the CHS jets (preset "b-tags") |
+| `nanoaod-jet-tags` | the b-tags of the CHS jets (preset "DeepCSV (CHS jets)") |
 | `nanoaod-mtd-rechits` | every BTL and ETL rechit (preset "Track time") |
 | `muontools-rechits-chambers` | DT and CSC rechits, the chambers in use, and each muon's segments |
 | `nanoaod-muon-track-links` | each muon's standalone track |

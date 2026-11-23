@@ -7,7 +7,8 @@ import { ownDomains } from "./domains";
 import type { Related } from "./relations";
 
 /** `count`: the focus's objects in it; `leaf`: it holds no other level; `always`: drawn whenever the focus is (a leaf,
- *  or a level drawn as lines), not one at a time; `holders`: the levels that hold it directly (see focusLevels). */
+ *  or a level drawn as lines), not one at a time; `holders`: the levels that hold it directly (see focusLevels);
+ *  `beside`: not the focus's own parts, only built from them (a jet's taus; see partsFirst). */
 export interface Level {
   name: string;
   layers: DisplayLayer[];
@@ -16,6 +17,7 @@ export interface Level {
   always: boolean;
   depth?: number;
   holders?: string[];
+  beside?: boolean;
 }
 type Relations = Header["relations"];
 
@@ -163,6 +165,15 @@ export function chainOrder(levels: Level[]): { level: Level; indent: number; via
   return out;
 }
 
+/** The levels with the object's own parts first (`part`: a table it is made of, named by its relations or an earlier
+ *  step of its reconstruction), then the others built only from its parts (a jet's taus), marked `beside`: ↓ steps
+ *  through what it is made of only (stepLevel), and the card's chain shows the others on request. Otherwise in the
+ *  order given. */
+export const partsFirst = (levels: Level[], part: (table: string) => boolean) => {
+  const own = (l: Level) => l.layers.some((d) => part(d.table));
+  return [...levels.filter(own), ...levels.filter((l) => !own(l)).map((l) => ({ ...l, beside: true }))];
+};
+
 /** Which layers of the levels are drawn: those of the levels always drawn (the smallest objects, lines) and of the
  *  `chosen` level, each by its layers ticked in the side panel, or all of them if none is; the others are not. */
 export function levelLayers(levels: Level[], chosen: string | null, ticked: (d: DisplayLayer) => boolean) {
@@ -176,10 +187,10 @@ export function levelLayers(levels: Level[], chosen: string | null, ticked: (d: 
   return { draw, hide };
 }
 
-/** The level to show after stepping `by` levels down (+1) or up (-1) from `chosen`, among those not always drawn:
- *  from none to the first, and from the first back to none (null). */
+/** The level to show after stepping `by` levels down (+1) or up (-1) from `chosen`, among the focus's own parts not
+ *  always drawn: from none to the first, and from the first back to none (null). */
 export function stepLevel(levels: Level[], chosen: string | null, by: number): string | null {
-  const names = levels.filter((l) => !l.always).map((l) => l.name);
+  const names = levels.filter((l) => !l.always && !l.beside).map((l) => l.name);
   const i = Math.min(Math.max((chosen ? names.indexOf(chosen) : -1) + by, -1), names.length - 1);
   return i < 0 ? null : names[i];
 }

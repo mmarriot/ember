@@ -1,16 +1,21 @@
 // The parts of the detector a bundle names (header `domains`) and which layers each draws. A shared domain (e.g.
-// "Physics") has its layers drawn in every domain, and its own view draws only them and the layers without a domain
-// (truth). "All" (null) draws every layer. Pure functions of the header, so they can be tested without a page.
+// "Physics") has its layers drawn in the other domains only as an overlay the user turns on (a selection still draws
+// its own objects there), and its own view draws only them and the layers without a domain (truth). "All" (null)
+// draws every layer. Pure functions of the header, so they can be tested without a page.
 import type { DisplayLayer, Header } from "../io/format";
 
 /** The domains whose layers every domain draws. */
 export const sharedDomains = (h: Pick<Header, "domains"> | undefined) =>
   new Set((h?.domains ?? []).filter((d) => d.shared).map((d) => d.name));
 
-/** Whether domain `current` (null: All) draws layer `d`: its own layers, those without a domain, and those of a
- *  shared domain. */
-export const drawsLayer = (d: Pick<DisplayLayer, "domain">, current: string | null, shared: Set<string>) =>
-  !current || !d.domain || d.domain === current || shared.has(d.domain);
+/** Whether domain `current` (null: All) draws layer `d`: its own layers, those without a domain, and with `overlay`
+ *  (or from another shared domain) those of a shared domain. */
+export const drawsLayer = (
+  d: Pick<DisplayLayer, "domain">,
+  current: string | null,
+  shared: Set<string>,
+  overlay = false,
+) => !current || !d.domain || d.domain === current || (shared.has(d.domain) && (overlay || shared.has(current)));
 
 /** The domain a bundle opens on: its `view.domain` if it names one of two or more domains, else All (null). */
 export function startDomain(h: Pick<Header, "domains" | "view"> | undefined): string | null {

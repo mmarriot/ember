@@ -184,6 +184,19 @@ def test_a_run_information_file_that_is_not_there_stops_before_converting(setup,
     assert "no run information file runs.jsn" in capsys.readouterr().err and not os.path.exists("x.ember")
 
 
+def test_an_analysts_list_of_run_lumi_event(setup, capsys):
+    """--events takes run:lumi:event, and --events-file a list of them (comments and blank lines skipped)."""
+    (setup / "list.txt").write_text("# from the JIRA ticket\n1:1:3  1:1:5\n\n1:1:7, 1:2:8   # lumi 2: not there\n")
+    args = ["convert", "ttbar.root", "-o", "a.ember", "--profile", "test.json"]
+    assert main([*args, "--events-file", "list.txt"]) == 0
+    assert [e["event"] for e in Bundle("a.ember").events] == [3, 5, 7]
+    assert main([*args, "--events", "1:1:9,0-1", "--events-file", "list.txt"]) == 0  # both
+    assert [e["event"] for e in Bundle("a.ember").events] == [0, 1, 3, 5, 7, 9]
+    (setup / "bad.txt").write_text("1:1:3 1:x\n")
+    assert main([*args, "--events-file", "bad.txt"]) == 1
+    assert "bad.txt: not an event number, a range or run:lumi:event: 1:x" in capsys.readouterr().err
+
+
 def test_the_older_commands_still_work(setup, capsys):
     for command in ("convert", "from-nano"):
         assert (
@@ -303,7 +316,7 @@ def test_list_says_when_the_site_is_not_there(setup, capsys):
 
 
 def test_numbers_are_checked_when_the_command_line_is_read(setup, capsys):
-    for bad in (["--events", "abc"], ["--events", "3-"], ["--max-events", "-1"], ["--max-events", "x"], ["-j", "0"]):
+    for bad in (["--events", "abc"], ["--events", "3-"], ["--events", "1:2"], ["--max-events", "-1"], ["-j", "0"]):
         with pytest.raises(SystemExit) as e:
             main(["ttbar.root", "--profile", "test.json", *bad])
         assert e.value.code == 2

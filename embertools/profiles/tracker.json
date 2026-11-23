@@ -35,7 +35,7 @@
      "inspect": ["time", "timeError", "energy", "subdet", "row", "col"]}
   ],
   "presets": [
-    {"name": "Primary vertex", "filters": {"Tracks": "highPurity == 1 && vertexIdx == 0", "Vertices": "index == 0"}},
+    {"name": "Default", "filters": {"Tracks": "highPurity == 1 && vertexIdx == 0", "Vertices": "index == 0"}},
     {"name": "All vertices", "filters": {"Tracks": "highPurity == 1", "Vertices": ""}, "colour": {"Tracks": "rel:trackVertex"}},
     {"name": "Track time", "colour": {"Tracks": "t0", "Vertices": "t", "MTDHits": "time"}}
   ],

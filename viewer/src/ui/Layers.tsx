@@ -32,6 +32,7 @@ import { CutChip } from "./Cuts";
 import { Info, popover, togglePopover } from "./Info";
 import { explainedByKey, Options, Scale } from "./LayerOptions";
 import { Headline, ObjectRows } from "./ObjectRows";
+import { summaryLayers } from "./TitleBox";
 
 /** The tab a layer is listed in: its `domain`, or "Objects" for bundles made before layers had one. */
 export const tabOf = (d: DisplayLayer) => d.domain ?? "Objects";
@@ -53,9 +54,11 @@ export function Collections({ layers }: { layers: DisplayLayer[] }) {
   const onHeading = (ls: DisplayLayer[]) => cutsOf(ls).length === 1 && ls.every((d) => d.cut);
   const rowCut = (d: DisplayLayer, ls: DisplayLayer[]) =>
     d.cut && !onHeading(ls) && ls.find((x) => x.cut?.group === d.cut!.group) === d ? d.cut.group : undefined;
+  // The tab's count in one line, unless the view's title box gives it (a tab of the physics objects)
+  const inTitle = new Set(summaryLayers());
   return (
     <>
-      <Headline layers={layers} />
+      {layers.some((d) => !inTitle.has(d)) && <Headline layers={layers} />}
       {[...groups].map(([group, ls]) => {
         const id = layerKey(ls[0]),
           shut = folded.value.has(id),
@@ -133,8 +136,8 @@ export function TickAll({ layers, name }: { layers: DisplayLayer[]; name: string
  *  matched, HF ones have none). Nothing in the reco colours. */
 const WORDS = {
   match: ["match", "matched by CMSSW's associator"],
-  fact: ["fact", "a simulation fact: simulated energy per particle in each hit"],
-  none: ["no truth", ""],
+  fact: ["sim", "a simulation fact: simulated energy per particle in each hit"],
+  none: ["no associator", "no CMSSW associator for this kind"],
 } as const;
 function TruthWord({ table }: { table: string }) {
   const s = truthStatuses.value.get(table);

@@ -23,8 +23,8 @@ import {
   event,
   eventIndex,
   focusLevel,
-  highlight,
   labelsOn,
+  layerOf,
   openBundle,
   opened,
   opening,
@@ -52,9 +52,18 @@ import { Card } from "./Card";
 import { menuOpen } from "./Menu";
 import { Sidebar } from "./Sidebar";
 import { DropHint, Start } from "./Start";
-import { back, chooseDomain, cross, nextDomain, nextObject, showWhole } from "../control/navigate";
+import {
+  back,
+  chooseDomain,
+  cross,
+  crossChoices,
+  frameFocus,
+  nextDomain,
+  nextObject,
+  showWhole,
+} from "../control/navigate";
 import { stopTour, toggleTour } from "../control/tour";
-import { engine, replayEvent } from "../control/scene";
+import { replayEvent } from "../control/scene";
 import { Viewport } from "./Viewport";
 import { Toasts } from "./widgets";
 
@@ -116,14 +125,18 @@ function openFromAddress() {
       // chosen while the link's was on its way wins: openBundle then returns false (store/open.ts).
       if (!name || !(await openBundle(name, undefined, link?.event ?? 0)) || !link) return;
 
-      const { domain: d, view: v, only, selection: s, truth, level } = link;
-      if (d) chooseDomain(d === ALL ? null : d, false);
+      const { domain: d, view: v, only, selection: s0, truth, level } = link;
+      // A link made before the data set was converted again may name a row that no longer exists.
+      const s = s0 && s0.row < (event.peek()?.tables[s0.table]?.n ?? 0) ? s0 : null;
+      // Without a domain, a selection opens in its own part of the detector (its card's chain is about it).
+      const home = d ? (d === ALL ? null : d) : s ? layerOf(s.table)?.domain : undefined;
+      if (home !== undefined) chooseDomain(home, false);
       if (v && (Object.values(VIEW_KEYS) as string[]).includes(v)) view.value = v as ViewName;
       if (only && bundle.peek()?.header.display.some((l) => soloKey(l) === only)) lookAlone(only);
-      // A link made before the data set was converted again may name a row that no longer exists.
-      if (s && s.row < (event.peek()?.tables[s.table]?.n ?? 0)) selection.value = s;
+      if (s) selection.value = s;
       if (truth && truthColours.peek()) colourChoice.value = "truth";
       if (level && selection.peek()) focusLevel.value = level; // a level the focus does not have is ignored (store/selection.ts shownLevel)
+      if (s) requestAnimationFrame(() => frameFocus(0)); // beside its card, once the card is drawn (measured)
     })
     .finally(() => (restoring.value = null));
 }
@@ -202,6 +215,8 @@ function onKey(e: KeyboardEvent) {
   if (e.key === "Escape") {
     // Close what is open; else back to the normal view: no selection, the whole event.
     if (chooserOpen.value) chooserOpen.value = false;
+    else if (crossChoices.value)
+      crossChoices.value = null; // X's chooser in the card
     else if (menuOpen.value) menuOpen.value = false;
     else if (dialog.value) dialog.value = null;
     else if (anchor.value)
@@ -219,7 +234,7 @@ function onKey(e: KeyboardEvent) {
   else if (e.key === "d" || e.key === "D") nextDomain(e.shiftKey ? -1 : 1);
   else if ((e.key === "t" || e.key === "T") && truthColours.value)
     colourChoice.value = colourChoice.value === "truth" ? "reco" : "truth";
-  else if (e.key === "f" || e.key === "F") engine?.frame(highlight.value ?? undefined, true);
+  else if (e.key === "f" || e.key === "F") frameFocus();
   else if (e.key === "l" || e.key === "L") labelsOn.value = !labelsOn.value;
   else if (e.key === "n" || e.key === "N") nextObject(e.shiftKey ? -1 : 1);
   else if (e.key === "x" || e.key === "X") cross();

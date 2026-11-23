@@ -537,3 +537,15 @@ def test_clue3d_tracksters_are_matched_to_truth():
 def test_every_builtin_profile_loads(name):
     """Each has the shape load_profile checks (profile.py check_shape)."""
     assert load_profile(name)
+
+
+def test_track_hits_are_named_after_the_trackers_parts_of_their_era():
+    """Phase 2 has an Inner and an Outer Tracker (whose DetIds reuse the subdetector numbers of TOB and TID); Run 3 has
+    the TIB, TID, TOB and TEC."""
+    phase2, run3 = (load_profile(p)["kinds"]["trackHit"] for p in ("phase2", "run3"))
+    assert dict(phase2["colourBy"]["names"]) == {
+        "1": "Inner Tracker barrel", "2": "Inner Tracker endcap", "5": "Outer Tracker barrel",
+        "4": "Outer Tracker endcap (TEDD)",
+    }  # fmt: skip
+    assert phase2["colourBy"]["category"] == "subdet" and phase2["describe"]["names"]["subdet"]["5"] == "OT barrel"
+    assert dict(run3["colourBy"]["names"])["5"] == "TOB" and run3["describe"]["names"]["subdet"]["3"] == "TIB"

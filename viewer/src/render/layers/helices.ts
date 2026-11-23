@@ -12,6 +12,7 @@ import {
   CULL,
   DASHED_LINE_FRAGMENT,
   followDrawingBuffer,
+  halo,
   interleave,
   type Layer,
   type LayerInput,
@@ -98,29 +99,32 @@ export function helices(input: LayerInput): Layer {
   // x: 0 to 1 along the arc of the piece; 2 for the last point, the end point (on the last piece). Wide paths: each
   // point twice, y = -1 and +1 for the two sides of a strip of quads.
   const along = (k: number) => (k === HELIX_POINTS - 1 ? 2 : k / (HELIX_POINTS - 2));
+  const strip = new THREE.BufferGeometry(); // also the halo's shape (thin paths too)
+  strip.setAttribute(
+    "position",
+    new THREE.Float32BufferAttribute(
+      Array.from({ length: HELIX_POINTS }, (_, k) => [along(k), -1, 0, along(k), 1, 0]).flat(),
+      3,
+    ),
+  );
+  strip.setIndex(
+    Array.from({ length: HELIX_POINTS - 1 }, (_, k) => [
+      2 * k,
+      2 * k + 2,
+      2 * k + 1,
+      2 * k + 2,
+      2 * k + 3,
+      2 * k + 1,
+    ]).flat(),
+  );
   if (!wide)
     g.setAttribute(
       "position",
       new THREE.Float32BufferAttribute(Array.from({ length: HELIX_POINTS }, (_, k) => [along(k), 0, 0]).flat(), 3),
     );
   else {
-    g.setAttribute(
-      "position",
-      new THREE.Float32BufferAttribute(
-        Array.from({ length: HELIX_POINTS }, (_, k) => [along(k), -1, 0, along(k), 1, 0]).flat(),
-        3,
-      ),
-    );
-    g.setIndex(
-      Array.from({ length: HELIX_POINTS - 1 }, (_, k) => [
-        2 * k,
-        2 * k + 2,
-        2 * k + 1,
-        2 * k + 2,
-        2 * k + 3,
-        2 * k + 1,
-      ]).flat(),
-    );
+    g.setAttribute("position", strip.getAttribute("position"));
+    g.setIndex(strip.index);
   }
   const material = new THREE.ShaderMaterial({
     uniforms: {
@@ -171,7 +175,7 @@ export function helices(input: LayerInput): Layer {
         vec4 nb = placed(back > 0.5 ? min(position.x, 1.0) - step : position.x + step, grow, s * 2.0, ignored);
         vec2 dir = (nb.xy / nb.w - gl_Position.xy / gl_Position.w) * uRes * (back > 0.5 ? -1.0 : 1.0);
         vec2 across = length(dir) > 1e-6 ? normalize(vec2(-dir.y, dir.x)) : vec2(0.0, 1.0);
-        gl_Position.xy += across * position.y * uWidth * (1.0 + 0.5 * s * selActive() + 2.0 * gPin) / uRes * gl_Position.w;
+        gl_Position.xy += across * position.y * (uWidth * (1.0 + 0.5 * s * selActive() + 2.0 * gPin) + HALO_PX) / uRes * gl_Position.w;
         #endif
         // A selected line is lifted towards white: a thin line in a dark colour (a low-pT track) would be hard to see.
         // It flashes as it appears and, when built, as it is complete.
@@ -193,9 +197,10 @@ export function helices(input: LayerInput): Layer {
   lines.frustumCulled = false;
   lines.renderOrder = 1;
   if (wide) followDrawingBuffer(lines, material);
+  const ring = halo(g, material, strip, lines.renderOrder, input.pal);
   return {
     ...commonFields(input, 8),
-    object: lines,
+    object: new THREE.Group().add(lines, ring.object),
     x,
     y,
     z,
@@ -203,9 +208,23 @@ export function helices(input: LayerInput): Layer {
     pickBias: 0.8,
     line: true,
     ...common,
+    setPinned(row) {
+      common.setPinned(row);
+      ring.pin(material.uniforms.uPin0.value, material.uniforms.uPin1.value);
+    },
+    setHighlight(rows) {
+      common.setHighlight(rows);
+      ring.refresh(); // the halo's copy of the selection flags
+    },
+    setTimeline(appear, link) {
+      common.setTimeline(appear, link);
+      ring.refresh(); // and of the replay's times
+    },
     dispose() {
       g.dispose();
+      strip.dispose();
       material.dispose();
+      ring.dispose();
     },
   };
 }

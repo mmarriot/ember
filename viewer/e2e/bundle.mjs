@@ -11,7 +11,7 @@
 //   selection, as a hash or as a query;
 // - a click on an object of the chain looks at it and keeps the card; Open goes into its card and back returns; a
 //   description opens on request; X crosses to the truth match and B comes back; Esc leaves the selection;
-// - "only" draws one kind alone; the Truth tab has the event's scorecard;
+// - "only" draws one kind alone; the Truth tab has the event's scorecard (folded);
 // - for one bundle, the interaction checks (deepChecks); for a bundle whose paths are built from their parts (`grow`),
 //   the replay (checkReplay).
 import { BIG, bigEvents, eventRead, expected404, log } from "./common.mjs";
@@ -154,7 +154,9 @@ export async function checkBundle(run, file, tag, state) {
     log(`${tag}: pair ${pair.replace(/\s+/g, " ") || (truthRoot && ownTruth ? "none" : why)}`);
     if (!pair && truthRoot && ownTruth) fail("no truth <-> reco pair for the selection");
     if (pair && !truthRoot) fail("a truth <-> reco pair in a bundle without truth");
-    if (pair && truthRoot && !ownTruth)
+    // ... unless the card says the pair is its one matched part's (owner decision D4: a TICL candidate's trackster)
+    const delegated = await page.locator(".inspector .delegated").count();
+    if (pair && truthRoot && !ownTruth && !delegated)
       fail(`a truth <-> reco pair for ${target.table}, which has no truth of its own`);
   }
   await shot("3_selected");
@@ -410,7 +412,8 @@ async function checkObjectRows(page, h, fail, shot, tag) {
   const rows = page.locator(".layer", { hasText: d.label }).locator("table.objects tbody tr:not(.more)");
   const n = await rows.count(),
     headline = await page
-      .locator(".tabpanel .headline")
+      .locator(".tabpanel .headline, .titlebox .headline")
+      .first()
       .innerText()
       .catch(() => "");
   log(`${tag}: ${d.label}: ${n} object rows; headline "${headline}"`);
@@ -540,7 +543,7 @@ async function checkLevels(page, h, target, fail, shot, tag) {
   if ((await style()) !== style0) fail("↑ did not give the focus its own surface back");
   // In the truth <-> reco pair view, the pair's particle opens its own pair (its branch, per detector): the card names
   // it on the pair's truth line.
-  const particle = page.locator(".inspector .truthline .chip").first();
+  const particle = page.locator(".inspector .truthline:not(.answer) .chip").first(); // not the one-line answer, named by energy next to a calorimeter part
   if (!(await page.locator(".pairline").count()) || !(await particle.count())) return;
   const name = (await particle.innerText()).replace(/\s+/g, " ");
   await particle.click();
@@ -650,8 +653,8 @@ async function checkOnly(page, h, fail, shot, tag) {
   if ((await tables()) !== before) fail(`"show everything" did not bring the other layers back`);
 }
 
-/** With truth matches in the bundle, the Truth tab opens with the event's scorecard: a row per matched kind, and a
- *  count unfolds to its objects. */
+/** With truth matches in the bundle, the Truth tab has the event's scorecard, folded under the hard process: a row
+ *  per matched kind, and a count unfolds to its objects. */
 async function checkScorecard(page, h, fail, shot, tag) {
   const truth = new Set(h.display.filter((d) => d.truth).map((d) => d.table));
   if (
@@ -661,6 +664,9 @@ async function checkScorecard(page, h, fail, shot, tag) {
   )
     return;
   await page.getByRole("tab", { name: "Truth", exact: true }).click();
+  // unfold it, unless it is open already (the tab keeps its sections' state)
+  if (await page.locator("section.scorecard details:not([open])").count())
+    await page.locator("section.scorecard summary").click();
   const rows = await page.locator("table.score tbody tr:not(.list)").count(),
     number = page.locator("table.score .num:not(.zero)").first();
   if (!rows) return fail("no reco <-> truth scorecard in the Truth tab");

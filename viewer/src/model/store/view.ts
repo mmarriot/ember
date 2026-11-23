@@ -19,9 +19,12 @@ export const visible = signal<Record<string, boolean>>({});
 export const domain = signal<string | null>(null);
 /** The domains whose layers every domain draws (header `domains[].shared`, e.g. the physics objects). */
 export const shared = computed(() => sharedDomains(bundle.value?.header));
-/** Whether a layer belongs in the current domain's view: its own domain's layers, those without a domain and those of
- *  a shared domain. */
-export const inDomain = (d: DisplayLayer, current = domain.value) => drawsLayer(d, current, shared.value);
+/** The shared domains' layers (e.g. jets and MET) are drawn over a detector domain's view (the chip on the view). */
+export const overlay = signal(false);
+/** Whether a layer belongs in the current domain's view: its own domain's layers, those without a domain and, with
+ *  the overlay, those of a shared domain. */
+export const inDomain = (d: DisplayLayer, current = domain.value) =>
+  drawsLayer(d, current, shared.value, overlay.value);
 
 /** The side-panel tab to open: a domain's, when it is chosen. A new object each time, so that choosing the same domain
  *  again reopens its tab. */

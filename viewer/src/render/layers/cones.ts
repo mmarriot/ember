@@ -126,16 +126,30 @@ export function cones(input: LayerInput): Layer {
   // so each cone is drawn as its wedge in the view's plane: the two lines from the apex to the outermost points of its
   // base, and between them the base (rho-z: its projected arc, as before) or its chord (front, side). A cone seen along
   // its axis has no wedge: then its base circle. CPU lines, for tens of jets; they follow the cut and the colours, and
-  // the cone's own mesh is hidden meanwhile.
+  // the cone's own mesh is hidden meanwhile. They share the cones' uniforms, so they fade with a selection as the cones
+  // do (per vertex: its row selected before and now, and pinned).
   let rgb = input.rgb,
     rz = false,
     outlined = false,
-    view: ViewName = "3d";
+    view: ViewName = "3d",
+    now: Set<number> | null = null,
+    before: Set<number> | null = null,
+    pinned = -1;
   const wedge = new THREE.LineSegments(
     new THREE.BufferGeometry(),
     new THREE.ShaderMaterial({
+      uniforms: material.uniforms,
       // raw colours, as the layers
-      vertexShader: `attribute vec3 color; varying vec3 vCol; void main() { vCol = color; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+      vertexShader: /* glsl */ `
+        attribute vec3 color;
+        attribute float isel, ipsel, ipin;
+        varying vec3 vCol;
+        ${SHADER_COMMON}
+        void main() {
+          gPin = ipin;
+          vCol = fade(color, selected(ipsel, isel));
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }`,
       fragmentShader: `varying vec3 vCol; void main() { gl_FragColor = vec4(vCol, 1.0); }`,
     }),
   );
@@ -147,9 +161,11 @@ export function cones(input: LayerInput): Layer {
     wedge.visible = show;
     if (!show) return;
     const pos: number[] = [],
-      col: number[] = [];
+      col: number[] = [],
+      sel: number[] = [];
     for (let i = 0; i < n; i++) {
       if (!common.passes(i)) continue;
+      const flags = [now?.has(i) ? 1 : 0, before?.has(i) ? 1 : 0, i === pinned ? 1 : 0];
       const side = ends[1][i] >= 0 ? 1 : -1,
         x0 = start[0][i],
         y0 = start[1][i],
@@ -173,6 +189,7 @@ export function cones(input: LayerInput): Layer {
       const line = (a: number[], b: number[]) => {
         pos.push(...drawn(a), ...drawn(b));
         col.push(...rgb.subarray(3 * i, 3 * i + 3), ...rgb.subarray(3 * i, 3 * i + 3));
+        sel.push(...flags, ...flags);
       };
       // Seen along its axis (the axis shorter on screen than the base is wide): the base circle is its outline.
       const spread = Math.max(...rim.map((p) => Math.hypot(p[0] - axis[0], p[1] - axis[1])));
@@ -197,8 +214,16 @@ export function cones(input: LayerInput): Layer {
       if (rz) for (let k = 0; k < 32; k++) line(rim3[k], rim3[k + 1]);
       else line(rim3[lo], rim3[hi]);
     }
+    // A new geometry each time: disposing the old one frees its attributes' GPU buffers (replacing an attribute would
+    // leave the old buffer behind until the layer is freed).
+    wedge.geometry.dispose();
+    wedge.geometry = new THREE.BufferGeometry();
     wedge.geometry.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
     wedge.geometry.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
+    const flags = new THREE.InterleavedBuffer(Float32Array.from(sel), 3); // one buffer, three attributes
+    ["isel", "ipsel", "ipin"].forEach((name, k) =>
+      wedge.geometry.setAttribute(name, new THREE.InterleavedBufferAttribute(flags, 1, k)),
+    );
   };
   return {
     ...commonFields(input, 14),
@@ -216,7 +241,14 @@ export function cones(input: LayerInput): Layer {
       return shown;
     },
     setPinned(row) {
+      pinned = row;
       common.setPinned(row);
+      updateWedges();
+    },
+    setHighlight(rows) {
+      before = now;
+      now = rows;
+      common.setHighlight(rows);
       updateWedges();
     },
     setColours(c) {

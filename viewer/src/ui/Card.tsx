@@ -1,33 +1,36 @@
 // The card of the selected object (the `.inspector` panel in styles/card.css): the one place that says where it sits
 // and what the truth says about it. It carries names and numbers; what each thing is, and how it is counted, is behind
 // an "i" or the tag itself (Info.tsx).
-// From the top:
-// - its chain (Chain.tsx), or for a truth object its lineage and what was reconstructed from it (TruthSide, below);
+// From the top, the answer first and the evidence below (docs/truth.md "The card"):
+// - its one name (model/describe.ts cardName): "Electron 2 · pT 59.7 GeV · η 0.714", its collection below it, small;
+// - for a reco object, what the truth says (TruthBlock.tsx), then what it is made of and its main numbers
+//   (Physics.tsx), then its chain (Chain.tsx); for a truth object, its lineage and what was reconstructed from it
+//   (TruthSide, below);
 // - the levels drawn in the view, when they are not the chain's own steps (ViewLevels);
 // - the truth <-> reco pair the view is coloured by (PairBars.tsx);
-// - for a reco object, its truth match (TruthCard.tsx);
-// - every association it has, with the relation's weights (Associations), and its columns (Properties.tsx);
+// - every association it has, with the relation's weights (Associations), and all its columns (Properties.tsx);
 // - at the bottom edge, the object looked at from the card, while there is one (Looking).
 //
 // Which object it describes comes from the store: `subject` is the card's object and `selection` the object the view
 // shows. They are the same unless another object is looked at from the card; `anchor` then holds the card's object.
 import { percent } from "../model/match";
-import { bestFirst, sameRef, type Ref } from "../model/relations";
+import { foldReco } from "../model/chain";
+import { sharedParts } from "../model/physics";
+import { bestFirst, type Ref, sameRef } from "../model/relations";
+import { plain } from "../model/describe";
 import {
   anchor,
   bundle,
-  describe,
+  cardNameOf,
   event,
   focusBar,
   focusHistory,
   focusLevel,
-  full,
-  highlight,
-  kindOf,
   labelOf,
   layerOf,
   levelTop,
   modes,
+  nameOf,
   openCard,
   reconstructed,
   selection,
@@ -41,59 +44,49 @@ import { Chain } from "./Chain";
 import { chip } from "./chips";
 import { keyColumns, Properties, Rows } from "./Properties";
 import { Info } from "./Info";
-import { back } from "../control/navigate";
+import { back, cross, crossing, frameFocus } from "../control/navigate";
 import { PairBars } from "./PairBars";
-import { Lineage, TruthCard } from "./TruthCard";
-import { engine } from "../control/scene";
+import { Lineage, ParticleFacts, TruthCard, unassociated } from "./TruthCard";
+import { GapLink, TruthBlock } from "./TruthBlock";
+import { Physics } from "./Physics";
 import { Icon } from "./widgets";
 
-const name = (r: Ref) => {
-  const n = describe(r.table, r.row);
-  return `${kindOf(r.table)}${n ? ` · ${n}` : ` #${r.row}`}`;
-};
+const NONE = new Set<string>();
 
 export function Card() {
   const b = bundle.value,
     ev = event.value,
-    sel = subject.value,
-    hl = highlight.value;
+    sel = subject.value;
   if (!b || !ev || !sel || !ev.tables[sel.table]) return null;
   const info = b.header.tables[sel.table],
     table = ev.tables[sel.table];
   const d = layerOf(sel.table),
     truth = !!d?.truth,
-    text = describe(sel.table, sel.row),
-    prev = !anchor.value && focusHistory.value.at(-1);
+    prev = !anchor.value && focusHistory.value.at(-1),
+    [name, source] = cardNameOf(sel);
   return (
     <div class="inspector" role="dialog" aria-label="Selected object">
       <header>
         <div>
           {prev && (
-            <button class="link backlink" onClick={back} title={`Back to ${name(prev)} (B)`}>
-              ← {name(prev)}
+            <button class="link backlink" onClick={back} title={`Back to ${nameOf(prev)} (B)`}>
+              ← {nameOf(prev)}
             </button>
           )}
-          <div class={truth ? "kind truth" : "kind"}>
-            {labelOf(sel.table)}
-            {truth && " (simulation)"}{" "}
+          {truth && <div class="kind truth">simulation</div>}
+          <h2>
+            {name}{" "}
             {(info.doc || d?.doc) && (
               <Info title={labelOf(sel.table)}>
                 {d?.doc && <p>{d.doc}</p>}
                 {info.doc && <p>{info.doc}</p>}
               </Info>
             )}
-          </div>
-          <h2>
-            #{sel.row}
-            {text && <span class="describe"> · {text}</span>}
           </h2>
+          {source && <div class="source">{source}</div>}
         </div>
         <div class="actions">
-          <button
-            class="icon-button"
-            title="Zoom to what the view shows (F)"
-            onClick={() => hl && engine?.frame(hl, true)}
-          >
+          <button class="icon-button" title="Zoom to what the view shows (F)" onClick={() => frameFocus()}>
             <Icon name="focus" />
           </button>
           <button class="icon-button" title="Close (Esc)" onClick={() => (selection.value = null)}>
@@ -102,14 +95,17 @@ export function Card() {
         </div>
       </header>
       <div class="navbody">
-        {truth ? <TruthSide table={sel.table} row={sel.row} /> : <Chain />}
+        {truth ? (
+          <TruthSide table={sel.table} row={sel.row} />
+        ) : (
+          <>
+            <TruthBlock table={sel.table} row={sel.row} />
+            <Physics table={sel.table} row={sel.row} />
+            <Chain />
+          </>
+        )}
         <ViewLevels />
         <PairBars />
-        {!truth && (
-          <section class="matchcard">
-            <TruthCard table={sel.table} row={sel.row} />
-          </section>
-        )}
         <Associations table={sel.table} row={sel.row} />
         <Properties table={table} name={sel.table} row={sel.row} />
       </div>
@@ -132,7 +128,7 @@ function Looking() {
     <section class="looking" aria-label="Looking at">
       <h4>Looking at</h4>
       <div class="lookhead">
-        <b class={truth ? "kind truth" : undefined}>{name(sel)}</b>
+        <b class={truth ? "kind truth" : undefined}>{nameOf(sel)}</b>
         <span>
           <button class="link" title="Back to this card's object (Esc)" onClick={back}>
             ✕ stop
@@ -142,7 +138,7 @@ function Looking() {
             title="Open its card (double click does the same)"
             onClick={() => {
               openCard(sel);
-              engine?.frame(highlight.peek() ?? undefined, true, 800);
+              frameFocus(800);
             }}
           >
             Open →
@@ -169,20 +165,24 @@ function ViewLevels() {
   return (
     <section class="viewlevels" aria-label="Levels in the view">
       <h4 title="The view is built around this object: its smallest parts are always drawn, one of the other levels on request (↓ ↑)">
-        In the view <span class="lanes">{name(top)}</span>
+        In the view <span class="lanes">{nameOf(top)}</span>
       </h4>
       <div class="levelrow">
-        {bar.map((l) => {
+        {bar.map((l, i) => {
           const on = l.always || l.name === chosen;
           return (
-            <button
-              class={on ? "level on" : "level"}
-              disabled={l.always}
-              aria-pressed={on}
-              onClick={() => (focusLevel.value = l.name === chosen ? null : l.name)}
-            >
-              {l.name} <span class="count">{l.count.toLocaleString()}</span>
-            </button>
+            <>
+              {/* what is only built from its parts: ↓ ↑ skip it, a click draws it */}
+              {l.beside && !bar[i - 1]?.beside && <span class="muted">built from its parts:</span>}
+              <button
+                class={on ? "level on" : "level"}
+                disabled={l.always}
+                aria-pressed={on}
+                onClick={() => (focusLevel.value = l.name === chosen ? null : l.name)}
+              >
+                {l.name} <span class="count">{l.count.toLocaleString()}</span>
+              </button>
+            </>
           );
         })}
       </div>
@@ -190,18 +190,36 @@ function ViewLevels() {
   );
 }
 
+/** The button across the reco <-> truth link (X), disabled with the reason when there is nothing across. */
+function GoAcross() {
+  const go = crossing.value,
+    can = !!go.to || go.choices.length > 0;
+  return (
+    <button class="gotruth" disabled={!can} title={can ? "Go across (X)" : go.why} onClick={() => cross(true)}>
+      Go to reco (X)
+    </button>
+  );
+}
+
 /** A truth object: where it sits in the truth graph, and what was reconstructed from it. */
 function TruthSide({ table, row }: { table: string; row: number }) {
   const rec = reconstructed.value,
     root = modes.value.roots.truth;
-  const gaps = [
-    ...new Set(
-      [...truthStatuses.value]
-        .filter(([, s]) => s.kind === "none")
-        .map(([t, s]) => `${truthName(t)}${s.kind === "none" && s.gap !== undefined ? ` (gap ${s.gap})` : ""}`),
-    ),
-  ];
-  const found = rec?.reco.filter((r) => r.partners.length) ?? [],
+  // The kinds without an associator: those this particle could have reached; for another truth object, all of them.
+  const none = [...truthStatuses.value].flatMap(([t, s]) => (s.kind === "none" ? [{ t, gap: s.gap }] : [])),
+    unanswered =
+      table === root
+        ? unassociated(row)
+        : {
+            names: [...new Set(none.map(({ t }) => truthName(t)))],
+            gaps: [...new Set(none.flatMap(({ gap }) => (gap === undefined ? [] : [gap])))],
+          };
+  const b = bundle.value,
+    ev = event.value;
+  // The same objects at several levels (the same parts, e.g. a trackster's layer clusters) are one line.
+  const same = (x: Ref, y: Ref) =>
+    !!b && !!ev && sharedParts(ev, b.header, x.table, x.row, NONE).some((s) => s.same && sameRef(s, y));
+  const found = foldReco(rec?.reco.filter((r) => r.partners.length) ?? [], same),
     empty = rec?.reco.filter((r) => !r.partners.length) ?? [];
   const help = (
     <>
@@ -210,15 +228,23 @@ function TruthSide({ table, row }: { table: string; row: number }) {
         complete first.
       </p>
       <p>
-        <b>%</b>: the share of this particle that the object holds, by the associator: of its energy in that detector
-        (calorimeters: each cell's rechit energy, split between the particles by the simulated energy they left in it),
-        or of its tracker hits (tracks). <span class="ok">★</span>: it is that object's own best match.
+        <b>completeness</b>: the share of this particle that the object holds, by the associator: of its energy in that
+        detector (calorimeters: each cell's rechit energy, split between the particles by the simulated energy they left
+        in it), or of its tracker hits (tracks, its descendants' hits included). <span class="ok">★ its best</span>: the
+        particle is that object's own best match; an object best matched to another particle merges this one into it.
       </p>
       <p>
         <b>Click</b> an object to look at it in the view; <b>double click</b> to open its card.
       </p>
+      <p>
+        Under each kind, the objects that hold at least 5% of it, at most four; "+N" counts the others (all of them
+        under Every association, below). Kinds that show the same objects (the same parts) share one line.
+      </p>
       {empty.length > 0 && (
-        <p>"None" is not by itself an inefficiency: the particle may never have reached that detector.</p>
+        <p>
+          Nothing holds any of it in: {empty.map((r) => stepName(r.table)).join(", ")}. That is not by itself an
+          inefficiency: the particle may never have reached that detector.
+        </p>
       )}
       {rec && !rec.hits.length && (
         <p>
@@ -227,13 +253,33 @@ function TruthSide({ table, row }: { table: string; row: number }) {
           (below) shows them.
         </p>
       )}
-      {gaps.length > 0 && <p>No truth link yet for: {gaps.join(", ")}.</p>}
+      {unanswered.names.length > 0 && (
+        <p>
+          No CMSSW associator, so no answer, for {table === root ? "the kinds it could have reached" : "these kinds"}:{" "}
+          {unanswered.names.join(", ")}
+          {unanswered.gaps.length > 0 && (
+            <>
+              {" "}
+              (the gaps:{" "}
+              {unanswered.gaps.map((g, i) => (
+                <>
+                  {i > 0 && ", "}
+                  <GapLink gap={g} />
+                </>
+              ))}
+              )
+            </>
+          )}
+          . Ember builds none.
+        </p>
+      )}
     </>
   );
   return (
     <>
       {table === root && (
         <section class="matchcard">
+          <ParticleFacts row={row} />
           <Lineage row={row} />
         </section>
       )}
@@ -242,42 +288,60 @@ function TruthSide({ table, row }: { table: string; row: number }) {
           <h4>
             Reconstructed as{" "}
             <span class="lanes">
-              <span class="badge truth">truth</span>⇄<span class="badge reco">reco</span>
+              <GoAcross />
               <Info title="Reconstructed as">{help}</Info>
             </span>
           </h4>
           <ol>
             {found.map((r) => {
-              const of =
-                r.measure === "hits"
-                  ? `hits${r.in ? ` in the ${r.in}` : ""} (with its secondaries')`
-                  : r.measure === "pt2"
-                    ? "findable tracks (pT²)"
-                    : `energy${r.in ? ` in ${r.in}` : ""}`;
+              const t = r.tables[0],
+                of =
+                  r.measure === "hits"
+                    ? `hits${r.in ? ` in the ${r.in}` : ""} (with its secondaries')`
+                    : r.measure === "pt2"
+                      ? "findable tracks (pT²)"
+                      : `energy${r.in ? ` in ${r.in}` : ""}`;
               return (
                 <li class="rung below">
                   <div class="rhead">
-                    <span class="rkind">{stepName(r.table)}</span>
+                    <span
+                      class="rkind"
+                      title={
+                        r.tables.length > 1 ? "The same objects at each of these levels (the same parts)" : undefined
+                      }
+                    >
+                      {r.tables.map((x) => stepName(x)).join(", ")}
+                    </span>
                   </div>
                   <div class="rlink">
-                    {r.partners.slice(0, 4).map((p) => (
+                    {r.partners.map((p) => (
                       <span class="partner">
                         {chip(
-                          r.table,
+                          t,
                           p.row,
                           `${p.completeness !== undefined ? `it holds ${percent(p.completeness)} of this one's ${of}; ` : ""}${p.best ? "this is its own best match" : p.unmatched ? "it has no best match of its own" : "its own best match is another truth object"}`,
                         )}
-                        {p.completeness !== undefined && <span class="muted">{percent(p.completeness)}</span>}
+                        {p.completeness !== undefined && (
+                          <span
+                            class="muted"
+                            title="completeness: the share of this particle the object holds (associator)"
+                          >
+                            completeness {percent(p.completeness)}
+                          </span>
+                        )}
                         {p.best && (
-                          <span class="ok" aria-label="its best match">
-                            ★
+                          <span class="ok" title="The particle is this object's own best match (associator)">
+                            ★ its best
                           </span>
                         )}
                       </span>
                     ))}
-                    {r.partners.length > 4 && (
-                      <span class="muted" title="All of them: under Every association, below">
-                        +{r.partners.length - 4}
+                    {r.folded > 0 && (
+                      <span
+                        class="muted"
+                        title="The others, most holding under 5% of it: all of them under Every association, below"
+                      >
+                        +{r.folded}
                       </span>
                     )}
                   </div>
@@ -293,7 +357,7 @@ function TruthSide({ table, row }: { table: string; row: number }) {
               </li>
             ))}
           </ol>
-          {empty.length > 0 && <p class="hint">None: {empty.map((r) => stepName(r.table)).join(", ")}</p>}
+          {!found.length && !rec.hits.length && <p class="hint">No reco object holds any of it.</p>}
         </section>
       )}
     </>
@@ -302,7 +366,7 @@ function TruthSide({ table, row }: { table: string; row: number }) {
 
 const weightsText = (w: Record<string, number>) =>
   Object.entries(w)
-    .map(([k, v]) => `${k} ${Math.abs(v) < 5e-4 ? "0" : full(v)}`)
+    .map(([k, v]) => `${k} ${plain(v)}`)
     .join(" · ");
 
 /** Every object an association relation (e.g. reco <-> truth) links to this one, with the relation's weights as

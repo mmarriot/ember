@@ -1,7 +1,8 @@
 // The side panel: the profile's presets, the tabs, and the colour key under them (Key.tsx). The tabs:
 // - one per part of the detector (layer `domain`) with its collections (Layers.tsx). With a domain bar, the parts of
 //   the detector share one Detector tab, which follows the bar, and each shared domain (e.g. Physics) has its own;
-// - Truth (TruthTab.tsx): the scorecard, the truth collections, what became of each particle, and the tree;
+// - Truth (TruthTab.tsx): the hard process, then folded: the particles in the view, the scorecard, the coverage, and
+//   the truth graph browser (its collections and the tree);
 // - Event (EventInfo.tsx).
 // Its width can be dragged; on phones it is a sheet under the view, folded until a tab or its handle opens it.
 import { signal } from "@preact/signals";

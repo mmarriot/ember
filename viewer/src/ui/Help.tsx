@@ -50,13 +50,9 @@ export function HelpDialog() {
         [
           ["X"],
           "",
-          "Across the link: from a reco object to its truth match, from a truth particle to what was reconstructed from it",
+          "Across the link (the card's Go to truth button): from a reco object to its truth match, from a truth particle to what was reconstructed from it, and X again back; for an object with no truth of its own, its part's particle, or a chooser of its parts' particles, largest part first (X again: the first)",
         ],
-        [
-          [],
-          "i next to a title, or a tag (match, fact, no truth)",
-          "What something is, and how its numbers are counted",
-        ],
+        [[], "i next to a title, or a tag (match, sim)", "What something is, and how its numbers are counted"],
         [
           ["↓", "↑"],
           "show on a step of the chain",
@@ -95,7 +91,7 @@ export function HelpDialog() {
       [
         [
           ["T"],
-          "Reco · Truth in the colour key or the menu",
+          "Colour by: reco type | truth particle, in the colour key or the menu",
           "Colours: what the reconstruction made, or what was really there",
         ],
         [
@@ -174,30 +170,33 @@ export function HelpDialog() {
       <h3>Side panel</h3>
       <p class="hint">
         One tab per part of the detector with its collections, by kind of object (with a domain bar: the physics objects
-        in their own tab, with the event's headline and each kind's largest objects, a click selecting one; the parts of
-        the detector in Detector, which follows the bar); the truth (the event's reco ↔ truth counts, its collections,
-        what became of each particle, the history as a tree); the event. A kind's heading shows its cut (e.g. pT ≥ 30
-        GeV): click it to change it; it applies to every collection of its group. A row shows the collection's state as
-        chips: filter (click to see or remove it), selected (drawn only for the selected object; click for all), show
-        (hidden while something is selected; click to draw it).
+        in their own tab, with each kind's largest objects (the event's headline is the view's title), a click selecting
+        one; the parts of the detector in Detector, which follows the bar); the truth (the event's reco ↔ truth counts,
+        its collections, what became of each particle, the history as a tree); the event. A kind's heading shows its cut
+        (e.g. pT ≥ 30 GeV): click it to change it; it applies to every collection of its group. A row shows the
+        collection's state as chips: filter (click to see or remove it), selected (drawn only for the selected object;
+        click for all), show (hidden while something is selected; click to draw it).
       </p>
       <h3>Colours</h3>
       <p class="hint">
         Colour means one thing at a time; the title of the key at the bottom of the side panel says which.
-        <b>Reco</b>: candidates by the particle type the reconstruction gave them, and everything they are made of
-        (tracksters, layer clusters, hits, tracks) in the same colour. <b>Truth</b> (T): everything by the generator
-        particle it comes from, the same in every part of the detector (a conversion's electrons and an interacting
-        pion's daughters take their particle's colour); a reco object takes its particle's colour only where it is a
-        clean match (e.g. 75% of a track's hits), else grey. Selecting a truth particle, a matched reco object or a hit
-        shows its truth ↔ reco pair: the particle's branch (it and everything below it; for a particle inside another's
-        shower, that shower's hits) and, in each detector, the reco objects the associator rates best for it, every hit
-        coloured shared, contamination, split off or missed, with bars in the card that name the energy they count. A
-        detector whose reco has no association is shown, not compared. Each step of the card's chain says what the truth
-        graph has for it: match (the CMSSW associator's, with its purity), fact (simulated energy per particle in its
-        hits) or no truth for that kind yet. A dot on an object's name says what the associator found for it: green for
-        a clean match, half amber for an impure one, hollow for none. The Truth tab counts, for each matched kind, the
-        clean, impure and unmatched objects of the event. Truth is drawn dashed. ⋯ on a row colours it by any column, or
-        by the colour of a related object, instead. With something selected, everything unrelated fades.
+        <b>Reco type</b>: candidates by the particle type the reconstruction gave them, and everything they are made of
+        (tracksters, layer clusters, hits, tracks) in the same colour. <b>Truth particle</b> (T): everything by the
+        generator particle it comes from, the same in every part of the detector (a conversion's electrons and an
+        interacting pion's daughters take their particle's colour); a reco object takes its particle's colour only where
+        it is a clean match (e.g. 75% of a track's hits), else grey. Selecting a truth particle, a matched reco object
+        or a hit shows its truth ↔ reco pair: the particle's branch (it and everything below it; for a particle inside
+        another's shower, that shower's hits) and, in each detector, the reco objects the associator rates best for it,
+        every hit coloured shared, contamination, split off or missed, with bars in the card that name the energy they
+        count. A detector whose reco has no association is shown, not compared. The card opens with what the truth says
+        of the object, in one line: its match; for a kind without one, its track's (or its one cluster's) match, named
+        as the part's; else that its kind has none. Each part's own match is folded under it. A step of its chain with
+        truth of its own has a tag: match (the CMSSW associator's, with its purity) or sim (simulated energy per
+        particle in its hits); the kinds with no CMSSW associator are named behind the chain's i. A dot on an object's
+        name says what the associator found for it: green for a clean match, half amber for an impure one, hollow for
+        not matched. The Truth tab counts, for each matched kind, the clean, impure and unmatched objects of the event.
+        Truth is drawn dashed. ⋯ on a row colours it by any column, or by the colour of a related object, instead. With
+        something selected, everything unrelated fades.
       </p>
       <h3>Expressions</h3>
       <p class="hint">

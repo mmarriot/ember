@@ -41,7 +41,7 @@ def convert(
     max_events  write at most this many events (None: all)
     data_time   when the input data was taken or produced (a datetime), recorded in the header
     run_info    where to find information about the runs (see runinfo.load)
-    events      only these event numbers (ranges, see parse_events)
+    events      only these events (event number ranges and run:lumi:event, see parse_events)
     run_tables  a NanoAOD file whose Runs tree has the per-run tables (e.g. the channel table) of the same runs, for
                 inputs made without them
     sort        list the events in (run, lumi, event) order (only the index is sorted)
@@ -191,21 +191,38 @@ def written_by(f):
 
 
 def parse_events(spec):
-    """The event numbers in "416622,416630-416640", as a list of (first, last) ranges that include both ends. Kept as
-    ranges, not expanded: CMS event numbers reach 10^9, and a set of a range that wide would not fit in memory."""
+    """The events in "416622,416630-416640,1:5:416650": (first, last) ranges of event numbers that include both ends,
+    and (run, lumi, event) triples. Ranges are kept as ranges, not expanded: CMS event numbers reach 10^9, and a set of
+    a range that wide would not fit in memory."""
     out = []
     for part in filter(None, (p.strip() for p in spec.split(","))):
-        lo, _, hi = part.partition("-")
-        out.append((int(lo), int(hi or lo)))
+        if ":" in part:
+            out.append(tuple(int(x) for x in part.split(":")))
+        else:
+            lo, _, hi = part.partition("-")
+            out.append((int(lo), int(hi or lo)))
     return out
 
 
-def chosen_events(numbers, events):
-    """A mask of the `numbers` that are in the ranges `events` (parse_events): one vectorised comparison per range."""
+def chosen_events(numbers, events, runs=None, lumis=None):
+    """A mask of the entries whose event `numbers` are in the ranges of `events` (parse_events), or whose (runs, lumis,
+    numbers) are one of its triples: one vectorised comparison per range, and one sorted lookup (np.isin) for all the
+    triples, so an analyst's list of thousands costs about as much as one."""
     mask = np.zeros(len(numbers), bool)
-    for lo, hi in events:
-        mask |= (numbers >= lo) & (numbers <= hi)
+    for e in events:
+        if len(e) == 2:
+            mask |= (numbers >= e[0]) & (numbers <= e[1])
+    triples = [e for e in events if len(e) == 3]
+    if triples:
+        mask |= np.isin(_id_keys(runs, lumis, numbers), _id_keys(*zip(*triples)))
     return mask
+
+
+def _id_keys(runs, lumis, events):
+    """One comparable key per (run, lumi, event): the three as 24 bytes (an event number can use all 64 bits, so they
+    cannot be packed into one integer)."""
+    ids = np.stack([np.asarray(x, np.uint64) for x in (runs, lumis, events)], -1)
+    return np.ascontiguousarray(ids).view(np.dtype((np.void, 24))).ravel()
 
 
 def threads_available(limit=4):
@@ -278,7 +295,8 @@ def _entries(tree, conv, events, progress, pool=None, stop=None):
 
     if events is not None:
         numbers, runs = tree["event"].array(library="np"), tree["run"].array(library="np")
-        chosen = np.flatnonzero(chosen_events(numbers, events))
+        lumis = tree["luminosityBlock"].array(library="np") if any(len(e) == 3 for e in events) else None
+        chosen = np.flatnonzero(chosen_events(numbers, events, runs, lumis))
         progress(len(chosen))
         for e in chosen[np.lexsort((numbers[chosen], runs[chosen]))]:
             yield read_entry(e), 0

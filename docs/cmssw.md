@@ -61,11 +61,11 @@ import FWCore.ParameterSet.Config as cms
 | PF clusters | `PFClusterECAL`, `PFClusterHCAL`, `PFClusterHF`, `PFClusterHO`, and `PFClusterPS` in Run 3 | `LayerClustersCollectionTableProducer` (DPGAnalysis/HGCalNanoAOD), a table of any `reco::CaloCluster` collection | both |
 | Superclusters | `SuperClusterEB`; `SuperClusterEE` (Run 3); `SuperClusterHGCal` (Phase 2) | `SimpleSuperclusterFlatTableProducer` (PhysicsTools/NanoAOD) | both |
 | The hits of each cluster | for each cluster table `X` above and `HGCalLayerClusters`: a count `nXHits` on `X`, and a table `XHits` of `detId` and `fraction`, one row per (cluster, hit) | `CaloClusterHitsTableProducer`, `PFClusterHitsTableProducer`, `SuperClusterHitsTableProducer`: the branch `nanoaod-cluster-hits` | both |
-| Tracks | `GeneralTrack`: the general tracks, with their momentum, reference point and outermost hit (and, in Phase 2 with TICL candidates, their HGCal entry point; with MTD, their time at the beam line `t0`, from `tofPID`); `GsfTrack`: the electrons' GSF tracks | HGCalNanoAOD's track table (`hgcalGeneralTracks_cfi`); `SimpleGsfTrackFlatTableProducer` | both |
-| Vertices | `PV`: every primary vertex (row 0 the leading one), with its time in Phase 2; `SV`: the inclusive secondary vertices | `SimpleVertexFlatTableProducer` | both |
+| Tracks | `GeneralTrack`: the general tracks, with their momentum, reference point, outermost hit, impact parameters to the origin (`dxy0`, `dz0`) with their uncertainties from the fit (`dxy0Err`, `dz0Err`) and χ²/ndof (`chi2`) (and, in Phase 2 with TICL candidates, their HGCal entry point; with MTD, their time at the beam line `t0`, from `tofPID`); `GsfTrack`: the electrons' GSF tracks, with the same columns | HGCalNanoAOD's track table (`hgcalGeneralTracks_cfi`); `SimpleGsfTrackFlatTableProducer` | both |
+| Vertices | `PV`: every primary vertex (row 0 the leading one), with its time in Phase 2; `SV`: the inclusive secondary vertices, with χ²/ndof, ndof, and the mass, pT and momentum of their tracks (as pions, weight ≥ 0.5: `reco::Vertex::p4`). Both with their position's uncertainties and covariances (`xErr`, `yErr`, `zErr`, `covXY`, `covXZ`, `covYZ`) | `SimpleVertexFlatTableProducer` | both |
 | PF candidates | `PFCandidates` (`particleFlow`): momentum, type, vertex, ECAL entrance, energies, time, PUPPI weight (`puppi`), and the rows of their track, GSF track, muon, electron and photon (`trackIdx`, `gsfTrackIdx`, `muonIdx`, `electronIdx`, `photonIdx`) | `SimplePFCandidateFlatTableProducer`; the rows are the keys of the candidate's references (`trackRef().key()`), which point into the collections of those tables | both |
 | Muon system | `DTSegment`, `CSCSegment`, `GEMSegment` (global position and direction), `GEMRecHit`, `RPCRecHit` (global position), each with its DetId and its fields | DPGAnalysis/MuonTools's table producers, with the global position configured | both |
-| Physics objects | `Jet` (AK4 Puppi jets, or CHS jets where the file has no Puppi jets: uncorrected), `JetCHS` (the CHS jets, next to the Puppi ones), `Tau` (HPS: kinematics, decay mode, the row of the leading charged hadron in `PFCandidates`), `PuppiMET`, `PFMET`, `Electron`, `Photon`, `Muon`, `ElectronHGC` and `PhotonHGC` (the HGCal electrons and photons of Phase 2), `OfflineBeamSpot`. Uncut, so that index columns address their rows. Electrons and photons have the rows of their supercluster (`superClusterEBIdx`, `superClusterEEIdx`: the PF supercluster, `parentSuperCluster()`; `superClusterIdx` for HGCal), electrons of their track and GSF track, muons of their inner track. | PhysicsTools/NanoAOD's `Simple*FlatTableProducer`s on the RECO collections, with the names and columns that standard NanoAOD uses; the index columns from the references' keys (`lazyEval`, as the producer is that of `reco::Candidate`). With `--pat`: standard NanoAOD ([below](#physics-objects-and-pat)), without these index columns. | both |
+| Physics objects | `Jet` (AK4 Puppi jets, uncorrected), `JetCHS` (the CHS jets, next to the Puppi ones), `Tau` (HPS: kinematics, decay mode, the row of the leading charged hadron in `PFCandidates`), `PuppiMET`, `PFMET`, `Electron`, `Photon`, `Muon`, `ElectronHGC` and `PhotonHGC` (the HGCal electrons and photons of Phase 2), `OfflineBeamSpot` (with the beam line's slopes `dxdz`, `dydz`, its widths `widthX`, `widthY`, and its position's uncertainties). Uncut, so that index columns address their rows. Electrons and photons have the rows of their supercluster (`superClusterEBIdx`, `superClusterEEIdx`: the PF supercluster, `parentSuperCluster()`; `superClusterIdx` for HGCal), electrons of their track and GSF track, muons of their inner track. Electrons and photons have their identification variables ([below](#identification-impact-parameters-and-flight)). Muons and jets have their own starting point `x`, `y`, `z`: a muon's is the reference point of the track it was made from (`reco::Muon`'s vertex), a jet's the vertex its producer gives it (the origin: the RECO jets have no vertex correction). | PhysicsTools/NanoAOD's `Simple*FlatTableProducer`s on the RECO collections, with the names and columns that standard NanoAOD uses; the index columns from the references' keys (`lazyEval`, as the producer is that of `reco::Candidate`). With `--pat`: standard NanoAOD ([below](#physics-objects-and-pat)), without these index columns. | both |
 | Truth | the truth graph tables ([below](#truth)) | the branch `truthgraph-nano-tables` | Phase 2 |
 
 - The tables keep the order of the CMSSW collection they come from.
@@ -76,9 +76,59 @@ import FWCore.ParameterSet.Config as cms
 - No table carries a cell size. The converter works it out from the DetId ([Profiles](profiles.md#derive-new-columns)).
 - The float columns that `ember` configures keep only the mantissa bits they need, 6 to 14 of the 23, chosen per
   column: 14 for positions (about 0.3 mm at 5 m), 12 for cluster energies, η and φ, 10 for pT, times, axes and widths,
-  8 for fractions, 6 for the jets' energy fractions. The TruthInfo hit tables have no precision option, and keep all
-  23.
+  8 for fractions, 6 for the jets' energy fractions. Vertex positions and the tracks' impact parameters to the origin
+  keep all 23: the flight distances and impact parameters are worked out from them, at the µm scale. The TruthInfo hit
+  tables have no precision option, and keep all 23.
 - The NanoAOD file is temporary, so it is written with LZ4, which is quick to write and to read back.
+
+## Identification, impact parameters and flight
+
+Columns that answer "why did this object pass or fail?", from accessors of the RECO classes, with the names standard
+NanoAOD gives them where it has them. The profiles show them as named groups in the card (`inspectGroups`,
+[Bundle format](format.md#display-hints)).
+
+| table | columns | from |
+|---|---|---|
+| `Electron`, `Photon` | `sieie` (full 5×5 σiηiη), `r9` (full 5×5), `hoe` (H/E) | `full5x5_sigmaIetaIeta`, `full5x5_r9`, `hadronicOverEm` |
+| `ElectronHGC`, `PhotonHGC` | HGCal's shower shapes instead: `sigmaUU`, `sigmaVV` (widths across the axis, cm), `sigmaEE`, `sigmaPP` (η and φ spreads), `nLayers`, `firstLayer`, `depthCompatibility`; -1 where not computed | the value maps PAT makes of them (`HGCalElectronIDValueMapProducer`, `HGCalPhotonIDValueMapProducer`, RecoEgamma/EgammaTools), run in the job on the RECO collections, with the HGCal rechit map they need (`RecHitMapProducer`) |
+| `Electron`, `ElectronHGC` | `fbrem`, `deltaEtaInSeed` (Δη seed cluster - track), `deltaPhiIn` (Δφ supercluster - track), `eSCOverP` (E_SC/p), `eInvMinusPInv` (1/E - 1/p, 1/GeV), `lostHits` (missing inner hits), `convVtxFitProb`, `isEcalDriven`, `isTrackerDriven` | `reco::GsfElectron` |
+| `Photon`, `PhotonHGC` | `pixelSeed` | `reco::Photon` |
+| `Electron`, `Photon` | `pfIsoChg`, `pfIsoNeu`, `pfIsoPho` (PF isolation sums in a cone of 0.3, GeV). Not for the HGCal objects: their producers (not the GED ones) leave the sums at 0. | `pfIsolationVariables()`; `chargedHadronIso()`, `neutralHadronIso()`, `photonIso()` |
+
+- **No conversion veto.** PAT's `passConversionVeto` (and the photons' electron veto) needs the conversions collection
+  at PAT time; RECO has `convVtxFitProb` instead, the fit probability of a conversion that shares the electron's
+  closest track (-1: none), an input of the electron MVAs.
+- **No relative isolation.** The sums are not divided by pT and not corrected for pile-up (standard NanoAOD's
+  `pfRelIso03_all` subtracts ρ times an effective area).
+
+The converter works out the rest from these columns (profile derives `impact` and `flight`,
+[Profiles](profiles.md#derive-new-columns)):
+
+- tracks and GSF tracks, with standard NanoAOD's names: `dxy`, `dz` to the leading primary vertex (row 0 of `PV`),
+  as CMSSW's `TrackBase::dxy(point)` and `dz(point)`, with `dxyErr`, `dzErr` (the track's uncertainty and the vertex's
+  in quadrature, as PAT's `PV2D` and `PVDZ`); `dxybs`, `dxybsErr` to the beam line at the track's z, as
+  `TrackBase::dxy(BeamSpot)` and `dxyError(BeamSpot)` (the beam spot's widths, tilted along the beam line). Checked
+  against CMSSW on the ttbar sample (every general track, 10 events): the distances within 0.01 µm transverse and
+  0.1 µm longitudinal (the vertex is about 5 cm from the origin in z; the stored η and φ are rounded), the
+  uncertainties within 0.15 % (they are stored with 10 bits). `dxyErr` leaves out the track's φ uncertainty times the
+  vertex's distance from the origin across the track, which CMSSW's `dxyError(point)` has (below 0.1 µm here).
+- muons and electrons: the same six columns, from their inner track (muons) or GSF track (electrons), gathered
+  through the index columns, with their documentation (and unit). PAT takes a muon's from its best track
+  (`muonBestTrack()`, the inner track for most): here a standalone-only muon, which has no inner track, has none. On a
+  standard NanoAOD, whose muons have no track row, these gathers are left out and its own `dxy`, `dz` stay.
+- secondary vertices: their flight from the leading primary vertex, named as standard NanoAOD names it: `dlen` and
+  `dxy` (3D and transverse distances, cm), `dlenSig` and `dxySig` (over their uncertainties, both vertices'
+  covariances, as `VertexDistance3D` and `VertexDistanceXY`), and `pAngle` (between the flight and the momentum, rad).
+  Checked against `VertexDistance3D` and `VertexDistanceXY` on the ttbar sample: the same to 0.1 %.
+
+What RECO does not have, and needs CMSSW or PAT:
+
+- **b-tags on the AK4 Puppi jets** (`Jet`): RECO computes them on the CHS jets only (`JetCHS`, branch
+  `nanoaod-jet-tags`).
+- **A link from `SuperClusterHGCal` to the superclustering DNN's tracksters** (`ticlTracksterLinksSuperclusteringDNN`).
+  The HGCal superclusters (`particleFlowSuperClusterHGCal`, `EGammaSuperclusterProducer`) are made from the DNN's
+  superclusters in order, but those under 4 GeV of raw pT are skipped (`superclusterEtThreshold`): row k of one is not
+  row k of the other. The producer would have to store the DNN row.
 
 ## Physics objects, and PAT
 

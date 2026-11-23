@@ -4,15 +4,36 @@
 // object: clean, impure or no match, so a list shows at a glance which are which.
 import { useEffect } from "preact/hooks";
 import { sameRef } from "../model/relations";
-import { anchor, describe, highlight, labelOf, look, matchOf, openCard, selection } from "../model/store";
+import {
+  anchor,
+  caloView,
+  chipText,
+  describe,
+  event,
+  layerOf,
+  look,
+  matchOf,
+  modes,
+  nameOf,
+  numberOf,
+  openCard,
+  selection,
+  truthText,
+} from "../model/store";
 import { rowHover } from "./Labels";
-import { engine } from "../control/scene";
+import { frameFocus } from "../control/navigate";
 
-const WORDS = { clean: "clean match", impure: "impure match", unmatched: "no truth match", matched: "matched" };
-const glide = () => engine?.frame(highlight.peek() ?? undefined, true, 800);
+const WORDS = { clean: "clean match", impure: "impure match", unmatched: "not matched", matched: "matched" };
+const glide = () => frameFocus(800);
 
-/** The chip of row `r` of table `t`, named as its kind describes it; `title`: more to say on hover. */
+/** The chip of row `r` of table `t`, named as in a list of its kind ("AK4 CHS · pT 52.8 GeV"); `title`: more to say on
+ *  hover, after its one name. */
 export const chip = (t: string, r: number, title = "") => <ObjChip table={t} row={r} title={title} />;
+/** The chip of truth particle `r`, named for what it is shown next to (docs/truth.md): by its energy next to a
+ *  calorimeter object or hits (`measure` "energy"), else by pT and η ("μ⁺ · pT 96.6 · η 1.11"). */
+export const truthChip = (t: string, r: number, measure?: string) => (
+  <ObjChip table={t} row={r} text={truthText(t, r, measure === "energy")} />
+);
 
 export function ObjChip({
   table,
@@ -40,7 +61,7 @@ export function ObjChip({
     <button
       class={`chip${q ? ` q-${q}` : ""}${viewing ? " viewing" : ""}`}
       aria-pressed={viewing}
-      title={`${labelOf(table)} #${row}${q ? ` · ${WORDS[q]}` : ""}${title && ` · ${title}`}\nClick: look at it · double click: open its card`}
+      title={`${nameOf(ref, [], true)}${q ? ` · ${WORDS[q]}` : ""}${title && ` · ${title}`}\nClick: look at it · double click: open its card`}
       onClick={() => {
         look(ref);
         glide();
@@ -52,7 +73,27 @@ export function ObjChip({
       onMouseEnter={() => (rowHover.value = ref)}
       onMouseLeave={() => (rowHover.value = null)}
     >
-      {text ?? (describe(table, row) || `#${row}`)}
+      {text ?? ((layerOf(table)?.truth && truthText(table, row, caloView.value)) || chipText(table, row))}
     </button>
   );
+}
+
+/** An object's chip; a truth particle's is named by pT and η, or by energy in a calorimeter's view (chips.tsx), a truth
+ *  vertex by its reason ("decay 240"), as in its match (TruthCard.tsx; Relations.tsx names merges so too). */
+export const namedChip = (t: string, r: number) => (
+  <ObjChip
+    table={t}
+    row={r}
+    text={t === modes.peek().roots.truth ? undefined : describe(t, r) || named(t, r) || undefined}
+  />
+);
+/** An object's name from its layer's categorical colouring (e.g. a truth vertex's reason: "decay"), for layers without
+ *  a `describe` hint. */
+export function named(t: string, r: number) {
+  const c = layerOf(t)?.colourBy,
+    v = typeof c === "object" && "category" in c ? event.value?.tables[t]?.columns[c.category]?.[r] : undefined;
+  if (v === undefined || typeof c !== "object" || !("category" in c) || !c.names) return "";
+  const names = Array.isArray(c.names) ? Object.fromEntries(c.names) : c.names,
+    name = names[String(v)];
+  return name ? `${name} ${numberOf(t, r)}` : "";
 }

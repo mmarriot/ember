@@ -1,14 +1,13 @@
 // The share button's pop-up (Header.tsx): it copies the link to this view and says what the link opens, or why a
 // local file has none.
 import { signal } from "@preact/signals";
-import { kindName } from "../io/format";
 import { DOCS_URL, expiryText, ownerOf, PUBLISH_COMMAND } from "../model/library";
 import {
   activeMode,
   bundle,
   domain,
   eventIndex,
-  layerOf,
+  nameOf,
   opened,
   selection,
   shownEntry,
@@ -56,8 +55,7 @@ function captured(): string[] {
     e = shownEntry.peek(),
     s = selection.peek();
   if (!b || !o || !e) return o ? [o.title] : [];
-  const layer = s && layerOf(s.table),
-    parts = (b.header.domains?.length ?? 0) >= 2,
+  const parts = (b.header.domains?.length ?? 0) >= 2,
     level = shownLevel.peek();
   return [
     o.title,
@@ -65,7 +63,7 @@ function captured(): string[] {
     parts ? (domain.peek() ? `the ${domain.peek()} part of the detector` : "every part of the detector") : "",
     `the ${VIEWS.find(([v]) => v === view.peek())?.[1] ?? view.peek()} view`,
     solo.peek() ? `only the ${solo.peek()!.split("|").filter(Boolean).reverse().join(" · ")}` : "",
-    s ? `the selected ${layer ? kindName(layer) : s.table} #${s.row}${level ? `, down to its ${level}` : ""}` : "",
+    s ? `the selected ${nameOf(s)}${level ? `, down to its ${level}` : ""}` : "",
     activeMode.peek() === "truth" ? "truth colours" : "",
   ].filter(Boolean);
 }

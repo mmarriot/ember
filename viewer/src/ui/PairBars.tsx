@@ -78,12 +78,7 @@ export function PairBars() {
             <span class="muted">
               not compared:{" "}
               {d.gaps.length
-                ? d.gaps
-                    .map(
-                      (g) =>
-                        `${kindName(g.table)}: ${g.reason ?? "no truth association exported"}${g.gap ? ` (gap ${g.gap})` : ""}`,
-                    )
-                    .join("; ")
+                ? d.gaps.map((g) => `${kindName(g.table)}: ${g.reason ?? "no CMSSW associator"}`).join("; ")
                 : "no reco object here has an association to truth"}
             </span>
           )}
@@ -195,8 +190,8 @@ export function PairBars() {
       {pair.hitsOf >= 0 && pair.hitsOf !== pair.particle && (
         <p class="hint">
           {c(pair.truth, pair.particle)} is inside the shower of {c(pair.truth, pair.hitsOf)}, which entered the
-          calorimeter: the file has no hits of its own for it, so the hits and energies shown are that whole shower's
-          (gap 2). Its matches are its own (the associator's) first.
+          calorimeter: the file has no hits of its own for it, so the hits and energies shown are that whole shower's.
+          Its matches are its own (the associator's) first.
         </p>
       )}
       {pair.particle >= 0 && pair.hitsOf < 0 && (

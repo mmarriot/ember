@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
 import type { DisplayLayer } from "../io/format";
-import { chainOrder, focusLevels, levelLayers, mergeAcrossDomains, scopeLevels, stepLevel } from "./levels";
+import {
+  chainOrder,
+  focusLevels,
+  type Level,
+  levelLayers,
+  mergeAcrossDomains,
+  partsFirst,
+  scopeLevels,
+  stepLevel,
+} from "./levels";
 
 // Display layers as a profile orders them, from the top down (candidates first, hits last), then truth.
 const layer = (table: string, group: string, extra: Partial<DisplayLayer> = {}) =>
@@ -324,5 +333,21 @@ describe("levels across parts of the detector", () => {
       "Calo hits",
     ]);
     expect(scopeLevels(lv, null, shared)).toEqual(lv);
+  });
+});
+
+describe("partsFirst", () => {
+  it("puts the object's own parts first, and ↓ never steps to what is only built from them (a jet's taus)", () => {
+    const lv = (name: string, table: string): Level => ({
+      name,
+      layers: [layer(table, name)],
+      count: 1,
+      leaf: false,
+      always: false,
+    });
+    const out = partsFirst([lv("Taus", "Tau"), lv("PF clusters", "PFC"), lv("Hits", "Hit")], (t) => t !== "Tau");
+    expect(out.map((l) => `${l.name}${l.beside ? " (beside)" : ""}`)).toEqual(["PF clusters", "Hits", "Taus (beside)"]);
+    expect(stepLevel(out, null, 1)).toBe("PF clusters");
+    expect(stepLevel(out, "Hits", 1)).toBe("Hits");
   });
 });

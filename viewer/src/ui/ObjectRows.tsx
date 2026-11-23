@@ -3,16 +3,17 @@
 // rings it in the view.
 import { type DisplayLayer, kindName, unitOf } from "../io/format";
 import { filterMask, filters } from "../model/custom";
-import { columnName, passes, topRows } from "../model/objects";
+import { columnName, passes, topRows, whyHidden } from "../model/objects";
+import { plain } from "../model/describe";
 import {
   bundle,
   cuts,
   describe,
   event,
-  labelOf,
   layerKey,
+  nameOf,
+  numberOf,
   selection,
-  short,
   sizeColumn,
   visible,
 } from "../model/store";
@@ -23,14 +24,19 @@ import { jump } from "../control/navigate";
 export function passing(d: DisplayLayer) {
   const t = event.value?.tables[d.table];
   if (!t) return null;
-  return { t, pass: passes(d, t, d.cut ? (cuts.value[d.cut.group] ?? 0) : 0, filterMask(t, filters.value[d.table])) };
+  const min = d.cut ? (cuts.value[d.cut.group] ?? 0) : 0,
+    keep = filterMask(t, filters.value[d.table]);
+  return { t, min, keep, pass: passes(d, t, min, keep) };
 }
 
 /** The event in one line, from the ticked layers with object rows (`list`): how many objects of each kind pass the cuts
  *  and filters ("Jets 4", the layers of a kind summed, e.g. barrel and endcap electrons), or the value of a one-object
- *  table ("Puppi MET 42.2 GeV"). As [name, value] pairs. */
-export function headline(layers: DisplayLayer[]): [string, string][] {
-  const parts = new Map<string, number | string>();
+ *  table ("Puppi MET 42.2 GeV"). As [name, value, note] triples; `note`: why a selected object of the kind is not
+ *  counted ("below the electron pT cut"). */
+export function headline(layers: DisplayLayer[]): [string, string, string?][] {
+  const parts = new Map<string, number | string>(),
+    sel = selection.value,
+    hidden = new Map<string, string>(); // a kind whose selected object its cut or filter leaves out: why
   for (const d of layers.filter((l) => l.list && visible.value[layerKey(l)])) {
     const p = passing(d);
     if (!p) continue;
@@ -39,25 +45,36 @@ export function headline(layers: DisplayLayer[]): [string, string][] {
         col = p.t.columns[c];
       if (!col || !p.t.n) continue;
       const unit = unitOf(bundle.value!.header.tables[d.table]?.columns[c]?.doc);
-      parts.set(d.label, `${short(Number(col[0]))}${unit ? ` ${unit}` : ""}`);
+      parts.set(d.label, `${plain(Number(col[0]))}${unit ? ` ${unit}` : ""}`);
       continue;
     }
     let n = 0;
     for (let i = 0; i < p.t.n; i++) if (p.pass(i)) n++;
     const name = kindName(d);
     parts.set(name, (Number(parts.get(name)) || 0) + n);
+    const why = sel?.table === d.table && sel.row < p.t.n ? whyHidden(d, p.t, p.min, p.keep, sel.row) : undefined;
+    if (why)
+      hidden.set(
+        name,
+        `${why === "filter" ? "" : `below the ${d.cut!.label ?? d.cut!.column} cut`}${why === "both" ? " and " : ""}${why === "cut" ? "" : "left out by the filter"}`,
+      );
   }
-  return [...parts].map(([label, value]) => [label, typeof value === "number" ? value.toLocaleString() : value]);
+  return [...parts].map(([label, value]) => [
+    label,
+    typeof value === "number" ? value.toLocaleString() : value,
+    hidden.get(label),
+  ]);
 }
 
 export function Headline({ layers }: { layers: DisplayLayer[] }) {
   const parts = headline(layers);
   return parts.length ? (
     <p class="headline">
-      {parts.map(([label, value], i) => (
+      {parts.map(([label, value, note], i) => (
         <>
           {i > 0 && " · "}
           {label} <b>{value}</b>
+          {note && <span class="muted"> (+1 selected, {note})</span>}
         </>
       ))}
     </p>
@@ -89,18 +106,19 @@ export function ObjectRows({ d, list = d.list! }: { d: DisplayLayer; list?: NonN
         </tr>
       </thead>
       <tbody>
-        {rows.map((r, k) => (
+        {rows.map((r) => (
           <tr
             class={sel?.table === d.table && sel.row === r ? "selected" : undefined}
             onClick={() => jump({ table: d.table, row: r })}
             onMouseEnter={() => (rowHover.value = { table: d.table, row: r })}
             onMouseLeave={() => (rowHover.value = null)}
-            title={`${labelOf(d.table)} #${r}: select it (pointed at in the view)`}
+            title={`${nameOf({ table: d.table, row: r })}: select it (pointed at in the view)`}
           >
-            {/* its name without the columns shown next to it (a jet: none, so its rank; a PF candidate: its type) */}
-            <td>{describe(d.table, r, cols) || `${k + 1}`}</td>
+            {/* its name without the columns shown next to it (a jet: none, so its number, by pT as everywhere; a PF
+                candidate: its type) */}
+            <td>{describe(d.table, r, cols) || numberOf(d.table, r)}</td>
             {cols.map((c) => (
-              <td>{short(Number(p.t.columns[c][r]))}</td>
+              <td>{plain(Number(p.t.columns[c][r]))}</td>
             ))}
           </tr>
         ))}

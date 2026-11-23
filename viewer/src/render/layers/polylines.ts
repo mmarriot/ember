@@ -7,6 +7,7 @@ import {
   commonFields,
   CULL,
   followDrawingBuffer,
+  halo,
   type Layer,
   type LayerInput,
   SHADER_COMMON,
@@ -76,7 +77,7 @@ export function pointPaths(input: LayerInput): Layer {
         gl_Position = mix(A, B, position.x);
         #ifdef WIDE
         vec2 along = (B.xy / B.w - A.xy / A.w) * uRes, across = length(along) > 1e-6 ? normalize(vec2(-along.y, along.x)) : vec2(0.0, 1.0);
-        gl_Position.xy += across * position.y * uWidth * (1.0 + 0.5 * s * selActive() + 2.0 * gPin) / uRes * gl_Position.w;
+        gl_Position.xy += across * position.y * (uWidth * (1.0 + 0.5 * s * selActive() + 2.0 * gPin) + HALO_PX) / uRes * gl_Position.w;
         #endif
         vCol = fade(mix(mix(icol, vec3(1.0), 0.3 * s * selActive()), vec3(1.0), uFlash * pop(iT)), s) * remaining() + uBg * (1.0 - remaining());
       }`,
@@ -105,6 +106,9 @@ export function pointPaths(input: LayerInput): Layer {
   mesh.frustumCulled = false;
   mesh.renderOrder = 1;
   if (wide) followDrawingBuffer(mesh, material);
+  const quad = new THREE.BufferGeometry(); // the halo's shape
+  setLineQuad(quad);
+  const ring = halo(g, material, quad, mesh.renderOrder, input.pal);
   // Picking and framing: each path's points, at most PICK_MAX (evenly chosen), padded with its last point; its last
   // point is where it is (x, y, z), as for lines.
   let most = 2;
@@ -133,7 +137,7 @@ export function pointPaths(input: LayerInput): Layer {
   }
   return {
     ...commonFields(input, 8),
-    object: mesh,
+    object: new THREE.Group().add(mesh, ring.object),
     x,
     y,
     z,
@@ -141,9 +145,23 @@ export function pointPaths(input: LayerInput): Layer {
     pickBias: 0.8,
     line: true,
     ...common,
+    setPinned(row) {
+      common.setPinned(row);
+      ring.pin(material.uniforms.uPin0.value, material.uniforms.uPin1.value);
+    },
+    setHighlight(rows) {
+      common.setHighlight(rows);
+      ring.refresh(); // the halo's copy of the selection flags
+    },
+    setTimeline(appear, link) {
+      common.setTimeline(appear, link);
+      ring.refresh(); // and of the replay's times
+    },
     dispose() {
       g.dispose();
+      quad.dispose();
       material.dispose();
+      ring.dispose();
     },
   };
 }

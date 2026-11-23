@@ -1,6 +1,6 @@
 // The data set chooser of the top bar: a button naming the data set open, and a panel with what it is, a filter and
-// the lists to choose from: my files (published with `ember file.root`), the ones opened lately from links, and the
-// site's shared ones by group. The filter keeps the focus; ↑ ↓ move along the rows, Enter opens, Esc closes.
+// the lists to choose from: the ones opened lately from links, the site's shared ones by group, and my files
+// (published with `ember file.root`). The filter keeps the focus; ↑ ↓ move along the rows, Enter opens, Esc closes.
 import { signal } from "@preact/signals";
 import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import { provenance, summary } from "../model/about";
@@ -75,8 +75,8 @@ function noteOf(x: Listed, now: Date): string {
   return [events, expiryText(x.expires, now)].filter(Boolean).join(" · ");
 }
 
-/** The lists, each without the rows the filter leaves out; my files first, then the recent ones, then the site's
- *  groups in the order of its index (newest data first). */
+/** The lists, each without the rows the filter leaves out: the recent ones, the site's groups in the order of its
+ *  index (newest data first), then my files (last: before any are published, it is a note on how to publish). */
 function sections(filter: string, now: Date): Section[] {
   const shared = catalogue.value.bundles,
     own = mine.value;
@@ -92,11 +92,6 @@ function sections(filter: string, now: Date): Section[] {
     [...shared, ...own].map((x) => x.file),
   );
   return [
-    {
-      name: "My files",
-      mine: true,
-      rows: keep(own).map((x) => ({ file: x.file, title: x.title, note: noteOf(x, now) })),
-    },
     {
       name: "Recent",
       rows: keep(lately).map((r) => ({
@@ -115,6 +110,11 @@ function sections(filter: string, now: Date): Section[] {
       name,
       rows: list.map((x) => ({ file: x.file, title: x.title, note: noteOf(x, now) })),
     })),
+    {
+      name: "My files",
+      mine: true,
+      rows: keep(own).map((x) => ({ file: x.file, title: x.title, note: noteOf(x, now) })),
+    },
   ];
 }
 

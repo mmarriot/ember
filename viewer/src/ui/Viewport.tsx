@@ -2,27 +2,36 @@
 // and tour captions, the note while one kind is drawn alone, the views' buttons and a hint. The pointer: hovering an
 // object shows its tooltip, a click selects it (again on the same spot: the next object under the pointer), a
 // double click zooms to the selection, and a drag rotates or pans without changing the selection.
-import { effect } from "@preact/signals";
+import { effect, signal, untracked } from "@preact/signals";
 import { useEffect, useRef } from "preact/hooks";
+import type { Caption } from "../render/replay";
+import { sameRef } from "../model/relations";
 import { unitOf } from "../io/format";
 import { colourBy } from "../model/custom";
 import {
   activeMode,
   anchor,
   bundle,
-  describe,
+  domain,
   event,
+  focus,
+  focusBar,
+  focusLevel,
   focusLinked,
-  highlight,
   hover,
   inFocus,
   isHitLayer,
-  labelOf,
   layerOf,
+  nameOf,
+  overlay,
   replayCaption,
   selection,
+  shared,
   short,
   shownLayer,
+  shownLevel,
+  subject,
+  touring,
   unlook,
   view,
 } from "../model/store";
@@ -30,9 +39,49 @@ import type { ViewName } from "../io/format";
 import { Labels } from "./Labels";
 import { Hint } from "./Hint";
 import { TitleBox } from "./TitleBox";
-import { jump } from "../control/navigate";
+import { frameFocus, jump } from "../control/navigate";
 import { engine, startScene } from "../control/scene";
 import { stopTour, tourCaption } from "../control/tour";
+
+/** What ↓ / ↑ (or a chain step's "show") just drew: shown on the view for a moment (see stepCaptions). */
+const stepCaption = signal<Caption | null>(null);
+
+/** Caption each level the user steps to inside the same focus (↓ / ↑, a chain step's "show"): its name and count, and
+ *  where it is among the focus's steps. Not when the domain changes (D: the chosen level stays), nor for a level set
+ *  with its focus (a link, which sets both at once); a new focus clears it. Returns the function that stops it. */
+function stepCaptions() {
+  let last = focus.peek(),
+    since = 0, // when the focus last changed (ms)
+    timer = 0;
+  const stop = effect(() => {
+    const chosen = focusLevel.value,
+      f = focus.value;
+    if (!sameRef(f, last)) {
+      last = f;
+      since = performance.now();
+      stepCaption.value = null;
+      return;
+    }
+    if (!f || touring.peek() || performance.now() - since < 100) return;
+    if (chosen === null) return void (stepCaption.value = null); // back to the object with its smallest parts
+    const steps = untracked(() => focusBar.value).filter((l) => !l.always),
+      i = steps.findIndex((l) => l.name === untracked(() => shownLevel.value));
+    if (i < 0) return;
+    stepCaption.value = {
+      title: `Drawing: ${steps[i].name} · ${steps[i].count}`,
+      detail: `step ${i + 1} of ${steps.length} · ↓ ↑ to step`,
+    };
+    clearTimeout(timer);
+    timer = window.setTimeout(() => (stepCaption.value = null), 2500);
+  });
+  return () => {
+    stop();
+    clearTimeout(timer);
+  };
+}
+
+/** The card's width and right margin (styles/card.css .inspector), for framing before it is drawn. */
+const CARD = 384 + 12;
 
 export function Viewport() {
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -41,18 +90,21 @@ export function Viewport() {
     const stop = startScene(canvas.current!);
     const eng = engine!;
     eng.onInteract = stopTour;
-    // The inspector covers the right of the view while something is selected: framing leaves that part free.
-    const stopInset = effect(() => {
-      selection.value;
-      const panel = document.querySelector(".inspector") as HTMLElement | null,
-        box = canvas.current!.getBoundingClientRect();
-      eng.insetRight = selection.peek()
-        ? Math.max(0, box.right - (panel?.getBoundingClientRect().left ?? box.right - 372))
-        : 0;
-    });
+    // The card covers part of the view while something is selected: framing leaves that part free. Measured at each
+    // framing (one layout read); a card not drawn yet (framing in the same step as the selection) is taken where
+    // styles/card.css puts it.
+    eng.cover = () => {
+      if (!subject.peek()) return null;
+      const box = canvas.current!.getBoundingClientRect(),
+        card = document.querySelector(".inspector")?.getBoundingClientRect();
+      return card
+        ? { x0: card.left - box.left, y0: card.top - box.top, x1: card.right - box.left, y1: card.bottom - box.top }
+        : { x0: box.width - CARD, y0: 12, x1: box.width - 12, y1: box.height - 12 };
+    };
+    const stopSteps = stepCaptions();
     return () => {
       stop();
-      stopInset();
+      stopSteps();
     };
   }, []);
 
@@ -118,7 +170,7 @@ export function Viewport() {
       if (!hit) return;
       selection.value = { table: hit.table, row: hit.row };
     }
-    engine?.frame(highlight.value ?? undefined, true, 700);
+    frameFocus(700);
   };
 
   return (
@@ -137,6 +189,7 @@ export function Viewport() {
       <ReplayCaption />
       <TitleBox />
       {(bundle.value?.header.domains?.length ?? 0) >= 2 && <Views />}
+      <OverlayChip />
       <Hint />
     </div>
   );
@@ -167,9 +220,29 @@ export function Views() {
   );
 }
 
+/** In a detector part's view, the chip that draws the shared parts' layers (e.g. Physics: jets, MET) over it. A
+ *  selection draws its own objects of those parts whatever the chip (store/selection.ts focusLayers). */
+function OverlayChip() {
+  const d = domain.value,
+    names = [...shared.value];
+  if (!d || !names.length || shared.value.has(d)) return null;
+  const on = overlay.value,
+    name = names.join(" · ");
+  return (
+    <button
+      class={on ? "overlaychip on" : "overlaychip"}
+      aria-pressed={on}
+      title={`${on ? "Stop drawing" : "Draw"} the ${name} objects over this part of the detector`}
+      onClick={() => (overlay.value = !on)}
+    >
+      {name} overlay
+    </button>
+  );
+}
+
 function ReplayCaption() {
   const tour = tourCaption.value,
-    c = tour ?? replayCaption.value;
+    c = tour ?? replayCaption.value ?? stepCaption.value;
   return c ? (
     <div class={tour ? "caption tour" : "caption"} aria-live="polite">
       <b>{c.title}</b>
@@ -185,13 +258,11 @@ function Tooltip() {
   if (!h || !ev || !b || !ev.tables[h.table]) return null;
   const d0 = layerOf(h.table),
     d = d0 && shownLayer(d0, activeMode.value, colourBy.value);
-  const t = ev.tables[h.table],
-    name = describe(h.table, h.row);
+  const t = ev.tables[h.table];
   const value = d?.colour && t.columns[d.colour] ? Number(t.columns[d.colour][h.row]) : null;
   return (
     <div class="tooltip" style={{ left: h.x + 14, top: h.y + 14 }}>
-      <b>{labelOf(h.table)}</b> #{h.row}
-      {name && ` · ${name}`}
+      <b>{nameOf(h)}</b>
       {h.stacked > 1 && <div class="muted">{h.stacked} objects here · click again for the next</div>}
       {value !== null && (
         <div>

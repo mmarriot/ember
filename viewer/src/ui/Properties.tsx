@@ -1,61 +1,65 @@
 // An object's columns in the selection's card (Card.tsx): its main ones, then all of them folded, and for a reco
 // object with energy fractions (e.g. a jet) those as one bar.
-import { type Table, unitOf } from "../io/format";
+import type { Table } from "../io/format";
 import { colourBy, customColumns, customDoc } from "../model/custom";
-import { bundle, full, layerKey, layerOf, sizeColumn } from "../model/store";
+import { cellText, isCopied, isIndex } from "../model/describe";
+import { bundle, layerKey, layerOf, sizeColumn } from "../model/store";
 
 /** The summary's columns of an object: its layer's `inspect` columns (e.g. a jet's pT, η, φ), else what colours, places
- *  and sizes it; then its custom columns. */
+ *  and sizes it; then its custom columns. Not raw indices, nor columns copied or derived from others (a PV's position
+ *  copied into a jet, px from pT and φ): those are under "All columns". */
 export function keyColumns(name: string, table: Table) {
-  const d = layerOf(name),
+  const h = bundle.value!.header,
+    d = layerOf(name),
     custom = customColumns.value.filter((c) => c.table === name).map((c) => c.name);
   const colour = d ? (colourBy.value[layerKey(d)] ?? d.colour) : undefined;
   const category = d && typeof d.colourBy === "object" && "category" in d.colourBy ? d.colourBy.category : undefined;
   return [
     ...new Set([...(d?.inspect ?? [category, colour, ...(d?.position ?? []), sizeColumn(name, table)]), ...custom]),
-  ].filter((c): c is string => !!c && c in table.columns);
+  ].filter((c): c is string => !!c && c in table.columns && !isIndex(h, name, c) && !isCopied(h, name, c));
 }
-/** Columns of one row as a table of name, value, unit. */
+/** Columns of one row as a table of name, value, unit: units scaled to the value (µm, MeV), a sentinel as words ("no
+ *  time"), a value with a name by it (model/describe.ts cellText). */
 export function Rows({ name, table, row, columns }: { name: string; table: Table; row: number; columns: string[] }) {
-  const info = bundle.value!.header.tables[name],
+  const h = bundle.value!.header,
+    info = h.tables[name],
+    d = layerOf(name),
     custom = customColumns.value.filter((c) => c.table === name).map((c) => c.name);
   return (
     <table class="kv">
       <tbody>
-        {columns.map((c) => (
-          <tr title={info.columns[c]?.doc ?? customDoc(name, c)}>
-            <td>{custom.includes(c) ? <i>{c}</i> : c}</td>
-            <td>{full(table.columns[c][row])}</td>
-            <td class="unit">{unitOf(info.columns[c]?.doc)}</td>
-          </tr>
-        ))}
+        {columns.map((c) => {
+          const [value, unit] = cellText(h, d, name, table, c, row);
+          return (
+            <tr title={info.columns[c]?.doc ?? customDoc(name, c)}>
+              <td>{custom.includes(c) ? <i>{c}</i> : c}</td>
+              <td>{value}</td>
+              <td class="unit">{unit}</td>
+            </tr>
+          );
+        })}
       </tbody>
     </table>
   );
 }
 
-/** Its columns: the layer's `inspect` columns (e.g. a jet's pT, η, φ), else what colours, places and sizes it, and the
- *  custom ones; all of them folded under. */
+/** All its columns, folded (its key columns are in the physics block, Physics.tsx; a truth object's are here). */
 export function Properties({ table, name, row }: { table: Table; name: string; row: number }) {
-  const d = layerOf(name),
-    key = keyColumns(name, table),
+  const truth = !!layerOf(name)?.truth,
     n = Object.keys(table.columns).length;
   return (
     <section class="props">
-      {d?.fractions && <Fractions fractions={d.fractions} table={table} row={row} />}
-      <Rows name={name} table={table} row={row} columns={key} />
-      {n > key.length && (
-        <details class="allcolumns">
-          <summary>All {n} columns</summary>
-          <Rows name={name} table={table} row={row} columns={Object.keys(table.columns)} />
-        </details>
-      )}
+      {truth && <Rows name={name} table={table} row={row} columns={keyColumns(name, table)} />}
+      <details class="allcolumns">
+        <summary>All {n} columns</summary>
+        <Rows name={name} table={table} row={row} columns={Object.keys(table.columns)} />
+      </details>
     </section>
   );
 }
 /** A reco object's energy fractions (layer hint `fractions`, e.g. a jet's charged and neutral hadrons, photons...) as
  *  one bar, in a neutral ramp (a reconstruction quantity, not a colour of the views), with the shares named under it. */
-function Fractions({ fractions, table, row }: { fractions: Record<string, string>; table: Table; row: number }) {
+export function Fractions({ fractions, table, row }: { fractions: Record<string, string>; table: Table; row: number }) {
   const parts = Object.entries(fractions)
     .filter(([c]) => c in table.columns)
     .map(([c, name]) => [name, Number(table.columns[c][row])] as const)

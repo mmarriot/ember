@@ -5,9 +5,12 @@ import { computed, signal } from "@preact/signals";
 import type { DisplayLayer, EventData, Header } from "../../io/format";
 import { colours, describeNoLink, type Legend, type Pal } from "../../render/colour";
 import { colourBy, type ColourMode, withColour } from "../custom";
+import { inText } from "../describe";
+import { facts } from "../facts";
 import { truthStatus, type TruthStatus } from "../match";
+import { graphOf } from "../truth";
 import { modeColouring, modeRoots, recoColourOf } from "../modes";
-import { bundle } from "./data";
+import { bundle, event } from "./data";
 import { kindOf, labelOf, layerKey, layerOf } from "./names";
 import { domain } from "./view";
 
@@ -26,6 +29,10 @@ export const modes = computed(() => {
 /** What the colours show, as the user chose (key T, or the switch in the colour key): the reconstruction, or the
  *  truth. Not remembered: a bundle opens on the reconstruction. */
 export const colourChoice = signal<"reco" | "truth">("reco");
+
+/** The truth level the truth colours group the particles by (a mask of level-flag bits, model/truth.ts
+ *  COLOUR_LEVELS), as chosen in the colour key; null: the profile's (the truth particles' `particle` bit). */
+export const truthLevel = signal<number | null>(null);
 
 /** Whether the bundle can colour by truth: its truth particles say which level is "the particle" (display hint
  *  `particle`). Bundles made before that hint have none, and their truth colours would follow other rules than the
@@ -69,6 +76,42 @@ export function shownLayer(d: DisplayLayer, mode = activeMode.peek(), by = colou
   return withColour(c ? { ...d, colourBy: c } : plain ? { ...d, colourBy: undefined } : d, by[layerKey(d)]);
 }
 
+/** The domain looked at is a calorimeter's: it records simulated energy in hits drawn as cells (HGCal, Calo; not a
+ *  muon system's chamber deposits). Truth particles are then named by their energy, elsewhere by pT and η (names.ts
+ *  truthText). */
+export const caloView = computed(() => {
+  const dom = domain.value,
+    h = bundle.value?.header;
+  return (
+    !!dom &&
+    !!h &&
+    facts(h).some((f) => {
+      const l = h.display.find((x) => x.table === f.to);
+      return l?.domain === dom && l.repr === "cells";
+    })
+  );
+});
+
+/** The truth particles as a graph (model/truth.ts): parents, children and vertices, once per event; null without truth
+ *  particles. Their vertex table is the other truth table a plain relation from them reaches. */
+export const truthGraph = computed(() => {
+  const b = bundle.value,
+    ev = event.value,
+    root = modes.value.roots.truth,
+    t = root ? ev?.tables[root] : undefined;
+  if (!b || !ev || !root || !t) return null;
+  const rels = Object.entries(b.header.relations).filter(
+      ([n, r]) => r.from === root && !r.association && ev.relations[n],
+    ),
+    kids = rels.find(([, r]) => r.to === root),
+    vtx = rels.find(([, r]) => r.to !== root && b.header.display.some((d) => d.table === r.to && d.truth))?.[1].to;
+  return {
+    graph: graphOf(t, kids && ev.relations[kids[0]], vtx ? ev.tables[vtx] : undefined),
+    particles: root,
+    vertices: vtx,
+  };
+});
+
 /** How far a kind with no truth is mixed towards the background in the truth mode. */
 export const FAINT = 0.6;
 
@@ -104,11 +147,7 @@ export const noTruth = (table: string) => truthStatuses.peek().get(table)?.kind 
 // truth stops").
 describeNoLink((d) => {
   const s = activeMode.peek() === "truth" ? truthStatuses.peek().get(d.table) : undefined;
-  if (s?.kind === "none")
-    return `no truth for ${truthName(d.table)
-      .split(" ")
-      .map((w) => (/^[A-Z][a-z]/.test(w) ? w.toLowerCase() : w))
-      .join(" ")}${s.gap !== undefined ? ` (gap ${s.gap})` : ""}`;
+  if (s?.kind === "none") return `no CMSSW associator for ${inText(truthName(d.table))}`; // the gap: behind the key's i and in the Truth tab
   if (s?.kind === "match") return "matched to truth, not to a particle: no particle colour (its card)";
   return "one colour: no link to the colour's source";
 });

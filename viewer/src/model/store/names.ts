@@ -1,7 +1,9 @@
 // How tables, layers, objects and numbers are named in the page, from the open bundle's display hints. Plain
 // functions: they read the signals when called, so a component that calls them re-renders when those change.
-import { type DisplayLayer, kindName, type Table, unitOf } from "../../io/format";
-import { columnName } from "../objects";
+import { computed } from "@preact/signals";
+import { type DisplayLayer, kindName, type Table } from "../../io/format";
+import { cardName, chipName, describeRow, labelName, objectName } from "../describe";
+import { ranks } from "../objects";
 import { bundle, event } from "./data";
 
 /** The key of a display layer, unique in a bundle: "table:repr". Signals keyed per layer use it. */
@@ -49,6 +51,40 @@ export function largestFirst(table: string, rows: number[]) {
   return key ? [...rows].sort((a, b) => Number(key[b]) - Number(key[a])) : rows;
 }
 
+/** The column an object's number ranks by: the one its rows in the side panel are sorted by (and N, Shift+N step by),
+ *  so the numbers in a list run 1, 2, 3: its layer's list sort, else its size column (a jet's pT, a supercluster's
+ *  energy), else its pT; undefined (numbered by row) for hits and truth particles, whose numbers no list shows and which would cost
+ *  a sort of up to 10⁵ rows on a hover, and for a sort column the table lacks (primary vertices: CMSSW's leading one
+ *  stays 1). */
+export function rankColumn(d: DisplayLayer, t: Table) {
+  if (isHitLayer(d) || d.truth) return undefined;
+  return d.list?.sort ?? sizeColumn(d.table, t) ?? ("pt" in t.columns ? "pt" : undefined);
+}
+
+/** Per event, each table's ranks by its rank column (null: none), ranked when first asked for: one sort per table and
+ *  event, not one per name drawn. */
+const rankCache = computed(() => {
+  bundle.value;
+  event.value;
+  return new Map<string, Uint32Array | null>();
+});
+
+/** An object's number in its name, from 1: its rank by its rank column among the rows of its table (the leading
+ *  electron is "Electron 1"), else its row + 1. The address (s=Electron:2) and every reference keep the row. */
+export function numberOf(table: string, row: number) {
+  const t = event.value?.tables[table],
+    d = layerOf(table),
+    cache = rankCache.value;
+  if (!t || !d || row >= t.n) return row + 1;
+  let r = cache.get(table);
+  if (r === undefined) {
+    const c = rankColumn(d, t);
+    r = c && c in t.columns ? ranks(t.columns[c], t.n) : null;
+    cache.set(table, r);
+  }
+  return r ? r[row] : row + 1;
+}
+
 /** A number in a few significant figures, for names, legends and charts. */
 export const short = (v: number) => (Number.isInteger(v) || Math.abs(v) >= 100 ? v.toFixed(0) : v.toPrecision(3));
 
@@ -62,24 +98,64 @@ export const full = (v: number | bigint) =>
         ? v.toExponential(3)
         : v.toFixed(3);
 
-/** A short name for one object, from its layer's `describe` hint (e.g. "π+ · E 88.9 GeV"), or "" without one. A
- *  number is named after its quantity (its `prefix`, else model/objects.ts columnName: "pT", "E", "E raw"), so a pT
- *  is never read as an energy. `skip`: columns to leave out (those shown next to it anyway, e.g. in object rows). */
+/** A truth particle's name for its context (docs/truth.md): next to a track, muon, jet, e/γ or MET, by its pT and η
+ *  ("μ⁺ · pT 96.6 · η 1.11"); with `energy`, next to a calorimeter object, by its energy ("μ⁺ · E 162 GeV"). Its
+ *  `describe` name without pT and η columns. */
+export function truthText(table: string, row: number, energy = false): string {
+  const t = event.value?.tables[table],
+    pdg = t?.columns.pdgId,
+    pt = t?.columns.pt,
+    eta = t?.columns.eta,
+    e = t?.columns.energy;
+  if (!t || row >= t.n || !pdg || !pt || !eta) return describe(table, row);
+  const id = String(pdg[row]),
+    name = layerOf(table)?.describe?.names?.pdgId?.[id] ?? `pdgId ${id}`;
+  // A beam particle (pT 0, η "infinite" by the ROOT convention) is named by its energy too.
+  return e && (energy || !(Number(pt[row]) > 1e-6) || Math.abs(Number(eta[row])) > 20)
+    ? `${name} · E ${short(Number(e[row]))} GeV`
+    : `${name} · pT ${short(Number(pt[row]))} · η ${short(Number(eta[row]))}`;
+}
+
+/** A short name for one object's values, from its layer's `describe` hint (e.g. "π+ · E 88.9 GeV"), or "" without
+ *  one (model/describe.ts describeRow). `skip`: columns to leave out (those shown next to it anyway, e.g. in object
+ *  rows). */
 export function describe(table: string, row: number, skip: string[] = []): string {
+  const b = bundle.value;
+  return b ? describeRow(b.header, layerOf(table), event.value?.tables[table], row, skip) : "";
+}
+
+/** An object's one name (model/describe.ts objectName): "Jet 1 · AK4 · pT 99.6 GeV"; `skip`: values to leave out;
+ *  `cmssw`: with the CMSSW collection (a chip's tooltip; the card's header is cardNameOf). A table without a layer: its name and number. */
+export function nameOf(ref: { table: string; row: number }, skip: string[] = [], cmssw = false) {
   const b = bundle.value,
-    t = event.value?.tables[table],
-    hint = layerOf(table)?.describe;
-  if (!b || !t || !hint || row >= t.n) return "";
-  return hint.columns
-    .filter((c) => c in t.columns && !skip.includes(c))
-    .map((c) => {
-      const v = Number(t.columns[c][row]),
-        name = hint.names?.[c]?.[String(v)];
-      if (name) return name;
-      // e.g. "St 4" for a muon segment's station, "pT 65.5 GeV"; an empty prefix gives the bare number
-      const prefix = hint.prefix?.[c] ?? columnName(c),
-        unit = unitOf(b.header.tables[table]?.columns[c]?.doc);
-      return `${prefix ? `${prefix} ` : ""}${short(v)}${unit ? ` ${unit}` : ""}`;
-    })
-    .join(" · ");
+    d = layerOf(ref.table);
+  return b && d
+    ? objectName(b.header, d, numberOf(ref.table, ref.row), describe(ref.table, ref.row, skip), cmssw)
+    : `${ref.table} ${ref.row + 1}`;
+}
+
+/** An object's label in the view (model/describe.ts labelName): "Jet 1 · pT 46 GeV"; `labelled`: the layers of the
+ *  labels shown, which say whether its collection must be named. */
+export function labelText(ref: { table: string; row: number }, skip: string[], labelled: DisplayLayer[]) {
+  const b = bundle.value,
+    d = layerOf(ref.table);
+  return b && d
+    ? labelName(b.header, d, numberOf(ref.table, ref.row), describe(ref.table, ref.row, skip), labelled)
+    : `${ref.table} ${ref.row + 1}`;
+}
+
+/** The card's header (model/describe.ts cardName): [name with its values, its collection]. */
+export function cardNameOf(ref: { table: string; row: number }): [string, string] {
+  const b = bundle.value,
+    d = layerOf(ref.table);
+  return b && d
+    ? cardName(b.header, d, numberOf(ref.table, ref.row), describe(ref.table, ref.row))
+    : [`${ref.table} ${ref.row + 1}`, ""];
+}
+
+/** An object's name in a list of its kind (model/describe.ts chipName): "AK4 CHS · pT 52.8 GeV". */
+export function chipText(table: string, row: number) {
+  const b = bundle.value,
+    d = layerOf(table);
+  return b && d ? chipName(b.header, d, numberOf(table, row), describe(table, row)) : `${table} ${row + 1}`;
 }

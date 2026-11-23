@@ -68,6 +68,12 @@ def test_chosen_events_in_event_order(files):
     assert "3 of the requested events" in log
 
 
+def test_events_by_run_lumi_and_event_number(files):
+    profile, with_runs, _, tmp = files
+    b, _ = run([with_runs], tmp / "a.ember", profile, events=[(1, 1, 3), (1, 7, 0), (2, 3)])
+    assert [e["event"] for e in b.events] == [2, 3]  # lumi 7 is not in the file (its events are all in lumi 1)
+
+
 def test_per_run_tables_from_another_file(files):
     profile, with_runs, events_only, tmp = files
     b, _ = run([events_only], tmp / "a.ember", profile)

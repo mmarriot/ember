@@ -1,10 +1,12 @@
-// A reco object's chain in its card (Card.tsx): what it is part of, itself, and what it is made of (model/chain.ts),
-// each step with what the truth has for it as a tag (match, fact, no truth). A step names its objects when
-// they are few, and counts them otherwise (a click lists them). "show" draws a step in the view (↓ ↑ step through
-// them), and a step in another part of the detector has a link that looks there.
+// A reco object's chain in its card (Card.tsx): what it is part of, itself, and what it is made of (model/chain.ts).
+// A step with a truth statement of its own has a tag (match: the associator's; sim: the simulated energy in its hits);
+// steps whose kinds have no associator have none, and are named once behind the chain's i. A step names its
+// objects when they are few, and counts them otherwise (a click lists them). "show" draws a step in the view (↓ ↑ step
+// through them), and a step in another part of the detector has a link that looks there.
 import type { ComponentChildren } from "preact";
 import { useState } from "preact/hooks";
 import type { Link, Rung } from "../model/chain";
+import { inText, singular } from "../model/describe";
 import { factUnit, facts } from "../model/facts";
 import { percent } from "../model/match";
 import {
@@ -17,12 +19,12 @@ import {
   ladder,
   largestFirst,
   layerOf,
-  modes,
   shared,
   shownLevel,
 } from "../model/store";
-import { chip } from "./chips";
+import { chip, truthChip } from "./chips";
 import { Info, togglePopover } from "./Info";
+import { GapLink } from "./TruthBlock";
 import { chooseDomain } from "../control/navigate";
 
 const INLINE = 3; // a step with at most this many objects names them; a longer one counts them and unfolds
@@ -38,20 +40,17 @@ const CHAIN_HELP = (
     <p>
       <b>Click</b> an object to look at it in the view; the card stays. <b>Double click</b> to open its card.
     </p>
-    <p>Each step says what the truth has for it:</p>
+    <p>A step with truth of its own says so with a tag:</p>
     <ul>
       <li>
         <b>match</b>: CMSSW's associator matched it to a truth particle. <i class="qdot q-clean" /> clean,{" "}
-        <i class="qdot q-impure" /> impure, <i class="qdot q-unmatched" /> no match.
+        <i class="qdot q-impure" /> impure, <i class="qdot q-unmatched" /> not matched.
       </li>
       <li>
-        <b>fact</b>: from the simulation, the particles that left the energy in these hits.
-      </li>
-      <li>
-        <b>no truth</b>: CMSSW has no truth for this kind of object yet.
+        <b>sim</b>: from the simulation, the particles that left the energy in these hits.
       </li>
     </ul>
-    <p>Click a tag for what it means on that step.</p>
+    <p>Click a tag for what it means on that step. Steps of kinds CMSSW has no associator for have no tag.</p>
   </>
 );
 
@@ -59,40 +58,54 @@ const CHAIN_HELP = (
 export function Chain() {
   const l = ladder.value;
   if (!l) return null;
+  // every collection of a step without an associator, also inside a step that has one (PF clusters: HCAL outer)
+  const none = [...l.above, ...l.below, ...l.beside].flatMap((r) =>
+    r.links.flatMap((x) => (x.kind === "none" ? [[r.kind, x] as const] : [])),
+  );
   return (
     <section class="ladder" aria-label="Chain">
       <h4>
         Chain{" "}
         <span class="lanes">
-          {modes.value.roots.truth && (
-            <>
-              <span class="badge reco">reco</span>⇄<span class="badge truth">truth</span>
-            </>
-          )}
-          <Info title="The chain">{CHAIN_HELP}</Info>
+          <Info title="The chain">
+            {CHAIN_HELP}
+            {none.length > 0 && (
+              <>
+                <p>No CMSSW associator yet, so no truth, for:</p>
+                <ul>
+                  {none.map(([kind, x]) => (
+                    <li>
+                      <b>{kind}</b>
+                      {x.label ? ` (${x.label})` : ""}: {x.reason}
+                      {x.gap !== undefined && (
+                        <>
+                          {" "}
+                          (<GapLink gap={x.gap} />)
+                        </>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </Info>
         </span>
       </h4>
       <ol>
         {l.above.length > 0 && <li class="part">part of</li>}
-        {l.above.map((r) => (
-          <RungRow rung={r} role="above" key={`a|${r.kind}`} />
-        ))}
+        {steps(l.above, "above", "a")}
         <RungRow rung={l.self} role="self" />
         {l.below.length > 0 && <li class="part">made of</li>}
-        {l.below.map((r) => (
-          <RungRow rung={r} role="below" key={`b|${r.kind}`} />
-        ))}
+        {steps(l.below, "below", "b")}
         {l.beside.length > 0 && (
           <li
             class="part"
-            title="Other objects built only from its parts (e.g. a secondary vertex whose tracks are all in this jet). They are not parts of it."
+            title="Other objects built only from its parts (e.g. a tau whose PF candidates are all in this jet). They are not parts of it."
           >
-            also inside it
+            built from its parts
           </li>
         )}
-        {l.beside.map((r) => (
-          <RungRow rung={r} role="beside" key={`s|${r.kind}`} />
-        ))}
+        {steps(l.beside, "beside", "s")}
         {l.other.length > 0 && (
           <li class="part" title="Rows of tables this data set does not draw that are related to it">
             other tables
@@ -104,6 +117,14 @@ export function Chain() {
       </ol>
     </section>
   );
+}
+
+/** Whether a step has a truth statement of its own (an association, or simulated energy in its hits). */
+const says = (r: Rung) => r.links.some((x) => x.kind === "match" || x.kind === "fact");
+
+/** A list of steps. */
+function steps(rungs: Rung[], role: "above" | "below" | "beside", key: string) {
+  return rungs.map((r) => <RungRow rung={r} role={role} key={`${key}|${r.kind}`} />);
 }
 
 /** One step of the chain: its kind, its objects (named when few, else counted, unfolding to a list), whether the view
@@ -182,14 +203,19 @@ function RungRow({ rung, role }: { rung: Rung; role: "above" | "self" | "below" 
           also via {rung.via.join(", ")}
         </div>
       )}
-      {rung.links.map((link) => (
-        <LinkLine
-          link={link}
-          single={rung.count === 1}
-          several={rung.links.filter((x) => x.kind === link.kind).length > 1}
-          at={rung.groups[0]}
-        />
-      ))}
+      {/* The selection's own truth is the card's truth block; a step without a statement is named behind the chain's
+          i. */}
+      {role !== "self" &&
+        says(rung) &&
+        rung.links.map((link) => (
+          <LinkLine
+            link={link}
+            single={rung.count === 1}
+            several={rung.links.filter((x) => x.kind === link.kind).length > 1}
+            at={rung.groups[0]}
+            whose={role === "above" ? inText(singular(rung.kind)) : undefined}
+          />
+        ))}
       {open && !few && (
         <div class="rlist">
           {rung.groups.map((g) => (
@@ -214,21 +240,23 @@ const Tag = ({ word, children }: { word: string; children: ComponentChildren }) 
     {word}
   </button>
 );
-const GAP = (gap?: number) => (gap !== undefined ? ` (docs/truth-graph.md, gap ${gap})` : "");
 
 /** What the truth says about one step, in one line: a tag and numbers. Every line is that step's own statement: its
  *  objects' own matches, counted; the simulated energy in its own hits; never a match of the selected object through
- *  its parts. `at`: the step's first collection and row, for the simulation's unit of a hit. */
+ *  its parts. `at`: the step's first collection and row, for the simulation's unit of a hit. `whose`: for a step that
+ *  holds the selection (its vertex), the kind whose own truth it is, said so it does not read as the selection's. */
 function LinkLine({
   link,
   single,
   several,
   at,
+  whose,
 }: {
   link: Link;
   single: boolean;
   several: boolean;
   at?: { table: string; rows: number[] };
+  whose?: string;
 }) {
   const label = link.label && <span class="muted">{link.label}</span>;
   if (link.kind === "match") {
@@ -247,24 +275,26 @@ function LinkLine({
           </p>
         )}
         <p>
-          <i class="qdot q-unmatched" /> <b>no match</b>: a fake, or an object the associator does not consider (e.g. a
-          candidate without calorimeter energy).
+          <i class="qdot q-unmatched" /> <b>not matched</b>: a fake, or an object the associator does not consider (e.g.
+          a candidate without calorimeter energy).
         </p>
+        {whose && <p>This is the {whose}'s own match, not the selected object's.</p>}
       </>
     );
     return (
       <div class="rlink match">
         <Tag word="match">{help}</Tag>
+        {whose && <span class="muted">the {whose}'s own:</span>}
         {label}
         {single && link.matched > 0 && (
           <>
-            {chip(link.truth, link.partners[0][0])}
+            {truthChip(link.truth, link.partners[0][0], link.measure)}
             {link.purity !== undefined && (
               <span
                 class={link.good === undefined ? "q" : `q q-${impure ? "impure" : "clean"}`}
                 title="Purity: the share of it that comes from its match"
               >
-                {percent(link.purity)} pure
+                purity {percent(link.purity)}
               </span>
             )}
           </>
@@ -288,7 +318,7 @@ function LinkLine({
         {none > 0 && (
           <span class="q q-unmatched">
             {!single && <i class="qdot q-unmatched" />}
-            {single ? "no match" : `${none} no match`}
+            {single ? "not matched" : `${none} not matched`}
           </span>
         )}
       </div>
@@ -320,26 +350,26 @@ function LinkLine({
         )}
         {!link.unranked && !shown.length && (
           <p>
-            No exported particle left energy here: it is noise, out-of-time pile-up, or a particle the export left out.
-            The file cannot tell which.
+            No simulated energy here from an exported particle: it is noise, out-of-time pile-up, or a particle the
+            export left out. The file cannot tell which.
           </p>
         )}
       </>
     );
     return (
       <div class="rlink fact">
-        <Tag word="fact">{help}</Tag>
+        <Tag word="sim">{help}</Tag>
         {label}
         {several && link.in && <span class="muted">{link.in}</span>}
         {link.unranked ? (
           <span class="muted">per hit</span>
         ) : !shown.length ? (
-          <span class="muted">no exported particle</span>
+          <span class="muted">no simulated energy</span>
         ) : (
           <>
             {shown.slice(0, 3).map(([p, share]) => (
               <>
-                {chip(link.truth, p)}
+                {truthChip(link.truth, p, "energy")}
                 <span class="muted">{percent(share)}</span>
               </>
             ))}
@@ -350,18 +380,5 @@ function LinkLine({
       </div>
     );
   }
-  if (link.kind === "none")
-    return (
-      <div class="rlink none">
-        <Tag word="no truth">
-          <p>
-            CMSSW has no truth for this kind of object yet: {link.reason}
-            {GAP(link.gap)}.
-          </p>
-          <p>Ember builds no match of its own. The steps it is made of speak for themselves.</p>
-        </Tag>
-        {label}
-      </div>
-    );
-  return null; // no truth of its own (a track's hits): it goes with what contains it, and needs no line
+  return null; // none (said behind the chain's i), or no truth of its own (a track's hits: it goes with what contains it)
 }

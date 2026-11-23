@@ -6,6 +6,7 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import type { Outline, ViewName } from "../io/format";
 import {
   angle,
+  type Area,
   boxOf,
   DIRECTIONS,
   type Envelope,
@@ -14,6 +15,7 @@ import {
   FLAT_DISTANCE,
   flatAim,
   flatView,
+  freeArea,
   presetDirection,
   type Rows,
 } from "./camera";
@@ -59,6 +61,8 @@ export class Engine {
   /** The replay in progress: started at `t0`, ends after `seconds`; `only`: the layers whose clocks run; `pace`: real
    *  seconds per second of replay. */
   private replayClock: { t0: number; seconds: number; only?: Layer[]; pace: number } | null = null;
+  /** Something is selected: the detector outlines are faded (see setFocused). */
+  private focused = false;
   /** The selection's cross-fade in progress (see fadeHighlight). */
   private highlightFade: { t0: number; ms: number } | null = null;
   /** Auto-rotation of the 3D view, turns per minute (0: none). */
@@ -82,8 +86,9 @@ export class Engine {
   private envelope: Envelope | null = null;
   /** Smallest radius (cm) framed around objects (profile view.minRadius, set by control/scene.ts). */
   minRadius = MIN_RADIUS;
-  /** Pixels on the right of the view covered by a panel (the inspector): framing centres objects in the rest. */
-  insetRight = 0;
+  /** The rectangle of the view covered by a panel (the card), in px from its top left, or null: framing fits and
+   *  centres objects in the largest part it leaves free (camera.ts freeArea). Asked at each framing. */
+  cover: () => Area | null = () => null;
   /** Called on every replay frame with the replay time (s), and with null when it ends. */
   onReplayTick: (t: number | null) => void = () => {};
   /** Called when the user starts rotating, panning or zooming. */
@@ -290,6 +295,8 @@ export class Engine {
     this.outlines = outlines.length ? outlineObject(outlines, colour, background) : null;
     if (this.outlines) {
       this.outlines.setView(this.view);
+      this.outlines.setHighlight(this.focused);
+      this.outlines.setHighlightMix(1);
       this.scene.add(this.outlines.object);
     }
     this.requestRender();
@@ -330,9 +337,10 @@ export class Engine {
   }
 
   /** Fit the view to the drawn objects, or to the given rows per table; animated over `ms` if `animate`, swinging
-   *  `swing` radians around the vertical on the way (3D). */
-  frame(selection?: Rows, animate = false, ms = 450, swing = 0) {
-    this.fit(selection, animate, ms, swing);
+   *  `swing` radians around the vertical on the way (3D). `least`: the smallest radius framed (cm), instead of
+   *  minRadius. */
+  frame(selection?: Rows, animate = false, ms = 450, swing = 0, least?: number) {
+    this.fit(selection, animate, ms, swing, undefined, least);
   }
 
   /** Frame a cylinder around the beam axis (radius rMax, |z| up to zMax; cm), e.g. a part of the detector, from the
@@ -377,7 +385,14 @@ export class Engine {
   }
 
   /** frame(), looking along `dir` (3D; default: the current direction). */
-  private fit(selection: Rows | undefined, animate: boolean, ms: number, swing: number, dir?: THREE.Vector3) {
+  private fit(
+    selection: Rows | undefined,
+    animate: boolean,
+    ms: number,
+    swing: number,
+    dir?: THREE.Vector3,
+    min = this.minRadius,
+  ) {
     const box = this.box(selection);
     if (!box) return;
     const [lo, hi] = box;
@@ -386,10 +401,10 @@ export class Engine {
     if (this.view !== "3d") {
       // 2D: a margin, and at least the smallest radius framed, as in 3D (a jet's calorimeter part)
       const [w, h] = flatView(this.view).extent(size),
-        least = 2 * this.minRadius;
+        least = 2 * min;
       return this.aimFlat(ctr, Math.max(1.2 * w, least), Math.max(1.2 * h, least), animate, ms);
     }
-    const radius = Math.max(0.68 * size.length() + 0.22 * this.minRadius, this.minRadius); // cm: conservative
+    const radius = Math.max(0.68 * size.length() + 0.22 * min, min); // cm: conservative
     this.aim(ctr, radius, animate, ms, swing, dir);
   }
 
@@ -403,28 +418,28 @@ export class Engine {
   private aimFlat(ctr: THREE.Vector3, w: number, h: number, animate: boolean, ms: number) {
     const c = this.cam2d,
       dir = flatView(this.view as Exclude<ViewName, "3d">).dir;
-    const { zoom, target } = flatAim(
-      ctr,
-      dir,
-      c.right - c.left,
-      c.top - c.bottom,
-      w,
-      h,
-      1 - this.insetRight / this.width,
-    );
+    const { zoom, target } = flatAim(ctr, dir, c.right - c.left, c.top - c.bottom, w, h, this.free());
     this.go([target.clone().addScaledVector(dir, FLAT_DISTANCE), target, zoom], animate, ms, 0);
   }
 
-  /** 3D: look at a sphere around `ctr` of this radius along `dir` (default: the current direction), filling the view
-   *  left free by a panel. */
+  /** The part of the view a panel leaves free (fractions of the view). */
+  private free() {
+    return freeArea(this.width, this.height, this.cover());
+  }
+
+  /** 3D: look at a sphere around `ctr` of this radius along `dir` (default: the current direction), filling the part
+   *  of the view a panel leaves free and centred there. */
   private aim(ctr: THREE.Vector3, radius: number, animate: boolean, ms: number, swing: number, dir = this.direction()) {
-    // With a panel over the right of the view, fit the objects in the uncovered width and centre them there.
-    const free = Math.max(0.4, 1 - this.insetRight / this.width),
+    const f = this.free(),
       aspect = this.cam3d.aspect;
-    const dist = this.distanceFor(radius / Math.min(1, free * aspect)); // the narrower side decides
-    const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), dir).normalize();
-    const shift = (1 - free) * dist * Math.tan(THREE.MathUtils.degToRad(this.cam3d.fov / 2)) * aspect; // half the covered width
-    const target = ctr.addScaledVector(right, shift);
+    const dist = this.distanceFor(radius / Math.min(f.y1 - f.y0, (f.x1 - f.x0) * aspect)); // the narrower side decides
+    // The free part's centre is off the view's centre: the target moves the other way, by as much at its distance.
+    const half = dist * Math.tan(THREE.MathUtils.degToRad(this.cam3d.fov / 2)), // half the view's height there (cm)
+      right = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), dir).normalize(),
+      up = new THREE.Vector3().crossVectors(dir, right);
+    const target = ctr
+      .addScaledVector(right, -(f.x0 + f.x1 - 1) * half * aspect)
+      .addScaledVector(up, (f.y0 + f.y1 - 1) * half);
     this.go([target.clone().addScaledVector(dir, dist), target, 1], animate, ms, swing);
   }
 
@@ -637,10 +652,21 @@ export class Engine {
     this.requestRender();
   }
 
-  /** Cross-fade every layer from its previous selection to its current one (set with Layer.setHighlight). */
+  /** Whether something is selected: the detector outlines fade as the layers' unrelated objects do (shown at once;
+   *  fadeHighlight cross-fades them with the layers). */
+  setFocused(on: boolean) {
+    this.outlines?.setHighlight(on); // also when unchanged: fadeHighlight then cross-fades from on to on
+    this.focused = on;
+    this.outlines?.setHighlightMix(1);
+    this.requestRender();
+  }
+
+  /** Cross-fade every layer from its previous selection to its current one (set with Layer.setHighlight), and the
+   *  detector outlines with them. */
   fadeHighlight(ms: number) {
     this.highlightFade = { t0: performance.now(), ms };
     for (const l of this.layers) l.setHighlightMix(0);
+    this.outlines?.setHighlightMix(0);
     this.requestRender();
   }
 
@@ -649,6 +675,7 @@ export class Engine {
     const t = Math.min(1, (now - this.highlightFade!.t0) / this.highlightFade!.ms),
       k = t * t * (3 - 2 * t);
     for (const l of this.layers) l.setHighlightMix(k);
+    this.outlines?.setHighlightMix(k);
     if (t >= 1) this.highlightFade = null;
     this.requestRender();
   }

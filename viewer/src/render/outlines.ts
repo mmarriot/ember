@@ -6,6 +6,7 @@
 // often inside the muon system) do not criss-cross the view. Not pickable, never framed, drawn behind everything.
 import * as THREE from "three";
 import type { Outline, ViewName } from "../io/format";
+import { FADE_GLSL } from "./layers/layer";
 
 const RING = 64,
   LINES = 4; // segments per ring; lines along z and spokes per face, evenly in phi (between the axes)
@@ -52,7 +53,8 @@ export function outlineSegments(outlines: readonly Outline[]): {
 }
 
 /** The outlines as one LineSegments in a colour between `colour` and `background` (raw sRGB, as the layers); faded
- *  parts are mixed further towards the background (no blending, so no sorting). */
+ *  parts are mixed further towards the background (no blending, so no sorting). While something is selected they fade
+ *  as far as the layers' unrelated objects (FADE), cross-faded like them (uAct0 -> uAct1 by uMix). */
 export function outlineObject(outlines: readonly Outline[], colour: THREE.Color, background: THREE.Color) {
   const { position, side, kind } = outlineSegments(outlines),
     g = new THREE.BufferGeometry();
@@ -69,6 +71,9 @@ export function outlineObject(outlines: readonly Outline[], colour: THREE.Color,
       // fainter on a dark background; a light one needs more contrast for the same impression
       uCol: { value: colour.clone().lerp(background, background.getHSL({ h: 0, s: 0, l: 0 }).l > 0.5 ? 0.15 : 0.55) },
       uBg: { value: background.clone() },
+      uAct0: { value: 0 },
+      uAct1: { value: 0 },
+      uMix: { value: 1 },
     },
     depthWrite: false,
     vertexShader: /* glsl */ `
@@ -88,10 +93,11 @@ export function outlineObject(outlines: readonly Outline[], colour: THREE.Color,
       }`,
     fragmentShader: /* glsl */ `
       uniform vec3 uCol, uBg;
+      uniform float uAct0, uAct1, uMix;
       varying float vKeep, vNear;
       void main() {
         if (vKeep < 0.5) discard;
-        gl_FragColor = vec4(mix(uBg, uCol, vNear), 1.0);
+        gl_FragColor = vec4(mix(uBg, uCol, vNear * (1.0 - ${FADE_GLSL} * mix(uAct0, uAct1, uMix))), 1.0);
       }`,
   });
   const lines = new THREE.LineSegments(g, material);
@@ -111,6 +117,15 @@ export function outlineObject(outlines: readonly Outline[], colour: THREE.Color,
     setReach(target: THREE.Vector3, d: number) {
       u.uTarget.value.copy(target);
       u.uReach.value = d;
+    },
+    /** Something is selected (faded) or not; setHighlightMix cross-fades from the previous state to this one. */
+    setHighlight(active: boolean) {
+      u.uAct0.value = u.uAct0.value + (u.uAct1.value - u.uAct0.value) * u.uMix.value;
+      u.uAct1.value = active ? 1 : 0;
+      u.uMix.value = 0;
+    },
+    setHighlightMix(k: number) {
+      u.uMix.value = k;
     },
     dispose() {
       g.dispose();

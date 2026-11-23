@@ -102,6 +102,10 @@ export function completeness(
   return undefined;
 }
 
+/** What an association counts, in a few words: "tracker hits", "energy in ECAL", "tracks' pT²". */
+export const measureWords = (m: Match) =>
+  m.measure === "hits" ? "tracker hits" : m.measure === "pt2" ? "tracks' pT²" : `energy in ${m.in}`;
+
 /** A purity or completeness as a percentage. */
 export const percent = (x: number | undefined) =>
   x === undefined || Number.isNaN(x) ? "–" : `${Math.round(100 * x)}%`;

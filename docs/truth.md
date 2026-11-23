@@ -79,6 +79,34 @@ trackster that cleanly resolves one photon of a low-energy π⁰ a split. Bit 2 
 (CaloParticle, PF photons, GenJet constituents), and shows a merged π⁰ as merging two particles. The choice is one
 setting in the profile (`"particle": {"bit": 2}`). Bit 2 is the default until the owners decide otherwise.
 
+### Which particles get a colour
+
+The truth colours have seven colours of their own (one per particle, never repeated); every other signal particle is
+grey, and pile-up is a smaller warm grey. Which seven depends on what is looked at, and the colour key's line under its
+title always says which rule is in force (`model/relations.ts` `identities`):
+
+| looking at | the seven slots go to | key says |
+|---|---|---|
+| a selection with no pair of its own (a jet, an electron, a PF or TICL candidate) | first the particles its parts are matched to (by their pT), then those that left simulated energy in its hits (by energy, detector by detector). The key lists only these: the rest of the view is faded | "the selection's particles: …" |
+| a calorimeter's view (HGCal, Calo: simulated energy in hits drawn as cells) | the particles with the most simulated energy in that view's hits, summed per particle of the level within **one** detector. A view with several (Calo: ECAL, HCAL, HF, HO) ranks the particles in each detector on its own and gives the slots to each detector's next particle in turn (ECAL's first, HCAL's first, …): energies of different detectors are never compared or added (their sampling fractions differ, and HF counts photoelectrons). Particles with none there take no slot | "top 7 by simulated energy in HGCal"; "… within each of ECAL, HCAL, HF, HO, in turn" |
+| any other view of a detector (the tracker; a muon system, whose chamber deposits are no measure of a particle's size) | the particles its reco objects (tracks) are matched to, by pT; without such matches, the Physics rule | "top 7 by pT among the particles matched to Tracker objects" |
+| Physics, or everything | the signal particles by pT, those with \|η\| < 5 first | "top 7 signal particles by pT" |
+
+Only signal particles take a slot (never pile-up). Particles of the level come before those above it (a π⁰ that an
+object is matched to as a whole). Ranking by energy, as Ember did before, gave six of the seven slots to beam remnants
+at \|η\| ≈ 5 with pT 1–2 GeV in 8 of 10 ttbar events: they reach only HF, where nothing is compared. The simulated
+energy per particle is summed once per event, view and level (one pass over the hit-index relations), and the slot
+order is kept; a new selection only puts its particles first, and recolours the view only when the seven change.
+
+**The level picker.** The key's "Group by" chooses the level that is one colour: generator particle (bit 2,
+StableDecayProducts), entered the calorimeter (bit 3, CaloBoundary), reconstructable (bit 10,
+ReconstructableFinalState) or b / c hadron (bits 8 and 9; the particles outside every b or c hadron stay grey). Each
+option gives the number of signal particles in that level in the event. The profile's level is the default. The level
+changes the colours only: the lineage, the pair and the cards keep the profile's.
+
+**Before a selection.** In the truth colours the signal particles of the level with pT ≥ 1 GeV are drawn as dashed
+lines (the truth layer is otherwise drawn only for a selection). Pile-up stays off.
+
 ## Measures
 
 For a reco object R and its matched truth branch B (a particle and everything below it), in R's detector:
@@ -137,14 +165,14 @@ With a truth particle, a matched reco object or a hit selected, the view shows o
 
 Each object is coloured by where it ended up:
 
-| class | meaning |
+| class (as the key says it) | meaning |
 |---|---|
-| shared | the branch's, in its match (a hit: the branch left the most simulated energy in it) |
-| contamination | in its match, from other particles or none |
-| split off | the branch's, in another object of the kind compared (and that object) |
-| missed | the branch's, in no object of the kind compared |
-| in its match | part of a matched object with no truth of its own (a trackster's layer clusters, a track's hits) |
-| branch | the branch's other particles that entered the calorimeter on their own |
+| found | the branch's, in its match (a hit: the branch left the most simulated energy in it) |
+| not from it | in its match, from other particles or none (contamination) |
+| in another object | the branch's, in another object of the kind compared, and that object (split off) |
+| in no object | the branch's, in no object of the kind compared (missed) |
+| part of its match | part of a matched object with no truth of its own (a trackster's layer clusters, a track's hits) |
+| rest of its branch | the branch's other particles that entered the calorimeter on their own |
 | not compared | the branch's hits in a detector whose reco has no association |
 
 The card gives, per detector, two bars that name their energy:
@@ -222,18 +250,29 @@ Every drawn kind has one truth status. The viewer works it out from the bundle (
 3. **none**: the kind's `truthGap`, or else "no truth association exported for this kind";
 4. for a part drawn with what contains it (the hits of a track): its container's status.
 
-The same words appear in three places:
+The same words appear in three places, each saying which of three things it is: "no CMSSW associator" (the kind has
+no answer), "not matched" (an object of a matched kind the associator matched to nothing), or "no simulated energy"
+(a hit no exported particle left energy in). A gap number is never in the main text: it is behind an **i**, as a link
+to the [gap table](truth-graph.md#gap-table).
 
-- **the selection's card**, on the object's step of its chain ([Viewer](viewer.md#the-selections-card)). For example
-  the tag "no truth" on a jet, and behind it (click it): "the truth graph has no jet associator, and no generator-jet level in
-  the truth graph (gap 21)". It adds at most one constituent's own match ([below](#constituents)). Every other step
-  of the chain carries its own kind's status in the same way;
-- **the truth colour key**: "faint: no truth for that kind", with the kinds and the reason behind its **i**;
-- **the Truth tab**, which opens with the event's scorecard of the matched kinds (clean, impure, no match), and a
-  "Truth coverage" list of every drawn kind.
+- **the selection's card**, in its truth block at the top ([Viewer](viewer.md#the-selections-card)). For a kind
+  without an association, one line: the match of its parts that are each the only one of their collection in their
+  step, when no other part is matched and they name one particle ("via its track · e⁻ … · purity 100%"), else "No
+  truth match for jets in CMSSW"; behind its **i**: "the truth graph has no jet associator, and no generator-jet
+  level", with the gap as a link. Each part's own match is folded below it
+  ([below](#constituents)). In the chain, a step with its own truth has a tag (match, sim); the kinds without an
+  associator are named behind the chain's **i**;
+- **the truth colour key**: "faint: no CMSSW associator for that kind", once, with the kinds behind its **i** (the
+  side panel's rows of those kinds carry no line of their own); its
+  switch reads "Colour by: reco type | truth particle", and its grey reads "no simulated energy, or not cleanly
+  matched";
+- **the Truth tab**, which opens on the hard process, with folded under it the event's scorecard of the matched kinds
+  (clean, impure, not matched) and a "Truth coverage" list of every drawn kind ("no CMSSW associator" with its reason, the gap behind its **i**). The
+  side panel's heading of such a kind reads "no associator".
 
-In the truth mode, a kind with status none is drawn neutral and faint (cones as outlines), never in a particle's
-colour. An object of a matched kind without a clean match stays small and grey.
+In the truth mode, a kind with status none is drawn neutral and faint (cones as outlines; markers made of calorimeter
+cells, such as layer clusters and superclusters, as small dots under the hits, also in the pair view, so the hits'
+colours show), never in a particle's colour. An object of a matched kind without a clean match stays small and grey.
 
 Such a kind never opens the truth ↔ reco pair; its parts may.
 
@@ -247,14 +286,25 @@ fact in that layer's part of the detector. Bundles whose layer clusters still ca
 
 ### Constituents
 
-A composite object (jet, muon, PF candidate, electron) may show the **own** association of one constituent, named
-as the constituent's. For example: "its track #212 is matched to μ⁻ #301", with, behind its **i**, "the associator's
-answer for that track, not for this muon".
+A composite object (jet, muon, PF candidate, electron) shows the **own** associations of its parts in its card's truth
+block, each named as the part's. Its line names one only when its matched parts are each the only one of their
+collection in their step and all name one particle: "via its track · μ⁺ · pT 95.3 · from W⁺ decay · purity 100%", the track's answer, which its
+**i** says is not a verdict for the muon. Under **Each part's match**, folded, every step with an association: a step
+of one part names its particle and the match's purity ("Track pT 95.3 GeV → μ⁺ · purity 100% · associator · tracker
+hits"), a step of several counts them ("3 of 3 matched (3 clean)"). The parts are the steps of what it is made of, and
+the objects built only from its parts (an electron's PF cluster inside its supercluster, under "Built from its parts").
+`X` goes to the particle the line names, else offers the parts' particles in a chooser, larger parts first among
+those whose matches count the same thing. Naming one part's match when the parts disagree, or ranking particles by
+size across a track's pT and a cluster's energy, would be a verdict built in Ember.
 
-This happens only where a made-of relation gives exactly one part. It does not happen through an association, a
-pointer back up, or a "closest track" link. The card never adds up over several parts: "80% of its tracks are from
-the b" would be a match built in Ember. Instead, the card's chain counts each part's own match on the parts' step
-("9 of 9 matched"), and leaves the composite's step at "no truth".
+It never happens through an association, a pointer back up, or a "closest track" link. The card never adds up over
+several parts and never gives the composite a verdict: "80% of its tracks are from the b" would be a match built in
+Ember, and a pion's track inside a photon's cluster is the story, not a contradiction to resolve.
+
+The pair of a part may stand in for the composite's in the view (owner decision D4, a trial). A TICL candidate's
+single parts that are matched (its candidate trackster, linked trackster, track) must all point to one particle; the
+view then shows the pair of the first of them that is an earlier reconstruction step (the candidate trackster; in a
+TICL v6 bundle, the linked trackster), and the card says it is that part's. Parts that disagree give no pair.
 
 A constituent's match never gives the composite its colour. In the truth colours, an object takes a colour only
 through its own association, or from the container it is part of, never from its parts. With a jet in focus, its
@@ -280,6 +330,49 @@ tracks show in their own particles' colours: each colour is that track's own sta
 - **Scope**: HGCal completeness counts HGCal only. A barrel particle's few MeV in HGCal are not an inefficiency. The
   key shows the amount, so you can see this.
 
+## Physics from the graph
+
+The particle card states what the truth graph itself says of a particle, read from its particles and vertices alone
+(`viewer/src/model/truth.ts`, unit-tested in `truth.test.ts`). These are summaries of the simulation, never
+associations: nothing is matched by ΔR or by hits.
+
+| line | for | how it is computed |
+|---|---|---|
+| made at | every particle | the production vertex of its first generator copy: R = √(x² + y²), z, and the vertex named as below |
+| last vertex with daughters | every particle | its last copy's `decayVertexIdx`. In the file this is only the latest in time of the vertices where its kept daughters were made, not necessarily where it stopped; its children are those of all those vertices. So what a particle did is read from each child's own production vertex, as in the lines below |
+| vertex name, "B⁰ decay · 3 charged" | every truth vertex | the parent of the first particle made there, the vertex's `reason` (truth::VertexReason), and the number of particles made there with a non-zero charge **that the graph keeps** (not every particle Geant4 made) |
+| copies, "×4 (status 23→1)" | generator particles | a particle's copy is its only child of the same pdgId, a generator particle (status > 0) with that one parent (a τ written again beside a photon it radiated is still one τ; a Geant4 electron's delta ray is not its copy) |
+| brem in the tracker: n photons, ΣE, radius range | e⁻, e⁺ | the photons among its last copy's children made at a vertex of reason bremsstrahlung (a generator copy's radiated photons are not brem) before it left the tracker volume (the vertex's time `t` before its checkpoint's `boundaryT`, at the simulation's tracker–calorimeter boundary: R 123 cm in the barrel, \|z\| 293.5 cm in the endcaps, in front of the ETL and HGCal; a photon made later is radiated in front of or in the calorimeter), their summed energy, and the smallest and largest R of those vertices. Only the photons the graph keeps count: those that reached the calorimeter, or that something is matched to, or that made such particles; very soft ones may be missing |
+| left the tracker (R, z) with E | e⁻, e⁺ | its last copy's energy and place at its tracker–calorimeter boundary checkpoint (`boundaryE`, `boundaryX/Y/Z`). E at production = ΣE + this, but for ionisation (within 0.21 GeV for the egamma sample's prompt electrons with \|η\| < 3). None without a checkpoint. Not the reco fbrem, (p_in − p_out) / p_in of the GSF track, which stops at the track's last hit: an e⁻ of 32.6 GeV that radiated 16.0 GeV up to R 57 cm and 16.1 GeV more near the boundary (R 115–119 cm) leaves the tracker with 0.46 GeV, while its track's fbrem is 0.44 |
+| converted at R, z → e⁻ e⁺ | γ | the vertex of reason conversion among those where its last copy's daughters were made, and the e± made at that vertex (a Compton electron made earlier is not one); else "did not convert", and "in the tracker" when it left the tracker |
+| did not convert in the tracker: first pair at R, z | γ | that conversion vertex when it is at or after the time of its boundary checkpoint: its first pair beyond the tracker–calorimeter boundary (e.g. at R 129 cm in the barrel ECAL, or at \|z\| 296–315 cm in front of HGCal), not a conversion tracking could find. A pair made inside the boundary but beyond the outermost tracker layer (R 111 cm) still reads "converted": telling those apart needs the tracker's geometry |
+| from π⁰, with γ | γ | its parent, if a π⁰, and that π⁰'s other photons |
+| τ decays → …, visible E | τ | the children of its last copy, and the sum of their energies without the neutrinos (νe, νμ, ντ) |
+| flight, transverse | b and c hadrons (bits 8, 9) | the distance from its production vertex to its decay vertex (where its last copy's daughters were made by a decay), in 3D and in x–y |
+| decay vertex matched by SV k (completeness x%) | b and c hadrons | the truth → reco vertex association whose reverse matches decay vertices (`match.target` "decayVertex": `truthSecondaryVertices`), from its decay vertex and from the decay vertices of the b and c hadrons below it (a B → D cascade), with the association's `match.completeness` weight (the share of the truth vertex's tracks' pT² the reco vertex holds), best first, three shown. Never the associator's score. A bundle without that association says "no vertex associator for decay vertices" |
+
+## One look for truth
+
+Truth and reco are told apart by one visual grammar, everywhere:
+
+| means | looks | used for |
+|---|---|---|
+| simulation (the truth graph, the hit index) | violet, dashed lines, hollow markers | truth particles and vertices, the TRUTH badge, truth labels in the view |
+| a CMSSW associator's answer | a small solid `match` tag, the associator named | the chain's and the card's match lines |
+| simulated energy on hits | a small solid `sim` tag | the chain's hit steps, the side panel's kind headings |
+| reco | solid lines, filled markers, type colours | all reco |
+| no information | plain grey text, no badge | "no truth" |
+
+A truth particle is named for what it is shown next to: by pT and η next to a track, a muon, a jet, an e/γ object or
+MET, and in the colour key of Physics, the tracker and All (`μ⁺ · pT 96.6 · η 1.11`); by its energy next to a
+calorimeter object or hits, and in the views of HGCal and Calo (`K⁻ · E 69.4 GeV`). A part's match in the card's
+truth block and in the choices of `X` is named as on the chain's step: a track's particle by pT and η, a trackster's or
+a PF cluster's by its energy, whatever the view.
+
+Violet is the truth's only: no category colour of the palettes is violet, and the profiles give RPC hits and taus,
+violet before, other colours. Bundles converted before that are drawn in the new colours by a shim
+(`render/colour.ts` `RETIRED`).
+
 ## Words
 
 | word | meaning (the tooltips use these) |
@@ -293,14 +386,15 @@ tracks show in their own particles' colours: each colour is that track's own sta
 | completeness | the share of the match's hits or energy (in that detector) that is in the reco object |
 | score | the associator's ranking value, 0 is best; not a fraction |
 | clean match | purity at or above the kind's threshold |
-| shared / contamination / split off / missed / not compared | the pair view's classes ([above](#the-pair-view)) |
+| found / not from it / in another object / in no object / not compared | the pair view's classes ([above](#the-pair-view)) |
 | merges | a match above the particle level: the object holds several generator particles |
 | pile-up | particles from other collisions of the same bunch crossing |
-| no truth | energy that no exported particle left: noise, out-of-time pile-up, or not exported |
-| no truth for this kind | the truth graph has no answer for the kind (no associator for it in the truth graph, or none exported). Drawn faint, with the reason in the Truth tab. Ember builds none in its place. |
+| no simulated energy | a hit in which no exported particle left energy: noise, out-of-time pile-up, or not exported |
+| not matched | an object of a matched kind that the associator matched to nothing (a fake, or not considered) |
+| no CMSSW associator | the truth graph has no answer for the kind (no associator for it in the truth graph, or none exported). Drawn faint, with the reason behind an **i**. Ember builds none in its place. |
 | simulated energy | energy deposited in the sensors (Geant4), not calibrated; a share within one detector only |
 | rechit energy | the reconstructed energy of hits (of a cluster or trackster: its raw energy) |
-| fact | a truth → hit relation of simulated energy per particle and cell, in one detector |
+| fact (tag "sim") | a truth → hit relation of simulated energy per particle and cell, in one detector |
 
 ## Samples
 

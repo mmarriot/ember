@@ -108,7 +108,7 @@ Such an event is about 5 MB to read without truth, about 17 MB with it (20 to 30
 https://marriot-evd.web.cern.ch), and several hundred thousand hits to draw. `--max-events` does not change this.
 What helps: the cuts in the side panel, and looking at one part of the detector at a time (the **Look at** bar).
 
-**A reconstructed object has no truth match, or says "no truth".**
+**A reconstructed object is "not matched", or says "no CMSSW associator".**
 
 Either the simulation has nothing for it, or CMSSW has no associator for that kind of object yet (TICL candidates,
 PF candidates, layer clusters, jets, electrons, muons, taus, missing momentum). Ember does not work one out from the

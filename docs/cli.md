@@ -65,7 +65,8 @@ You cannot mix the two kinds in one call.
 | `--title TITLE` | the bundle's title in the viewer's lists. Default: its name. The list adds "· N events". |
 | `--profile PROFILE` | a built-in profile, or the path of a JSON file ([Profiles](profiles.md)). Default: `auto`, the built-in profile that draws the most of the file's tables. |
 | `--max-events N` | convert at most N events. Default: 10, or, with `--events`, all of the events asked for. `0` means all. |
-| `--events 3,7-9` | convert only these event numbers. The profile's event selection still applies. For a step3 file, `ember` makes the NanoAOD of the whole file to find them. |
+| `--events 3,7-9,1:5:42` | convert only these events: event numbers, ranges of them, and `run:lumi:event`. The profile's event selection still applies. For a step3 file, `ember` makes the NanoAOD of the whole file to find them. |
+| `--events-file FILE` | convert only the events listed in `FILE`, as `--events` takes them, one or more per line (`#` starts a comment), for example an analyst's list of `run:lumi:event`. With `--events`, the events of both. |
 | `-j N`, `--threads` | the number of threads that read and compress. Default: up to 4, and never more than the process may use. For a reconstruction file, also the number of threads of the cmsRun job (default: 4). |
 | `--site DIR`, `--url URL`, `--user LOGIN` | the site directory (setting it publishes there), the site's address, and whose user area. Default: the [environment variables](#environment-variables), and your login. A login starts with a letter, followed by letters, digits, `-` and `_`, 2 to 32 characters in all. `ember` makes it lower case. |
 

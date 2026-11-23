@@ -1,6 +1,7 @@
 // Navigation over the CSR relations of an event: what is related to a selected object.
 import type { DisplayLayer, EventData, Header, Relation, RelationInfo, Table } from "../io/format";
-import { isFactTable } from "./facts";
+import { facts, isFactTable } from "./facts";
+import type { SlotRule } from "./truth";
 
 export interface Ref {
   table: string;
@@ -230,9 +231,21 @@ function partnersOnce(rel: Relation, info: RelationInfo, forward: boolean, n: nu
   return { partner, entry };
 }
 
+/** How the truth colours give their slots (identities): the domain looked at (null: all of them), the particles the
+ *  selection and its parts point at (rows; undefined without a selection), and the level that groups the particles
+ *  (a mask of level-flag bits; undefined: the layer's `particle` bit). */
+export interface SlotRank {
+  domain?: string | null;
+  prefer?: number[];
+  level?: number;
+  /** Only the level's particles take slots (the b / c hadron level: the rest stays grey). */
+  only?: boolean;
+}
+
 /** Identity colouring of a table (render/colour.ts): per object, the key whose colour it takes, and the keys that get
- *  a colour of their own (`top`, at most `slots`), largest first by the layer's colour column (else in row order).
- *  `others`: keys in use beyond `top`; `parent`: each object's first parent, -1 for none (truth tables only).
+ *  a colour of their own (`top`, at most `slots`), and the rule they were chosen by (`rule`, model/truth.ts).
+ *  `others`: keys in use beyond `top`; `parent`: each object's first parent, -1 for none (truth tables only);
+ *  `preferred`: how many of `top` the selection points at (rank.prefer).
  *  Every object is its own key, except in a truth table (`truth`) with a parent ->
  *  children relation (truth particles), where colours follow truth branches:
  *  - anchors are the particles something points at: those that own hits (an association into a hit layer; the
@@ -240,25 +253,151 @@ function partnersOnce(rel: Relation, info: RelationInfo, forward: boolean, n: nu
  *  - with a `particle` level (docs/truth.md: e.g. generator-level stable particles), a particle takes the key of its
  *    highest ancestor in the level (or itself without one): the electrons of a converted photon, the daughters of a
  *    π⁺ that interacted in the tracker and a shower's secondaries all share their generator particle's colour, in
- *    every part of the detector. Without a level, the key is its highest anchor ancestor (or itself);
+ *    every part of the detector. `rank.level` chooses another level. Without a level, the key is its highest anchor
+ *    ancestor (or itself);
  *  - only anchors' keys use colours (`used`): a particle linked to nothing (e.g. a quark) takes none;
- *  - with the level's `first` column (e.g. isSignal), only its keys take colours: signal, never pile-up; then keys in
- *    the level before those above it, then by size. */
-export function identities(d: DisplayLayer, t: Table, ev: EventData, header: Header, slots: number) {
+ *  - with the level's `first` column (e.g. isSignal), only its keys take colours: signal, never pile-up; keys in the
+ *    level come before those above it (a π⁰ matched as a whole), and with `rank.only` only they take colours (the
+ *    b / c hadron level: the particles outside every b or c hadron stay grey);
+ *  - the slots (docs/truth.md "Which particles get a colour"): first the keys the selection points at (rank.prefer),
+ *    then, in a calorimeter's domain, by simulated energy in its hits, ranked within each detector and taken from the
+ *    detectors in turn (never compared across detectors); without calorimeter hits there, by pT among the particles
+ *    its reco objects are matched to; elsewhere (Physics, all of them) by pT, |η| < 5 first. Keys with nothing in the
+ *    domain take no slot. */
+export function identities(
+  d: DisplayLayer,
+  t: Table,
+  ev: EventData,
+  header: Header,
+  slots: number,
+  rank: SlotRank = {},
+) {
+  const mask = rank.level ?? (d.particle ? 2 ** d.particle.bit : 0);
   const { key, used, bySize, parent } = cached(
     ev,
-    `identities|${d.table}|${d.truth}|${d.colour}|${d.particle?.flags}|${d.particle?.bit}|${d.particle?.first}`,
-    () => identityKeys(d, t, ev, header),
+    `identities|${d.table}|${d.truth}|${d.colour}|${d.particle?.flags}|${mask}|${d.particle?.first}`,
+    () => identityKeys(d, t, ev, header, mask),
   );
   // With a `first` column, only its keys take colours (pile-up never looks like a signal particle).
   const first = d.particle?.first ? t.columns[d.particle.first] : undefined,
-    eligible = first ? bySize.filter((k) => Number(first[k])) : bySize;
-  return { key, used, parent, top: eligible.slice(0, slots), others: Math.max(0, eligible.length - slots) };
+    flags = d.particle ? t.columns[d.particle.flags] : undefined,
+    eligible = bySize.filter(
+      (k) => (!first || Number(first[k])) && (!rank.only || !flags || (Number(flags[k]) & mask) !== 0),
+    );
+  // The slot order depends on the event, the domain and the level only: once each (not on every selection). The
+  // callers that only want the keys (slots 0: a lineage, a pair) skip it.
+  const { order, rule } =
+    slots > 0
+      ? cached(
+          ev,
+          `slots|${d.table}|${d.truth}|${d.colour}|${d.particle?.first}|${mask}|${rank.only}|${rank.domain ?? ""}`,
+          () => rankKeys(d, t, ev, header, eligible, key, mask, rank.domain ?? null),
+        )
+      : { order: [], rule: { by: "size" as const } };
+  // The selection's particles first, by their keys, in the order given.
+  const ok = new Set(eligible),
+    preferred: number[] = [];
+  for (const r of rank.prefer ?? []) {
+    const k = key[r];
+    if (k !== undefined && ok.has(k) && !preferred.includes(k)) preferred.push(k);
+  }
+  const rest = order.filter((k) => !preferred.includes(k)),
+    top = [...preferred, ...rest].slice(0, slots);
+  return {
+    key,
+    used,
+    parent,
+    top,
+    others: Math.max(0, eligible.length - top.length),
+    rule: { ...rule, selection: rank.prefer !== undefined } as SlotRule,
+    preferred: Math.min(preferred.length, slots),
+  };
+}
+
+/** The eligible keys in slot order, and the rule used (see identities): one pass over the domain's hit-index
+ *  relations (O(entries)), once per event, domain and level (identities caches it). */
+function rankKeys(
+  d: DisplayLayer,
+  t: Table,
+  ev: EventData,
+  header: Header,
+  eligible: number[],
+  key: Int32Array,
+  mask: number,
+  domain: string | null,
+): { order: number[]; rule: Omit<SlotRule, "selection"> } {
+  const own = domain ? header.domains?.find((x) => x.name === domain) : undefined,
+    flags = d.particle ? t.columns[d.particle.flags] : undefined,
+    above = (k: number) => (flags && !(Number(flags[k]) & mask) ? 1 : 0); // keys in the level first
+  const inDomain = (table: string) => header.display.find((l) => l.table === table)?.domain === domain;
+  if (own && !own.shared && d.truth) {
+    // Calorimeter facts only (hits drawn as cells): simulated energy in a muon chamber says little of a particle's
+    // size, and the pT rule below serves it better.
+    const mine = facts(header).filter(
+      (f) =>
+        f.from === d.table &&
+        inDomain(f.to) &&
+        ev.relations[f.name] &&
+        header.display.find((l) => l.table === f.to)?.repr === "cells",
+    );
+    if (mine.length) {
+      // Simulated energies of different calorimeters are never compared (sampling fractions differ; HF counts
+      // photoelectrons): each detector ranks its own keys, and the slots take each detector's next in turn.
+      const detectors = [...new Set(mine.map((f) => f.in))];
+      const lists = detectors.map((det) => {
+        const sum = new Float64Array(t.n); // per key, in this detector only
+        for (const f of mine.filter((x) => x.in === det)) {
+          const info = header.relations[f.name],
+            rel = ev.relations[f.name],
+            w = rel.weights[info.best?.weight ?? info.weights[0]];
+          if (!w) continue;
+          for (let p = 0; p < t.n && p + 1 < rel.offsets.length; p++)
+            for (let k = rel.offsets[p]; k < rel.offsets[p + 1]; k++) sum[key[p]] += w[k];
+        }
+        return eligible.filter((k) => sum[k] > 0).sort((a, b) => above(a) - above(b) || sum[b] - sum[a] || a - b);
+      });
+      const order: number[] = [],
+        taken = new Set<number>();
+      for (let i = 0; lists.some((l) => i < l.length); i++)
+        for (const l of lists)
+          if (i < l.length && !taken.has(l[i])) {
+            taken.add(l[i]);
+            order.push(l[i]);
+          }
+      return { order, rule: { by: "simEnergy", in: domain!, detectors } };
+    }
+    // No simulated energy there (the tracker): the particles its reco objects are matched to, by pT.
+    const matched = new Set<number>();
+    for (const [name, info] of Object.entries(header.relations)) {
+      const rel = ev.relations[name];
+      if (!rel || !info.association || info.to !== d.table || !info.match || !inDomain(info.from)) continue;
+      for (const p of bestPartners(rel, info, true, ev.tables[info.from]?.n ?? 0).partner)
+        if (p >= 0) matched.add(key[p]);
+    }
+    const pt = t.columns.pt;
+    if (matched.size && pt)
+      return {
+        order: eligible
+          .filter((k) => matched.has(k))
+          .sort((a, b) => above(a) - above(b) || Number(pt[b]) - Number(pt[a]) || a - b),
+        rule: { by: "matchedPt", in: domain! },
+      };
+  }
+  const pt = t.columns.pt,
+    eta = t.columns.eta;
+  if (!pt || !d.truth) return { order: eligible, rule: { by: "size", column: d.colour ?? undefined } };
+  const central = (k: number) => (eta && Math.abs(Number(eta[k])) >= 5 ? 1 : 0);
+  return {
+    order: [...eligible].sort(
+      (a, b) => above(a) - above(b) || central(a) - central(b) || Number(pt[b]) - Number(pt[a]) || a - b,
+    ),
+    rule: { by: "pt" },
+  };
 }
 
 /** The part of `identities` that does not depend on the selection, once per event: keys, which keys are in use, and
  *  the keys in use largest first. */
-function identityKeys(d: DisplayLayer, t: Table, ev: EventData, header: Header) {
+function identityKeys(d: DisplayLayer, t: Table, ev: EventData, header: Header, mask: number) {
   const n = t.n,
     anchor = new Uint8Array(n),
     parent = new Int32Array(n).fill(-1),
@@ -279,9 +418,8 @@ function identityKeys(d: DisplayLayer, t: Table, ev: EventData, header: Header) 
             if (parent[rel.indices[k]] < 0) parent[rel.indices[k]] = f;
       }
     }
-    const flags = d.particle ? t.columns[d.particle.flags] : undefined,
-      bit = d.particle?.bit ?? 0;
-    const member = flags ? (j: number) => (Number(flags[j]) >>> bit) & 1 : (j: number) => anchor[j];
+    const flags = d.particle ? t.columns[d.particle.flags] : undefined;
+    const member = flags ? (j: number) => Number(flags[j]) & mask : (j: number) => anchor[j];
     // Each particle walks up to its root, keeping the highest member seen (at most n steps: no endless loop on bad
     // data with a cycle).
     for (let i = 0; i < n; i++)
@@ -295,9 +433,8 @@ function identityKeys(d: DisplayLayer, t: Table, ev: EventData, header: Header) 
   for (let i = 0; i < n; i++) if (used[i]) bySize.push(i);
   // Signal first, then particles of the level before keys above it (e.g. a K*0 an object is matched to as a whole:
   // its energy counts all its daughters', and it would take the colours of the particles that own the hits).
-  const flags = d.particle ? t.columns[d.particle.flags] : undefined,
-    bit = d.particle?.bit ?? 0;
-  const rank = (i: number) => (first && Number(first[i]) ? 2 : 0) + (flags && (Number(flags[i]) >>> bit) & 1 ? 1 : 0);
+  const flags = d.particle ? t.columns[d.particle.flags] : undefined;
+  const rank = (i: number) => (first && Number(first[i]) ? 2 : 0) + (flags && Number(flags[i]) & mask ? 1 : 0);
   if (col || first || flags)
     bySize.sort((a, b) => rank(b) - rank(a) || (col ? Number(col[b]) - Number(col[a]) : 0) || a - b);
   return { key, used, bySize, parent }; // parent: each object's first parent (-1 none), truth tables only

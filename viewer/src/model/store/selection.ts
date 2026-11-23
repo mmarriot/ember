@@ -13,13 +13,17 @@
 import { batch, computed, effect, signal } from "@preact/signals";
 import type { DisplayLayer } from "../../io/format";
 import { matchClass, recoLadder, recoOfTruth } from "../chain";
-import { focusLevels, levelLayers, mergeAcrossDomains, scopeLevels, stepLevel } from "../levels";
-import { PAIR, type Pair, pairFor, pairShows } from "../pair";
-import { levelsOf, type Related, relatedParts, sameRef, type Ref } from "../relations";
-import { activeMode, modes, truthStatuses } from "./colours";
+import { focusLevels, levelLayers, mergeAcrossDomains, partsFirst, scopeLevels, stepLevel } from "../levels";
+import { delegatedPart, PAIR, type Pair, pairFor, pairShows } from "../pair";
+import { simEnergyByParticle } from "../match";
+import { colourLevel } from "../truth";
+import { cached, levelsOf, type Related, relatedParts, sameRef, type Ref, type SlotRank } from "../relations";
+import { activeMode, modes, truthLevel, truthStatuses } from "./colours";
+import { truthStatement } from "../statement";
+import { isFactTable } from "../facts";
 import { bundle, event } from "./data";
 import { layerKey, layerOf } from "./names";
-import { domain, drawnLayers, shared } from "./view";
+import { domain, drawnLayers, inDomain, shared, visible } from "./view";
 
 // ---- The selection and the focus
 
@@ -138,6 +142,15 @@ export const ladder = computed(() => {
   return recoLadder(ev, b.header, sel, parts, truthStatuses.value);
 });
 
+/** What the truth says about the card's reco object (model/statement.ts): its kind's own association, and its parts'
+ *  own matches; null for a truth object, and in a bundle without truth. */
+export const statement = computed(() => {
+  const b = bundle.value,
+    ev = event.value,
+    l = ladder.value;
+  return b && ev && l && modes.value.roots.truth ? truthStatement(ev, b.header, l, truthStatuses.value) : null;
+});
+
 /** For a truth object on the card: what was reconstructed from it, per reco kind, and the hits it left
  *  (model/chain.ts recoOfTruth); null for anything else. */
 export const reconstructed = computed(() => {
@@ -159,6 +172,10 @@ export function matchOf(table: string, row: number) {
 
 // ---- What the view highlights
 
+/** A hit opens its particle's pair only on request (the card's button): a click on a hit shows the hit. It is reset
+ *  with each new focus. */
+export const hitPair = signal(false);
+
 /** In the "pid" and "truth" modes with something focused: its truth <-> reco pair (model/pair.ts), which colours every
  *  layer. Null when the pair has nothing to show, for a kind with no association of its own (a jet, a PF candidate, a
  *  TICL candidate: their parts may open one), and in a bundle with no truth at all (data, a standard NanoAOD). */
@@ -169,9 +186,54 @@ export const pairView = computed<Pair | null>(() => {
     { roots } = modes.value;
   if (activeMode.value === "layers" || !f || !b || !ev || !roots.truth || f.row >= (ev.tables[f.table]?.n ?? 0))
     return null;
-  const pair = pairFor(ev, b.header, f, roots.truth);
+  if (isFactTable(b.header, f.table) && !hitPair.value) return null;
+  let pair = pairFor(ev, b.header, f, roots.truth);
+  // An object with no truth of its own may stand in for its one matched part (model/pair.ts delegatedPart).
+  const part = pair ? null : delegatedPart(ev, b.header, f, roots.truth);
+  const theirs = part && pairFor(ev, b.header, part, roots.truth);
+  if (theirs) pair = { ...theirs, via: f };
   return pair && pairShows(pair) ? pair : null;
 });
+
+/** How the truth colours give their slots (model/relations.ts identities), in the truth mode: the domain looked at, the
+ *  level chosen and, with a selection that has no pair of its own (a jet, an electron, a PF candidate), the particles
+ *  its parts are matched to (by pT), then those that left simulated energy in its hits (by energy, detector by
+ *  detector). Outside the truth mode, nothing: a truth particle drawn for a selection keeps the plain ranking. */
+export const truthRank = computed<SlotRank>(() => {
+  const b = bundle.value,
+    ev = event.value,
+    root = modes.value.roots.truth,
+    sel = selection.value;
+  if (activeMode.value !== "truth" || !b || !ev || !root) return {};
+  const level = truthLevel.value ?? undefined,
+    base = { domain: domain.value, level, only: level !== undefined && colourLevel(level).only };
+  const parts = relatives.value;
+  if (!sel || pairView.value || !parts) return base;
+  const pt = ev.tables[root]?.columns.pt,
+    matched = [...(parts.linked.get(root) ?? [])].sort((a, c) => (pt ? Number(pt[c]) - Number(pt[a]) : a - c));
+  const deposits = simEnergyByParticle(ev, b.header, parts.madeOf).flatMap((g) => g.particles.map(([p]) => p));
+  return { ...base, prefer: [...(sel.table === root ? [sel.row] : []), ...matched, ...deposits] };
+});
+
+/** In the truth mode with nothing selected, the truth particles drawn (the layer is otherwise drawn only for a
+ *  selection): the signal particles of the colour level with pT >= 1 GeV, so the event's truth shows before a click.
+ *  Pile-up stays off. Undefined in other modes, or for another layer. Once per event and level. */
+export function truthPreview(d: DisplayLayer): Set<number> | undefined {
+  const ev = event.peek(),
+    t = ev?.tables[d.table];
+  if (activeMode.peek() !== "truth" || !d.truth || !d.particle || !ev || !t) return undefined;
+  const mask = truthLevel.peek() ?? 2 ** d.particle.bit,
+    flags = t.columns[d.particle.flags],
+    first = d.particle.first ? t.columns[d.particle.first] : undefined,
+    pt = t.columns.pt;
+  if (!flags || !pt) return undefined;
+  return cached(ev, `preview|${d.table}|${mask}`, () => {
+    const rows = new Set<number>();
+    for (let i = 0; i < t.n; i++)
+      if (Number(flags[i]) & mask && (!first || Number(first[i])) && Number(pt[i]) >= 1) rows.add(i);
+    return rows;
+  });
+}
 
 /** What is drawn highlighted, per table: the focus, its levels and what is linked to it (e.g. its truth particle);
  *  in the pair view, the pair's objects. What contains the focus is listed on the card, not highlighted: big
@@ -204,6 +266,35 @@ export const highlight = computed(() => {
   }
   return b && ev && f && parts ? levelsOf(ev, b.header, f, parts) : null;
 });
+
+/** What framing the focus fits in the view: the highlight less what is only linked to the focus (its truth particle,
+ *  a track's vertex), which can lie far from it (a low-pT particle's helix curls round 80 cm across the tracker). Null
+ *  without a focus. */
+export const framed = computed(() => {
+  const hl = highlight.value,
+    f = focus.value,
+    linked = focusParts.value?.linked;
+  if (!hl || !f || !linked?.size) return hl;
+  const out: Related = new Map();
+  for (const [t, rows] of hl) {
+    const away = linked.get(t),
+      keep = away ? new Set([...rows].filter((r) => !away.has(r) || (t === f.table && r === f.row))) : rows;
+    if (keep.size) out.set(t, keep);
+  }
+  return out;
+});
+
+/** What the focus is part of (e.g. a muon's jet), per table; null without a focus. */
+const focusParents = computed(() => focusParts.value?.partOf ?? null);
+/** For a layer of a shared part (e.g. Physics: jets) that the domain looked at does not draw (no overlay): the rows
+ *  drawn for the focus, alone: its own (a selected jet) and, if the layer is ticked, what it is part of (a muon's
+ *  jet), so a selection brings its physics objects along (control/scene.ts); else undefined. */
+export const parentRows = (d: DisplayLayer) => {
+  if (!d.domain || !shared.value.has(d.domain) || inDomain(d)) return undefined;
+  const parents = visible.value[layerKey(d)] ? (focusParents.value?.get(d.table) ?? []) : [],
+    rows = new Set([...(highlight.value?.get(d.table) ?? []), ...parents]);
+  return rows.size ? rows : undefined;
+};
 
 /** Objects linked to the focus through an association (its truth; a truth particle's reco objects): a click on one
  *  moves the focus there. */
@@ -243,11 +334,17 @@ effect(() => {
   }
 });
 
+// A new focus starts without its hit pair.
+effect(() => {
+  focus.value;
+  hitPair.value = false;
+});
+
 // ---- The focus's levels
 
-/** The object whose levels are shown: in the pair view, the matched object it comes from (a track for its hits);
- *  else the focus. */
-export const levelTop = computed<Ref | null>(() => pairView.value?.from ?? focus.value);
+/** The object whose levels are shown: in the pair view, the matched object it comes from (a track for its hits), or
+ *  the object it stands in for (a TICL candidate for its candidate trackster's pair); else the focus. */
+export const levelTop = computed<Ref | null>(() => pairView.value?.via ?? pairView.value?.from ?? focus.value);
 const topParts = computed(() => (sameRef(levelTop.value, focus.value) ? focusParts.value : partsOf(levelTop.value)));
 
 /** The kinds of object the focus is made of, top first (model/levels.ts); its own kind and truth are not levels. */
@@ -266,7 +363,11 @@ export const levels = computed(() => {
     return [...linked!.get(t)!].every((r) => !cls || cls[r] === PAIR.other);
   };
   const own = (t: string) => parts.madeOf.has(t) || (!parts.linked.has(t) && !(linked?.has(t) && unclassified(t)));
-  const lv = focusLevels(b.header.display, top.table, hl, own, b.header.relations);
+  const stage = (t: string) => b.header.display.some((d) => d.table === t && d.stage !== undefined);
+  const lv = partsFirst(
+    focusLevels(b.header.display, top.table, hl, own, b.header.relations),
+    (t) => parts.madeOf.has(t) || stage(t),
+  );
   // Looking at everything in a bundle with parts of the detector: same-depth levels of different parts become one.
   return !domain.value && (b.header.domains?.length ?? 0) >= 2 ? mergeAcrossDomains(lv, shared.value) : lv;
 });
@@ -285,7 +386,7 @@ export const shownLevel = computed(() => {
  *  has none to step through. */
 export function stepFocusLevel(by: number) {
   const bar = focusBar.peek();
-  if (!bar.some((l) => !l.always)) return false;
+  if (!bar.some((l) => !l.always && !l.beside)) return false;
   focusLevel.value = stepLevel(bar, focusLevel.peek(), by);
   return true;
 }
@@ -311,8 +412,13 @@ const focusKeys = computed(() => {
   const { draw, hide: levelHide } = levelLayers(lv, focusLevel.value, ticked),
     hide = levelHide.filter((d) => !own(d));
   const others = b.header.display.filter((d) => !inLevels.has(d) && hl.get(d.table)?.size);
+  // A shared part's layers the domain does not draw (no overlay) that hold what the focus is part of (its jet).
+  const held = b.header.display.filter((d) => parentRows(d)?.size);
   const keys = (ds: DisplayLayer[]) => ds.map(layerKey).sort().join("|");
-  return { shown: keys([...others, ...draw].filter((d) => !ticked(d))), hidden: keys(hide.filter(ticked)) };
+  return {
+    shown: keys([...others, ...draw, ...held].filter((d) => !ticked(d))),
+    hidden: keys(hide.filter(ticked)),
+  };
 });
 const shownKeys = computed(() => focusKeys.value.shown),
   hiddenKeys = computed(() => focusKeys.value.hidden);

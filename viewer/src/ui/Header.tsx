@@ -145,8 +145,8 @@ function Domains() {
     ALL = "";
   const tip = (d: Domain) =>
     d.shared
-      ? `${d.name}: its layers only, which every part of the detector also draws (D)`
-      : `${d.name}: its layers and those shared by every part, in its region and view (D)`;
+      ? `${d.name}: its layers only, which the other parts draw as an overlay when asked (D)`
+      : `${d.name}: its layers, in its region and view (D)`;
   return (
     <div class="domainbar">
       <span class="barlabel" aria-hidden="true">

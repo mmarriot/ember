@@ -1,28 +1,31 @@
 // Labels over the view: the leading objects of the layers with a `labels` hint (in a shared domain's view, e.g.
 // Physics, where they are the event), the focus in any view, and the object under the pointer in the side panel's
 // object rows (with a ring). HTML elements moved after every frame drawn (Engine.onDraw): a projection and a CSS
-// transform each, a handful per frame.
+// transform each, a handful per frame. A label never sits under the card (it flips to the left of its object), and
+// where labels would overlap, the less important one hides (see place).
 import { computed, signal } from "@preact/signals";
 import { useEffect, useRef } from "preact/hooks";
-import { kindName, type DisplayLayer } from "../io/format";
 import type { Ref } from "../model/relations";
 import { filters } from "../model/custom";
 import {
   bundle,
+  caloView,
   cuts,
-  describe,
   domain,
   drawnLayers,
   event,
   focus,
   labelsOn,
+  labelText,
   layerKey,
   layerOf,
   selection,
   shared,
+  truthText,
 } from "../model/store";
 import { ranked } from "../control/navigate";
 import { engine } from "../control/scene";
+import { type Kind, placeLabels } from "./placement";
 
 /** The object under the pointer in the side panel's object rows. */
 export const rowHover = signal<Ref | null>(null);
@@ -30,14 +33,7 @@ export const rowHover = signal<Ref | null>(null);
 interface Item {
   ref: Ref;
   text: string;
-  kind: "lead" | "focus" | "selected" | "hover";
-}
-
-/** A label's text: its kind and the first value of its `describe` ("Jets · pT 49.7 GeV"); `full`: all of it. */
-function text(d: DisplayLayer, row: number, full = false) {
-  const skip = full ? [] : (d.describe?.columns.slice(1) ?? []);
-  const name = describe(d.table, row, skip);
-  return name ? `${kindName(d)} · ${name}` : `${kindName(d)} #${row}`;
+  kind: Kind;
 }
 
 const items = computed<Item[]>(() => {
@@ -50,28 +46,37 @@ const items = computed<Item[]>(() => {
   cuts.value;
   filters.value; // the leading objects follow the cuts and filters
   if (!b || !ev) return [];
-  const out: Item[] = [],
+  // `full`: with all its values (the selection, the focus, the row pointed at), else with the first of its `describe`
+  const out: (Omit<Item, "text"> & { full: boolean })[] = [],
     seen = new Set<string>(),
-    add = (item: Item) => {
-      const k = `${item.ref.table}:${item.ref.row}`;
-      if (!seen.has(k)) {
+    add = (ref: Ref, kind: Kind, full = true) => {
+      const k = `${ref.table}:${ref.row}`;
+      if (layerOf(ref.table) && !seen.has(k)) {
         seen.add(k);
-        out.push(item);
+        out.push({ ref, kind, full });
       }
     };
-  if (h && layerOf(h.table)) add({ ref: h, text: text(layerOf(h.table)!, h.row, true), kind: "hover" });
+  if (h) add(h, "hover");
   // The selected object, marked so it is found at once, whatever the labels (L): every kind gets this mark, also those
   // the renderer cannot make stand out (a line one pixel wide).
-  if (sel && layerOf(sel.table)) add({ ref: sel, text: text(layerOf(sel.table)!, sel.row, true), kind: "selected" });
-  if (!labelsOn.value) return out;
-  // The focus, when the selection is one of its parts.
-  if (f && layerOf(f.table)) add({ ref: f, text: text(layerOf(f.table)!, f.row, true), kind: "focus" });
-  // The leading objects: in a shared domain's view, or in a bundle without domains; not while a focus is shown elsewhere.
-  const lead = (domain.value ? shared.value.has(domain.value) : !b.header.domains?.length) && !f;
-  if (lead)
-    for (const d of b.header.display.filter((l) => l.labels && drawn[layerKey(l)]))
-      for (const row of ranked(d, d.labels)) add({ ref: { table: d.table, row }, text: text(d, row), kind: "lead" });
-  return out;
+  if (sel) add(sel, "selected");
+  if (labelsOn.value) {
+    // The focus, when the selection is one of its parts.
+    if (f) add(f, "focus");
+    // The leading objects: in a shared domain's view, or in a bundle without domains; not while a focus is shown
+    // elsewhere.
+    const lead = (domain.value ? shared.value.has(domain.value) : !b.header.domains?.length) && !f;
+    if (lead)
+      for (const d of b.header.display.filter((l) => l.labels && drawn[layerKey(l)]))
+        for (const row of ranked(d, d.labels)) add({ table: d.table, row }, "lead", false);
+  }
+  // A label's text: the object's name (model/describe.ts labelName), with the first value of its `describe` ("Jet 1 ·
+  // pT 49.7 GeV") or, `full`, all of them; its collection only where another of its kind is labelled too.
+  const labelled = [...new Set(out.map((x) => x.ref.table))].map((t) => layerOf(t)!);
+  return out.map(({ ref, kind, full }) => {
+    const d = layerOf(ref.table)!;
+    return { ref, kind, text: labelText(ref, full ? [] : (d.describe?.columns.slice(1) ?? []), labelled) };
+  });
 });
 
 /** Where an object's label goes: the end of a line or a cone (its far end, e.g. where a jet meets the calorimeter),
@@ -87,21 +92,35 @@ export function Labels() {
   const box = useRef<HTMLDivElement>(null),
     list = items.value;
   useEffect(() => {
-    const e = engine;
-    if (!e) return;
+    const e = engine,
+      host = box.current;
+    if (!e || !host) return;
+    const els = [...host.children] as HTMLElement[],
+      spans = els.map((el) => el.firstElementChild as HTMLElement);
+    // The texts' sizes: measured once per list (moving a label does not change them).
+    const sizes = spans.map((s) => [s.offsetWidth, s.offsetHeight]);
+    // All reads first (the card's rectangle: one layout at most), then all writes, so a frame lays out once.
     const place = () => {
-      const els = box.current?.children;
-      if (!els) return;
-      list.forEach((item, i) => {
-        const el = els[i] as HTMLElement | undefined,
-          at = anchor(item.ref),
-          p = at && e.project(...at);
-        if (!el) return;
-        if (!p || !Number.isFinite(p[0])) {
+      const view = host.getBoundingClientRect(),
+        c = document.querySelector(".inspector")?.getBoundingClientRect(),
+        card = c && { x0: c.left - view.left, y0: c.top - view.top, x1: c.right - view.left, y1: c.bottom - view.top };
+      const at = list.map((item) => {
+        const a = anchor(item.ref),
+          p = a && e.project(...a);
+        return p && Number.isFinite(p[0]) && Number.isFinite(p[1]) ? p : null;
+      });
+      const sides = placeLabels(
+        list.map((item, i) => ({ kind: item.kind, at: at[i], w: sizes[i]?.[0] ?? 0, h: sizes[i]?.[1] ?? 0 })),
+        card,
+      );
+      els.forEach((el, i) => {
+        const p = at[i];
+        if (!p || !sides[i]) {
           el.style.visibility = "hidden";
           return;
         }
         el.style.visibility = "visible";
+        el.classList.toggle("flip", sides[i] === "left");
         el.style.transform = `translate(${p[0].toFixed(1)}px, ${p[1].toFixed(1)}px)`;
       });
     };
@@ -114,11 +133,16 @@ export function Labels() {
   }, [list]);
   return (
     <div class="labels" ref={box} aria-hidden="true">
-      {list.map((item) => (
-        <div class={`label ${item.kind}`}>
-          <span>{item.text}</span>
-        </div>
-      ))}
+      {list.map((item) => {
+        // A truth object's label is the truth's: violet, dashed, "Truth · μ⁺ · pT 96.6 · η 1.11" (docs/truth.md).
+        const truth = !!layerOf(item.ref.table)?.truth,
+          name = truth && truthText(item.ref.table, item.ref.row, caloView.value);
+        return (
+          <div class={`label ${item.kind}${truth ? " truth" : ""}`}>
+            <span>{truth ? `Truth · ${name || item.text}` : item.text}</span>
+          </div>
+        );
+      })}
     </div>
   );
 }

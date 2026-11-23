@@ -140,8 +140,10 @@ console warning, and draws the others.
 | `particle` | truth particles: `{"flags", "bit", "first"}`, the level that is "the particle" ([Truth](truth.md#two-levels-the-particle-and-each-kinds-target)): the rows with `bit` set in the integer column `flags` (truth::LevelFlag bit 2: generator-level stable). With `"colourBy": "identity"`, a particle takes the colour of its highest ancestor in the level. With `first` (for example `isSignal`), only rows where it is not zero take colours (the others, pile-up, are drawn small in their own grey). Rows in the level come before those above it, then they are ordered by size. The viewer's Truth colours need this hint. |
 | `onSelection` | draw only the objects related to the selection (none without a selection), until the user asks for all of them. Objects reached only from objects that a cut hides are not drawn (for example the hits of a vertex's tracks below the pT cut). The selected object itself is drawn whatever the cut. |
 | `describe` | `{"columns": [...], "names": {column: {value: name}}, "prefix": {column: text}}`: how to name an object in lists (related objects, tree, inspector, labels), for example `["pdgId", "energy"]` with PDG names ("π⁺ · E 88.9 GeV"), or a muon segment's `["station", "chamber"]` with the prefixes `St`, `Ch` ("St 1 · Ch 30"). A number without a prefix is named after its quantity, so that a pT is never read as an energy: `pt` "pT", `energy` and `rechit_energy` "E", `raw_energy` and `rawEnergy` "E raw", `eta` "η", `phi` "φ", `mass` "m", `time` "t", `nTracks` "tracks", `sumPt2` "ΣpT²", any other column by its name; an empty prefix gives the bare number. Its unit is the one in its column's documentation ("[GeV]"). |
-| `list` | `{"columns": [...], "sort": column, "max": n, "headline": "count"`\|`"value"}`: object rows under the layer in its side-panel tab (the Physics tab's event summary). It lists the `max` (default 10) largest objects by `sort` (default: its cut, colour or energy column) that pass its cut and filter, with these columns. A click selects one. The tab's headline counts them, or, with `"value"`, gives the first column of a one-object table (MET). |
+| `list` | `{"columns": [...], "sort": column, "max": n, "headline": "count"`\|`"value"}`: object rows under the layer in its side-panel tab (the Physics tab's objects). It lists the `max` (default 10) largest objects by `sort` (default: its cut, colour or energy column) that pass its cut and filter, with these columns. A click selects one. The headline in the view's title counts them, or, with `"value"`, gives the first column of a one-object table (MET). |
 | `inspect` | `[columns]`: the inspector's summary rows (for example the `pt`, `eta`, `phi` of a jet), instead of the columns that colour, place and size the layer |
+| `inspectGroups` | `[{name, columns}]`: named groups of columns in the card's physics block, under its key columns (for example `{"name": "b-tag", "columns": ["btagDeepCSVB", "btagJP"]}`). Columns the table lacks are left out, so a group shows once a converter writes them |
+| `missing` | `{column: value}`: the value that means "not set" (for example `-1` for an unset width); the card writes it as words. A column's doc can say it too (`"t0 [ns]; -99: none"`) |
 | `fractions` | `{column: name}`: columns that hold fractions (0..1) of the object's energy, shown in the inspector as one bar in a neutral ramp, with each share named (for example a jet's `chargedHadronEF`: "charged hadrons") |
 | `labels` | `n`: label the `n` leading objects (by the `list` sort or the size column, passing the cut and filter) in a shared part's view, with their kind and first `describe` value, at the far end of a line or cone (key L) |
 
@@ -220,8 +222,8 @@ All are optional. The converter copies them from the profile.
   `sum` or `mean` (of `value`).
 - `presets`: `[{"name", "colour": {table: column}, "filters": {table: expression}, "show": [table]}]`: named colour,
   filter and tick settings, shown as buttons when there are several. `show` ticks the layers of those tables (for
-  example the PF candidates, which start unticked, for "What PUPPI removed"), and so does `colour` (the AK4 CHS jets
-  of "b-tags"); another preset puts them back to their default tick. The viewer does not offer a preset that names a
+  example the PF candidates, which start unticked, for "PF candidates with PUPPI weight 0"), and so does `colour` (the AK4 CHS jets
+  of "DeepCSV (CHS jets)"); another preset puts them back to their default tick. The viewer does not offer a preset that names a
   table or a colour column the bundle lacks.
   - A colour `"rel:<relation>"`, instead of a column, takes the colour of the related object through that relation,
     as the layer's "Related objects" colour choice does. For example `{"Tracks": "rel:trackVertex"}`: each track in
@@ -231,9 +233,9 @@ All are optional. The converter copies them from the profile.
 - `domains`: `[{"name", "region": {"rMax", "zMax"}, "view", "colourMode", "minRadius", "shared"}]`: the parts of the
   detector, in order (cm; z is |z|, so a region covers both ends). With two or more, the viewer offers `<name>` ·
   `<name>` · All.
-  - A part's view draws its layers (display hint `domain`), the layers of `shared` parts, and the layers without a
-    part. A `shared` part (for example the physics objects) has its layers drawn in every part's view. Its own view
-    draws only its layers and the layers without a part.
+  - A part's view draws its layers (display hint `domain`) and the layers without a part. The layers of a `shared`
+    part (for example the physics objects) are drawn over the other parts' views as an overlay the user turns on, and
+    for what a selection is part of. Its own view draws only its layers and the layers without a part.
   - The view frames the cylinder `rMax`, `zMax` (in the front and side views, its section through the beam line,
     which then fills the view), and switches to `view` (`3d`, `front`, `side`, `rz`).
   - A layer of another part is still drawn when a selection has objects in it (for example a track's calorimeter

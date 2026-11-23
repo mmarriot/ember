@@ -180,6 +180,15 @@
   min-width: 0;
   overflow-wrap: break-word;
 }
+/* A row's truth word ("no associator") goes under its name when the row is full, never squeezing it to a letter per
+   line. */
+.layer .row label:has(.truthword) {
+  flex-wrap: wrap;
+  row-gap: 0;
+}
+.layer .row label:has(.truthword) .name {
+  flex: 1 1 6em;
+}
 .layer .row .tag {
   flex: none;
   margin-left: -2px;
@@ -231,15 +240,17 @@
   font-weight: 500;
   letter-spacing: 0;
   text-transform: none;
-  padding: 0 4px;
+  padding: 0;
   border-radius: 3px;
-  border: 1px dashed var(--line-strong, var(--line));
+  border: 1px solid transparent;
   color: var(--muted);
   vertical-align: 1px;
 }
+/* A match or a simulation fact: a small solid tag; no truth stays plain grey text (dashed is the simulation's alone). */
 .truthword.match,
 .truthword.fact {
-  border-style: solid;
+  padding: 0 4px;
+  border-color: var(--line-strong, var(--line));
   color: var(--text);
 }
 /* Faint by colour, not opacity, so its text keeps a contrast of at least 4.5:1 (muted on the panel: about 5.6:1). */
@@ -534,9 +545,6 @@ details.part > summary .link {
 }
 
 /* The Truth tab: the scorecard, the truth coverage, what became of each particle, and the tree. */
-section.scorecard {
-  margin: 0 0 12px;
-}
 table.score {
   width: 100%;
   border-collapse: collapse;
@@ -586,21 +594,22 @@ table.score .num.q-impure {
 table.score .num.q-unmatched {
   color: var(--nomatch);
 }
-section.coverage {
-  margin: 0 0 12px;
-}
-section.coverage > details {
+/* The sections under the hard process, each folded to its heading. */
+section.fold > details {
   margin: 0;
 }
-section.coverage > details > summary {
+section.fold > details > summary {
   color: inherit;
 }
-section.coverage > details > summary h3 {
+section.fold > details > summary h3 {
   display: inline;
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--muted);
+}
+section.fold > details[open] > summary {
+  margin-bottom: 4px;
 }
 ul.coverage {
   list-style: none;
@@ -637,6 +646,85 @@ table.outcome .outcell {
 }
 .outcome td:has(.outcell) {
   white-space: normal;
+}
+/* A3: a particle's chip never wraps one character per line next to a wide cell. */
+table.outcome td:first-child,
+table.outcome .chip {
+  white-space: nowrap;
+}
+/* Particles in this view: particle | amount | best match | holds | objects, sortable by the column names. */
+table.inview {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+table.inview th {
+  text-align: left;
+  font-weight: 500;
+  color: var(--muted);
+  white-space: nowrap;
+  padding: 0 4px 2px 0;
+}
+.inview .sortby {
+  margin: 0 0 4px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.inview .sortby .link {
+  margin-left: 6px;
+  font: inherit;
+}
+.inview .sortby .link.on {
+  color: var(--text);
+  font-weight: 600;
+}
+table.inview td {
+  padding: 1px 3px 1px 0;
+  vertical-align: middle;
+}
+table.inview td:first-child,
+table.inview .chip {
+  white-space: nowrap;
+}
+table.inview .chip {
+  padding: 0 5px; /* two chips and a share in the side panel's width */
+}
+/* the particle and its deposit as narrow as they are; the best match takes the rest */
+table.inview td:first-child,
+table.inview th:first-child,
+table.inview .num {
+  width: 1%;
+}
+table.inview td.num,
+table.inview th.num {
+  text-align: right;
+}
+/* "94.4 MeV" on one line; the header ("deposited in HGCal") may take two */
+table.inview td.num {
+  white-space: nowrap;
+}
+table.inview th.num {
+  white-space: normal;
+}
+table.inview td > span {
+  white-space: nowrap;
+}
+.inview details.indet {
+  margin: 4px 0 6px;
+}
+.inview details.indet > summary {
+  font-size: 12px;
+  cursor: pointer;
+}
+ul.hard {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 12px;
+}
+ul.hard li {
+  margin: 2px 0;
 }
 .outcome .missed .chip {
   border-color: #e5534b;
@@ -699,6 +787,20 @@ table.outcome .outcell {
   width: 100%;
   margin: 4px 0;
 }
+/* Truth search: level and process chips, on when chosen. */
+.tree .levelchips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin: 0 0 4px;
+}
+.tree .levelchips .chip {
+  margin: 0;
+}
+.tree .levelchips .chip.on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
 /* Per-event summary charts (Event tab): one row per group, label | bar | value. */
 .bars {
   display: grid;
@@ -751,8 +853,10 @@ table.outcome .outcell {
   margin: 4px 0 0;
 }
 .colourkey .switch {
-  float: right;
-  display: inline-flex;
+  /* on its own line under the title: "Colour by: reco type | truth particle" is too wide to float beside it */
+  display: flex;
+  width: fit-content;
+  margin-top: 4px;
   border: 1px solid var(--line-strong);
   border-radius: 4px;
   overflow: hidden;
@@ -766,6 +870,10 @@ table.outcome .outcell {
   font-size: 11px;
   padding: 1px 7px;
   cursor: pointer;
+}
+.colourkey .switch > .muted {
+  font-size: 11px;
+  padding: 1px 6px;
 }
 .colourkey .switch button.on {
   background: var(--line-strong);
@@ -820,6 +928,29 @@ table.outcome .outcell {
 }
 .keyhelp {
   margin: 4px 0 0;
+}
+/* The truth colours' rule ("top 7 by simulated energy in HGCal") and level picker, under the key's title. */
+.colourkey .keyrule {
+  margin: 0 0 4px;
+  font-size: 11.5px;
+  color: var(--text);
+}
+.colourkey .levelpick {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 4px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.colourkey .levelpick select {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
 }
 
 /* Phones: the panel is a sheet under the view, folded to its tabs and the colour key's title (narrow.css); the

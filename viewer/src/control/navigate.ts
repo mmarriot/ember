@@ -1,7 +1,7 @@
 // Moving the focus between objects from lists and links (e.g. a candidate and its truth-graph particle), with "back";
 // the camera glides to the new focus, conservatively. Moving between the parts of the detector (domains), keeping the
 // focus.
-import { batch } from "@preact/signals";
+import { batch, computed, effect, signal } from "@preact/signals";
 import { type DisplayLayer, kindName } from "../io/format";
 import { filterMask, filters } from "../model/custom";
 import { rowsInDomain, stepDomain, withFocus } from "../model/domains";
@@ -16,7 +16,9 @@ import {
   focus,
   focusBack,
   focusOn,
+  framed,
   highlight,
+  kindOf,
   ladder,
   layerKey,
   layerOf,
@@ -27,18 +29,57 @@ import {
   selection,
   shared,
   sizeColumn,
+  statement,
+  subject,
   tabOfDomain,
   toast,
   unlook,
   view,
 } from "../model/store";
 import type { Ref } from "../model/relations";
+import { inText } from "../model/describe";
+import { leadChoice, partChoices, type PartChoice } from "../model/statement";
 import { engine } from "./scene";
+
+/** Frame the focus in the part of the view the card leaves free (engine.frame, store `framed`): `F`, a double click,
+ *  the card's button, X, back, a link; `ms`: the glide's length (0: at once). In a part of the detector, what it has
+ *  there (partFrame), as when the part is chosen: a TICL candidate's shower, not the whole track from the vertex to
+ *  it, which would leave the shower a speck at the edge. */
+export function frameFocus(ms = 450) {
+  const rows = framed.peek(),
+    f = focus.peek(),
+    least = f && rows ? vertexRadius(f, rows) : undefined;
+  if (least !== undefined) engine?.frame(new Map([[f!.table, [f!.row]]]), ms > 0, ms, 0, least);
+  else engine?.frame((rows && partFrame(domain.peek(), rows)) ?? rows ?? undefined, ms > 0, ms);
+}
+
+/** What to frame of the focus in domain `name`: its objects there (focusIn), with the focus itself (a jet's cone from
+ *  its vertex: its clusters alone would fill a 2D view), unless it is a line (an electron, a truth particle), which
+ *  runs from the vertex, outside the part. Null when it has nothing there. */
+function partFrame(name: string | null, hl: Map<string, Set<number>>) {
+  const part = focusIn(name, hl),
+    f = focus.peek();
+  if (!part || !f) return null;
+  return LINES.has(layerOf(f.table)?.repr ?? "") ? part : withFocus(part, f);
+}
+
+/** For a vertex (profile kind "vertex", "secondaryVertex", ...: made of lines, its tracks), the radius it is framed
+ *  at: the smallest `minRadius` of its lines' parts of the detector (the tracker's: about the pixel volume), so the
+ *  view shows where its tracks start, not the whole tracker they cross. Undefined for anything else. */
+function vertexRadius(f: Ref, rows: Map<string, Set<number>>) {
+  const d = layerOf(f.table),
+    h = bundle.peek()?.header;
+  if (!h || !d || !/vertex$/i.test(d.kind ?? "")) return undefined;
+  const lines = [...rows.keys()].map(layerOf).filter((l) => l && l.table !== f.table && LINES.has(l.repr)),
+    radii = lines.flatMap((l) => h.domains?.find((x) => x.name === l!.domain)?.minRadius ?? []);
+  return radii.length ? Math.min(...radii) : undefined;
+}
+const LINES = new Set(["helix", "segments", "polyline"]);
 
 export function jump(ref: Ref) {
   focusOn(ref);
   selection.value = { ...ref };
-  engine?.frame(highlight.peek() ?? undefined, true, 800);
+  frameFocus(800);
 }
 
 /** Back (keyboard: B): while another object is looked at, to the card's own object; else to the previous card. */
@@ -49,38 +90,124 @@ export function back() {
     if (!prev) return;
     selection.value = { ...prev };
   }
-  engine?.frame(highlight.peek() ?? undefined, true, 800);
+  frameFocus(800);
 }
 
-/** Across the reco ↔ truth link (keyboard: X): from a reco object to its best truth match (a hit or a layer cluster:
- *  the particle with the most simulated energy in it); from a truth object to the reco object of the latest
- *  reconstruction step whose own best match it is (else the one holding most of it). Says so when there is nothing on
- *  the other side; does nothing in a bundle without truth. */
-export function cross() {
-  if (!selection.peek() || !modes.peek().roots.truth) return;
-  if (anchor.peek()) openCard(selection.peek()!); // across from what the view shows: the object looked at
-  const l = ladder.peek(),
-    rec = reconstructed.peek();
-  if (l) {
-    for (const x of l.self.links) {
-      if (x.kind === "match" && x.partners.length) return jump({ table: x.truth, row: x.partners[0][0] });
-      if (x.kind === "fact" && x.particles.length) return jump({ table: x.truth, row: x.particles[0][0] });
+/** The last crossing (X, or a chooser's choice): from which object to which. X on the object it led to goes back, so X
+ *  is a round trip (an electron -> its track's e⁻ -> the electron, not the e⁻'s largest object). */
+const crossed = signal<{ from: Ref; to: Ref } | null>(null);
+effect(() => {
+  event.value; // rows of another event
+  crossed.value = null;
+});
+const same = (a: Ref | null | undefined, b: Ref | null | undefined) =>
+  !!a && !!b && a.table === b.table && a.row === b.row;
+
+/** A particle X can go to from an object without a truth link of its own: one of its parts' own matches. */
+export type CrossChoice = PartChoice;
+/** The card object's parts' particles, all of them, largest part first (model/statement.ts partChoices); X's chooser
+ *  lists the first CHOOSER. */
+export const partParticles = computed<CrossChoice[]>(() => {
+  const st = statement.value,
+    ev = event.value;
+  if (!st || !ev) return [];
+  return partChoices(st, Infinity, (table, row) => {
+    const t = ev.tables[table],
+      c = t && sizeColumn(table, t);
+    return c ? Number(t.columns[c][row]) || 0 : 0;
+  });
+});
+const CHOOSER = 8;
+/** The choices X opened (the card shows them), null while none are open. They close with the selection. */
+export const crossChoices = signal<CrossChoice[] | null>(null);
+effect(() => {
+  selection.value;
+  crossChoices.value = null;
+});
+
+/** Where X goes from the card's object: `to`, the other side of its own link (a reco object's match, the particle with
+ *  the most simulated energy in a hit); else back to where X came from (`back`), when X led to it; else, for a reco
+ *  object, the particle of the part its card names (statement.ts leadChoice; `via`: that part's table) or its parts'
+ *  only particle, and for a truth object, the reco object of the latest reconstruction step whose own best match it is,
+ *  else the one holding most of it; else `choices`, its parts' own matches (the first CHOOSER); else nothing, and
+ *  `why`. */
+export const crossing = computed<{ to?: Ref; choices: CrossChoice[]; why?: string; back?: boolean; via?: string }>(
+  () => {
+    const l = ladder.value,
+      rec = reconstructed.value,
+      st = statement.value,
+      sel = subject.value;
+    if (!sel || !modes.value.roots.truth) return { choices: [], why: "No truth in this data set" };
+    const last = crossed.value,
+      back = last && same(last.to, sel) ? last.from : undefined;
+    if (l) {
+      // its own link first: a reco object reached from a particle it is not best matched to goes to its own match
+      for (const x of l.self.links) {
+        if (x.kind === "match" && x.partners.length)
+          return { to: { table: x.truth, row: x.partners[0][0] }, choices: [] };
+        if (x.kind === "fact" && x.particles.length)
+          return { to: { table: x.truth, row: x.particles[0][0] }, choices: [] };
+      }
+      if (back) return { to: back, choices: [], back: true };
+      const choices = partParticles.value,
+        lead = st?.own?.kind === "match" ? undefined : choices.length === 1 ? choices[0] : leadChoice(choices);
+      // the particle the card names (its track's), or the only one: X goes there, as for an object's own match
+      if (lead) return { to: { table: lead.truth, row: lead.particle }, choices: [], via: lead.table };
+      if (choices.length) return { choices: choices.slice(0, CHOOSER) };
+      const own = st?.own,
+        kind = inText(kindOf(sel.table));
+      const why =
+        own?.kind === "match"
+          ? "Not matched: the associator found no truth for it, and none of its parts is matched"
+          : own?.kind === "fact"
+            ? "No simulated energy in this hit"
+            : own?.kind === "container"
+              ? "Its truth is that of what contains it"
+              : `No CMSSW associator for ${kind}, and none of its parts is matched`;
+      return { choices, why };
     }
-    return toast(
-      l.self.links.some((x) => x.kind === "none" || x.kind === "container")
-        ? "No truth link for this kind: step to one of its parts"
-        : "No truth particle for this object",
-    );
+    if (back) return { to: back, choices: [], back: true };
+    const all = (rec?.reco ?? []).filter((r) => r.partners.length),
+      own = all.find((r) => r.partners.some((p) => p.best)) ?? all[0];
+    if (!own) return { choices: [], why: "Nothing reconstructed is linked to this truth object" };
+    return { to: { table: own.table, row: (own.partners.find((p) => p.best) ?? own.partners[0]).row }, choices: [] };
+  },
+);
+
+/** Across the reco ↔ truth link (keyboard: X), see `crossing`; with no link of the object's own, a chooser of its
+ *  parts' matches opens in the card (X again takes the first). Says why when there is nothing on the other side;
+ *  does nothing in a bundle without truth. While another object is looked at, X crosses from that one; `fromCard`
+ *  (the card's button) crosses from the card's own object. */
+export function cross(fromCard = false) {
+  if (!selection.peek() || !modes.peek().roots.truth) return;
+  const open = crossChoices.peek();
+  if (open?.length) return crossTo(open[0]);
+  if (anchor.peek()) {
+    if (fromCard) unlook();
+    else openCard(selection.peek()!); // across from what the view shows: the object looked at
   }
-  const all = (rec?.reco ?? []).filter((r) => r.partners.length),
-    own = all.find((r) => r.partners.some((p) => p.best)) ?? all[0];
-  if (!own) return toast("Nothing reconstructed is linked to this truth object");
-  jump({ table: own.table, row: (own.partners.find((p) => p.best) ?? own.partners[0]).row });
+  const c = crossing.peek();
+  if (c.to) return crossJump(c.to);
+  if (c.choices.length) crossChoices.value = c.choices;
+  else toast(c.why ?? "No truth link");
 }
 
-/** Look at one domain (header `domains`): only its layers, those of shared domains and those without a domain are
- *  drawn, in its view and colour mode (store/colours.ts activeMode), and its layers' tab opens in the side panel; null:
- *  everything, in the bundle's starting view. A selection is kept: the view frames its objects in the domain (e.g. a
+/** Go to one of X's choices: its particle. */
+export function crossTo(c: CrossChoice) {
+  crossChoices.value = null;
+  crossJump({ table: c.truth, row: c.particle });
+}
+
+/** Cross to `to`, remembering where from (`crossed`). */
+function crossJump(to: Ref) {
+  const from = subject.peek();
+  jump(to);
+  crossed.value = from ? { from: { table: from.table, row: from.row }, to: { ...to } } : null;
+}
+
+/** Look at one domain (header `domains`): only its layers and those without a domain are drawn (those of shared
+ *  domains as an overlay, store/view.ts `overlay`), in its view and colour mode (store/colours.ts activeMode), and its
+ *  layers' tab opens in the side panel; null: everything, in the bundle's starting view. A selection is kept: the view frames its objects in the domain (e.g. a
  *  jet's calorimeter clusters), else the domain's region (All: the objects). `animate`: glide there. */
 export function chooseDomain(name: string | null, animate = true) {
   const h = bundle.peek()?.header,
@@ -92,17 +219,17 @@ export function chooseDomain(name: string | null, animate = true) {
     if (d) openTab.value = { name: tabOfDomain(h, d.name) }; // its tab in the side panel (choosing a tab does not change the view)
     view.value = d?.view ?? h.view?.start ?? "3d";
   });
-  const part = focusIn(d?.name ?? null),
-    f = focus.peek();
-  if (part && f) engine?.frame(withFocus(part, f), animate, 700);
+  const hl = framed.peek(),
+    part = hl && partFrame(d?.name ?? null, hl);
+  if (part) engine?.frame(part, animate, 700);
   else if (d) engine?.frameRegion(d.region.rMax, d.region.zMax, animate);
   else engine?.frame(undefined, animate);
 }
 
-/** The focus's objects that domain `name` draws as its own (model/domains.ts rowsInDomain); null without a focus. */
-function focusIn(name: string | null) {
-  const h = bundle.peek()?.header,
-    hl = highlight.peek();
+/** The focus's objects (`hl`: of its highlight) that domain `name` draws as its own (model/domains.ts rowsInDomain);
+ *  null without a focus. */
+function focusIn(name: string | null, hl = highlight.peek()) {
+  const h = bundle.peek()?.header;
   return h && hl && focus.peek() ? rowsInDomain(hl, h.display, name, shared.peek()) : null;
 }
 

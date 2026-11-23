@@ -2,9 +2,9 @@
 // view and the truth colours' slots, with value scales shared between layers.
 import { untracked } from "@preact/signals";
 import type { DisplayLayer, EventData, Header, Table } from "../io/format";
-import { colourBy } from "../model/custom/custom";
+import { colourBy } from "../model/custom/settings";
 import { cutMin } from "../model/custom/cuts";
-import { identities, type SlotRank } from "../model/event/relations";
+import { identities, type SlotRank } from "../model/colour/identities";
 import { madeOfSimCells } from "../model/truth/facts";
 import { PAIR, type Pair, pairKey } from "../model/truth/pair";
 import {

@@ -1,7 +1,7 @@
 // A side-panel tab's objects as rows: the event in one line over the collections (Headline), and a collection's
 // largest objects, one row each with its columns (ObjectRows).
 import { type DisplayLayer, kindName, unitOf } from "../../io/format";
-import { filterMask, filters } from "../../model/custom/custom";
+import { filterMask, filters } from "../../model/custom/settings";
 import { columnName, passes, topRows, whyHidden } from "../../model/event/objects";
 import { plain } from "../../model/event/describe";
 import {

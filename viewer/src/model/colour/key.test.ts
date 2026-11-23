@@ -8,7 +8,7 @@ const { bundle, colourChoice, layerKey, legends, rawEvent, shown, theme, truthLe
   "../store"
 );
 const { layerEntries, modeKey, viewKey } = await import("./key");
-const { COLOUR_LEVELS } = await import("../truth/truth");
+const { COLOUR_LEVELS } = await import("../truth/levelFlags");
 
 const layer = (table: string, extra: Partial<DisplayLayer> = {}) =>
   ({ table, repr: "markers", group: table, label: table, position: ["x", "x", "x"], ...extra }) as DisplayLayer;

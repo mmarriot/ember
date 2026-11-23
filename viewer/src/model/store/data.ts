@@ -3,7 +3,7 @@
 import { computed, signal } from "@preact/signals";
 import type { Bundle } from "../../io/bundle";
 import type { EventData } from "../../io/format";
-import { customColumns, withCustomColumns } from "../custom/custom";
+import { customColumns, withCustomColumns } from "../custom/settings";
 
 /** The bundle open, or null before the first one opens. */
 export const bundle = signal<Bundle | null>(null);
@@ -21,7 +21,7 @@ export const shownOf = signal<Bundle | null>(null);
 export const shownEntry = computed(() =>
   bundle.value && shownOf.value === bundle.value ? bundle.value.events[eventIndex.value] : undefined,
 );
-/** The event shown, with the user's custom columns added (model/custom/custom.ts): what the view and the panels use. */
+/** The event shown, with the user's custom columns added (model/custom/settings.ts): what the view and the panels use. */
 export const event = computed(() => (rawEvent.value ? withCustomColumns(rawEvent.value, customColumns.value) : null));
 
 /** An event is being read. */

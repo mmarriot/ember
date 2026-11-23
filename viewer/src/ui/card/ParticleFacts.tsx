@@ -10,11 +10,11 @@ import {
   flightOf,
   type Graph,
   length,
-  LEVELS,
   tauDecayOf,
   topCopy,
   vertexText,
-} from "../../model/truth/truth";
+} from "../../model/truth/graph";
+import { LEVELS } from "../../model/truth/levelFlags";
 import { categoryNames, namedChip as chip, ObjChip, spaced } from "./chips";
 
 /** The truth particle `row`: kinematics, status and collision; production and end vertices; copies; levels; physics. */

@@ -4,8 +4,8 @@
 // candidates or truth, or in a domain coloured layer by layer, there is no key: each layer shows its own colours.
 import { CLASSES, type KeyEntry, modeKey, truthLevelOf } from "../../model/colour/key";
 import { percent } from "../../model/truth/match";
-import { cached } from "../../model/event/relations";
-import { COLOUR_LEVELS, type ColourLevel, colourLevel } from "../../model/truth/truth";
+import { cached } from "../../model/event/cache";
+import { COLOUR_LEVELS, type ColourLevel, colourLevel } from "../../model/truth/levelFlags";
 import {
   activeMode,
   bundle,

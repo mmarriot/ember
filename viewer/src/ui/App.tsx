@@ -44,7 +44,7 @@ import {
   unlook,
   view,
 } from "../model/store";
-import { COLOUR_LEVELS } from "../model/truth/truth";
+import { COLOUR_LEVELS } from "../model/truth/levelFlags";
 import {
   back,
   chooseDomain,

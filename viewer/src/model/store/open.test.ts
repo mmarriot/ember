@@ -246,7 +246,7 @@ describe("openBundle", () => {
     });
     try {
       await openBundle("https://elsewhere.example/data/u/alice/x.ember", golden);
-      const { filters } = await import("../custom/custom");
+      const { filters } = await import("../custom/settings");
       filters.value = { ...filters.value, Anything: "0" };
       const settings = () => [...saved.keys()].filter((k) => k.startsWith("evd.custom."));
       expect(settings()).toEqual([]);

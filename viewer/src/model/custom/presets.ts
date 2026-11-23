@@ -1,7 +1,7 @@
 // Named ways of looking at the data from the profile (`presets`): which column colours each table's layers and which
 // rows are shown. Applying one sets the same per-layer colour choices and per-table filters a user can set by hand.
 import type { DisplayLayer, Header, Preset } from "../../io/format";
-import { activePreset, colourBy, filters, resetFilter } from "./custom";
+import { activePreset, colourBy, filters, resetFilter } from "./settings";
 import { bundle, layerKey, visible } from "../store";
 
 export function applyPreset(i: number) {

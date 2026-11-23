@@ -1,8 +1,7 @@
-// One name for an object, the same everywhere it is named (docs/viewer.md "Names"): the card's header, its label in
-// the view, its chip in a list and the share text. "Jet 1 · AK4 · pT 99.6 GeV · η 1.11": the kind in the singular,
-// numbered from 1 by pT (the address, s=Jet:0, keeps the row), the collection where the kind has several, then its values.
-// And how a single value is written (H1): in a unit scaled to its size (µm, mm, cm; MeV, GeV), never in e-notation,
-// and a sentinel ("-99: none") as words.
+// One name for an object wherever it is named (docs/viewer.md "Names"): "Jet 1 · AK4 · pT 99.6 GeV · η 1.11", the
+// kind in the singular, numbered from 1 by pT (the address keeps the row), the collection where the kind has several,
+// then its values. And how a value is written (H1): in a unit scaled to its size, never in e-notation, and a sentinel
+// ("-99: none") as words.
 import { type DisplayLayer, type Header, kindName, type Table, unitOf } from "../../io/format";
 import { columnName } from "./objects";
 
@@ -63,13 +62,11 @@ function which(header: Header, d: DisplayLayer) {
   return collection(d) || cmsswName(header, d);
 }
 
-/** The kind and the number `n` of an object: "Jet 1"; the kind alone for a one-object table (MET, whose `list` reads a
- *  value). `n`, from 1, is the object's rank by pT in its table (store/names.ts numberOf), not its row. */
+/** "Jet 1": the kind and number `n` (store/names.ts numberOf); the kind alone for a one-object table (MET). */
 const numbered = (d: DisplayLayer, n: number) => `${kindLabel(d)}${d.list?.headline === "value" ? "" : ` ${n}`}`;
 
-/** An object's name: "Jet 1 · AK4 · pT 99.6 GeV": its kind and number `n` (numbered), its collection where the kind
- *  has several, and `values` (describeRow). `cmssw`: with the CMSSW collection, for a chip's tooltip ("Jet 1 · AK4
- *  (ak4PFJetsPuppi) · …"; the card's header: cardName). */
+/** An object's name: "Jet 1 · AK4 · pT 99.6 GeV". `cmssw`: with the CMSSW collection, for a chip's tooltip ("Jet 1 ·
+ *  AK4 (ak4PFJetsPuppi) · …"). */
 export function objectName(header: Header, d: DisplayLayer, n: number, values: string, cmssw = false) {
   const c = which(header, d),
     source = cmssw ? cmsswName(header, d) : "";
@@ -77,10 +74,9 @@ export function objectName(header: Header, d: DisplayLayer, n: number, values: s
   return [numbered(d, n), where, values].filter(Boolean).join(" · ");
 }
 
-/** A label's text in the view: "Jet 1 · pT 46 GeV", its collection named only where objects of another collection of
- *  its kind are labelled too (`labelled`: the layers of the labels shown), and then by the words that tell the
- *  collections apart: "PUPPI" and "CHS" of "AK4 PUPPI (raw, no JEC)" and "AK4 CHS (raw, no JEC)". The card's subtitle
- *  names the collection in full. */
+/** A label's text in the view: "Jet 1 · pT 46 GeV", its collection named only where another collection of its kind is
+ *  labelled too (`labelled`: the layers labelled), by the words that tell them apart ("PUPPI" of "AK4 PUPPI (raw, no
+ *  JEC)" next to "AK4 CHS (raw, no JEC)"). */
 export function labelName(header: Header, d: DisplayLayer, n: number, values: string, labelled: DisplayLayer[]) {
   const others = labelled.filter((l) => l.table !== d.table && !l.truth && kindName(l) === kindName(d)),
     own = others.length ? which(header, d) : "",
@@ -93,10 +89,8 @@ export function labelName(header: Header, d: DisplayLayer, n: number, values: st
   return [numbered(d, n), word, values].filter(Boolean).join(" · ");
 }
 
-/** The card's header in two lines: the object's name without its collection ("Jet 1 · pT 46 GeV · η 0.606"), and, small
- *  below it, where it comes from: its collection and its CMSSW collection ("AK4 PUPPI (raw, no JEC) · ak4PFJetsPuppi",
- *  "gedGsfElectrons"); "" when the layer's label only names its kind and the table's doc names no other CMSSW
- *  collection. On one line, a long collection wrapped the header over three. */
+/** The card's header in two lines (on one, a long collection wrapped it over three): the name without its collection
+ *  ("Jet 1 · pT 46 GeV · η 0.606"), and where it comes from ("AK4 PUPPI (raw, no JEC) · ak4PFJetsPuppi"; maybe ""). */
 export function cardName(header: Header, d: DisplayLayer, n: number, values: string): [string, string] {
   const c = collection(d),
     source = cmsswName(header, d);
@@ -134,8 +128,8 @@ export function scaled(v: number, unit: string): [number, string] {
   return s ? [v * s[1], s[2]] : [v, unit];
 }
 
-/** A number in plain decimals, never in e-notation: `digits` significant figures (at least the units; integers as they
- *  are, with thousands separators). */
+/** A number in plain decimals, never in e-notation: `digits` significant figures, at least the units; integers in
+ *  full, with thousands separators. */
 export function plain(v: number, digits = 3) {
   if (Number.isNaN(v)) return "not set";
   if (!Number.isFinite(v)) return v > 0 ? "∞" : "−∞";
@@ -193,8 +187,8 @@ export function cellText(header: Header, d: DisplayLayer | undefined, table: str
 }
 
 /** An object's values in a few words, from its layer's `describe` hint ("π⁺ · pT 65.5 GeV"), else its cut's quantity
- *  (a hit's energy), else "". A number is named after its quantity (its `prefix`, else model/event/objects.ts columnName), so a pT is never read as an
- *  energy. `skip`: columns to leave out (those shown next to it anyway). */
+ *  (a hit's energy), else "". Each number is named (its `prefix`, else objects.ts columnName), so a pT is never read as
+ *  an energy. `skip`: columns to leave out. */
 export function describeRow(
   header: Header,
   d: DisplayLayer | undefined,
@@ -205,7 +199,6 @@ export function describeRow(
   const hint = d?.describe;
   if (!d || !t || row >= t.n) return "";
   if (!hint) {
-    // a layer named by nothing else (hits): its cut's quantity, e.g. "E 35 MeV"
     const c = d.cut?.column;
     if (!c || !(c in t.columns) || skip.includes(c)) return "";
     return `${columnName(c)} ${withUnit(Number(t.columns[c][row]), unitOf(header.tables[d.table]?.columns[c]?.doc) || (d.cut?.unit ?? ""))}`;
@@ -217,7 +210,7 @@ export function describeRow(
         name = hint.names?.[c]?.[String(v)];
       if (name) return name;
       if (v === missingValue(header, d, d.table, c)) return "";
-      // e.g. "St 4" for a muon segment's station, "pT 65.5 GeV"; an empty prefix gives the bare number
+      // an empty prefix gives the bare number
       const prefix = hint.prefix?.[c] ?? columnName(c);
       return `${prefix ? `${prefix} ` : ""}${withUnit(v, unitOf(header.tables[d.table]?.columns[c]?.doc))}`;
     })

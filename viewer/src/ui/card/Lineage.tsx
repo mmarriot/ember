@@ -2,9 +2,11 @@
 // its daughters, with the levels each particle belongs to and the reco objects whose best match it is.
 import { signal } from "@preact/signals";
 import type { Header } from "../../io/format";
-import { bestPartners, identities } from "../../model/event/relations";
+import { bestPartners } from "../../model/event/relations";
+import { identities } from "../../model/colour/identities";
 import { bundle, event, labelOf, layerOf, modes, truthGraph } from "../../model/store";
-import { copiesBelow, foldCopies, LEVELS } from "../../model/truth/truth";
+import { copiesBelow, foldCopies } from "../../model/truth/graph";
+import { LEVELS } from "../../model/truth/levelFlags";
 import { namedChip as chip, spaced } from "./chips";
 import { Info } from "../common/Info";
 

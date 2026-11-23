@@ -1,7 +1,7 @@
 // An expression on one table (behind a collection's ⋯), with live feedback on the current event: as a filter (rows
 // where it is 0 are hidden, on top of the cuts) or as a new column, computed in the browser for every event.
 import { useState } from "preact/hooks";
-import { customColumns, evaluate, setFilter } from "../../model/custom/custom";
+import { customColumns, evaluate, setFilter } from "../../model/custom/settings";
 import { FUNCTION_NAMES } from "../../model/custom/expr";
 import { event, full } from "../../model/store";
 

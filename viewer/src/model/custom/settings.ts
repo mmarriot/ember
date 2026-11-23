@@ -1,8 +1,8 @@
-// User-defined additions, remembered per profile in this browser: columns computed from expressions, row filters,
-// which column colours each layer and the chosen preset. Columns are added to every event as it is
-// shown (one loop per column).
+// The user's settings, remembered per profile in this browser: columns computed from expressions, row filters, which
+// column colours each layer, and the chosen preset; and evaluating an expression on a table.
 import { effect, signal } from "@preact/signals";
 import type { Column, DisplayLayer, EventData, Table } from "../../io/format";
+import { browserStorage } from "../site/library";
 import { compile } from "./expr";
 
 export interface CustomColumn {
@@ -15,10 +15,8 @@ export const customColumns = signal<CustomColumn[]>([]); // in order: later ones
 export const filters = signal<Record<string, string>>({});
 export const colourBy = signal<Record<string, string>>({}); // display layer key -> column, or RELATION + relation
 export const activePreset = signal(0); // index into the profile's presets
-/** pid: candidates by particle type, a selection as its truth <-> reco pair (bundles with candidates); layers: each
- *  layer coloured on its own (the others); truth: everything by the generator particle it comes from (docs/truth.md),
- *  reco objects only where they are a clean match. Set by the bundle and the Reco | Truth switch (store/colours.ts
- *  activeMode). */
+/** pid: candidates by particle type, a selection as its truth <-> reco pair; layers: each layer coloured on its own;
+ *  truth: everything by the truth particle it comes from (docs/truth.md). See store/colours.ts activeMode. */
 export type ColourMode = "pid" | "layers" | "truth";
 let defaultFilters: Record<string, string> = {}; // from the display hints (`filter`) of the open bundle
 
@@ -88,7 +86,6 @@ export const customDoc = (table: string, column: string) => {
   return c ? `custom: ${c.expr}` : undefined;
 };
 
-// Persistence. localStorage can be missing or throw (private windows, blocked storage): then nothing is remembered.
 let storageKey = "";
 /** The user's choices for a profile; `defaults` (table -> filter expression) apply where the user has set none.
  *  `remember` false (a bundle from another site, which names its own profile): changes are not saved. */
@@ -101,7 +98,7 @@ export function loadCustom(profile: string, defaults: Record<string, string>, re
     preset: number;
   }> = {};
   try {
-    saved = JSON.parse(localStorage.getItem(`evd.custom.${profile}`) ?? "{}"); // old prefix kept: see model/site/library.ts
+    saved = JSON.parse(browserStorage.get(`evd.custom.${profile}`) ?? "{}"); // old prefix kept: see model/site/library.ts
   } catch {
     /* defaults */
   }
@@ -119,10 +116,5 @@ effect(() => {
     colourBy: colourBy.value,
     preset: activePreset.value,
   });
-  if (storageKey)
-    try {
-      localStorage.setItem(storageKey, data);
-    } catch {
-      /* not remembered */
-    }
+  if (storageKey) browserStorage.set(storageKey, data);
 });

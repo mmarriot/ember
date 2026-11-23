@@ -1,17 +1,14 @@
-// The data sets a person can open, beyond the site's shared list (index.json, store/open.ts `catalogue`): their own
-// (data/u/<login>/index.json, written by `ember file.root`) and the ones they opened lately from links. Who they are
-// comes from the site (`whoami`, answered behind the single sign-on) or, failing that, from the login they type once.
-// Nothing here draws: the chooser (ui/topbar/Chooser.tsx) and the start panels (ui/Start.tsx) do.
+// The data sets a person can open beyond the site's shared list: their own (data/u/<login>/index.json, written by
+// `ember file.root`) and those opened lately from links; and the names of site files. Who they are comes from the
+// site (`whoami`, behind the single sign-on) or else from the login they type once.
 import { signal } from "@preact/signals";
-import { FormatError, HttpError, NetworkError } from "../../io/bundle";
 
 /** The documentation site: every "how do I get data in" link points here. */
 export const DOCS_URL = "https://mmarriot.github.io/ember/";
-/** The one command that converts a file: to file.ember where it runs, or, with a site set up (EMBER_SITE_DIR), published
- *  in the user's area of it with its link printed. */
+/** The command that converts a file: to file.ember, or, with a site set up (EMBER_SITE_DIR), published in the
+ *  user's area of it. */
 export const PUBLISH_COMMAND = "ember file.root";
-/** The extensions of bundle files: .ember, and .evdb, which bundles had before the project was called Ember. The file
- *  chooser offers both, and a data set's title is its file name without either. */
+/** The extensions of bundle files: .ember, and .evdb from before the project was called Ember. */
 export const BUNDLE_EXTENSIONS = [".ember", ".evdb"];
 /** Asked relative to the page: {"login": "..."} for the signed-in person. */
 export const WHOAMI_URL = "whoami";
@@ -22,9 +19,8 @@ const LOGIN_KEY = "evd.login",
 const RECENT_MAX = 12;
 const WHOAMI_WAIT = 4000; // ms: a site whose whoami hangs is a site without one
 
-/** One entry of an index.json: the site's (written by `ember sync`; hand-written ones need only file and title) or
- *  a person's (ISO times: `published`, when it was put on the site; `created`, when it was converted; `expires`).
- *  `file` is relative to the site's root. */
+/** One entry of an index.json, the site's (`ember sync`; hand-written ones need only file and title) or a person's.
+ *  `file` is relative to the site's root; times are ISO: `published` on the site, `created` (converted), `expires`. */
 export interface Listed {
   file: string;
   title: string;
@@ -96,18 +92,15 @@ export function cleanLogin(text: string): string | null {
   return /^[a-z][a-z0-9_-]{1,31}$/.test(name) ? name : null;
 }
 
-// A link's `b=` and an index's `file` are text from somewhere else. A name is used as a file of this site only if it
-// is plainly one: a relative path of ordinary segments. Anything the browser would resolve elsewhere than it reads
-// ("..", a backslash, which browsers take for "/", an encoded dot, a leading "/", a scheme) or that names the same
-// file twice ("?x=1", "#") is not.
-/** The name, if it is a path of this site as the viewer writes them ("data/u/alice/x.ember"); else null. */
+/** The name, if it is plainly a file of this site ("data/u/alice/x.ember"): a relative path of ordinary segments.
+ *  Not anything the browser would resolve elsewhere ("..", a backslash, an encoded dot, a leading "/", a scheme), nor
+ *  another name for the same file ("?x=1", "#"). Else null. */
 export function siteFile(name: string): string | null {
   if (!name || /[\\?#%\u0000-\u001f\u007f]/.test(name) || /^[a-z][a-z0-9+.-]*:/i.test(name)) return null;
   return name.split("/").every((part) => part && part !== "." && part !== "..") ? name : null;
 }
-/** Where a name leads: a file of this site, a web address elsewhere (`external`: it still opens, marked as such,
- *  for whoever can reach it), or nowhere the viewer goes (`bad`). An address inside this site (under `base`, the
- *  page's own) is the site's file. */
+/** Where a name leads: a file of this site (also as an address under `base`, the page's), a web address elsewhere
+ *  (it still opens, marked as such), or nowhere the viewer goes. */
 export type Place = { kind: "site"; file: string } | { kind: "external"; url: string } | { kind: "bad" };
 export function locate(
   name: string,
@@ -136,15 +129,14 @@ export class NameError extends Error {
   }
 }
 
-/** The login whose area a file is in ("data/u/alice/x.ember" -> "alice"); null for a shared data set, and for any
- *  name that is not exactly a file in a person's area (so nothing is said to be "published by" a name's look). */
+/** The login whose area a file is in ("data/u/alice/x.ember" -> "alice"); null for anything that is not exactly a
+ *  file in a person's area, so nothing is said to be "published by" from a name's look. */
 export function ownerOf(file: string): string | null {
   const owner = siteFile(file)?.match(/^data\/u\/([^/]+)\/[^/]+$/)?.[1];
   return owner && cleanLogin(owner) === owner ? owner : null;
 }
 export const userIndex = (name: string) => `data/u/${name}/index.json`;
-/** A name for a data set no index lists: its file name without the extension, and whose area (or which other site)
- *  it is in. */
+/** A name for a data set no index lists: its file name, and whose area (or which other site) it is in. */
 export function titleOf(file: string): string {
   const stem =
       file
@@ -160,7 +152,7 @@ export function titleOf(file: string): string {
 
 const text = (x: unknown) => (typeof x === "string" ? x : undefined);
 /** An index entry as the viewer uses it, or null: `file` a file of this site (of `owner`'s area, for a person's
- *  index: nobody lists another's files, or an address elsewhere), `title` text; the rest kept only in its type. */
+ *  index), `title` text; the rest kept only if of the right type. */
 function cleanEntry(x: unknown, owner?: string): Listed | null {
   const e = (x ?? {}) as Record<string, unknown>,
     file = text(e.file),
@@ -182,9 +174,8 @@ function cleanEntry(x: unknown, owner?: string): Listed | null {
 export const cleanList = (bundles: unknown, owner?: string): Listed[] | null =>
   Array.isArray(bundles) ? bundles.map((x) => cleanEntry(x, owner)).filter((x): x is Listed => !!x) : null;
 
-/** Who the page is for: the login typed before (at once, from storage), then the site's answer, which wins. A site
- *  without `whoami` (any failure, or an answer that is not {"login": ...}: a development server answers with the
- *  page itself) changes nothing, silently. */
+/** Who the page is for: the login typed before (at once), then the site's answer, which wins. A site without
+ *  `whoami` (any failure or other answer: a development server answers with the page) changes nothing. */
 export async function loadIdentity(fetcher: Fetch = fetch, storage: Storage = browserStorage) {
   const typed = cleanLogin(storage.get(LOGIN_KEY) ?? "");
   if (typed && !login.peek()) login.value = { name: typed, from: "typed" };
@@ -219,8 +210,7 @@ export function forgetLogin(storage: Storage = browserStorage) {
 /** When a data set came to the site: its publication, or for an index without it the conversion. */
 export const publishedAt = (x: Listed) => x.published ?? x.created ?? x.data_time;
 const newestFirst = (a: Listed, b: Listed) => (publishedAt(b) ?? "").localeCompare(publishedAt(a) ?? "");
-/** Read a person's index: their data sets (their own, well-formed entries: cleanEntry), newest first; [] when they
- *  have none (no index yet); null when it could not be read (offline, or not an index). */
+/** Read a person's index: their data sets, newest first; [] without an index yet; null if it could not be read. */
 export async function readIndex(name: string, fetcher: Fetch = fetch): Promise<Listed[] | null> {
   try {
     const r = await fetcher(userIndex(name), { cache: "no-store" });
@@ -230,7 +220,7 @@ export async function readIndex(name: string, fetcher: Fetch = fetch): Promise<L
     return null;
   }
 }
-/** Re-read my index (it changes when I publish, and as files expire); what is shown stays while it cannot be read. */
+/** Re-read my index; what is shown stays while it cannot be read. */
 export async function refreshMine(fetcher: Fetch = fetch) {
   const who = login.peek();
   if (!who) return;
@@ -240,7 +230,7 @@ export async function refreshMine(fetcher: Fetch = fetch) {
   if (list && JSON.stringify(list) !== JSON.stringify(mine.peek())) mine.value = list; // the same list: nothing re-runs
 }
 
-/** The recent data sets as stored, without what is not one: an entry names a file of this site, or a local file. */
+/** The recent data sets as stored, keeping only entries that name a file of this site or a local file. */
 function storedRecent(storage: Storage): Recent[] {
   try {
     const saved = JSON.parse(storage.get(RECENT_KEY) ?? "[]");
@@ -257,15 +247,13 @@ function storedRecent(storage: Storage): Recent[] {
 export function loadRecent(storage: Storage = browserStorage) {
   recent.value = storedRecent(storage);
 }
-/** The list to change: the stored one, which another tab may have added to since this one read it; this tab's own
- *  where nothing is stored (no storage). */
+/** The list to change: the stored one (another tab may have added to it), or this tab's without storage. */
 const latestRecent = (storage: Storage) => (storage.get(RECENT_KEY) === null ? recent.peek() : storedRecent(storage));
 const saveRecent = (list: Recent[], storage: Storage) => {
   recent.value = list;
   storage.set(RECENT_KEY, JSON.stringify(list));
 };
-/** Put a data set at the top of the recent ones (once; the oldest beyond RECENT_MAX are dropped). Only a file of this
- *  site or a local file: an address elsewhere is not remembered. */
+/** Put a data set at the top of the recent ones (once; at most RECENT_MAX). An address elsewhere is not remembered. */
 export function noteRecent(entry: Omit<Recent, "time">, now = new Date(), storage: Storage = browserStorage) {
   if (!entry.local && siteFile(entry.file) !== entry.file) return;
   const same = (r: Recent) => r.file === entry.file && !!r.local === !!entry.local;
@@ -297,7 +285,7 @@ export function recentShown(list: Recent[], listed: Iterable<string>): Recent[] 
 const DAY = 86_400_000;
 const msUntil = (iso: string | undefined, now: Date) => (iso ? Date.parse(iso) : NaN) - now.getTime(); // NaN: not a time
 /** "expires in 12 days", "expires tomorrow", "expires today" (within 24 h), "expired"; "" without an expiry. Days are
- *  rounded, so a file published a moment ago for 30 days expires "in 30 days", not 29. */
+ *  rounded: a file just published for 30 days expires "in 30 days", not 29. */
 export function expiryText(expires: string | undefined, now = new Date()): string {
   const ms = msUntil(expires, now),
     days = Math.round(ms / DAY);
@@ -325,95 +313,4 @@ export function matches(filter: string, entry: { title: string; file: string }):
     .toLowerCase()
     .split(/\s+/)
     .every((word) => text.includes(word));
-}
-
-/** Why a data set did not open, in words for the person who followed a link to it (or dropped a file: `local`; or
- *  gave an address on another site: `external`). */
-export interface Failure {
-  kind: "gone" | "denied" | "offline" | "unreadable" | "badname" | "error";
-  name: string;
-  title: string;
-  text: string;
-  detail: string;
-  local: boolean;
-  external: boolean;
-}
-export function describeFailure(name: string, error: unknown, local = false): Failure {
-  const detail = error instanceof Error ? error.message : String(error),
-    owner = local ? null : ownerOf(name);
-  const external = !local && locate(name).kind === "external",
-    where = external ? "That address" : "The site";
-  const stem = name.split(/[?#]/)[0].split("/").filter(Boolean).pop() ?? name; // the file's own name
-  const say = (kind: Failure["kind"], title: string, text: string): Failure => ({
-    kind,
-    name,
-    title,
-    text,
-    detail,
-    local,
-    external,
-  });
-  if (error instanceof NameError)
-    return say(
-      "badname",
-      "This link does not name a data set",
-      "The data set in the link is neither a file of this site nor a web address: the link may have been cut or changed on the way. Ask for it again, or choose a data set.",
-    );
-  if (local) {
-    return error instanceof FormatError
-      ? say(
-          "unreadable",
-          "This file is not a data set",
-          `${name} is not an Ember bundle, or it is incomplete: convert it again.`,
-        )
-      : say(
-          "error",
-          "This file could not be read",
-          `${name} could not be read from your computer. Choose it again, or convert it again.`,
-        );
-  }
-  if (error instanceof HttpError && (error.status === 404 || error.status === 410)) {
-    return say(
-      "gone",
-      external ? "There is no such file at that address" : "This data set is no longer here",
-      owner
-        ? `${stem} was published by ${owner}. Published files are removed after a while, or its owner took it down. Ask ${owner} to publish it again, or choose another data set.`
-        : external
-          ? `${name} answers that it has no such file. Ask whoever sent the link, or choose another data set.`
-          : `There is no ${stem} on this site: it was removed, or the link is not complete. Choose another data set.`,
-    );
-  }
-  if (error instanceof HttpError && (error.status === 401 || error.status === 403))
-    return say(
-      "denied",
-      "You cannot open this data set",
-      `${where} refused ${stem} (HTTP ${error.status}).${external ? "" : " Reloading the page signs you in again; if it still refuses, ask whoever sent the link."}`,
-    );
-  if (error instanceof HttpError)
-    return say(
-      "error",
-      `${where} could not send this data set`,
-      `Reading ${stem} failed (HTTP ${error.status}). Try again in a moment.`,
-    );
-  if (error instanceof NetworkError) {
-    // no answer the page may read
-    return external
-      ? say(
-          "offline",
-          "That address did not answer",
-          `${name} could not be read: it is unreachable from here, or it does not let pages of other sites read it.`,
-        )
-      : say(
-          "offline",
-          "The site did not answer",
-          `${stem} could not be read. Check the connection; if your CERN sign-on has expired, reloading the page signs you in again.`,
-        );
-  }
-  if (error instanceof FormatError)
-    return say(
-      "unreadable",
-      "This file cannot be read",
-      `${stem} is not a complete data set for this viewer: it may still be uploading, or was written by something else. Try again in a minute, or convert it again.`,
-    );
-  return say("error", "This data set did not open", `Opening ${stem} failed. Try again, or choose another data set.`);
 }

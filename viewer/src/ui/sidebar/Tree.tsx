@@ -2,7 +2,7 @@
 // search (docs/viewer.md "Truth tab"). A particle's generator copies are one node ("μ⁺ ×4").
 import { useEffect, useMemo, useState } from "preact/hooks";
 import type { Relation } from "../../io/format";
-import { filterMask, filters } from "../../model/custom/custom";
+import { filterMask, filters } from "../../model/custom/settings";
 import {
   bundle,
   caloView,
@@ -17,15 +17,9 @@ import {
   truthGraph,
   truthText,
 } from "../../model/store";
-import {
-  copiesBelow,
-  daughterVertices,
-  LEVELS,
-  length,
-  matchesQuery,
-  parseTruthQuery,
-  REASON,
-} from "../../model/truth/truth";
+import { copiesBelow, daughterVertices, length, REASON } from "../../model/truth/graph";
+import { LEVELS } from "../../model/truth/levelFlags";
+import { matchesQuery, parseTruthQuery } from "../../model/truth/particles";
 import { PALETTES } from "../../render/colour";
 import { jump } from "../../control/navigate";
 

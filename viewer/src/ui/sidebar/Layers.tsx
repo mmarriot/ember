@@ -3,7 +3,7 @@
 import { signal } from "@preact/signals";
 import { useState } from "preact/hooks";
 import type { DisplayLayer } from "../../io/format";
-import { filters, removeFilter } from "../../model/custom/custom";
+import { filters, removeFilter } from "../../model/custom/settings";
 import { explainedByKey } from "../../model/colour/key";
 import {
   activeMode,

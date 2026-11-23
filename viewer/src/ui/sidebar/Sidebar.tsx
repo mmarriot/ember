@@ -3,7 +3,7 @@
 // (TruthTab.tsx); Event (EventInfo.tsx). Its width can be dragged; on phones it is a sheet under the view.
 import { signal } from "@preact/signals";
 import type { ComponentChildren } from "preact";
-import { activePreset } from "../../model/custom/custom";
+import { activePreset } from "../../model/custom/settings";
 import { applyPreset, presetFits } from "../../model/custom/presets";
 import type { DisplayLayer } from "../../io/format";
 import { bundle, bundleName, COLLECTIONS, domain, openTab, overlay, shared } from "../../model/store";

@@ -26,7 +26,7 @@ from .display import display_layers, less_preferred, named_columns
 from .profile import table_column
 from .relations import build_relation, compose_relations, cut_relation, owner_rows
 
-# The names that viewer filter expressions read as constants, not columns (viewer/src/model/expr.ts CONSTANTS).
+# The names that viewer filter expressions read as constants, not columns (viewer/src/model/custom/expr.ts CONSTANTS).
 CONSTANTS = {"pi"}
 # Profile keys the converter acts on; every other top-level key is a viewer setting, copied to the header as it is.
 PROFILE_KEYS = {"name", "note", "include", "exclude", "internal", "sameRows", "derive", "relations", "cuts", "select",

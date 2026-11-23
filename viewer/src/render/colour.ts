@@ -5,8 +5,8 @@
 import { type DisplayLayer, type EventData, type Header, kindName, type Table, toF32, unitOf } from "../io/format";
 import { kindLabel } from "../model/event/describe";
 import { bestPurities, percent } from "../model/truth/match";
-import { bestPartners, contentPartners, identities, type SlotRank, truthClasses } from "../model/event/relations";
-import { ruleText } from "../model/truth/truth";
+import { bestPartners, contentPartners } from "../model/event/relations";
+import { identities, ruleText, type SlotRank, truthClasses } from "../model/colour/identities";
 
 export const PALETTES = {
   light: {
@@ -216,7 +216,7 @@ interface Coloured {
 
 /** Options of `colours`. `range`: a value scale shared between layers (default: the layer's own). `layerFor`: the
  *  colouring of related tables (default: their display hints), so colours follow chains: a hit takes its layer
- *  cluster's colour, which is its candidate's. `rank`: how identity colours give their slots (relations.ts
+ *  cluster's colour, which is its candidate's. `rank`: how identity colours give their slots (model/colour/identities.ts
  *  identities). */
 interface ColourOptions {
   range?: Range;
@@ -260,7 +260,7 @@ export function colours(
     return { rgb: out, legend: { kind: "category", text: "one colour per object" } };
   }
   // A kind's own colour (display hint `fixedColour`), also over "none", which bundles give as old viewers' fallback; the
-  // truth mode and a user's colour choice drop the hint (store/colours.ts shownLayer, custom.ts withColour). A kind
+  // truth mode and a user's colour choice drop the hint (store/colours.ts shownLayer, custom/settings.ts withColour). A kind
   // named after a particle type (electrons, muons, photons; jets) takes that type's colour in this theme, and so does
   // a layer that the profile gives the same colour (a global muon track: the muon's).
   if (d.fixedColour && (d.colourBy === undefined || d.colourBy === "none")) {

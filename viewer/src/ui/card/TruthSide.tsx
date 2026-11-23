@@ -3,7 +3,7 @@ import { percent } from "../../model/truth/match";
 import { foldReco } from "../../model/event/chain";
 import { sharedParts } from "../../model/event/physics";
 import { type Ref, sameRef } from "../../model/event/relations";
-import { unassociatedKinds } from "../../model/truth/truth";
+import { unassociatedKinds } from "../../model/truth/particles";
 import { bundle, event, modes, reconstructed, stepName, truthGraph, truthName, truthStatuses } from "../../model/store";
 import { cross, crossing } from "../../control/navigate";
 import { chip } from "./chips";

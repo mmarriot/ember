@@ -1,20 +1,14 @@
 // The reconstruction facts the card's physics block adds to an object's columns (docs/viewer.md "The selection's
-// card"), all read from the relations and columns in the file, none from truth:
-// - memberships: the objects that hold it through a relation with a weight (a track in a primary vertex, weight 0.98;
-//   in a secondary vertex);
-// - its constituents by type (a jet's PF candidates: π± 3 · γ 2), and how many of them the constituents' layer filter
-//   keeps (PF candidates: puppiWeight > 0, what PUPPI kept);
-// - for a one-object kind with a direction (MET): the other collections of its kind, and the angle to the leading
-//   objects of another kind.
+// card"), read from the file's relations and columns, never from truth: memberships, constituents by type, the objects
+// sharing its parts, and angles.
 import type { EventData, Header } from "../../io/format";
-import { evaluate } from "../custom/custom";
-import { byHit } from "../truth/match";
-import { cached } from "./relations";
+import { filterMask } from "../custom/settings";
+import { cached } from "./cache";
+import { reversed } from "./relations";
 
-/** The objects holding row `row` of `table` through a plain relation with a weight (vertexTracks, svTracks): their
- *  table, row and that weight (the relation's first). Read from the relation pointing back up (`inverseOf`) where
- *  there is one, else from the relation read from its `to` side (match.ts byHit: one pass per event, then each
- *  lookup costs its own entries). Once per event and object. */
+/** The objects holding row `row` of `table` through a plain relation with a weight (a track in a vertex, weight
+ *  0.98): their table, row and that weight. Read through the relation pointing back up (`inverseOf`) where there is
+ *  one, else through the relation reversed. Once per event and object. */
 export function memberships(ev: EventData, header: Header, table: string, row: number) {
   return cached(ev, `members|${table}|${row}`, () => {
     const out: { table: string; row: number; weight?: number; weightName?: string }[] = [];
@@ -41,7 +35,7 @@ export function memberships(ev: EventData, header: Header, table: string, row: n
         continue;
       }
       const w = rel.weights[weightName],
-        { offsets, particle: holder, entry } = byHit(ev, name, ev.tables[table]?.n ?? 0);
+        { offsets, from: holder, entry } = reversed(ev, name, ev.tables[table]?.n ?? 0);
       for (let j = offsets[row]; j < offsets[row + 1]; j++)
         out.push({ table: info.from, row: holder[j], weight: w?.[entry[j]], weightName });
     }
@@ -49,9 +43,9 @@ export function memberships(ev: EventData, header: Header, table: string, row: n
   });
 }
 
-/** The constituents of row `row` of `table` through its plain relations to a layer that names its objects by type
- *  (the first column of its `describe` with `names`, e.g. pdgId): per relation with more than one part, the parts'
- *  table, their count per type name ("π⁺": 3), and how many pass the parts' layer `filter` (null without one). */
+/** The constituents of row `row` of `table`, per plain relation with more than one part: their table, their count
+ *  per type (the first `describe` column with `names` of their layer, e.g. pdgId: "π⁺" 3), and how many pass their
+ *  layer's `filter` (PF candidates: puppiWeight > 0; null without one). */
 export function constituents(ev: EventData, header: Header, table: string, row: number) {
   const out: { table: string; n: number; types: [string, number][]; kept: number | null; filter?: string }[] = [];
   for (const [name, info] of Object.entries(header.relations)) {
@@ -90,9 +84,8 @@ export function constituents(ev: EventData, header: Header, table: string, row: 
 /** A layer filter's mask over a whole table, once per event and expression. */
 const passMask = (ev: EventData, table: string, expr: string) =>
   cached(ev, `filter|${table}|${expr}`, () => {
-    const t = ev.tables[table],
-      r = t ? evaluate(t, expr) : null;
-    return r && "values" in r ? r.values : null;
+    const t = ev.tables[table];
+    return t ? filterMask(t, expr) : null;
   });
 
 /** The angle between two azimuths, in [0, π]. */
@@ -101,12 +94,10 @@ export function deltaPhi(a: number, b: number) {
   return d > Math.PI ? 2 * Math.PI - d : d;
 }
 
-/** The objects of other kinds that share row `row` of `table`'s `n` parts exactly (docs/viewer.md "The selection's card"):
- *  through each plain relation from it into a parts table, the objects of another table whose own parts there are
- *  the same set (`same`: an electron and a photon with one supercluster, a PUPPI and a CHS jet with the same PF
- *  candidates), or, for a set of several parts, hold all of them and more (`same` false: a tau's PF candidates, all in a
- *  jet). Exact relations from the file, no matching. `skip`: tables left out (those the card already shows it is
- *  part of). Once per event, object and `skip`. */
+/** The objects of other tables that hold all `n` parts of row `row` of `table`, per plain relation into a parts table:
+ *  exactly those (`same`: an electron and a photon with one supercluster) or, for several parts, more (a tau's PF
+ *  candidates, all in a jet). Exact relations, no matching. `skip`: tables left out. Once per event, object and
+ *  `skip`. */
 export function sharedParts(ev: EventData, header: Header, table: string, row: number, skip: Set<string>) {
   return cached(ev, `shared|${table}|${row}|${[...skip].sort()}`, () => {
     const out: { parts: string; n: number; table: string; row: number; same: boolean }[] = [];
@@ -121,9 +112,9 @@ export function sharedParts(ev: EventData, header: Header, table: string, row: n
       const first = mine.values().next().value!;
       for (const [other, o] of plain) {
         if (o.to !== r.to || o.from === table || skip.has(o.from)) continue;
-        // the objects holding its first part (the relation read from its parts' side), then those holding them all
+        // the objects holding its first part, then those holding them all
         const orel = ev.relations[other],
-          { offsets, particle: holder } = byHit(ev, other, ev.tables[r.to]?.n ?? 0);
+          { offsets, from: holder } = reversed(ev, other, ev.tables[r.to]?.n ?? 0);
         for (let j = offsets[first]; j < offsets[first + 1]; j++) {
           const x = holder[j],
             lo = orel.offsets[x],

@@ -3,7 +3,7 @@ import type { Bundle } from "../../io/bundle";
 // The store sets the page's theme as it loads: a stand-in page (the tests run without a DOM).
 Object.assign(globalThis, { document: { documentElement: { dataset: {} } } });
 const { bundle, visible } = await import("../store");
-const { colourBy, filters } = await import("./custom");
+const { colourBy, filters } = await import("./settings");
 const { applyPreset, presetFits } = await import("./presets");
 
 const PF = { table: "PF", repr: "markers", visible: false },

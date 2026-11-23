@@ -3,7 +3,8 @@
 // where it comes from: the simulation (a fact), the CMSSW associator (a match, never "is"), or Ember.
 import type { Header } from "../../io/format";
 import { completeness, percent, quality, TARGETS } from "../../model/truth/match";
-import { bestPartners, identities } from "../../model/event/relations";
+import { bestPartners } from "../../model/event/relations";
+import { identities } from "../../model/colour/identities";
 import { withUnit } from "../../model/event/describe";
 import { bundle, describe, event, labelOf, layerOf, modes, nameOf, short } from "../../model/store";
 import { named, ObjChip, truthChip } from "./chips";

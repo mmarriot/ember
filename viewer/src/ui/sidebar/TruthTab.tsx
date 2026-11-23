@@ -2,12 +2,13 @@
 // the particles in the view, the reco <-> truth scorecard, the truth coverage of each kind, and the truth graph browser
 // (Tree.tsx). A bundle with trees but no truth calls the tab "Tree", and folds nothing.
 import { effect, signal } from "@preact/signals";
-import { filterMask, filters } from "../../model/custom/custom";
-import { matchTally } from "../../model/event/chain";
+import { filterMask, filters } from "../../model/custom/settings";
 import { factIn, facts } from "../../model/truth/facts";
-import { particlesInView, topCopy, type ViewRow } from "../../model/truth/truth";
-import { percent, TARGETS, type TruthStatus } from "../../model/truth/match";
-import { bestPartners, cached, type Ref } from "../../model/event/relations";
+import { particlesInView, type ViewRow } from "../../model/truth/particles";
+import { topCopy } from "../../model/truth/graph";
+import { matchTally, percent, TARGETS, type TruthStatus } from "../../model/truth/match";
+import { bestPartners, type Ref } from "../../model/event/relations";
+import { cached } from "../../model/event/cache";
 import type { Match } from "../../io/format";
 import {
   bundle,
@@ -169,7 +170,7 @@ const CLASSES = [
 ] as const;
 
 /** For each reco kind the CMSSW associator matches, how many of the objects that pass their cuts and filters are a
- *  clean match, an impure one, or unmatched (model/event/chain.ts matchTally). A count unfolds to its objects. */
+ *  clean match, an impure one, or unmatched (model/truth/match.ts matchTally). A count unfolds to its objects. */
 function Scorecard() {
   const b = bundle.value,
     ev = event.value,

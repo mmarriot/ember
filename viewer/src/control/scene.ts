@@ -8,7 +8,7 @@
 import { effect, signal } from "@preact/signals";
 import { Color, LinearSRGBColorSpace } from "three";
 import type { DisplayLayer, EventData, Header, Table } from "../io/format";
-import { colourBy, filterMask, filters } from "../model/custom/custom";
+import { colourBy, filterMask, filters } from "../model/custom/settings";
 import { cutMin, cutValues, rescued } from "../model/custom/cuts";
 import {
   activeMode,

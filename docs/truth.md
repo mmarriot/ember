@@ -83,7 +83,7 @@ setting in the profile (`"particle": {"bit": 2}`). Bit 2 is the default until th
 
 The truth colours have seven colours of their own (one per particle, never repeated); every other signal particle is
 grey, and pile-up is a smaller warm grey. Which seven depends on what is looked at, and the colour key's line under its
-title always says which rule is in force (`model/event/relations.ts` `identities`):
+title always says which rule is in force (`model/colour/identities.ts` `identities`):
 
 | looking at | the seven slots go to | key says |
 |---|---|---|
@@ -344,7 +344,7 @@ tracks show in their own particles' colours: each colour is that track's own sta
 ## Physics from the graph
 
 The particle card states what the truth graph itself says of a particle, read from its particles and vertices alone
-(`viewer/src/model/truth/truth.ts`, unit-tested in `truth.test.ts`). These are summaries of the simulation, never
+(`viewer/src/model/truth/graph.ts`, unit-tested in `graph.test.ts`). These are summaries of the simulation, never
 associations: nothing is matched by ΔR or by hits.
 
 | line | for | how it is computed |

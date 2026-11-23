@@ -24,7 +24,7 @@ import {
   drawnLayers,
   visible,
 } from "../model/store";
-import { filterMask, filters } from "../model/custom/custom";
+import { filterMask, filters } from "../model/custom/settings";
 import { passes } from "../model/event/objects";
 import { related, type Ref } from "../model/event/relations";
 import { isShower, type Caption } from "../render/replay";

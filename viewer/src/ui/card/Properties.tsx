@@ -1,6 +1,6 @@
 // An object's columns in the card: its key ones, all of them folded, and a reco object's energy fractions as one bar.
 import type { Table } from "../../io/format";
-import { colourBy, customColumns, customDoc } from "../../model/custom/custom";
+import { colourBy, customColumns, customDoc } from "../../model/custom/settings";
 import { cellText, isCopied, isIndex } from "../../model/event/describe";
 import { bundle, layerKey, layerOf, sizeColumn } from "../../model/store";
 

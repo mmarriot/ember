@@ -4,7 +4,7 @@
 import { effect, signal, untracked } from "@preact/signals";
 import { useEffect, useRef } from "preact/hooks";
 import { unitOf } from "../../io/format";
-import { colourBy } from "../../model/custom/custom";
+import { colourBy } from "../../model/custom/settings";
 import { sameRef } from "../../model/event/relations";
 import {
   activeMode,

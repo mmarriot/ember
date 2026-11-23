@@ -1,41 +1,14 @@
-// The truth <-> reco pair (docs/truth.md "The pair view"): a truth particle's branch (the particle and everything
-// below it) and, detector by detector, the reco objects that CMSSW's associator gives as its best matches there.
-// Selecting the particle, a matched reco object or a hit gives the pair of the particle it points at.
-//
-// What it stands for, and nothing else:
-// - truth: the branch of the selected particle (or of the reco object's best match, or of the particle that left the
-//   most simulated energy in the selected hit): never its siblings, never its ancestor's other descendants. The hits
-//   come from the simulation (the hit index): those of the branch's particles that entered the calorimeter, each
-//   counted once. When the particle's own hits are not exported on their own (it is inside the shower of a particle
-//   that entered the calorimeter, e.g. a brem photon), the hits shown are that particle's, and the pair says so;
-// - reco, per detector: the kind the associator matches there (HGCal: the last trackster stage, ECAL and HCAL: PF
-//   clusters, the tracker: tracks); a detector whose objects have no association is shown, but not compared (no
-//   matching through hits in Ember). Objects that only contain matched ones (PF candidates, jets, TICL candidates)
-//   are not drawn as part of the pair: they have no truth of their own.
+// The truth <-> reco pair: a truth particle's branch and, detector by detector, the reco objects CMSSW's associator
+// gives as its best matches there. What each side stands for is in docs/truth.md "The pair view".
 import type { EventData, Header, RelationInfo } from "../../io/format";
 import { facts } from "./facts";
-import { byHit, truthStatus } from "./match";
+import { truthStatus } from "./match";
 import { type ColourBy, modeColouring } from "../colour/modes";
-import {
-  backPointers,
-  bestPartners,
-  cached,
-  contentPartners,
-  identities,
-  type Ref,
-  type Related,
-} from "../event/relations";
+import { identities } from "../colour/identities";
+import { cached } from "../event/cache";
+import { backPointers, bestPartners, contentPartners, type Ref, type Related, reversed } from "../event/relations";
 
-/** What an object is in the pair view:
- *  - matched: the branch's, in its match (for a hit: the branch left the most simulated energy in it);
- *  - contamination: in its match, from other particles or from none;
- *  - split: the branch's, in another object of the kind compared (or that object);
- *  - missed: the branch's, in no object of the kind compared;
- *  - reco: part of a match, with no truth statement of its own (a matched trackster's layer clusters), or a matched
- *    kind's object whose association names no particle (nothing confirmed);
- *  - branch: a particle of the branch other than its top, that left hits (e.g. the products of an interaction in
- *    the tracker), or the particle whose shower holds the selected particle's hits;
- *  - uncompared: the branch's, in a detector with no reco association (HF, HO): shown, not compared. */
+/** What an object is in the pair view (the classes of docs/truth.md "The pair view"; `other`: not in the pair). */
 export const PAIR = {
   other: 0,
   matched: 1,
@@ -48,8 +21,8 @@ export const PAIR = {
 } as const;
 export type PairClass = (typeof PAIR)[keyof typeof PAIR];
 
-/** Per object of `table`, the row of the mode's root (the object whose colour it takes) at the end of the colouring
- *  chain of `colouring` (model/colour/modes.ts), -1 for none; null if the mode does not reach the table. Once per event. */
+/** Per object of `table`, the row of the root it takes its colour from at the end of `colouring`'s chain
+ *  (model/colour/modes.ts), -1 for none; null if the chain does not reach the table. Once per event. */
 export function rootRows(
   ev: EventData,
   header: Header,
@@ -79,22 +52,21 @@ export function rootRows(
   });
 }
 
-/** One detector of the pair: the branch's simulated energy there, and the reco kind it is compared with. */
+/** One detector of the pair. */
 export interface PairDetector {
-  in: string; // the detector, as the `match` and `fact` hints name it (HGCal, ECAL, HCAL, HF, HO, tracker)
-  /** The reco table compared with (its association to the truth particles), undefined: none in this detector. */
+  in: string; // as the `match` and `fact` hints name it (HGCal, ECAL, HCAL, HF, HO, tracker)
+  /** The reco table compared with; undefined: none has an association in this detector. */
   kind?: string;
-  /** Without a kind: the tables that hold this detector's hits, and why they have no truth (their `truthGap`). */
+  /** Without a kind: the tables made of this detector's hits, and their `truthGap`. */
   gaps: { table: string; reason?: string; gap?: number }[];
-  /** The kind's objects that the association rates best for the branch's particles (TruthToReco), largest first. */
+  /** The kind's objects the association rates best for the branch's particles (TruthToReco), largest first. */
   matches: number[];
-  /** The branch's simulated energy in this detector (deposited in the sensors, not calibrated; each hit's energy
-   *  counted once): `own` by the particle whose hits stand for the branch, `descendants` by the other particles of
-   *  the branch that entered the calorimeter; with a kind, where it went: in the matches, in other objects of the
-   *  kind, in none. Undefined for the tracker (no simulated energy per tracker hit in the file). */
+  /** The branch's simulated energy here (deposited, not calibrated; each hit counted once): `own` by `hitsOf`,
+   *  `descendants` by the branch's other hit owners; with a kind, where it went. Undefined for the tracker (the file
+   *  has no simulated energy per tracker hit). */
   sim?: { own: number; descendants: number; inMatch: number; inOthers: number; inNone: number };
-  /** The matches' rechit energy, each hit split by the simulated-energy shares in it: from the branch, from other
-   *  particles, and of hits with no simulated energy from any exported particle. */
+  /** The matches' rechit energy, each hit split by its simulated-energy shares: from the branch, from other particles,
+   *  and of hits with no simulated energy from any exported particle. */
   reco?: { branch: number; other: number; noTruth: number };
 }
 
@@ -104,20 +76,19 @@ export interface Pair {
   /** The particle whose exported hits stand for the branch: the particle itself, or (its own not exported on their
    *  own) its ancestor that entered the calorimeter; -1 when the branch left no hits. */
   hitsOf: number;
-  /** The particles of the branch that left hits, other than `hitsOf` (e.g. an interaction's products), largest first. */
+  /** The branch's other particles that left hits (e.g. an interaction's products), largest first. */
   owners: number[];
-  /** The selected reco object, when the pair comes from one (its table and row). */
+  /** The selected reco object, when the pair comes from one. */
   from?: Ref;
-  /** The selected object the pair stands in for, when it has no truth of its own and the pair is its part's
-   *  (delegatedPart): the pair is titled as the part's, never as this object's truth. */
+  /** The selected object the pair stands in for (delegatedPart): the pair is titled as its part's. */
   via?: Ref;
   detectors: PairDetector[];
   classes: Map<string, Uint8Array>; // per table, a PairClass per object
 }
 
-/** The reco -> truth relations that carry a `match` contract into the truth particles, by reco table. */
+/** The reco -> truth relations with a `match` contract into the truth particles, by reco table. */
 function matchRelations(header: Header, truth: string) {
-  return cached0(header, `match|${truth}`, () => {
+  return cached(header, `match|${truth}`, () => {
     const out = new Map<string, [string, RelationInfo]>();
     for (const [name, r] of Object.entries(header.relations))
       if ((r.match?.shared ?? r.match?.purity) && r.to === truth && r.from !== truth && !out.has(r.from))
@@ -126,8 +97,8 @@ function matchRelations(header: Header, truth: string) {
   });
 }
 /** The reco kind a truth particle is compared with in detector `where` (a `match.in`): of the kinds with an
- *  association to the truth particles there, the last reconstruction stage (HGCal: the candidates' tracksters, not
- *  CLUE3D's), else the first drawn; undefined where none has one (HF, HO). */
+ *  association there, the last reconstruction stage (HGCal: the candidates' tracksters, not CLUE3D's), else the first
+ *  drawn; undefined where none has one (HF, HO). */
 export function comparedKind(header: Header, truth: string, where: string): string | undefined {
   const stageOf = (t: string) => header.display.find((d) => d.table === t)?.stage ?? -1,
     order = (t: string) => header.display.findIndex((d) => d.table === t);
@@ -136,23 +107,17 @@ export function comparedKind(header: Header, truth: string, where: string): stri
     .map(([t]) => t)
     .sort((a, b) => stageOf(b) - stageOf(a) || order(a) - order(b))[0];
 }
-/** The truth -> reco association of `table` with a `best` hint (TruthToReco: each particle's best object). */
+/** The truth -> reco association into `table` with a `best` hint (TruthToReco: each particle's best object). */
 export function truthToReco(header: Header, truth: string, table: string) {
   return Object.entries(header.relations).find(
     ([, r]) => r.association && r.from === truth && r.to === table && r.best,
   );
 }
-const perHeader = new WeakMap<Header, Map<string, unknown>>();
-function cached0<T>(header: Header, what: string, make: () => T): T {
-  let m = perHeader.get(header);
-  if (!m) perHeader.set(header, (m = new Map()));
-  if (!m.has(what)) m.set(what, make());
-  return m.get(what) as T;
-}
-/** The colouring that leads every table to `root` through the reconstruction (model/colour/modes.ts), once per header. */
-const towards = (header: Header, root: string) => cached0(header, `towards|${root}`, () => modeColouring(header, root));
+/** The colouring that leads every table to `root` through the reconstruction (model/colour/modes.ts). */
+const towards = (header: Header, root: string) => cached(header, `towards|${root}`, () => modeColouring(header, root));
 
-/** The rows of `table` reached from `rows` through plain relations (what they are made of), themselves included. */
+/** The rows of `table` reached from `rows` through plain relations, themselves included. A table reached with nothing
+ *  new still gets an (empty) entry. */
 function madeOf(ev: EventData, header: Header, table: string, rows: number[]): Related {
   const back = backPointers(ev, header),
     out: Related = new Map([[table, new Set(rows)]]);
@@ -187,8 +152,7 @@ function energyOf(header: Header, ev: EventData, table: string) {
 }
 
 /** The pair of `focus`, or null when it has none: a reco kind without an association of its own (a jet, a PF
- *  candidate, a TICL candidate), and anything in a bundle without truth particles. `truth`: the truth particles'
- *  table. */
+ *  candidate, a TICL candidate), and anything in a bundle without truth particles (`truth`: their table). */
 export function pairFor(ev: EventData, header: Header, focus: Ref, truth: string): Pair | null {
   const tTruth = ev.tables[truth],
     truthLayer = header.display.find((d) => d.table === truth);
@@ -206,8 +170,8 @@ export function pairFor(ev: EventData, header: Header, focus: Ref, truth: string
     const info = header.relations[fact.name];
     particle = bestPartners(ev.relations[fact.name], info, false, ev.tables[focus.table]?.n ?? 0).partner[focus.row];
   } else {
-    // a matched kind's object, or a part drawn with what contains it (a track's hits: the track; not a vertex, which
-    // only points at its tracks: model/truth/match.ts truthStatus)
+    // A matched kind's object, or a part drawn with its container (a track's hits: the track; not a vertex, which
+    // only points at its tracks: match.ts truthStatus).
     let ref: Ref | undefined = matches.has(focus.table) ? focus : undefined;
     const status = ref ? undefined : truthStatus(header, focus.table);
     if (status?.kind === "container") {
@@ -233,7 +197,7 @@ export function pairFor(ev: EventData, header: Header, focus: Ref, truth: string
     return c;
   };
   if (particle < 0) {
-    // a matched kind's object with no particle (unmatched: a fake, or noise): itself and its parts, nothing confirmed
+    // A matched kind's object with no particle (a fake, or noise): itself and its parts, nothing confirmed.
     if (!from) return null;
     for (const [t, rows] of madeOf(ev, header, from.table, [from.row])) {
       const c = classOf(t);
@@ -242,7 +206,7 @@ export function pairFor(ev: EventData, header: Header, focus: Ref, truth: string
     return { truth, particle, hitsOf: -1, owners: [], from, detectors: [], classes };
   }
 
-  // 2. The branch: the particle and everything below it (parent -> children relation of the truth table).
+  // 2. The branch: the particle and everything below it.
   const kids = Object.entries(header.relations).find(
     ([name, r]) => !r.association && r.from === truth && r.to === truth && ev.relations[name],
   );
@@ -264,7 +228,7 @@ export function pairFor(ev: EventData, header: Header, focus: Ref, truth: string
     return inside;
   };
   const inBranch = subtree(particle);
-  // The particles that own hits (the hit table's rows: those that entered the calorimeter, with their descendants').
+  // The particles that own hits: those that entered the calorimeter (their hits include their descendants').
   const owns = cached(ev, `owns|${truth}`, () => {
     const o = new Uint8Array(nTruth);
     for (const f of allFacts) {
@@ -284,7 +248,7 @@ export function pairFor(ev: EventData, header: Header, focus: Ref, truth: string
         inHits = subtree(a);
         break;
       }
-  // Each hit counted once: only the highest owners of the branch (an owner's hits include its descendants').
+  // Each hit counted once: only the highest owners of the branch.
   const top: number[] = [],
     isTop = new Uint8Array(nTruth);
   for (let p = 0; p < nTruth; p++) {
@@ -317,8 +281,8 @@ export function pairFor(ev: EventData, header: Header, focus: Ref, truth: string
     const kind = kindIn(where),
       det: PairDetector = { in: where, kind, gaps: [], matches: [] };
     const sim = { own: 0, descendants: 0, inMatch: 0, inOthers: 0, inNone: 0 };
-    // Its matches: the particle's own best (the associator's answer for it, also below the calorimeter boundary, e.g.
-    // a brem photon's ECAL cluster), then those of its particles that entered the calorimeter.
+    // Its matches: the particle's own best (also below the calorimeter boundary, e.g. a brem photon's ECAL cluster),
+    // then those of the branch's hit owners.
     const inMatch = kind ? madeOf(ev, header, kind, (det.matches = bestOf(kind, [particle, ...top]))) : new Map();
     for (const f of fs) {
       const info = header.relations[f.name],
@@ -352,11 +316,10 @@ export function pairFor(ev: EventData, header: Header, focus: Ref, truth: string
           if (r.association || r.to !== f.to || !d || det.gaps.some((g) => g.table === r.from)) continue;
           det.gaps.push({ table: r.from, reason: d.truthGap?.reason, gap: d.truthGap?.gap });
         }
-      // The matches' rechit energy, each hit split by the simulated energy in it.
       const energy = energyOf(header, ev, f.to);
       if (hits && energy) {
         const reco = (det.reco ??= { branch: 0, other: 0, noTruth: 0 }),
-          { offsets, particle: who, entry } = byHit(ev, f.name, nHits);
+          { offsets, from: who, entry } = reversed(ev, f.name, nHits);
         for (const h of hits) {
           let mine = 0,
             all = 0;
@@ -378,7 +341,7 @@ export function pairFor(ev: EventData, header: Header, focus: Ref, truth: string
     if (kind) markKind(kind, det.matches, inMatch);
     detectors.push(det);
   }
-  // The tracker: the tracks matched to the branch's particles (no simulated energy per tracker hit in the file).
+  // The tracker: the tracks matched to the branch's particles.
   const trackKind = kindIn("tracker");
   if (trackKind) {
     const branch: number[] = [];
@@ -389,16 +352,15 @@ export function pairFor(ev: EventData, header: Header, focus: Ref, truth: string
       markKind(trackKind, m, madeOf(ev, header, trackKind, m));
     }
   }
-  // The kind's own objects, and the parts of its matches (no truth statement of their own: layer clusters, track
-  // hits): matches are matched; other objects matched to the branch's particles, or holding its hits, are split.
+  // The kind's own objects, and the parts of its matches (no truth of their own: layer clusters, track hits).
   function markKind(kind: string, m: number[], parts: Related) {
     const c = classOf(kind),
       [name, info] = matches.get(kind)!,
       rel = ev.relations[name],
       best = rel ? bestPartners(rel, info, true, ev.tables[kind]?.n ?? 0).partner : new Int32Array(0),
       holder = (t: string) => header.display.some((d) => d.table === t && d.truth);
-    // matched to a particle of the branch (not of the shower that stands in for it: an ancestor's other matches are
-    // not the branch's)
+    // matched to a particle of the branch (not of the shower standing in for it: an ancestor's other matches are not
+    // the branch's)
     for (let i = 0; i < best.length; i++) if (best[i] >= 0 && inBranch[best[i]]) c[i] = PAIR.split;
     for (const [t, rows] of parts) {
       if (t === kind || holder(t) || allFacts.some((f) => f.to === t)) continue;
@@ -418,25 +380,24 @@ export function pairFor(ev: EventData, header: Header, focus: Ref, truth: string
       for (let h = 0; h < hc.length; h++) if (hc[h] === PAIR.split && obj[h] >= 0 && !c[obj[h]]) c[obj[h]] = PAIR.split;
     }
   }
-  // 4. The truth: the particle, and the particles of the branch whose hits are drawn.
+  // 4. The truth: the particle, and the branch's particles whose hits are drawn.
   truthClasses[particle] = PAIR.matched;
   const owners = top.filter((p) => p !== hitsOf && p !== particle);
   for (const p of owners) truthClasses[p] = PAIR.branch;
   if (hitsOf >= 0 && hitsOf !== particle) truthClasses[hitsOf] = PAIR.branch;
   const size = truthLayer.colour ? tTruth.columns[truthLayer.colour] : undefined;
   if (size) owners.sort((a, b) => Number(size[b]) - Number(size[a]));
-  // The tracker first, then the detectors compared with a match, then the others (amounts are never compared across
-  // detectors: a barrel electron's few MeV in HGCal come after its ECAL clusters, not before).
+  // The tracker first, then the detectors with a match, then the others (amounts are never compared across
+  // detectors: a barrel electron's few MeV in HGCal come after its ECAL clusters).
   const rank = (d: PairDetector) => (d.in === "tracker" ? 0 : d.matches.length ? 1 : d.kind ? 2 : 3);
   detectors.sort((a, b) => rank(a) - rank(b));
   return { truth, particle, hitsOf, owners, from, detectors, classes };
 }
 
-/** The part whose pair stands in for `focus`'s (owner decision D4, a trial): for an object of a kind with no truth of
- *  its own that is a reconstruction stage (a TICL candidate), its first part, in the header's order, of an earlier
- *  stage with a match of its own (the candidate trackster; in a TICL v6 bundle, which has none, the linked trackster).
- *  Every part it has through a relation that gives exactly one part and that is matched (its track too) must be
- *  matched to the same particle, so the choice says nothing the parts do not; else null. */
+/** The part whose pair stands in for `focus`'s (owner decision D4, a trial): for a reconstruction stage with no truth
+ *  of its own (a TICL candidate), its first part of an earlier stage with a match of its own (the candidate
+ *  trackster; in TICL v6, the linked trackster). Null unless every matched part it has through a one-part relation
+ *  (its track too) is matched to the same particle, so the choice says nothing the parts do not. */
 export function delegatedPart(ev: EventData, header: Header, focus: Ref, truth: string): Ref | null {
   const stage = (t: string) => header.display.find((d) => d.table === t)?.stage;
   if (stage(focus.table) === undefined || truthStatus(header, focus.table)?.kind !== "none") return null;

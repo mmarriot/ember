@@ -1,6 +1,6 @@
-// The truth <-> reco pair the view is coloured by (model/truth/pair.ts), in the card: the branch it stands for, then
-// per detector what it is compared with and where the branch's energy went, as the simulated energy (Geant4, in the
-// sensors, not calibrated: compared only within one detector) or the reconstructed hits' energy.
+// The truth <-> reco pair the view is coloured by (model/truth/pair.ts): the branch it stands for, then per detector
+// what it is compared with and where the branch's simulated energy (not calibrated: compared only within one
+// detector) and its match's rechit energy went.
 import { percent } from "../../model/truth/match";
 import { PAIR, type PairDetector } from "../../model/truth/pair";
 import { PALETTES } from "../../render/colour";

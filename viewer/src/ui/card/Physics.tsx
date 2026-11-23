@@ -1,7 +1,5 @@
-// The card's physics block (docs/viewer.md): what a reco object is made of and its main numbers. Its energy fractions,
-// its constituents by type and what their layer's filter keeps (a jet's PF candidates: PUPPI), its key columns and the
-// profile's groups of columns (`inspectGroups`: b-tags, e/γ ID), the objects holding it with a weight (a track in its
-// vertex), the objects sharing its parts, and for MET the other METs and the angle to the leading jets.
+// The card's physics block (docs/viewer.md): what a reco object is made of and its main numbers, its profile's groups
+// of columns (`inspectGroups`: b-tags, e/γ ID), what holds it or shares its parts, and for MET the angle to the jets.
 import { kindName } from "../../io/format";
 import { plain } from "../../model/event/describe";
 import { constituents, deltaPhi, memberships } from "../../model/event/physics";

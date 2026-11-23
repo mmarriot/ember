@@ -1,8 +1,6 @@
-// The card's truth block, under its header (model/truth/statement.ts; docs/viewer.md): what the truth says about the
-// object, in one line first. Its kind's own match (TruthCard.tsx); else its lead part's match, named as that part's
-// ("via its track: e⁻ · pT 12.6 · from Z decay · purity 100%"); else that its kind has none. Each part's own match is
-// folded below, never a verdict for the object. "Go to truth (X)" crosses over, or opens a chooser of the parts'
-// particles.
+// The card's truth block (model/truth/statement.ts; docs/viewer.md): its kind's own match (TruthCard.tsx); else its
+// lead part's match, named as that part's ("via its track: e⁻ · pT 12.6 · purity 100%"); else that its kind has none.
+// Each part's own match is folded below, never a verdict for the object.
 import { DOCS_URL } from "../../model/site/library";
 import { measureWords, percent } from "../../model/truth/match";
 import { leadChoice, type PartLine } from "../../model/truth/statement";

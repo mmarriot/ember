@@ -35,9 +35,8 @@ function countPassing(p: NonNullable<ReturnType<typeof passing>>) {
   return n;
 }
 
-/** The event in one line, from the ticked layers with object rows (`list`): how many objects of each kind pass the cuts
- *  and filters ("Jets 4", a kind's layers summed), or a one-object table's value ("Puppi MET 42.2 GeV"). As [name,
- *  value, note] triples; `note`: why a selected object of the kind is not counted ("below the electron pT cut"). */
+/** The event in one line, from the ticked layers with a `list`: per kind, how many objects pass the cuts and filters
+ *  ("Jets 4"), or a one-object table's value ("Puppi MET 42.2 GeV"). `note`: why a selected object is not counted. */
 export function headline(layers: DisplayLayer[]): [string, string, string?][] {
   const parts = new Map<string, number | string>(),
     sel = selection.value,

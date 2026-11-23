@@ -1,7 +1,5 @@
-// The collections of one side-panel tab (a part of the detector, or the truth), grouped by kind of object. A kind's
-// heading carries its cut chip (Cuts.tsx) and "only". A collection is one line: tick, name, its state as chips, its
-// count (a click lists its largest objects, ObjectRows.tsx) and ⋯ (LayerOptions.tsx); under it its colour scale when
-// the colour key does not explain it. A row the view does not draw is muted.
+// The collections of one side-panel tab, grouped by kind of object. A kind's heading carries its cut (Cuts.tsx) and
+// "only"; a collection is one line: tick, name, state chips, count (listing its largest objects) and ⋯ (LayerOptions).
 import { signal } from "@preact/signals";
 import { useState } from "preact/hooks";
 import type { DisplayLayer } from "../../io/format";

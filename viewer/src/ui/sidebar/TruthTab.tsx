@@ -411,10 +411,9 @@ function Outcome({ table }: { table: string }) {
 /** Which column "Particles in this view" is sorted by, largest first. */
 const sortBy = signal<"amount" | "completeness" | "split">("amount");
 
-/** Particles in this view (docs/viewer.md): per detector of the view, the particles with simulated energy in its hits
- *  (in the tracker, those its tracks are matched to), each with its best object of the kind compared there
- *  (model/truth/pair.ts comparedKind), that object's completeness, how many objects hold part of it, and whether its
- *  best object is also another particle's. */
+/** Particles in this view (docs/viewer.md): per detector, the particles with simulated energy in its hits (in the
+ *  tracker, those its tracks are matched to), each with its best object of the kind compared there
+ *  (model/truth/pair.ts comparedKind). */
 function InView({ table }: { table: string }) {
   const b = bundle.value!,
     ev = event.value!,

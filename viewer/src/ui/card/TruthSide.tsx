@@ -25,9 +25,8 @@ function GoAcross() {
   );
 }
 
-/** The kinds with no truth association that truth particle `row` could have reached (model/truth/truth.ts
- *  unassociatedKinds), and their gaps. Not the kinds that have one and found nothing: "nothing holds it" and "no
- *  associator" are different answers. */
+/** The kinds with no truth association that truth particle `row` could have reached, and their gaps ("no
+ *  associator", not "nothing holds it"). */
 function unassociated(row: number): { names: string[]; gaps: number[] } {
   const b = bundle.value,
     ev = event.value,
@@ -44,7 +43,6 @@ function unassociated(row: number): { names: string[]; gaps: number[] } {
   };
 }
 
-/** A truth object: where it sits in the truth graph, and what was reconstructed from it. */
 export function TruthSide({ table, row }: { table: string; row: number }) {
   const rec = reconstructed.value,
     root = modes.value.roots.truth;

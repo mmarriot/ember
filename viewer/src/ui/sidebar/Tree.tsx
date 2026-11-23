@@ -1,7 +1,5 @@
-// Objects linked to objects of the same table (e.g. truth particles -> their daughters) as a tree that folds, in the
-// Truth tab. An object selected elsewhere opens the tree down to it. For the truth particles, a particle's generator
-// copies are one node ("μ⁺ ×4"), and the search takes a name, a pdgId, truth levels and what a particle did
-// (docs/viewer.md "Truth tab").
+// Objects linked to objects of the same table (e.g. truth particles -> their daughters) as a tree that folds, with a
+// search (docs/viewer.md "Truth tab"). A particle's generator copies are one node ("μ⁺ ×4").
 import { useEffect, useMemo, useState } from "preact/hooks";
 import type { Relation } from "../../io/format";
 import { filterMask, filters } from "../../model/custom/custom";

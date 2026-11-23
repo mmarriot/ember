@@ -1,6 +1,5 @@
-// A hit's truth in the card's truth block (docs/truth.md "Measures"): the simulated energy each particle deposited in
-// it, not calibrated, from the hit index (in HF: photoelectrons), and its particle's pair on request (a click on a hit
-// shows the hit, not the pair).
+// A hit's truth (docs/truth.md "Measures"): the simulated energy each particle deposited in it, not calibrated (in
+// HF: photoelectrons), and its particle's pair on request (a click on a hit shows the hit, not the pair).
 import { simUnit } from "../../model/truth/facts";
 import { percent } from "../../model/truth/match";
 import { withUnit } from "../../model/event/describe";

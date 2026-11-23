@@ -1,5 +1,5 @@
 """From a reconstruction (EDM) file to the NanoAOD the converter reads: ember writes a cmsRun configuration of its own
-(cmsrun.py) from the modules of the user's release, and runs it:
+(cmsrun/) from the modules of the user's release, and runs it:
 
     ember_cfg.py   the configuration, which the user can keep and run again (cmsRun ember_cfg.py)
     ember_nano.root  its output, then converted

@@ -126,7 +126,7 @@ that fails without the fix.
 so one profile serves files with and without the table. Add a case to `tests/test_builtin_profiles.py`.
 
 **Add a table that `ember` does not write yet.** If the release has a producer for it, add it to the configuration
-that `ember` writes (`embertools/cmsrun.py`), only when the release has the producer and the input has the collection
+that `ember` writes (`embertools/cmsrun/`, in the module of its producer family), only when the release has the producer and the input has the collection
 (`need`, `inv.has`), with a case in `tests/test_export.py`. Then add a profile entry. If CMSSW has no producer for it,
 it needs a small, generic CMSSW pull request first
 ([docs/cmssw.md](docs/cmssw.md#planned-every-hit-and-every-object)).

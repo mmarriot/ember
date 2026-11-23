@@ -103,7 +103,7 @@ per file (0 or left out: all). Optional keys:
 - `runInfo`: the same as `--run-info`, for example `registry:RunRegistryP5.RunTable`;
 - `export: {"cmssw": <CMSSW area>, "geometry": "D121"}` (optional: `era`, `conditions`, `threads`): the inputs are
   CMSSW reconstruction files. The NanoAOD of their first `max_events` events is made first, by the cmsRun
-  configuration that `ember` writes from the modules of that CMSSW area (`embertools/export.py`, `cmsrun.py`).
+  configuration that `ember` writes from the modules of that CMSSW area (`embertools/export.py`, `cmsrun/`).
 
 `campaigns.example.json` shows all of them, with a RelVal campaign: one bundle of 10 events per RelVal sample of a
 release, under the heading "RelVal CMSSW_x". A new release is a new campaign, added to `campaigns.json`, with its own

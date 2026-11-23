@@ -11,10 +11,10 @@ import { inText, singular } from "../../model/event/describe";
 import { topCopy } from "../../model/truth/truth";
 import { chipText, kindOf, nameOf, pairView, statement, stepName, truthGraph, truthText } from "../../model/store";
 import { type CrossChoice, cross, crossChoices, crossTo, crossing, partParticles } from "../../control/navigate";
-import { chip, truthChip } from "./chips";
+import { categoryNames, chip, truthChip } from "./chips";
 import { HitTruth } from "./HitTruth";
 import { Info } from "../common/Info";
-import { TruthCard, vertexReasons } from "./TruthCard";
+import { TruthCard } from "./TruthCard";
 import { WentTo } from "./Relations";
 
 /** A gap of docs/truth-graph.md, as a link to its table. */
@@ -38,7 +38,7 @@ function originOf(row: number) {
     parent = v >= 0 ? g.into(v) : -1;
   if (parent < 0) return "";
   const name = truthText(tg.particles, parent).split(" · ")[0],
-    reason = vertexReasons(tg.vertices)[String(g.vcol("reason", v))];
+    reason = categoryNames(tg.vertices)[String(g.vcol("reason", v))];
   return reason && !name.startsWith("pdgId") ? `${name} ${reason}` : "";
 }
 

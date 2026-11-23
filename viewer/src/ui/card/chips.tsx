@@ -2,6 +2,7 @@
 // selection (with its parts), and the card stays where it is (store/selection.ts look). A double click opens its own card.
 // Pointing at it rings it in the view. For a kind the CMSSW associator matches, a dot says what it found for this
 // object: clean, impure or no match, so a list shows at a glance which are which.
+import type { ComponentChildren } from "preact";
 import { useEffect } from "preact/hooks";
 import { sameRef } from "../../model/event/relations";
 import {
@@ -87,13 +88,27 @@ export const namedChip = (t: string, r: number) => (
     text={t === modes.peek().roots.truth ? undefined : describe(t, r) || named(t, r) || undefined}
   />
 );
-/** An object's name from its layer's categorical colouring (e.g. a truth vertex's reason: "decay"), for layers without
- *  a `describe` hint. */
+/** An object's name from its layer's categorical colouring (e.g. a truth vertex's reason: "decay 240"), for layers
+ *  without a `describe` hint. */
 export function named(t: string, r: number) {
   const c = layerOf(t)?.colourBy,
-    v = typeof c === "object" && "category" in c ? event.value?.tables[t]?.columns[c.category]?.[r] : undefined;
-  if (v === undefined || typeof c !== "object" || !("category" in c) || !c.names) return "";
-  const names = Array.isArray(c.names) ? Object.fromEntries(c.names) : c.names,
-    name = names[String(v)];
+    v = typeof c === "object" && "category" in c ? event.value?.tables[t]?.columns[c.category]?.[r] : undefined,
+    name = v === undefined ? undefined : categoryNames(t)[String(v)];
   return name ? `${name} ${numberOf(t, r)}` : "";
 }
+
+/** The names of a layer's categories (e.g. the truth vertices' reasons), from its categorical colouring. */
+export function categoryNames(table: string | undefined): Record<string, string> {
+  const c = table ? layerOf(table)?.colourBy : undefined;
+  if (typeof c !== "object" || !("category" in c) || !c.names) return {};
+  return Array.isArray(c.names) ? Object.fromEntries(c.names) : c.names;
+}
+
+/** Chips side by side, a space between them (so that their text reads as words when copied). */
+export const spaced = (xs: ComponentChildren[]) =>
+  xs.map((x, i) => (
+    <>
+      {i > 0 && " "}
+      {x}
+    </>
+  ));

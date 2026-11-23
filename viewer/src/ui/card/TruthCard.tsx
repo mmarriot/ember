@@ -39,7 +39,7 @@ import {
   topCopy,
   unassociatedKinds,
   vertexText,
-} from "../../model/truth/truth";
+} from "../../model/truth/graph";
 import { named, namedChip as chip, ObjChip, truthChip } from "./chips";
 import { Info } from "../common/Info";
 

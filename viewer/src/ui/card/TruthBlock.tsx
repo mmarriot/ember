@@ -8,7 +8,7 @@ import { DOCS_URL } from "../../model/site/library";
 import { measureWords, percent } from "../../model/truth/match";
 import { leadChoice, type PartLine } from "../../model/truth/statement";
 import { inText, singular } from "../../model/event/describe";
-import { topCopy } from "../../model/truth/truth";
+import { topCopy } from "../../model/truth/graph";
 import { chipText, kindOf, nameOf, pairView, statement, stepName, truthGraph, truthText } from "../../model/store";
 import { type CrossChoice, cross, crossChoices, crossTo, crossing, partParticles } from "../../control/navigate";
 import { chip, truthChip } from "./chips";

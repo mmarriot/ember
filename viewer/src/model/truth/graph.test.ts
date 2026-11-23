@@ -17,7 +17,7 @@ import {
   unassociatedKinds,
   topCopy,
   vertexText,
-} from "./truth";
+} from "./graph";
 
 const csr = (rows: number[][]) => ({
   offsets: Uint32Array.from(rows.reduce((o, r) => [...o, o[o.length - 1] + r.length], [0])),

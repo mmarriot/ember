@@ -6,7 +6,7 @@
 import { CLASSES, type KeyEntry, modeKey, truthLevelOf } from "../../model/colour/key";
 import { percent } from "../../model/truth/match";
 import { cached } from "../../model/event/relations";
-import { COLOUR_LEVELS, type ColourLevel, colourLevel } from "../../model/truth/truth";
+import { COLOUR_LEVELS, type ColourLevel, colourLevel } from "../../model/truth/graph";
 import {
   activeMode,
   bundle,

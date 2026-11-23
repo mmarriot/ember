@@ -8,7 +8,7 @@ import { colourBy, type ColourMode, withColour } from "../custom/settings";
 import { inText } from "../event/describe";
 import { facts } from "../truth/facts";
 import { truthStatus, type TruthStatus } from "../truth/match";
-import { type ColourLevel, graphOf } from "../truth/truth";
+import { type ColourLevel, graphOf } from "../truth/graph";
 import { modeColouring, modeRoots, recoColourOf } from "../colour/modes";
 import { bundle, event } from "./data";
 import { kindOf, labelOf, layerKey, layerOf } from "./names";

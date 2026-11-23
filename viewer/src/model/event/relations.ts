@@ -1,7 +1,7 @@
 // Navigation over the CSR relations of an event: what is related to a selected object.
 import type { DisplayLayer, EventData, Header, Relation, RelationInfo, Table } from "../../io/format";
 import { facts, isFactTable } from "../truth/facts";
-import type { SlotRule, TruthClass } from "../truth/truth";
+import type { SlotRule, TruthClass } from "../truth/graph";
 
 export interface Ref {
   table: string;

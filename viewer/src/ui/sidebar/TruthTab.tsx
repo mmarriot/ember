@@ -6,7 +6,7 @@ import { effect, signal } from "@preact/signals";
 import { filterMask, filters } from "../../model/custom/settings";
 import { matchTally } from "../../model/event/chain";
 import { factIn, facts } from "../../model/truth/facts";
-import { particlesInView, topCopy, type ViewRow } from "../../model/truth/truth";
+import { particlesInView, topCopy, type ViewRow } from "../../model/truth/graph";
 import { percent, TARGETS, type TruthStatus } from "../../model/truth/match";
 import { bestPartners, cached } from "../../model/event/relations";
 import {

@@ -27,7 +27,7 @@ import {
   matchesQuery,
   parseTruthQuery,
   REASON,
-} from "../../model/truth/truth";
+} from "../../model/truth/graph";
 import { PALETTES } from "../../render/colour";
 import { jump } from "../../control/navigate";
 

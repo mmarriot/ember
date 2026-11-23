@@ -90,6 +90,12 @@ describe("the view's key", () => {
     shown.value = {};
   });
 
+  it("leaves out the mode's group when nothing drawn takes its colours", () => {
+    open();
+    visible.value = { ...visible.value, "Cand:markers": false };
+    expect(viewKey.value.map((g) => g.id)).toEqual(["kinds", "Hit:cells"]);
+  });
+
   it("follows what is drawn and the theme", () => {
     open();
     visible.value = { ...visible.value, "Jet:markers": false, "Hit:cells": false };

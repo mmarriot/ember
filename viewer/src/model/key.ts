@@ -39,11 +39,13 @@ export interface KeyEntry {
   small?: boolean;
   ref?: { table: string; row: number };
 }
-/** A group of lines under a title. `id`: what it is, whatever its title says ("truth", "pair", "pid", "kinds", or a
- *  layer's key), so that a user's edits of it (ui/Picture.tsx) hold from event to event. */
+/** A group of lines under a title. `id`: what it is ("truth", "pair", "pid", "kinds", or a layer's key), whatever
+ *  its title says, so that a user's edits of it (ui/Picture.tsx) hold from event to event. `about`: what the title is
+ *  about in this view (the pair's particle), said after it. */
 export interface KeyGroup {
   id: string;
   title: string;
+  about?: string;
   entries: KeyEntry[];
 }
 
@@ -166,29 +168,29 @@ export function layerEntries(d: DisplayLayer, legend: Legend, pal: Pal, column =
 export const layerTitle = (d: DisplayLayer) =>
   d.label.toLowerCase().includes(d.group.toLowerCase()) ? d.label : `${d.group}: ${d.label}`;
 
-/** The whole key of the view as drawn now, for a picture that stands alone: the mode's group (the pair's titled with
- *  its particle), then each layer with something drawn whose colours the mode does not explain (as the side panel
- *  shows them under the layers' rows). Layers in one colour of their kind, which the panel names by their row alone,
- *  share one untitled group ("● Jets ● Muons"). */
+/** The whole key of the view as drawn now, for a picture that stands alone: the mode's group (the pair's about its
+ *  particle) where something drawn takes its colours, then each layer with something drawn whose colours the mode
+ *  does not explain (as the side panel shows them under the layers' rows). Layers in one colour of their kind, which
+ *  the panel names by their row alone, share one untitled group ("● Jets ● Muons"). */
 export const viewKey = computed<KeyGroup[]>(() => {
   const pal = PALETTES[theme.value],
     pair = pairView.value,
     mode = modeKey.value,
     kinds: KeyGroup = { id: "kinds", title: "", entries: [] },
     own: KeyGroup[] = [];
+  let used = false; // something drawn takes the mode's colours
   for (const d of bundle.value?.header.display ?? []) {
     const key = layerKey(d),
       legend = legends.value[key],
       drawn = shown.value[key] ?? event.value?.tables[d.table]?.n ?? 0;
-    if (!drawnLayers.value[key] || !drawn || !legend || explainedByKey(d)) continue;
+    if (!drawnLayers.value[key] || !drawn) continue;
+    if (explainedByKey(d)) used = true;
+    if (!legend || explainedByKey(d)) continue;
     const entries = layerEntries(d, legend, pal);
     if (entries.length === 1 && entries[0].label === d.label)
       kinds.entries.push({ ...entries[0], label: layerTitle(d) });
     else own.push({ id: key, title: layerTitle(d), entries });
   }
-  const named =
-    mode && pair && pair.particle >= 0
-      ? { ...mode, title: `${mode.title}: ${truthText(pair.truth, pair.particle, caloView.value)}` }
-      : mode;
-  return [named, kinds, ...own].filter((g): g is KeyGroup => !!g?.entries.length);
+  const about = pair && pair.particle >= 0 ? truthText(pair.truth, pair.particle, caloView.value) : undefined;
+  return [used && mode ? { ...mode, about } : null, kinds, ...own].filter((g): g is KeyGroup => !!g?.entries.length);
 });

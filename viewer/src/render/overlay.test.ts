@@ -77,6 +77,12 @@ describe("layout", () => {
     expect(apart.box[1]).toBe(label.box[1]); // side by side where there is room
   });
 
+  it("leaves the key in its corner when the label was dragged away from it", () => {
+    const [label, key] = layout(overlay({ at: { label: [0.7, 0.9] } }), W, H, 1, measure);
+    expect(key.box[1]).toBeLessThan(20);
+    expect(key.box[1] + key.box[3]).toBeLessThan(label.box[1]); // apart
+  });
+
   it("puts a block where it was dragged, and keeps it inside the picture", () => {
     const [label, key] = layout(overlay({ at: { label: [0.5, 0.5], key: [0.99, 0.99] } }), W, H, 1, measure);
     expect(label.box.slice(0, 2)).toEqual([600, 400]);
@@ -88,6 +94,8 @@ describe("layout", () => {
     expect(layout(overlay({ key: undefined }), W, H, 1, measure).map((b) => b.name)).toEqual(["label"]);
     const caption = overlay({ label: { bold: "", italic: "", caption: ["", "one line"] } });
     expect(layout(caption, W, H, 1, measure)[0].shapes).toHaveLength(1);
+    const qualifier = overlay({ key: undefined, label: { bold: "", italic: "Simulation", caption: [] } });
+    expect(layout(qualifier, W, H, 1, measure)[0].shapes.map((s) => "text" in s && s.text)).toEqual(["Simulation"]);
     expect(layout(overlay({ label: undefined, key: [{ title: "x", entries: [] }] }), W, H, 1, measure)).toEqual([]);
   });
 });

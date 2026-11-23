@@ -4,7 +4,7 @@
 import { eventTitle, isSimulation } from "../model/about";
 import { sharedDomains } from "../model/domains";
 import { bundle, lookAlone, opened, shownEntry, solo } from "../model/store";
-import { Headline, headline } from "./ObjectRows";
+import { Headline } from "./ObjectRows";
 
 /** The event shown in one line, or "" before one is (also the caption of a saved picture, ui/Picture.tsx). */
 export function shownTitle(): string {
@@ -20,12 +20,6 @@ export function summaryLayers() {
     shared = sharedDomains(bundle.value?.header);
   return display.filter((d) => !d.truth && (!shared.size || (d.domain !== undefined && shared.has(d.domain))));
 }
-
-/** The physics objects of the event shown in one line ("Jets 4 · … · Puppi MET 38.1 GeV"), as under the title. */
-export const shownSummary = () =>
-  headline(summaryLayers())
-    .map(([label, value]) => `${label} ${value}`)
-    .join(" · ");
 
 export function TitleBox() {
   const title = shownTitle();

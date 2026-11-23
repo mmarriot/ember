@@ -31,8 +31,8 @@ const QUALIFIERS = ["Phase-2 Simulation Private Work", "Simulation Private Work"
 
 /** The choices remembered (localStorage "evd.picture"). `qualifier`: the label's italic text, per kind of data set
  *  (profile, simulation or data), so that Phase-2 simulation and Run 3 data each keep their own. `names`: key titles
- *  and lines renamed, `hidden`: those left out, by group id and text in the view's key ("pair|in no object"), so that
- *  an edit holds for every event; a title left out leaves its lines. */
+ *  and lines renamed, `hidden`: those left out, by group id and their text in the view's key ("pair|in no object"),
+ *  so that an edit holds for every event; a title left out leaves its lines. */
 interface Choices {
   scale: number;
   label: boolean;
@@ -78,7 +78,7 @@ function remember(c: Choices) {
 }
 
 /** The label's qualifier unless one was typed: what the data are, and that the picture is no approved result. */
-export const defaultQualifier = (profile: string | undefined, sim: boolean) =>
+const defaultQualifier = (profile: string | undefined, sim: boolean) =>
   `${sim ? `${profile === "phase2" ? "Phase-2 " : ""}Simulation ` : ""}Private Work`;
 
 /** Width of a text in a font, as the canvas draws it (the SVG takes the same layout). */
@@ -115,8 +115,9 @@ export function PictureDialog() {
   };
   const [caption, setCaption] = useState(firstCaption),
     [busy, setBusy] = useState(false);
-  const kind = `${b?.header.profile}|${!!b && !!e && isSimulation(b.header, e.run)}`,
-    qualifier = c.qualifier[kind] ?? defaultQualifier(b?.header.profile, kind.endsWith("true"));
+  const sim = !!b && !!e && isSimulation(b.header, e.run),
+    kind = `${b?.header.profile}|${sim}`,
+    qualifier = c.qualifier[kind] ?? defaultQualifier(b?.header.profile, sim);
   const groups = viewKey.value,
     named = (id: string, text: string) => c.names[id] ?? text,
     shown = (id: string) => !c.hidden.includes(id);
@@ -128,7 +129,9 @@ export function PictureDialog() {
     },
     key: c.key
       ? groups.map((g) => ({
-          title: shown(g.id) ? named(g.id, g.title) : "",
+          title: shown(`${g.id}|${g.title}`)
+            ? [named(`${g.id}|${g.title}`, g.title), g.about].filter(Boolean).join(": ")
+            : "",
           entries: g.entries
             .filter((x) => shown(`${g.id}|${x.label}`))
             .map((x) => ({ ...x, label: named(`${g.id}|${x.label}`, x.label) })),
@@ -151,7 +154,7 @@ export function PictureDialog() {
     const p = preview.current,
       v = view;
     if (!p || !v) return;
-    [p.width, p.height] = [v.width, v.height];
+    if (p.width !== v.width || p.height !== v.height) [p.width, p.height] = [v.width, v.height]; // else no new buffer
     const g = p.getContext("2d")!,
       ov = overlay();
     g.drawImage(v, 0, 0);
@@ -168,7 +171,7 @@ export function PictureDialog() {
   // Saving: the view drawn again at the size chosen, the overlay laid out for that size.
   const meta = () => ({
     Title: shownTitle(),
-    Description: caption.replace(/\n/g, " · "),
+    Description: c.caption ? caption.replace(/\n/g, " · ") : "",
     Source: o?.local ? `${o.title} (a local file)` : location.href,
     Software: "Ember",
   });
@@ -188,7 +191,7 @@ export function PictureDialog() {
       m = meta();
     const [head, tail] = svgParts(layout(ov, v.width, v.height, c.scale, measure), ov, [v.width, v.height, c.scale], {
       title: m.Title,
-      desc: `${m.Description}. ${m.Source}`,
+      desc: [m.Description, m.Source].filter(Boolean).join(". "),
     });
     return new Blob([head, await dataUrl(await blobOf(v)), tail], { type: "image/svg+xml" });
   };
@@ -205,10 +208,13 @@ export function PictureDialog() {
       ),
     );
   };
-  const copy = () =>
+  const copy = () => {
+    setBusy(true); // not shown while the view is drawn: the clipboard is written within the click (Safari's rule)
     navigator.clipboard
-      .write([new ClipboardItem({ "image/png": png() })]) // the promise itself: Safari allows it within the click only
-      .then(() => toast("Copied: paste it into a slide or a message"), failed);
+      .write([new ClipboardItem({ "image/png": png() })])
+      .then(() => toast("Copied: paste it into a slide or a message"), failed)
+      .finally(() => setBusy(false));
+  };
 
   /** A key title or line in the editor (`id`: what its edits are kept under): kept or left out, and its text as it
    *  will read. (A function, not a component: one made anew at each render would be a new kind of element, and its
@@ -240,6 +246,7 @@ export function PictureDialog() {
 
   return (
     <Modal title="Save picture" wide>
+      {!view && <p class="muted">Drawing the view…</p>}
       <canvas
         ref={preview}
         class="picture-preview"
@@ -259,7 +266,8 @@ export function PictureDialog() {
           const [x, y] = at(ev);
           set({ at: { ...c.at, [d.name]: [(x - d.dx) / w, (y - d.dy) / h] } }, false); // remembered on release
         }}
-        onPointerUp={() => {
+        onLostPointerCapture={() => {
+          // after a release, and after a cancel (touch), which has none
           if (drag.current) remember(c);
           drag.current = null;
         }}
@@ -350,7 +358,7 @@ export function PictureDialog() {
           {!groups.length && <p class="muted">Nothing in this view has a key.</p>}
           {groups.map((g) => (
             <div class="group">
-              {line(g.id, g.title)}
+              {line(`${g.id}|${g.title}`, g.title)}
               {g.entries.map((x) => line(`${g.id}|${x.label}`, x.label, x))}
             </div>
           ))}

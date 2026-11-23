@@ -209,8 +209,9 @@ function writeAddress() {
  *  Cmd or Alt. */
 function onKey(e: KeyboardEvent) {
   if (e.key === "Escape" && popover.value) return void (popover.value = null); // also from a control in it (a cut's slider)
-  if (dialog.value) return void (e.key === "Escape" && (dialog.value = null)); // a dialog takes the keys: Esc closes it
-  if (["SELECT", "INPUT"].includes((e.target as HTMLElement).tagName) || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (dialog.value && e.key !== "?") return void (e.key === "Escape" && (dialog.value = null)); // Esc closes a dialog
+  if (["SELECT", "INPUT", "TEXTAREA"].includes((e.target as HTMLElement).tagName) || e.ctrlKey || e.metaKey || e.altKey)
+    return;
   if (e.key === "p" || e.key === "P") return toggleTour();
   stopTour(); // any other key takes over from the tour
 

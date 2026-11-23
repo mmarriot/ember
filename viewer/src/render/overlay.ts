@@ -4,9 +4,9 @@
 // stays text. Sizes are in units of the text size, so a picture at 4x is the one at 1x, only sharper.
 import type { KeyGroup } from "../model/key";
 
-/** What to draw over the view. `at`: each block's top left as a fraction of the picture's size; null: its corner
- *  (the label top left, the key top right). `text`: the caption's text size in CSS pixels; `panel`: a panel of the
- *  view's background behind each block, so the text reads over hits. */
+/** What to draw over the view. `at`: each block's top left as a fraction of the picture's size; none: its corner
+ *  (the label top left, the key top right). `text`: the text size of the caption and the key in CSS pixels (the label
+ *  is larger); `panel`: a panel of the view's background behind each block, so the text reads over hits. */
 export interface Overlay {
   label?: { bold: string; italic: string; caption: string[] };
   key?: Omit<KeyGroup, "id">[];
@@ -74,10 +74,11 @@ export function layout(o: Overlay, w: number, h: number, scale: number, measure:
     lines.push({
       height: LINE * b.size,
       width: PAD * u + bw + gap + (o.label.italic ? measure(o.label.italic, i) : 0),
-      shapes: (y: number): Shape[] => [
-        { text: o.label!.bold, x: PAD * u, y, font: b },
-        { text: o.label!.italic, x: PAD * u + bw + gap, y, font: i },
-      ],
+      shapes: (y: number): Shape[] =>
+        [
+          { text: o.label!.bold, x: PAD * u, y, font: b },
+          { text: o.label!.italic, x: PAD * u + bw + gap, y, font: i },
+        ].filter((s) => s.text),
     });
   }
   for (const c of o.label?.caption ?? []) if (c) lines.push(text(c, { size: u }));
@@ -122,8 +123,9 @@ export function layout(o: Overlay, w: number, h: number, scale: number, measure:
       m = MARGIN * u;
     const x = Math.max(0, Math.min(w - bw, at ? at[0] * w : name === "label" ? m : w - bw - m));
     // In its corner, the key goes under the label where the two would meet (a narrow picture, large text).
-    const label = !at && blocks.find((b) => b.name === "label")?.box,
-      under = label && x < label[0] + label[2] && m < label[1] + label[3] ? label[1] + label[3] + m / 2 : m;
+    const l = !at && blocks.find((b) => b.name === "label")?.box,
+      meets = l && x < l[0] + l[2] && l[0] < x + bw && m < l[1] + l[3] && l[1] < m + bh,
+      under = meets ? l[1] + l[3] + m / 2 : m;
     const y = Math.max(0, Math.min(h - bh, at ? at[1] * h : under));
     return { name, box: [x, y, bw, bh], shapes: shapes.map((s) => moved(s, x, y)) };
   }

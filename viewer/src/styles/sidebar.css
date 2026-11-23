@@ -388,7 +388,7 @@
   flex-wrap: wrap;
   gap: 2px 10px;
 }
-.items span {
+.items > span {
   display: flex;
   align-items: center;
   gap: 4px;

@@ -9,6 +9,10 @@ What goes in it depends on three things, each found here:
 A table whose producer the release lacks, or whose collection the input lacks, is left out, and the configuration's
 header says so. Table names and columns follow the release's own NanoAOD producers (HGCalNanoAOD, TruthInfo,
 standard NanoAOD), so that the profiles that read ember's NanoAOD also read the NanoAOD those flavours make.
+
+    inventory.py  what the release and the input have
+    writer.py     the Writer that the sections add to; the header, process, source and output
+    calo.py, tracks.py, physics.py, muons.py, truth.py   the sections, one module per producer family
 """
 
 from . import calo, muons, physics, tracks, truth, writer
@@ -30,10 +34,10 @@ def config(
     the input that the release cannot read (export.unreadable()). `pat`: the text is the part to append to the
     configuration of `cmsDriver.py -s PAT,NANO --processName EMBER` (export.cmsdriver), whose standard NanoAOD has the
     physics objects: ember's tables of everything else, written in that job's NanoAOD. `associators`: run the
-    truth associators when the input holds no association maps of its own (truth()); `truth_maps`: the release's reco <-> truth association tables and the maps they read
-    (export.truth_maps())."""
+    truth associators when the input holds no association maps of its own (truth.truth_tables()); `truth_maps`: the
+    release's reco <-> truth association tables and the maps they read (export.truth_maps())."""
     w = writer.Writer(settings, inventory, release)
-    writer.header(w, inputs, made_by, pat)
+    writer.header(w, made_by, pat)
     writer.process(w, inputs, events, threads, drop, pat)
     if settings.phase2:
         calo.hgcal(w)

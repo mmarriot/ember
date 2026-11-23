@@ -31,7 +31,7 @@ def module_plugins(dump):
 
 
 def is_product(branch):
-    """Whether an Events branch holds a product: <type>_<module>_<instance>_<process>. (none of the four has an
+    """Whether an Events branch holds a product: <type>_<module>_<instance>_<process> (none of the four has an
     underscore; other branches, such as EventAuxiliary, have none)."""
     return len(branch.rstrip(".").split("_")) == 4
 
@@ -59,4 +59,4 @@ class Inventory:
 
     def soa(self):
         """The SoA (portable host) collections in the input."""
-        return sorted({f"{p.module}" for p in self.items if "PortableHostCollection" in p.type})
+        return sorted({p.module for p in self.items if "PortableHostCollection" in p.type})

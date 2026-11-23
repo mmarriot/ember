@@ -1,6 +1,42 @@
-"""The muon system (DPGAnalysis/MuonTools): segments, rechits, chambers, and the standalone and global muon tracks."""
+"""Configuration sections for the muon system (DPGAnalysis/MuonTools): segments, rechits and chambers, and the
+standalone and global muon tracks."""
 
-from .writer import BRANCHES, MUON_RECHITS, MUON_TRACK_LINKS, TRACK_HITS
+from .writer import BRANCHES, MUON_RECHITS, MUON_TRACK_LINKS, TRACK_HITS, first_lower
+
+# The columns of MuonTools' segment and rechit tables ({}: the table's own columns)
+_SEGMENT = """
+    variables=cms.PSet(
+        chi2=Var("chi2", "float", precision=8, doc="chi2"),
+        ndof=Var("degreesOfFreedom", "int16", doc="number of degrees of freedom"),{}
+    ),
+    globalPosVariables=cms.PSet(
+        x=GlobGeomVar("x()", precision=14, doc="x [cm]"),
+        y=GlobGeomVar("y()", precision=14, doc="y [cm]"),
+        z=GlobGeomVar("z()", precision=14, doc="z [cm]"),
+    ),
+    globalDirVariables=cms.PSet(
+        dx=GlobGeomVar("x()", precision=10, doc="direction, x"),
+        dy=GlobGeomVar("y()", precision=10, doc="direction, y"),
+        dz=GlobGeomVar("z()", precision=10, doc="direction, z"),
+    ),"""
+_HIT = """
+    variables=cms.PSet({}
+    ),
+    globalPosVariables=cms.PSet(
+        x=GlobGeomVar("x()", precision=14, doc="x [cm]"),
+        y=GlobGeomVar("y()", precision=14, doc="y [cm]"),
+        z=GlobGeomVar("z()", precision=14, doc="z [cm]"),
+    ),"""
+_STRIPS = (
+    '\n        bx=Var("BunchX()", "int16", doc="bunch crossing"),'
+    '\n        clusterSize=Var("clusterSize()", "int16", doc="number of strips"),'
+)
+
+
+def _detid(*fields):
+    """The DetId columns: these fields of it, then the raw DetId."""
+    columns = "".join(f'\n        {f}=DetIdVar("{f}()", "int16", doc="{f}"),' for f in fields)
+    return f'\n    detIdVariables=cms.PSet({columns}\n        detId=DetIdVar("rawId()", "uint", doc="DetId"),\n    ),'
 
 
 def muon_tracks(w):
@@ -38,74 +74,44 @@ table("muonTrackLinkTable", cms.EDProducer("MuonTrackLinkTableProducer", src=cms
 
 
 def muon_system(w, pat=False):
-    """DPGAnalysis/MuonTools' tables of the muon system's segments (DT, CSC, GEM) and of the GEM and RPC rechits,
-    with their global position (and direction), in collection order (by DetId); with the CMSSW branch
-    muontools-rechits-chambers, the DT and CSC rechits, the chambers in use and the muons' segments; the standalone
-    and global muon tracks (muon_tracks)."""
+    """DPGAnalysis/MuonTools' tables of the segments (DT, CSC, GEM) and of the GEM and RPC rechits, with their global
+    position (and direction), in collection order (by DetId); with the CMSSW branch muontools-rechits-chambers, the DT
+    and CSC rechits, the chambers in use and the muons' segments; and the standalone and global muon tracks."""
     inv, parts = w.inv, []
-    segment = """
-    variables=cms.PSet(
-        chi2=Var("chi2", "float", precision=8, doc="chi2"),
-        ndof=Var("degreesOfFreedom", "int16", doc="number of degrees of freedom"),{}
-    ),
-    globalPosVariables=cms.PSet(
-        x=GlobGeomVar("x()", precision=14, doc="x [cm]"),
-        y=GlobGeomVar("y()", precision=14, doc="y [cm]"),
-        z=GlobGeomVar("z()", precision=14, doc="z [cm]"),
-    ),
-    globalDirVariables=cms.PSet(
-        dx=GlobGeomVar("x()", precision=10, doc="direction, x"),
-        dy=GlobGeomVar("y()", precision=10, doc="direction, y"),
-        dz=GlobGeomVar("z()", precision=10, doc="direction, z"),
-    ),"""
-    strips = (
-        '\n        bx=Var("BunchX()", "int16", doc="bunch crossing"),'
-        '\n        clusterSize=Var("clusterSize()", "int16", doc="number of strips"),'
-    )
-    hit = """
-    variables=cms.PSet({}
-    ),
-    globalPosVariables=cms.PSet(
-        x=GlobGeomVar("x()", precision=14, doc="x [cm]"),
-        y=GlobGeomVar("y()", precision=14, doc="y [cm]"),
-        z=GlobGeomVar("z()", precision=14, doc="z [cm]"),
-    ),"""
-    detid = lambda *names: "\n    detIdVariables=cms.PSet(" + "".join(
-        f'\n        {n}=DetIdVar("{n}()", "int16", doc="{n}"),' for n in names
-    ) + '\n        detId=DetIdVar("rawId()", "uint", doc="DetId"),\n    ),'  # fmt: skip
     tables = [
         ("dt4DSegments", "DTSegmentFlatTableProducer", "dtSegment", "DTSegment", "DT 4D segments",
-         segment.format('\n        time=Var("?hasPhi()?phiSegment().t0():-99", "float", precision=8, doc="t0 [ns]; '
-                        '-99: none"),') + detid("wheel", "station", "sector")),
+         _SEGMENT.format('\n        time=Var("?hasPhi()?phiSegment().t0():-99", "float", precision=8, doc="t0 [ns]; '
+                        '-99: none"),') + _detid("wheel", "station", "sector")),
         ("cscSegments", "CSCSegmentFlatTableProducer", "cscSegment", "CSCSegment", "CSC segments",
-         segment.format('\n        nHits=Var("nRecHits", "int16", doc="number of hits"),\n        time=Var("time", '
-                        '"float", precision=8, doc="time [ns]"),') + detid("endcap", "station", "ring", "chamber")),
+         _SEGMENT.format('\n        nHits=Var("nRecHits", "int16", doc="number of hits"),\n        time=Var("time", '
+                        '"float", precision=8, doc="time [ns]"),') + _detid("endcap", "station", "ring", "chamber")),
         ("gemSegments", "GEMSegmentFlatTableProducer", "gemSegment", "GEMSegment", "GEM segments",
-         segment.format('\n        nHits=Var("nRecHits", "int16", doc="number of hits"),')
-         + detid("region", "station", "ring", "chamber")),
+         _SEGMENT.format('\n        nHits=Var("nRecHits", "int16", doc="number of hits"),')
+         + _detid("region", "station", "ring", "chamber")),
         ("gemRecHits", "GEMRecHitFlatTableProducer", "gemRecHit", "GEMRecHit", "GEM rechits",
-         hit.format(strips) + detid("region", "station", "ring", "chamber", "layer", "roll")),
+         _HIT.format(_STRIPS) + _detid("region", "station", "ring", "chamber", "layer", "roll")),
         ("rpcRecHits", "RPCRecHitFlatTableProducer", "rpcRecHit", "RPCRecHit", "RPC rechits",
-         hit.format(strips + '\n        time=Var("time", "float", precision=8, doc="time [ns]"),')
-         + detid("region", "ring", "station", "sector", "layer", "roll")),
+         _HIT.format(_STRIPS + '\n        time=Var("time", "float", precision=8, doc="time [ns]"),')
+         + _detid("region", "ring", "station", "sector", "layer", "roll")),
     ]  # fmt: skip
-    # the branch's tables: the DT and CSC rechits (RECO), and the chambers and the muons' segments, which need only
-    # the segments (an AOD keeps them)
+    # The branch's tables: the DT and CSC rechits (RECO), and the chambers and the muons' segments, which need only
+    # the segments (an AOD keeps them).
     sources = {"dtSegmentSrc": "dt4DSegments", "cscSegmentSrc": "cscSegments", "gemSegmentSrc": "gemSegments",
                "dtRecHitSrc": "dt1DRecHits", "cscRecHitSrc": "csc2DRecHits", "rpcRecHitSrc": "rpcRecHits",
                "gemRecHitSrc": "gemRecHits"}  # fmt: skip
     held = {k: src for k, src in sources.items() if inv.has(src)}
     more = bool(held) and w.branch(MUON_RECHITS, "the DT and CSC rechits, the muon chambers and the muons' segments")
-    # the chamber's DetId, which joins the MuonChamber table
-    chamber = '\n        chamberDetId=DetIdVar("chamberId().rawId()", "uint", doc="DetId of the chamber"),\n    ),'
-    tables += [
-        ("dt1DRecHits", "DTRecHitFlatTableProducer", "dtRecHit", "DTRecHit", "DT rechits (wire pairs)",
-         hit.format("")
-         + detid("wheel", "station", "sector", "superlayer", "layer").replace("\n    ),", chamber)),
-        ("csc2DRecHits", "CSCRecHitFlatTableProducer", "cscRecHit", "CSCRecHit", "CSC 2D rechits",
-         hit.format('\n        time=Var("tpeak", "float", precision=8, doc="peak time [ns]"),')
-         + detid("endcap", "station", "ring", "chamber", "layer").replace("\n    ),", chamber)),
-    ] * more  # fmt: skip
+    if more:
+        # the chamber's DetId, which joins the MuonChamber table
+        chamber = '\n        chamberDetId=DetIdVar("chamberId().rawId()", "uint", doc="DetId of the chamber"),\n    ),'
+        tables += [
+            ("dt1DRecHits", "DTRecHitFlatTableProducer", "dtRecHit", "DTRecHit", "DT rechits (wire pairs)",
+             _HIT.format("")
+             + _detid("wheel", "station", "sector", "superlayer", "layer").replace("\n    ),", chamber)),
+            ("csc2DRecHits", "CSCRecHitFlatTableProducer", "cscRecHit", "CSCRecHit", "CSC 2D rechits",
+             _HIT.format('\n        time=Var("tpeak", "float", precision=8, doc="peak time [ns]"),')
+             + _detid("endcap", "station", "ring", "chamber", "layer").replace("\n    ),", chamber)),
+        ]  # fmt: skip
     for src, plugin, cfi, name, doc, columns in tables:
         if inv.has(src) and w.need(plugin):
             parts.append(
@@ -128,8 +134,9 @@ def muon_system(w, pat=False):
                     f'    src=cms.InputTag("muons"), segmentSrc=cms.InputTag("{src}"), name=cms.string("Muon{kind}Segments"),\n'
                     f'    doc=cms.string("muon <-> {kind} segment matches"), skipNonExistingSrc=cms.bool(True)))\n'
                 )
+    muon_tracks_written = muon_tracks(w)
     tracks = "".join(
-        f'table("{n[0].lower()}{n[1:]}Table", cms.EDProducer("SimpleTrackFlatTableProducer", src=cms.InputTag("{src}"),\n'
+        f'table("{first_lower(n)}Table", cms.EDProducer("SimpleTrackFlatTableProducer", src=cms.InputTag("{src}"),\n'
         f'    name=cms.string("{n}"), doc=cms.string("{src}"), cut=cms.string(""), singleton=cms.bool(False),\n'
         f"    extension=cms.bool(False), skipNonExistingSrc=cms.bool(True), variables=cms.PSet(\n"
         f'        pt=Var("pt", "float", precision=10, doc="pt [GeV]"),\n'
@@ -140,9 +147,9 @@ def muon_system(w, pat=False):
         f'        vy=Var("vy", "float", precision=14, doc="y of the reference point [cm]"),\n'
         f'        vz=Var("vz", "float", precision=14, doc="z of the reference point [cm]"),\n'
         f'        chi2=Var("normalizedChi2", "float", precision=8, doc="chi2 / ndof"))))\n'
-        for n, src, _, _ in muon_tracks(w)
+        for n, src, _, _ in muon_tracks_written
     )
-    w.track_tables += [(n, src) for n, src, _, _ in muon_tracks(w)]
+    w.track_tables += [(n, src) for n, src, _, _ in muon_tracks_written]
     if tracks:
         parts.append("# The standalone and global muon tracks, drawn through their hits (track_hits below)\n" + tracks)
     if parts:

@@ -1,4 +1,4 @@
-"""The writer state that the section modules add to, and the frame of the configuration: header, source, output."""
+"""The writer that every section adds to, and the frame of the configuration: header, process and source, output."""
 
 import textwrap
 from collections import namedtuple
@@ -7,12 +7,10 @@ Settings = namedtuple("Settings", "phase2 data era geometry conditions")
 OUTPUT = "ember_nano.root"
 CONFIG = "ember_cfg.py"
 
-# Cluster -> hit tables (a hit count on the cluster table and a table of DetId and fraction): the producers of the
-# CMSSW branch mmarriot:nanoaod-cluster-hits (git cms-merge-topic), used once the release has them.
+# The producers of the CMSSW branch mmarriot:nanoaod-cluster-hits (git cms-merge-topic): the hits of clusters.
 CLUSTER_HITS = {"CaloClusterHitsTableProducer", "PFClusterHitsTableProducer", "SuperClusterHitsTableProducer"}
 
-# The generic NanoAOD table producers of the other CMSSW branches (git cms-merge-topic mmarriot:<branch>, or all of
-# them with mmarriot:nanoaod-reco-tables-all), each used once the release has its plugins: branch -> plugins.
+# The other CMSSW branches (git cms-merge-topic mmarriot:<branch>, or ALL for every one) and their producers.
 ALL = "nanoaod-reco-tables-all"
 CALO_RECHITS = "nanoaod-calo-rechits"
 TRACK_HITS = "nanoaod-track-hits"
@@ -39,35 +37,33 @@ BRANCHES = {
 
 
 class Writer:
-    """Builds the configuration text, section by section, and notes what it leaves out."""
+    """The configuration text, built section by section, and the notes on what it leaves out. The sections also
+    record here what they wrote, for the sections after them."""
 
     def __init__(self, settings, inventory, release):
-        self.s, self.inv, self.release = settings, inventory, release
+        self.settings, self.inv, self.release = settings, inventory, release
         self.parts, self.notes = [], []
-        self.hgcal_nano = False  # whether DPGAnalysis/HGCalNanoAOD's tables are loaded (layer clusters, tracks)
+        self.hgcal_nano = False  # DPGAnalysis/HGCalNanoAOD's tables are loaded (layer clusters, tracks)
         self.cluster_hits = CLUSTER_HITS <= release
         self.hit_tables = {}  # hit table module -> (name of its truth table, its DetId column)
-        self.track_tables = []  # (track table, its collection) of the tables whose hits are written (track_hits)
-        self.written = set()  # the tables written that other tables point into (see where they are added)
-        self.ticl = False  # whether the TICL candidate table is written
+        self.track_tables = []  # (track table, collection) whose hits are to be written (track_hits)
+        self.written = set()  # written tables that other tables point into
+        self.ticl = False  # the TICL candidate table is written
         self.pf_clusters = []  # (table, collection) of the PF cluster tables written
-        self.gsf = False  # whether the GSF track table is written (electrons and PF candidates point into it)
-        self.pf = False  # whether the PF candidate table is written (taus point into it)
+        self.gsf = False  # the GSF track table is written (electrons and PF candidates point into it)
+        self.pf = False  # the PF candidate table is written (taus point into it)
         self.superclusters = {}  # supercluster table -> module of its collection
-        self.rechit_map = False  # whether the HGCal rechit map (of the e/gamma shower shapes) is made
+        self.rechit_map = False  # the HGCal rechit map (for the e/gamma shower shapes) is made
 
     def text(self):
-        wrap = lambda n: textwrap.fill(
-            n, 116, initial_indent="#   - ", subsequent_indent="#     ", break_on_hyphens=False
-        )
-        notes = "".join(wrap(n) + "\n" for n in self.notes) or "#   (nothing)\n"
+        notes = "".join(_wrap_note(n) + "\n" for n in self.notes) or "#   (nothing)\n"
         return "\n".join(self.parts).replace("#{NOTES}\n", notes)
 
     def add(self, text):
         self.parts.append(text.strip("\n") + "\n")
 
     def branch(self, name, what):
-        """Whether the release has the producers of the CMSSW branch `name`; a note on `what` is left out if not."""
+        """Whether the release has the producers of the CMSSW branch `name`; if not, a note that `what` is left out."""
         missing = sorted(BRANCHES[name] - self.release)
         if missing:
             self.notes.append(
@@ -85,8 +81,17 @@ class Writer:
         return not missing
 
 
-def header(w, inputs, made_by, pat=False):
-    s = w.s
+def _wrap_note(note):
+    return textwrap.fill(note, 116, initial_indent="#   - ", subsequent_indent="#     ", break_on_hyphens=False)
+
+
+def first_lower(name):
+    """JetCHS -> jetCHS: a table's name as the start of its module label."""
+    return name[0].lower() + name[1:]
+
+
+def header(w, made_by, pat=False):
+    s = w.settings
     if pat:
         w.add(
             f"""
@@ -120,7 +125,10 @@ process = cms.Process("EMBER", {s.era})
 
 
 def process(w, inputs, events, threads, drop=(), pat=False):
-    s = w.s
+    """The process, its source and services (none with `pat`: the cmsDriver configuration has them), and the task
+    that holds every table producer, with the helpers table() and ref() that the sections' text uses."""
+    s = w.settings
+    dropping = dropped(w, drop)
     tables = """
 # Every table producer goes in this task; the output module runs them as the tables are needed.
 process.emberTables = cms.Task()
@@ -138,7 +146,7 @@ def ref(r, doc, lazy=False):
     return Var(f"?{r}.isNonnull()?{r}.key():-1", "int", doc=doc, lazyEval=lazy)
 """
     if pat:
-        w.add(dropped(w, drop) + tables)
+        w.add(dropping + tables)
         return
     geometry = (
         f"Configuration.Geometry.Geometry{s.geometry}Reco_cff"
@@ -160,7 +168,7 @@ process.GlobalTag = GlobalTag(process.GlobalTag, "{s.conditions}", "")
 process.source = cms.Source("PoolSource", fileNames=cms.untracked.vstring({files}
     ),
 )
-{dropped(w, drop)}process.maxEvents.input = {events if events else -1}
+{dropping}process.maxEvents.input = {events if events else -1}
 process.options.numberOfThreads = {threads}
 {tables}"""
     )
@@ -185,7 +193,7 @@ def dropped(w, drop):
 
 def output(w, output, pat=False):
     if pat:
-        module = "NANOAODoutput" if w.s.data else "NANOAODSIMoutput"
+        module = "NANOAODoutput" if w.settings.data else "NANOAODSIMoutput"
         w.add(
             f"""
 # Ember's tables go in the NanoAOD of the PAT + NANO job, read back quickly (LZ4: the file is temporary)

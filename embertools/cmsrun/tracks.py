@@ -1,6 +1,6 @@
-"""Tracks, their hits and time, vertices, and the MTD rechits."""
+"""Configuration sections for the tracker and the timing layer: tracks, their hits and time, vertices, MTD rechits."""
 
-from .writer import MTD_RECHITS, TRACK_HITS, VERTEX_TRACKS
+from .writer import MTD_RECHITS, TRACK_HITS, VERTEX_TRACKS, first_lower
 
 
 def general_tracks(w):
@@ -78,26 +78,31 @@ table("gsfTrackTable", cms.EDProducer("SimpleGsfTrackFlatTableProducer", src=cms
 def vertices(w, pat=False):
     """Every primary vertex (row 0 is the leading one, which PF and PUPPI take as the hard scatter) and the
     inclusive secondary vertices, in collection order; with `pat`, standard NanoAOD has the leading one."""
-    inv, rows = w.inv, []
     if pat:
         return
-    time = (
-        '\n        t=Var("t", "float", precision=10, doc="time [ns] (MTD)"),'
-        '\n        tError=Var("tError", "float", precision=8, doc="uncertainty of t [ns]; 0 or less: no time"),'
-    ) * w.s.phase2
+    fit = (
+        '\n        ndof=Var("ndof", "float", precision=8, doc="number of degrees of freedom"),'
+        '\n        chi2=Var("normalizedChi2", "float", precision=8, doc="chi2 / ndof"),'
+    )
+    time = ""
+    if w.settings.phase2:
+        time = (
+            '\n        t=Var("t", "float", precision=10, doc="time [ns] (MTD)"),'
+            '\n        tError=Var("tError", "float", precision=8, doc="uncertainty of t [ns]; 0 or less: no time"),'
+        )
+    # the sum of its tracks' momenta, each a pion, weighted >= 0.5 in the fit (reco::Vertex::p4's defaults)
+    momentum = "".join(
+        f'\n        {column}=Var("p4(0.13957018,0.5).{method}()", "float", precision=10, doc="{what} of its tracks'
+        f' (pions) [GeV]"),'
+        for column, method, what in (("mass", "M", "mass"), ("pt", "Pt", "pT"), ("px", "Px", "px"), ("py", "Py", "py"),
+                                     ("pz", "Pz", "pz"))
+    )  # fmt: skip
+    rows = []
     for label, name, src, doc, extra in [
-        ("pvTable", "PV", "offlinePrimaryVertices", "offline primary vertices (row 0: the leading one)",
-         '\n        ndof=Var("ndof", "float", precision=8, doc="number of degrees of freedom"),'
-         '\n        chi2=Var("normalizedChi2", "float", precision=8, doc="chi2 / ndof"),' + time),
-        ("svTable", "SV", "inclusiveSecondaryVertices", "inclusive secondary vertices",
-         '\n        ndof=Var("ndof", "float", precision=8, doc="number of degrees of freedom"),'
-         '\n        chi2=Var("normalizedChi2", "float", precision=8, doc="chi2 / ndof"),'
-         # the sum of its tracks' momenta, each a pion, weighted >= 0.5 in the fit (reco::Vertex::p4's defaults)
-         + "".join(f'\n        {c}=Var("p4(0.13957018,0.5).{f}()", "float", precision=10, doc="{d} of its tracks'
-                   f' (pions) [GeV]"),' for c, f, d in (("mass", "M", "mass"), ("pt", "Pt", "pT"), ("px", "Px", "px"),
-                                                      ("py", "Py", "py"), ("pz", "Pz", "pz")))),
-    ]:  # fmt: skip
-        if inv.has(src, product_type="recoVertexs") and w.need("SimpleVertexFlatTableProducer"):
+        ("pvTable", "PV", "offlinePrimaryVertices", "offline primary vertices (row 0: the leading one)", fit + time),
+        ("svTable", "SV", "inclusiveSecondaryVertices", "inclusive secondary vertices", fit + momentum),
+    ]:
+        if w.inv.has(src, product_type="recoVertexs") and w.need("SimpleVertexFlatTableProducer"):
             rows.append(f"""
 table("{label}", cms.EDProducer("SimpleVertexFlatTableProducer", src=cms.InputTag("{src}"),
     name=cms.string("{name}"), doc=cms.string("{doc}"), cut=cms.string(""),
@@ -123,12 +128,12 @@ table("{label}", cms.EDProducer("SimpleVertexFlatTableProducer", src=cms.InputTa
 
 
 def track_hits(w):
-    """The valid hits of the tracks of each table in track_tables, in track order (CMSSW branch
+    """The valid hits of the tracks of each table in w.track_tables, in track order (CMSSW branch
     nanoaod-track-hits)."""
     # an AOD keeps no hits of its tracks (TrackingRecHitsOwned), and the producer would fail on them
     kept = [(n, src) for n, src in w.track_tables if w.inv.has(src.split(":")[0], "", "TrackingRecHitsOwned")]
     if len(kept) < len(w.track_tables):
-        left = [n for n, _ in w.track_tables if (n, _) not in kept]
+        left = [n for n, src in w.track_tables if (n, src) not in kept]
         w.notes.append(f"the hits of {', '.join(left)}: the input does not keep them (AOD)")
     w.track_tables = kept
     if not w.track_tables or not w.branch(TRACK_HITS, "the hits of tracks"):
@@ -144,7 +149,7 @@ process.load("RecoLocalTracker.SiStripRecHitConverter.SiStripRecHitMatcher_cfi")
 """
     for name, src in w.track_tables:
         text += (
-            f'table("{name[0].lower()}{name[1:]}HitsTable", cms.EDProducer("TrackHitsTableProducer",\n'
+            f'table("{first_lower(name)}HitsTable", cms.EDProducer("TrackHitsTableProducer",\n'
             f'    src=cms.InputTag("{src}"), name=cms.string("{name}"), hitsName=cms.string("{name}Hits"),\n'
             f'    hitsDoc=cms.string("valid hits of {src}"), precision=cms.int32(14), skipNonExistingSrc=cms.bool(True)))\n'
         )
@@ -156,9 +161,7 @@ def vertex_tracks(w):
     nanoaod-vertex-tracks), as text for vertices()."""
     pairs = [(name, src) for name, src in (("PV", "offlinePrimaryVertices"), ("SV", "inclusiveSecondaryVertices"))
              if w.inv.has(src, product_type="recoVertexs")]  # fmt: skip
-    if not pairs or "GeneralTrack" not in w.written:
-        return ""
-    if not w.branch(VERTEX_TRACKS, "the tracks of vertices"):
+    if not pairs or "GeneralTrack" not in w.written or not w.branch(VERTEX_TRACKS, "the tracks of vertices"):
         return ""
     return (
         "\n# The tracks of each vertex, with their weight in its fit (CMSSW branch nanoaod-vertex-tracks)\n"
@@ -173,8 +176,7 @@ def vertex_tracks(w):
 
 def mtd_rechits(w):
     """Every BTL and ETL rechit (CMSSW branch nanoaod-mtd-rechits), Phase 2."""
-    inv = w.inv
-    parts = [(n, i) for n, i in (("BTL", "FTLBarrel"), ("ETL", "FTLEndcap")) if inv.has("mtdRecHits", i)]
+    parts = [(n, i) for n, i in (("BTL", "FTLBarrel"), ("ETL", "FTLEndcap")) if w.inv.has("mtdRecHits", i)]
     if not parts or not w.branch(MTD_RECHITS, "the MTD rechits"):
         return
     w.add(

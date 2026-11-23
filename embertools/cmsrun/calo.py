@@ -1,5 +1,5 @@
-"""Calorimeter hits and clusters: HGCal rechits and reconstruction, ECAL and HCAL rechits, PF clusters and
-superclusters."""
+"""Configuration sections for the calorimeters: HGCal rechits and reconstruction, ECAL and HCAL rechits, PF clusters
+and superclusters, and the hits of every kind of cluster."""
 
 from .writer import ALL, CALO_RECHITS, CLUSTER_HITS
 
@@ -26,15 +26,19 @@ process.emberTables.add(process.recHitTable)
 
 def hgcal_reco(w):
     """DPGAnalysis/HGCalNanoAOD's tables: layer clusters if the input has them, one table per trackster collection
-    of the input, TICL candidates if it has tracksters. Its track table is scheduled by tracks()."""
+    of the input, TICL candidates if it has tracksters. Its track table is scheduled by tracks.general_tracks()."""
     inv = w.inv
     tracksters = inv.modules("ticlTracksters")
     layer_clusters = inv.has("hgcalMergeLayerClusters")
     if not tracksters:
         w.notes.append("TICL tracksters and candidates: the input has none")
-    plugins = ["LayerClustersCollectionTableProducer"] * layer_clusters + [
-        "TracksterCollectionTableProducer", "TICLCandidateTableProducer", "TICLCandidateExtraTableProducer"
-    ] * bool(tracksters)  # fmt: skip
+    plugins, labels = [], []
+    if layer_clusters:
+        plugins.append("LayerClustersCollectionTableProducer")
+        labels += ["hgcalLayerClustersTable", "hgcalLayerClustersExtraTable"]
+    if tracksters:
+        plugins += ["TracksterCollectionTableProducer", "TICLCandidateTableProducer", "TICLCandidateExtraTableProducer"]
+        labels += ["ticlCandidateTable", "ticlCandidateExtraTable"]
     if not plugins or not w.need(*plugins):
         return
     w.hgcal_nano = True
@@ -44,9 +48,8 @@ def hgcal_reco(w):
             f"the SoA collections {', '.join(soa)}: this release has no table producer for them (legacy tables "
             "are written)"
         )
-    labels = ["hgcalLayerClustersTable", "hgcalLayerClustersExtraTable"] * layer_clusters
-    labels += ["ticlCandidateTable", "ticlCandidateExtraTable"] * bool(tracksters)
     w.ticl = bool(tracksters)
+    label_list = "".join(f"\n    {label!r}," for label in labels)
     text = f"""
 # HGCal reconstruction as NANO:@HGCAL writes it (DPGAnalysis/HGCalNanoAOD): layer clusters, a table per trackster
 # collection of the input with its layer clusters (the release's table for CLUE3D, made for each collection), TICL
@@ -54,7 +57,7 @@ def hgcal_reco(w):
 process.load("DPGAnalysis.HGCalNanoAOD.HGCalNanoAOD_cff")
 process.load("TrackingTools.MaterialEffects.MaterialPropagator_cfi")
 process.load("TrackingTools.MaterialEffects.OppositeMaterialPropagator_cfi")
-for label in [{"".join(f"{chr(10)}    {label!r}," for label in labels)}
+for label in [{label_list}
 ]:
     process.emberTables.add(getattr(process, label))
 """
@@ -100,7 +103,7 @@ def pf_rechits(w, pat=False):
     them (RECO keeps only the cleaned-away ones)."""
     if not w.need("PFRecHitFlatTableProducer"):
         return
-    s, inv = w.s, w.inv
+    s, inv = w.settings, w.inv
     kinds = ["ECAL", "HBHE", "HF", "HO"] + ([] if s.phase2 else ["PS"])
     remade = [k for k in kinds if not inv.has(f"particleFlowRecHit{k}", product_type="recoPFRecHits")]
     # what remaking each needs (an AOD has only the reduced rechit collections)
@@ -156,12 +159,12 @@ for kind in {remade!r}:
 
 def clusters(w):
     """PF clusters and superclusters, and the hits of every kind of cluster (once the release has the producers)."""
-    s, inv = w.s, w.inv
+    s, inv = w.settings, w.inv
     rows = []  # (label, table producer, table, src, hits producer)
     for d in ["ECAL", "HCAL", "HF", "HO"] + ([] if s.phase2 else ["PS"]):
         if inv.has(f"particleFlowCluster{d}"):
-            plugins = ("LayerClustersCollectionTableProducer", "PFClusterHitsTableProducer")
-            rows.append((f"pfCluster{d}", *plugins[:1], f"PFCluster{d}", f"particleFlowCluster{d}", plugins[1]))
+            rows.append((f"pfCluster{d}", "LayerClustersCollectionTableProducer", f"PFCluster{d}",
+                         f"particleFlowCluster{d}", "PFClusterHitsTableProducer"))  # fmt: skip
     superclusters = [
         ("superClusterEB", "SuperClusterEB", "particleFlowSuperClusterECAL:particleFlowSuperClusterECALBarrel"),
         ("superClusterHGCal", "SuperClusterHGCal", "particleFlowSuperClusterHGCal"),
@@ -173,8 +176,7 @@ def clusters(w):
     for label, name, src in superclusters:
         module, _, instance = src.partition(":")
         if label not in {r[0] for r in rows} and inv.has(module, instance, "recoSuperClusters"):
-            plugins = ("SimpleSuperclusterFlatTableProducer", "SuperClusterHitsTableProducer")
-            rows.append((label, plugins[0], name, src, plugins[1]))
+            rows.append((label, "SimpleSuperclusterFlatTableProducer", name, src, "SuperClusterHitsTableProducer"))
     rows = [r for r in rows if w.need(r[1])]
     w.superclusters = {r[2]: r[3].partition(":")[0] for r in rows if "Super" in r[1]}
     w.pf_clusters = [(r[2], r[3]) for r in rows if r[2].startswith("PFCluster")]
@@ -236,7 +238,7 @@ def calo_rechits(w):
     """Every ECAL and HCAL rechit with the position of its cell, one table per collection (CMSSW branch
     nanoaod-calo-rechits), instead of the PF rechits (a subset of them), when the release has the producers and the
     input the rechits. Whether they are written."""
-    s, inv = w.s, w.inv
+    s, inv = w.settings, w.inv
     kinds = [
         ("EB", "EcalRecHitTableProducer", "ecalRecHit", "EcalRecHitsEB", "ECAL barrel"),
         ("EE", "EcalRecHitTableProducer", "ecalRecHit", "EcalRecHitsEE", "ECAL endcap"),

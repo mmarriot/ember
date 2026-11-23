@@ -46,7 +46,7 @@ import {
   unlook,
   view,
 } from "../model/store";
-import { COLOUR_LEVELS } from "../model/truth/graph";
+import { COLOUR_LEVELS } from "../model/truth/levelFlags";
 import { chooserOpen } from "./topbar/Chooser";
 import { Header } from "./topbar/Header";
 import { HelpDialog } from "./dialogs/Help";

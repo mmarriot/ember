@@ -4,7 +4,35 @@ import type { DisplayLayer, EventData, Header, Table } from "../../io/format";
 import { cached } from "../event/cache";
 import { bestPartners } from "../event/relations";
 import { facts, isFactTable } from "../truth/facts";
-import type { SlotRule, TruthClass } from "../truth/graph";
+import type { TruthClass } from "../truth/levelFlags";
+
+/** The rule the truth colours give their slots by (model/event/relations.ts identities), as the colour key's title says it:
+ *  - `selection`: the particles the selection and its parts are matched to or hold simulated energy in, first;
+ *  - `by`: then the rest by simulated energy in one detector of the domain (`in`: the domain, `detectors`: those it
+ *    has), by pT among the particles the domain's reco objects are matched to, or by pT among the signal particles. */
+export interface SlotRule {
+  selection: boolean;
+  by: "simEnergy" | "matchedPt" | "pt" | "size";
+  in?: string;
+  detectors?: string[];
+  column?: string; // "size": the layer's colour column
+}
+/** The key's title for a rule: "top 7 by simulated energy in HGCal". */
+export function ruleText(rule: SlotRule, slots: number) {
+  const rest =
+    rule.by === "simEnergy"
+      ? rule.detectors && rule.detectors.length > 1
+        ? `by simulated energy within each of ${rule.detectors.join(", ")}, in turn`
+        : `by simulated energy in ${rule.in}`
+      : rule.by === "matchedPt"
+        ? `by pT among the particles matched to ${rule.in} objects`
+        : rule.by === "pt"
+          ? "signal particles by pT"
+          : `by ${rule.column ?? "size"}`;
+  return rule.selection
+    ? "the selection's particles: those its parts are matched to, then those that left simulated energy in its hits"
+    : `top ${slots} ${rest}`;
+}
 
 /** How the truth colours give their slots (identities): the domain looked at (null: all of them), the particles the
  *  selection and its parts point at (rows; undefined without a selection), and the level that groups the particles

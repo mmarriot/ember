@@ -35,12 +35,12 @@ import {
   foldCopies,
   type Graph,
   length,
-  LEVELS,
   tauDecayOf,
   topCopy,
-  unassociatedKinds,
   vertexText,
 } from "../../model/truth/graph";
+import { LEVELS } from "../../model/truth/levelFlags";
+import { unassociatedKinds } from "../../model/truth/particles";
 import { named, namedChip as chip, ObjChip, truthChip } from "./chips";
 import { Info } from "../common/Info";
 

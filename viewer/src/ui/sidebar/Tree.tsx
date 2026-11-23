@@ -19,15 +19,9 @@ import {
   truthGraph,
   truthText,
 } from "../../model/store";
-import {
-  copiesBelow,
-  daughterVertices,
-  LEVELS,
-  length,
-  matchesQuery,
-  parseTruthQuery,
-  REASON,
-} from "../../model/truth/graph";
+import { copiesBelow, daughterVertices, length, REASON } from "../../model/truth/graph";
+import { LEVELS } from "../../model/truth/levelFlags";
+import { matchesQuery, parseTruthQuery } from "../../model/truth/particles";
 import { PALETTES } from "../../render/colour";
 import { jump } from "../../control/navigate";
 

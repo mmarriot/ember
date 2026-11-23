@@ -8,7 +8,7 @@ import { PALETTES, type Legend, type Pal } from "../../render/colour";
 import { colourBy } from "../custom/settings";
 import { PAIR, type PairClass } from "../truth/pair";
 import { cached } from "../event/cache";
-import { colourLevel } from "../truth/graph";
+import { colourLevel } from "../truth/levelFlags";
 import {
   activeMode,
   bundle,

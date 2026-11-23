@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { DisplayLayer, EventData, Header } from "../../io/format";
-import { identities, truthClasses } from "./identities";
+import { colourLevel } from "../truth/levelFlags";
+import { identities, ruleText, truthClasses } from "./identities";
 
 const csr = (rows: number[][]) => ({
   offsets: Uint32Array.from(rows.reduce((o, r) => [...o, o[o.length - 1] + r.length], [0])),
@@ -194,5 +195,19 @@ describe("truth classes", () => {
   });
   it("puts every particle of the signal collision in a class without bits", () => {
     expect([...truthClasses(cd, cev.tables.P, cev, ch, [{ name: "signal collision" }])]).toEqual([0, 0, 0, 0, 0, 0, 2]);
+  });
+});
+
+describe("colour levels", () => {
+  it("name a level and the rule the slots follow", () => {
+    expect(colourLevel(4).name).toBe("generator particle");
+    expect(colourLevel(768).only).toBe(true);
+    expect(colourLevel(2).name).toBe("bit 1");
+    expect(ruleText({ selection: false, by: "simEnergy", in: "HGCal", detectors: ["HGCal"] }, 7)).toBe(
+      "top 7 by simulated energy in HGCal",
+    );
+    expect(ruleText({ selection: false, by: "simEnergy", in: "Calo", detectors: ["ECAL", "HCAL"] }, 7)).toBe(
+      "top 7 by simulated energy within each of ECAL, HCAL, in turn",
+    );
   });
 });

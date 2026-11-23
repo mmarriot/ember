@@ -83,7 +83,7 @@ setting in the profile (`"particle": {"bit": 2}`). Bit 2 is the default until th
 
 The truth colours have seven colours of their own (one per particle, never repeated); every other signal particle is
 grey, and pile-up is a smaller warm grey. Which seven depends on what is looked at, and the colour key's line under its
-title always says which rule is in force (`model/event/relations.ts` `identities`):
+title always says which rule is in force (`model/colour/identities.ts` `identities`):
 
 | looking at | the seven slots go to | key says |
 |---|---|---|

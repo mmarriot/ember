@@ -228,19 +228,10 @@
   color: var(--muted);
 }
 /* The controls used now and then (a kind's "only", a row's ⋯) show where the pointer is, so a long list reads as
-   names and counts. With nothing to hover (touch), or with the keyboard on them, they always show. A kind's "only"
-   is laid over the right end of its heading, so that hidden it leaves no gap (a heading with a long cut chip would
-   otherwise keep an empty second line for it). */
+   names and counts. With nothing to hover (touch), or with the keyboard on them, they always show. Hidden, they keep
+   their place, so nothing moves under the pointer. */
 @media (hover: hover) {
-  .tabpanel section > h3 {
-    position: relative;
-  }
-  .tabpanel section > h3 .only:not(.on) {
-    position: absolute;
-    right: 0;
-    background: var(--surface-2);
-    visibility: hidden;
-  }
+  .tabpanel section > h3 .only:not(.on),
   .layer .more:not(.on) {
     visibility: hidden;
   }

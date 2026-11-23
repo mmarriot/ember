@@ -49,8 +49,8 @@ export function cells(input: LayerInput): Layer {
         // Cells that overlap in one plane (e.g. partial cells at module edges) would z-fight: a tiny, fixed depth
         // offset per cell decides which is in front. 3 steps of 2e-7 in NDC stay below the depth gap between layers
         // 1 cm apart up to ~1000 cm away.
+        gl_Position = inFront(gl_Position, s); // before the offset, which would otherwise be halved
         gl_Position.z -= gl_Position.w * 2e-7 * float(gl_InstanceID % 4);
-        gl_Position = inFront(gl_Position, s);
         // The colour is A * light * icol + B: the light comes per face in the fragment shader (12 shared corners per
         // cell, no normals), the flash, selection fade and replay fade here: mix(fade(mix(icol * light, 1, f), s), bg, g).
         float f = uFlash * p, k = uRest * selActive() * (1.0 - s), g = faded();

@@ -428,4 +428,24 @@ describe("the rest of the event around a selection", () => {
       expect(v).toMatch(/inFront\(/);
     }
   });
+  it("keeps markers over everything but the selection: the rest's go behind it, and they test depth", () => {
+    Object.assign(globalThis, { window: { devicePixelRatio: 1 } }); // markers read it; the tests run without a DOM
+    const l = build(hint({ repr: "markers" }), crystals()),
+      { m } = parts(l);
+    expect(m.vertexShader).toMatch(/gone\(selected\(ipsel, isel\)\)/);
+    expect(m.vertexShader).toMatch(/selActive\(\) > 0\.5 && s < 0\.5 \? 0\.0 : -0\.9999/);
+    expect(m.depthTest).toBe(true);
+  });
+  it("puts the selection's showers in front from the middle of the cross-fade, as the other layers", () => {
+    const l = build(hint({ repr: "ellipsoids" }), crystals()),
+      front = () => parts(l).m.uniforms.uFront.value;
+    l.setHighlight(new Set([0]));
+    expect(front()).toBe(0); // fading in: still where they were
+    l.setHighlightMix(0.6);
+    expect(front()).toBe(1);
+    l.setHighlight(null);
+    expect(front()).toBe(1); // fading out
+    l.setHighlightMix(1);
+    expect(front()).toBe(0);
+  });
 });

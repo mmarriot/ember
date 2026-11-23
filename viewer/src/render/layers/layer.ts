@@ -136,8 +136,9 @@ float selected(float before, float now) { return mix(before, now, uMix); }
 float gPin = 0.0;
 const float PIN = 0.55;
 vec3 fade(vec3 col, float s) { return mix(mix(col, uBg, uRest * selActive() * (1.0 - s)), uRim, PIN * gPin); }
-// With the rest hidden (uRest 1), what is not the selection's is not drawn, from half way through the cross-fade on.
-bool gone(float s) { return uRest > 0.99 && selActive() * (1.0 - s) > 0.5 && gPin < 0.5; }
+// With the rest hidden (uRest 1), what is not the selection's is not drawn once the cross-fade has taken it to the
+// background colour, so it fades out rather than vanishing half way.
+bool gone(float s) { return uRest > 0.99 && selActive() * (1.0 - s) > 0.99 && gPin < 0.5; }
 // While something is selected, its objects are drawn in front of the rest: the selection's objects take the near half
 // of the depth range and the rest the far half, each keeping its own order, so a faded block nearer the camera never
 // covers the selection. \`p\`: the final clip-space position.

@@ -114,8 +114,10 @@
   bottom: 42px;
   z-index: 2;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
+  max-width: calc(100% - 150px); /* clear of the axis gizmo, bottom right */
 }
 /* In a detector part's view: the chip that draws the shared parts' layers (Physics) over it. */
 .overlaychip {

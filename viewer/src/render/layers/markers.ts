@@ -42,7 +42,6 @@ export function markers(input: LayerInput): Layer {
       uSized: { value: sizeCol ? 1 : 0 },
       uHollow: { value: d.truth ? 1 : 0 },
     },
-    depthTest: false,
     vertexShader: /* glsl */ `
       attribute float ix, iy, iz, isel, ipsel, iemph, icut, iT, iL, isize;
       attribute vec3 icol;
@@ -57,6 +56,9 @@ export function markers(input: LayerInput): Layer {
         gl_Position = projectionMatrix * modelViewMatrix * vec4(c, 1.0);
         bool linked = iL <= uClock; // replay: grey and small until linked
         float s = selected(ipsel, isel), chosen = selActive() * s; // 0..1 while a selection fades in or out
+        // Markers are drawn over everything: at the near plane. While something is selected, the rest's are in the
+        // middle of the depth range instead: behind the selection's objects (the near half, inFront), over the rest's.
+        gl_Position.z = (selActive() > 0.5 && s < 0.5 ? 0.0 : -0.9999) * gl_Position.w;
         float emph = linked ? iemph : 0.0, p = max(pop(iT), linked ? pop(iL) : 0.0);
         float big = uSized > 0.5 ? mix(5.0, 14.0, isize) : 7.0;
         gl_PointSize = mix(emph > 0.5 ? big : 4.0, max(10.0, big), chosen) * (1.0 + 1.2 * p) * (1.0 + 0.6 * gPin) * uPx * remaining();

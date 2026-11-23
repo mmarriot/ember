@@ -22,6 +22,7 @@ import {
   domain,
   event,
   eventIndex,
+  focus,
   focusLevel,
   labelsOn,
   setRest,
@@ -247,7 +248,7 @@ function onKey(e: KeyboardEvent) {
     colourChoice.value = colourChoice.value === "truth" ? "reco" : "truth";
   else if (e.key === "f" || e.key === "F") frameFocus();
   else if (e.key === "l" || e.key === "L") labelsOn.value = !labelsOn.value;
-  else if (e.key === "h" || e.key === "H") setRest();
+  else if ((e.key === "h" || e.key === "H") && focus.value) setRest();
   else if (e.key === "n" || e.key === "N") nextObject(e.shiftKey ? -1 : 1);
   else if (e.key === "x" || e.key === "X") cross();
   else if (e.key === "b" || e.key === "B") back();

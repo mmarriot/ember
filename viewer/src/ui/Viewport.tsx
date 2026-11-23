@@ -247,7 +247,7 @@ function OverlayChip() {
   );
 }
 
-const REST_NAMES: Record<Rest, [string, string]> = {
+export const REST_NAMES: Record<Rest, [string, string]> = {
   dim: ["Dim", "Dim the rest of the event: it stays readable around the selection"],
   faint: ["Faint", "Leave a faint trace of the rest of the event"],
   hidden: ["Hide", "Hide the rest of the event: only the selection, its parts and its truth are drawn"],

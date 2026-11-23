@@ -223,12 +223,14 @@ export function ellipsoids(input: LayerInput): Layer {
       previous = highlighted;
       highlighted = rows;
       hlMix = 0;
-      material.uniforms.uFront.value = rows ? 1 : 0;
+      material.uniforms.uFront.value = previous ? 1 : 0;
       update();
     },
     setHighlightMix(k) {
       if (k !== hlMix) {
         hlMix = k;
+        // the near half from the middle of the cross-fade, as the shader layers (selActive() > 0.5)
+        material.uniforms.uFront.value = (k > 0.5 ? highlighted : previous) ? 1 : 0;
         update();
       }
     },

@@ -146,7 +146,7 @@ export function Sidebar() {
 
 /** The parts of the bar (Look at), one section each, in the bar's order: the one looked at open and first, the others
  *  folded under it; in All the shared parts (e.g. Physics: the event's objects) open and the parts of the detector
- *  folded, so the panel starts as the event's summary over an overview of the parts. Each says whether the view draws
+ *  folded, so the panel starts as the event's summary over an overview of the parts (with no shared part, all open). Each says whether the view draws
  *  it: a shared part is drawn over another part's view with its overlay. */
 function Parts({ names, layers }: { names: string[]; layers: DisplayLayer[] }) {
   const current = domain.value,
@@ -161,7 +161,7 @@ function Parts({ names, layers }: { names: string[]; layers: DisplayLayer[] }) {
         return (
           <details
             class="part"
-            open={here || (!current && shared.value.has(name))}
+            open={here || (!current && (shared.value.has(name) || !names.some((n) => shared.value.has(n))))}
             key={`${bundleName.value}|${name}|${current}`}
           >
             <summary>

@@ -108,7 +108,8 @@ export function replayEvent(pace = 1): Plan | null {
     };
   plan = planReplay(items, header?.replay, parts);
   // The parts drawn whole only for the replay shrink away at its end, rather than vanishing at the rebuild.
-  for (const e of entries) if (replayOnly(e.d, e.key, highlight.peek(), true)) e.layer.setRetire(plan.linkEnd);
+  for (const e of entries)
+    if (replayOnly(e.d, e.key, highlight.peek(), /* replaying: set above */ true)) e.layer.setRetire(plan.linkEnd);
   engine.replay(plan.seconds, undefined, pace);
   if (import.meta.env.DEV) Object.assign(window, { emberPlan: plan }); // for the e2e tests
   return plan;

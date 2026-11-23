@@ -5,6 +5,7 @@ import { signal } from "@preact/signals";
 import type { ComponentChildren } from "preact";
 import { activePreset } from "../../model/custom/settings";
 import { applyPreset, presetFits } from "../../model/custom/presets";
+import { browserStorage } from "../../model/site/library";
 import type { DisplayLayer } from "../../io/format";
 import { bundle, bundleName, COLLECTIONS, domain, openTab, overlay, shared } from "../../model/store";
 import { chooseDomain } from "../../control/navigate";
@@ -26,18 +27,10 @@ const DEFAULT_WIDTH = 340,
 function setWidth(px: number) {
   const w = Math.round(Math.min(560, Math.max(260, px)));
   document.documentElement.style.setProperty("--sidebar", `${w}px`);
-  try {
-    localStorage.setItem(KEY, String(w));
-  } catch {
-    /* not persisted */
-  }
+  browserStorage.set(KEY, String(w));
 }
-try {
-  const w = Number(localStorage.getItem(KEY));
-  if (w) setWidth(w);
-} catch {
-  /* default width */
-}
+const savedWidth = Number(browserStorage.get(KEY));
+if (savedWidth) setWidth(savedWidth);
 
 /** A drag on the panel's edge. The handle captures the pointer, so its moves keep coming when it leaves the thin
  *  handle; the capture ends on a release and on a cancel (a touch turned into a scroll), and the drag with it. */

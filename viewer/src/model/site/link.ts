@@ -19,7 +19,7 @@ export interface Link {
   level?: string;
   /** c=truth: coloured by truth. */
   truth?: boolean;
-  /** g: the level the truth colours group by (model/truth/truth.ts ColourLevel id; the caller checks it is one). */
+  /** g: the level the truth colours group by (model/truth/levelFlags.ts ColourLevel id; the caller checks it is one). */
   group?: string;
   /** only: the kind drawn alone. */
   only?: string;

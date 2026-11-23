@@ -219,7 +219,7 @@ interface Coloured {
 /** Options of `colours`. `range` shares one value scale between layers; without it the layer's own values set the
  *  scale. `layerFor` gives the colouring of related tables (default: their display hints), so colours follow chains:
  *  a hit takes its layer cluster's colour, which is its candidate's. `rank`: how identity colours give their slots
- *  (model/event/relations.ts identities: the domain, the selection, the truth level). */
+ *  (model/colour/identities.ts identities: the domain, the selection, the truth level). */
 interface ColourOptions {
   range?: Range;
   layerFor?: LayerFor;

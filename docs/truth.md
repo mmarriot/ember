@@ -344,7 +344,7 @@ tracks show in their own particles' colours: each colour is that track's own sta
 ## Physics from the graph
 
 The particle card states what the truth graph itself says of a particle, read from its particles and vertices alone
-(`viewer/src/model/truth/truth.ts`, unit-tested in `truth.test.ts`). These are summaries of the simulation, never
+(`viewer/src/model/truth/graph.ts`, unit-tested in `graph.test.ts`). These are summaries of the simulation, never
 associations: nothing is matched by ΔR or by hits.
 
 | line | for | how it is computed |

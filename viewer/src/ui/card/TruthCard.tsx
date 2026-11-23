@@ -514,7 +514,7 @@ export function ParticleFacts({ row }: { row: number }) {
 }
 
 /** For the ⓘ of "Reconstructed as": the kinds with no truth association that this particle could have reached
- *  (model/truth/truth.ts unassociatedKinds), and their gaps; apart from the kinds that have one and found nothing: "nothing
+ *  (model/truth/particles.ts unassociatedKinds), and their gaps; apart from the kinds that have one and found nothing: "nothing
  *  holds it" and "no associator" are different answers. */
 export function unassociated(row: number): { names: string[]; gaps: number[] } {
   const b = bundle.value,

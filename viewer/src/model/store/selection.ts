@@ -1,15 +1,12 @@
 // The selection, the focus and what they show.
 //
-// The selection is the object the card (ui/card/Card.tsx) describes. The focus is the object clicked from outside any
-// focus (e.g. a candidate). While a focus lasts, it is drawn with its smallest parts (e.g. hits) and, on request, one
-// level in between (see `levels`), and only its objects can be picked. Selecting one of them keeps the focus;
-// selecting anything else focuses on it (the old focus is kept for "back"); clearing the selection (a click on
-// nothing, Esc) ends it.
+// The selection is the object the card describes. The focus is the object clicked from outside any focus: while it
+// lasts, it is drawn with its smallest parts and, on request, one level in between (`levels`), and only its objects can
+// be picked. Selecting one of them keeps the focus; selecting anything else focuses on it (the old one kept for
+// "back"); clearing the selection ends it.
 //
-// Looking at an object from another's card: a click on an object in the card selects it, so the view shows it as any
-// selection (with its parts, its pair), while the card stays on the object it was opened for, the `anchor`. Any other
-// selection (a click in the view, a list, N) ends the look: the card follows the selection again, and the way back
-// is the card's object, shown as it was (in its own focus), never the object looked at.
+// Looking at an object from another's card (`look`): the view shows it as any selection, while the card stays on its
+// own object, the `anchor`. Any other selection ends the look, and "back" is the card's object, in its own focus.
 import { batch, computed, effect, signal } from "@preact/signals";
 import type { DisplayLayer } from "../../io/format";
 import { recoLadder, recoOfTruth } from "../event/chain";
@@ -34,8 +31,8 @@ export const selection = signal<Ref | null>(null);
 export const focus = signal<Ref | null>(null);
 /** Earlier focuses, oldest first: "back" returns to the last one. */
 export const focusHistory = signal<Ref[]>([]);
-/** The level shown between the focus and its bottom level (e.g. a candidate's tracksters), by name; null: none. It
- *  is kept while the focus moves (e.g. from one candidate to the next), and forgotten when the focus ends. */
+/** The level shown between the focus and its bottom level (a candidate's tracksters), by name; null: none. Kept while
+ *  the focus moves, forgotten when it ends. */
 export const focusLevel = signal<string | null>(null);
 
 /** The card's own object while another is looked at (see `look`), else null. */
@@ -47,14 +44,14 @@ let anchorFocus: Ref | null = null;
 /** The object the card describes: the anchor while another is looked at, else the selection. */
 export const subject = computed(() => anchor.value ?? selection.value);
 
-/** What `ref` is made of, part of and linked to (model/event/relations.ts relatedParts), or null without it in the event. */
+/** What `ref` is made of, part of and linked to (relatedParts), or null without it in the event. */
 const partsOf = (ref: Ref | null) => {
   const b = bundle.value,
     ev = event.value;
   return b && ev && ref && ref.row < (ev.tables[ref.table]?.n ?? 0) ? relatedParts(ev, b.header, ref) : null;
 };
 const focusParts = computed(() => partsOf(focus.value));
-/** The selection's relatives: what it is made of, what it is part of, what is linked to it (e.g. its truth particle). */
+/** The selection's relatives: what it is made of, part of and linked to (its truth particle). */
 export const relatives = computed(() =>
   sameRef(selection.value, focus.value) ? focusParts.value : partsOf(selection.value),
 );
@@ -132,8 +129,7 @@ export function focusBack(): Ref | null {
 
 // ---- What the card shows
 
-/** The ladder of the card's object (model/event/chain.ts): for a reco object, what it is part of, itself and what it is made
- *  of, each step with its link to the truth; null for a truth object. */
+/** The ladder of the card's object (event/chain.ts recoLadder); null for a truth object. */
 export const ladder = computed(() => {
   const b = bundle.value,
     ev = event.value,
@@ -143,8 +139,8 @@ export const ladder = computed(() => {
   return recoLadder(ev, b.header, sel, parts, truthStatuses.value);
 });
 
-/** What the truth says about the card's reco object (model/truth/statement.ts): its kind's own association, and its parts'
- *  own matches; null for a truth object, and in a bundle without truth. */
+/** What the truth says about the card's reco object (truth/statement.ts); null for a truth object, and in a bundle
+ *  without truth. */
 export const statement = computed(() => {
   const b = bundle.value,
     ev = event.value,
@@ -152,8 +148,8 @@ export const statement = computed(() => {
   return b && ev && l && modes.value.roots.truth ? truthStatement(ev, b.header, l, truthStatuses.value) : null;
 });
 
-/** For a truth object on the card: what was reconstructed from it, per reco kind, and the hits it left
- *  (model/event/chain.ts recoOfTruth); null for anything else. */
+/** For a truth object on the card: what was reconstructed from it, and the hits it left (event/chain.ts
+ *  recoOfTruth); null for anything else. */
 export const reconstructed = computed(() => {
   const b = bundle.value,
     ev = event.value,
@@ -162,8 +158,8 @@ export const reconstructed = computed(() => {
   return recoOfTruth(ev, b.header, sel);
 });
 
-/** What the CMSSW associator says of a reco object of a matched kind: clean, impure or unmatched (model/event/chain.ts
- *  matchClass); undefined for any other kind. It colours the object's name in lists. */
+/** What the associator says of a reco object of a matched kind (truth/match.ts matchClass), for its name's colour in
+ *  lists; undefined for any other kind. */
 export function matchOf(table: string, row: number) {
   const b = bundle.value,
     ev = event.value,
@@ -173,13 +169,12 @@ export function matchOf(table: string, row: number) {
 
 // ---- What the view highlights
 
-/** A hit opens its particle's pair only on request (the card's button): a click on a hit shows the hit. It is reset
- *  with each new focus. */
+/** A hit opens its particle's pair only on request (the card's button); reset with each new focus. */
 export const hitPair = signal(false);
 
-/** In the "pid" and "truth" modes with something focused: its truth <-> reco pair (model/truth/pair.ts), which colours every
- *  layer. Null when the pair has nothing to show, for a kind with no association of its own (a jet, a PF candidate, a
- *  TICL candidate: their parts may open one), and in a bundle with no truth at all (data, a standard NanoAOD). */
+/** In the "pid" and "truth" modes, the focus's truth <-> reco pair (truth/pair.ts), which colours every layer. Null
+ *  when it has nothing to show, for a kind with no association of its own (unless it stands in for a part), and in a
+ *  bundle without truth. */
 export const pairView = computed<Pair | null>(() => {
   const f = focus.value,
     b = bundle.value,
@@ -189,17 +184,15 @@ export const pairView = computed<Pair | null>(() => {
     return null;
   if (isFactTable(b.header, f.table) && !hitPair.value) return null;
   let pair = pairFor(ev, b.header, f, roots.truth);
-  // An object with no truth of its own may stand in for its one matched part (model/truth/pair.ts delegatedPart).
   const part = pair ? null : delegatedPart(ev, b.header, f, roots.truth);
   const theirs = part && pairFor(ev, b.header, part, roots.truth);
   if (theirs) pair = { ...theirs, via: f };
   return pair && pairShows(pair) ? pair : null;
 });
 
-/** How the truth colours give their slots (model/event/relations.ts identities), in the truth mode: the domain looked at, the
- *  level chosen and, with a selection that has no pair of its own (a jet, an electron, a PF candidate), the particles
- *  its parts are matched to (by pT), then those that left simulated energy in its hits (by energy, detector by
- *  detector). Outside the truth mode, nothing: a truth particle drawn for a selection keeps the plain ranking. */
+/** What the truth colours' slots depend on (colour/identities.ts SlotRank), in the truth mode: the domain, the level
+ *  and, for a selection with no pair of its own, the particles its parts are matched to (by pT), then those that left
+ *  simulated energy in its hits. Outside the truth mode, nothing. */
 export const truthRank = computed<SlotRank>(() => {
   const b = bundle.value,
     ev = event.value,
@@ -218,9 +211,9 @@ export const truthRank = computed<SlotRank>(() => {
   return { ...base, prefer: [...(sel.table === root ? [sel.row] : []), ...matched, ...deposits] };
 });
 
-/** In the truth mode with nothing selected, the truth particles drawn (the layer is otherwise drawn only for a
- *  selection): the signal particles of the colour level with pT >= 1 GeV, so the event's truth shows before a click.
- *  Pile-up stays off. Undefined in other modes, or for another layer. Once per event and level. */
+/** In the truth mode, the truth particles drawn without a selection (the layer is otherwise drawn only for one): the
+ *  signal particles of the colour level with pT >= 1 GeV. Undefined in other modes, or for another layer. Once per
+ *  event and level. */
 export function truthPreview(d: DisplayLayer): Set<number> | undefined {
   const ev = event.peek(),
     t = ev?.tables[d.table];
@@ -238,9 +231,8 @@ export function truthPreview(d: DisplayLayer): Set<number> | undefined {
   });
 }
 
-/** What is drawn highlighted, per table: the focus, its levels and what is linked to it (e.g. its truth particle);
- *  in the pair view, the pair's objects. What contains the focus is listed on the card, not highlighted: big
- *  containers would cover it. Null without a focus. */
+/** What is drawn highlighted, per table: the focus, its levels and what is linked to it; in the pair view, the pair's
+ *  objects. Not what contains the focus: big containers would cover it. Null without a focus. */
 export const highlight = computed(() => {
   const b = bundle.value,
     ev = event.value,
@@ -248,7 +240,6 @@ export const highlight = computed(() => {
     parts = focusParts.value,
     pair = pairView.value;
   if (pair && f && b) {
-    // The pair view: the objects of the pair, wherever they ended up, and the focus.
     const hl: Related = new Map([[f.table, new Set([f.row])]]);
     // Missed layer clusters stay in the background: their hits show the same, and the many one-hit clusters of a
     // shower's halo would otherwise cover the clusters that were used (markers are drawn on top of the hits).
@@ -259,9 +250,8 @@ export const highlight = computed(() => {
       for (let i = 0; i < cls.length; i++) if (cls[i] !== PAIR.other && cls[i] !== skip) rows.add(i);
       if (rows.size) hl.set(t, rows);
     }
-    // ... and, for a reco focus, the reco objects linked to it (e.g. a track's vertex), which the pair may not
-    // classify. Not a truth particle's associations: the pair already shows its matches, and every other object an
-    // association names (at any score) would look like part of it.
+    // For a reco focus, also the reco objects linked to it (a track's vertex), which the pair may not classify. Not a
+    // truth particle's associations: every object one names (at any score) would look like part of the pair.
     if (!layerOf(f.table)?.truth)
       for (const [t, rows] of parts?.linked ?? [])
         if (!layerOf(t)?.truth) hl.set(t, new Set([...(hl.get(t) ?? []), ...rows]));
@@ -270,9 +260,8 @@ export const highlight = computed(() => {
   return b && ev && f && parts ? levelsOf(ev, b.header, f, parts) : null;
 });
 
-/** What framing the focus fits in the view: the highlight less what is only linked to the focus (its truth particle,
- *  a track's vertex), which can lie far from it (a low-pT particle's helix curls round 80 cm across the tracker). Null
- *  without a focus. */
+/** What framing the focus fits in the view: the highlight less what is only linked to it, which can lie far away (a
+ *  low-pT particle's helix curls 80 cm across the tracker). Null without a focus. */
 export const framed = computed(() => {
   const hl = highlight.value,
     f = focus.value,
@@ -287,11 +276,10 @@ export const framed = computed(() => {
   return out;
 });
 
-/** What the focus is part of (e.g. a muon's jet), per table; null without a focus. */
+/** What the focus is part of (a muon's jet), per table; null without a focus. */
 const focusParents = computed(() => focusParts.value?.partOf ?? null);
-/** For a layer of a shared part (e.g. Physics: jets) that the domain looked at does not draw (no overlay): the rows
- *  drawn for the focus, alone: its own (a selected jet) and, if the layer is ticked, what it is part of (a muon's
- *  jet), so a selection brings its physics objects along (control/scene.ts); else undefined. */
+/** For a layer of a shared domain (Physics: jets) that the domain looked at does not draw: the rows drawn for the
+ *  focus alone, its own and, if the layer is ticked, what it is part of (a muon's jet); else undefined. */
 export const parentRows = (d: DisplayLayer) => {
   if (!d.domain || !shared.value.has(d.domain) || inDomain(d)) return undefined;
   const parents = visible.value[layerKey(d)] ? (focusParents.value?.get(d.table) ?? []) : [],
@@ -299,21 +287,20 @@ export const parentRows = (d: DisplayLayer) => {
   return rows.size ? rows : undefined;
 };
 
-/** Objects linked to the focus through an association (its truth; a truth particle's reco objects): a click on one
- *  moves the focus there. */
+/** Objects linked to the focus through an association: a click on one moves the focus there. */
 export const focusLinked = computed(() => focusParts.value?.linked ?? null);
 /** The focus is a truth object. */
 export const focusIsTruth = computed(() => !!focus.value && !!layerOf(focus.value.table)?.truth);
 
-/** Whether an object can be picked: anything without a focus; inside one, its parts except the focus itself (it is
- *  already selected, so a click reaches what it is made of). */
+/** Whether an object can be picked: anything without a focus; with one, its highlighted objects but itself (so a
+ *  click reaches what it is made of). */
 export const inFocus = (table: string, row: number) => {
   const hl = highlight.peek();
   return !hl || (!!hl.get(table)?.has(row) && !sameRef(focus.peek(), { table, row }));
 };
 
-// The focus follows the selection: a selection outside the focus becomes the focus, no selection ends it. A selection
-// made elsewhere while another object is looked at ends the look (the card's object is kept for "back").
+// The focus follows the selection: a selection outside it becomes the focus, no selection ends it. A selection made
+// while another object is looked at ends the look (the card's object kept for "back").
 effect(() => {
   const sel = selection.value,
     a = anchor.peek();
@@ -326,7 +313,7 @@ effect(() => {
     anchorFocus = null;
     if (sel && !sameRef(sel, a) && !sameRef(h.at(-1) ?? null, home)) focusHistory.value = [...h, home];
     if (sameRef(sel, a)) focus.value = home;
-    else if (sel && !inView) focus.value = { ...sel }; // not through focusOn, which would keep the object looked at for back
+    else if (sel && !inView) focus.value = { ...sel }; // not focusOn: it would keep the object looked at for back
     if (sel) return;
   }
   if (sel && !highlight.peek()?.get(sel.table)?.has(sel.row)) focusOn(sel);
@@ -345,12 +332,12 @@ effect(() => {
 
 // ---- The focus's levels
 
-/** The object whose levels are shown: in the pair view, the matched object it comes from (a track for its hits), or
- *  the object it stands in for (a TICL candidate for its candidate trackster's pair); else the focus. */
+/** The object whose levels are shown: in the pair view, the object the pair stands in for or comes from (a track for
+ *  its hits); else the focus. */
 export const levelTop = computed<Ref | null>(() => pairView.value?.via ?? pairView.value?.from ?? focus.value);
 const topParts = computed(() => (sameRef(levelTop.value, focus.value) ? focusParts.value : partsOf(levelTop.value)));
 
-/** The kinds of object the focus is made of, top first (model/event/levels.ts); its own kind and truth are not levels. */
+/** The kinds of object the focus is made of, top first (event/levels.ts focusLevels). */
 export const levels = computed(() => {
   const b = bundle.value,
     top = levelTop.value,
@@ -359,7 +346,7 @@ export const levels = computed(() => {
     pair = pairView.value;
   if (!b || !top || !hl || !parts) return [];
   // Not levels: what is only linked to the top, and in the pair view what the pair does not classify but is linked to
-  // the focus (a track's vertex is not a part of its candidate, and stays drawn).
+  // the focus (a track's vertex stays drawn).
   const linked = pair ? focusParts.value?.linked : undefined;
   const unclassified = (t: string) => {
     const cls = pair!.classes.get(t);
@@ -371,22 +358,19 @@ export const levels = computed(() => {
     focusLevels(b.header.display, top.table, hl, own, b.header.relations),
     (t) => parts.madeOf.has(t) || stage(t),
   );
-  // Looking at everything in a bundle with parts of the detector: same-depth levels of different parts become one.
   return !domain.value && (b.header.domains?.length ?? 0) >= 2 ? mergeAcrossDomains(lv, shared.value) : lv;
 });
 
-/** The levels ↓ ↑ step through and the card's chain offers to show: those the current domain draws as its own or
- *  shares (model/event/levels.ts scopeLevels). */
+/** The levels ↓ ↑ step through and the card's chain offers: the current domain's (event/levels.ts scopeLevels). */
 export const focusBar = computed(() => scopeLevels(levels.value, domain.value, shared.value));
 
-/** The chosen level, if the focus has it and it is not one drawn anyway (the bottom ones, lines); else null. */
+/** The chosen level, if the focus has it and it is not drawn anyway; else null. */
 export const shownLevel = computed(() => {
   const c = focusLevel.value;
   return levels.value.some((l) => !l.always && l.name === c) ? c : null;
 });
 
-/** Step the shown level down (+1) or up (-1) among the current domain's (focusBar); false, and nothing changes, if it
- *  has none to step through. */
+/** Step the shown level down (+1) or up (-1) among focusBar's; false if there is none to step through. */
 export function stepFocusLevel(by: number) {
   const bar = focusBar.peek();
   if (!bar.some((l) => !l.always && !l.beside)) return false;
@@ -396,11 +380,9 @@ export function stepFocusLevel(by: number) {
 
 // ---- The layers a focus adds or hides
 
-// While a focus lasts, what is drawn differs from the side panel's ticks (and the domain's view): the focus's layer,
-// its stage (e.g. a candidate's track) and what is linked to it (its truth) are drawn even from layers not ticked; of
-// its levels, only the bottom ones and the chosen one are, even if others are ticked. The layer keys are joined into
-// strings first, so that the signals below change, and the layers are rebuilt, only when these sets change, not on
-// every new focus.
+// While a focus lasts, its layer, its stage and what is linked to it are drawn even if not ticked; of its levels, only
+// the bottom ones and the chosen one are, even if others are ticked. The layer keys are joined into strings first, so
+// the signals below change (and the layers are rebuilt) only when these sets do, not on every new focus.
 const focusKeys = computed(() => {
   const b = bundle.value,
     hl = highlight.value,
@@ -408,14 +390,14 @@ const focusKeys = computed(() => {
     lv = levels.value,
     f = focus.value;
   if (!b || !hl) return { shown: "", hidden: "" };
-  // The focus's own layer is always drawn, also when its kind is a level (the pair view's levels are its candidate's).
+  // The focus's own layer is always drawn, also when its kind is a level (a pair view's levels are its candidate's).
   const ticked = (d: DisplayLayer) => !!vis[layerKey(d)],
     own = (d: DisplayLayer) => d.table === f?.table;
   const inLevels = new Set(lv.flatMap((l) => l.layers).filter((d) => !own(d)));
   const { draw, hide: levelHide } = levelLayers(lv, focusLevel.value, ticked),
     hide = levelHide.filter((d) => !own(d));
   const others = b.header.display.filter((d) => !inLevels.has(d) && hl.get(d.table)?.size);
-  // A shared part's layers the domain does not draw (no overlay) that hold what the focus is part of (its jet).
+  // A shared domain's layers the domain does not draw that hold what the focus is part of (its jet).
   const held = b.header.display.filter((d) => parentRows(d)?.size);
   const keys = (ds: DisplayLayer[]) => ds.map(layerKey).sort().join("|");
   return {

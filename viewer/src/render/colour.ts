@@ -123,9 +123,9 @@ export type Legend =
       items?: { label: string; colour: string; ref?: { table: string; row: number } }[];
     };
 
-// Parsed once per colour: colouring runs per object (about 500k hits at PU200) and must not allocate per object.
 const parsed = new Map<string, readonly number[]>();
-const rgb = (hex: string) => {
+/** "#rrggbb" as RGB in 0..1, parsed once per colour: colouring runs per object (~500k hits at PU200). */
+export const hexRgb = (hex: string) => {
   let c = parsed.get(hex);
   if (!c) parsed.set(hex, (c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)));
   return c;
@@ -141,8 +141,8 @@ function rampTable(stops: readonly string[]) {
       const x = (k / (LEVELS - 1)) * (stops.length - 1),
         i = Math.min(Math.floor(x), stops.length - 2),
         f = x - i;
-      const a = rgb(stops[i]),
-        b = rgb(stops[i + 1]);
+      const a = hexRgb(stops[i]),
+        b = hexRgb(stops[i + 1]);
       for (let c = 0; c < 3; c++) lut[3 * k + c] = a[c] + (b[c] - a[c]) * f;
     }
     tables.set(stops, lut);
@@ -247,7 +247,7 @@ export function colours(
     numberOf = (_: string, row: number) => row + 1,
   } = opts;
   const out = new Float32Array(3 * t.n),
-    cats = pal.categories.map(rgb);
+    cats = pal.categories.map(hexRgb);
   // Named categories other than particle types (e.g. a hit's subdetector) take colours apart from the types first.
   const named = [...pal.others, ...pal.categories];
   const set = (i: number, c: ArrayLike<number>, at = 0) => {
@@ -269,7 +269,7 @@ export function colours(
     const kin = header.display.find((l) => l.fixedColour === d.fixedColour && typeColour(pal, l.kind));
     const colour =
         typeColour(pal, d.kind) ?? typeColour(pal, kin?.kind) ?? RETIRED[d.fixedColour.toLowerCase()] ?? d.fixedColour,
-      c = rgb(colour);
+      c = hexRgb(colour);
     for (let i = 0; i < t.n; i++) set(i, c);
     return {
       rgb: out,
@@ -278,7 +278,7 @@ export function colours(
   }
   if (d.colourBy === "none") {
     // a layer with nothing to take a colour from in this mode (e.g. vertices, by truth)
-    const c = rgb(pal.unassigned);
+    const c = hexRgb(pal.unassigned);
     for (let i = 0; i < t.n; i++) set(i, c);
     return { rgb: out, legend: { kind: "category", text: noLinkText(d) } };
   }
@@ -289,7 +289,7 @@ export function colours(
       { anchor } = identities(d, t, ev, header, 0),
       names = [...rank.classes.map((c) => c.name), "rest of the signal collision", "pile-up"],
       hexes = [...rank.classes.map((_, k) => pal.identity[k ? k + 1 : 0]), pal.other, pal.identity[1]],
-      rgbs = hexes.map(rgb),
+      rgbs = hexes.map(hexRgb),
       present = new Uint8Array(names.length);
     for (let i = 0; i < t.n; i++) {
       set(i, rgbs[cls[i]]);
@@ -308,11 +308,11 @@ export function colours(
   if (d.colourBy === "identity") {
     const { key, used, top, others, rule, preferred } = identities(d, t, ev, header, pal.identity.length, rank);
     const slot = new Map(top.map((k, j) => [k, j])),
-      ids = pal.identity.map(rgb),
-      other = rgb(pal.other),
-      none = rgb(pal.unassigned);
+      ids = pal.identity.map(hexRgb),
+      other = hexRgb(pal.other),
+      none = hexRgb(pal.unassigned);
     const first = d.particle?.first ? t.columns[d.particle.first] : undefined,
-      pileup = rgb(pal.pileup);
+      pileup = hexRgb(pal.pileup);
     // A level whose particles alone take colours (b / c hadron, parton jet, τ): the rest is drawn small, so its chains
     // stand out.
     const levelFlags = rank?.only && d.particle ? t.columns[d.particle.flags] : undefined;
@@ -365,7 +365,7 @@ export function colours(
       if (u === undefined) {
         const k = order.includes(String(v)) ? order.indexOf(String(v)) : order.length + used.size,
           colour = typeColour(pal, names[String(v)]) ?? named[k % named.length];
-        used.set(v, (u = { k, colour, rgb: rgb(colour) }));
+        used.set(v, (u = { k, colour, rgb: hexRgb(colour) }));
       }
       set(i, u.rgb);
     }
@@ -393,7 +393,7 @@ export function colours(
       od && ot && od.colourBy && !next.has(otherTable)
         ? colours(od, ot, ev, header, pal, { layerFor, rank }, next)
         : null;
-    const grey = rgb(pal.unassigned),
+    const grey = hexRgb(pal.unassigned),
       emphasis = new Uint8Array(t.n);
     for (let i = 0; i < t.n; i++) {
       // A partner drawn small passes that on with its colour (grey for one linked to nothing, pile-up's own grey).

@@ -25,7 +25,11 @@ import {
   nameOf,
   overlay,
   replayCaption,
+  rest,
+  RESTS,
+  type Rest,
   selection,
+  setRest,
   shared,
   short,
   shownLayer,
@@ -189,7 +193,10 @@ export function Viewport() {
       <ReplayCaption />
       <TitleBox />
       {(bundle.value?.header.domains?.length ?? 0) >= 2 && <Views />}
-      <OverlayChip />
+      <div class="viewchips">
+        <OverlayChip />
+        <RestChoice />
+      </div>
       <Hint />
     </div>
   );
@@ -237,6 +244,33 @@ function OverlayChip() {
     >
       {name} overlay
     </button>
+  );
+}
+
+export const REST_NAMES: Record<Rest, [string, string]> = {
+  dim: ["Dim", "Dim the rest of the event: it stays readable around the selection"],
+  faint: ["Faint", "Leave a faint trace of the rest of the event"],
+  hidden: ["Hide", "Hide the rest of the event: only the selection, its parts and its truth are drawn"],
+};
+/** While something is selected: how the rest of the event is drawn (dimmed, faint, hidden; key H steps through). */
+function RestChoice() {
+  if (!focus.value) return null;
+  return (
+    <div class="segmented rest" role="group" aria-label="The rest of the event">
+      <span class="label" title="How the rest of the event is drawn while something is selected (H)">
+        Others
+      </span>
+      {RESTS.map((r) => (
+        <button
+          class={rest.value === r ? "on" : ""}
+          aria-pressed={rest.value === r}
+          title={`${REST_NAMES[r][1]} (H)`}
+          onClick={() => setRest(r)}
+        >
+          {REST_NAMES[r][0]}
+        </button>
+      ))}
+    </div>
   );
 }
 

@@ -67,7 +67,7 @@ export function cones(input: LayerInput): Layer {
   g.setAttribute("position", base.getAttribute("position"));
   g.setAttribute("cap", base.getAttribute("cap"));
   const material = new THREE.ShaderMaterial({
-    uniforms: { ...baseUniforms(input.pal), uOutline: { value: 0 } },
+    uniforms: { ...baseUniforms(input.pal, input.d.context), uOutline: { value: 0 } },
     transparent: true,
     depthWrite: false,
     side: THREE.DoubleSide,
@@ -88,7 +88,7 @@ export function cones(input: LayerInput): Layer {
         float s = selected(ipsel, isel);
         if (uProj > 0.5) c = projectRZ(c, s * 2.0, istart.y + ilen * axis.y >= 0.0 ? 1.0 : -1.0); // the side of its end, as picked
         vec4 mv = modelViewMatrix * vec4(c, 1.0);
-        gl_Position = projectionMatrix * mv;
+        gl_Position = inFront(projectionMatrix * mv, s);
         vN = uProj > 0.5 ? vec3(0.0) : normalMatrix * nrm; vV = -mv.xyz; vA = normalMatrix * axis;
         vEdge = cap > 0.5 ? dot(position.xy, position.xy) : position.z; // 1 on the base's circle
         vCol = fade(mix(icol, vec3(1.0), 0.3 * s * selActive()), s) * remaining() + uBg * (1.0 - remaining());
@@ -147,8 +147,10 @@ export function cones(input: LayerInput): Layer {
         ${SHADER_COMMON}
         void main() {
           gPin = ipin;
-          vCol = fade(color, selected(ipsel, isel));
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          float s = selected(ipsel, isel);
+          if (gone(s)) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
+          vCol = fade(color, s);
+          gl_Position = inFront(projectionMatrix * modelViewMatrix * vec4(position, 1.0), s);
         }`,
       fragmentShader: `varying vec3 vCol; void main() { gl_FragColor = vec4(vCol, 1.0); }`,
     }),

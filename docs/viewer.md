@@ -108,6 +108,7 @@ It shows each control's key and whether it is on. The colour theme is there too.
 | zoom | scroll (it zooms towards the cursor) |
 | switch view: 3D, front, side, ρ–z | `1`, `2`, `3`, `4`, or the buttons at the bottom left of the view (in the top bar for a bundle without parts of the detector) |
 | zoom to an object | double-click it, or `F`: it fills the part of the view the card leaves free |
+| dim, fade or hide the rest of the event around a selection | `H`, or **Others** at the bottom left of the view while something is selected |
 | show the whole event | `Home`, or Reset |
 | go back to the normal view, or close a dialog | `Esc`, or click on empty space |
 | previous / next event | `←` / `→`, or the arrows at the top |
@@ -124,7 +125,7 @@ drop-down list. Looking at one part:
   for each data set; links do not keep it). A selected
   object still brings what it is part of (a muon's jet), drawn faded with everything else not related to it;
 - frames the part's region, in the part's own view;
-- opens the part's tab in the side panel. Choosing a tab yourself does not change the view.
+- opens the part's section in the side panel's **Collections** tab. Choosing a tab yourself does not change the view.
 
 The side panel keeps your ticks. A shared part (for example **Physics**) draws only its own layers and the layers of
 no part. A bundle opens on the part named in its `view.domain`. A selected object stays selected when you change
@@ -153,8 +154,13 @@ The selected object stands out in the view:
 - a line becomes a ribbon three times as wide, and a marker becomes larger;
 - a line (a track, a particle, a muon's path, MET) gets a halo in the accent colour, a few pixels wider than the
   line, so even a track one pixel wide is found at once;
-- everything not related to it fades 85 % of the way to the background: hits, clusters, tracks, jet cones and their
-  outlines, the MET arrow and the detector's outlines alike. Showers not related to it are not drawn.
+- it is drawn in front of everything else, so a block of the rest nearer the camera never covers it;
+- everything not related to it, the rest of the event, is drawn as you choose with **Others** at the bottom left of
+  the view (or `H`, which steps through the three): **Dim** fades it 85 % of the way to the background, so it stays
+  readable around the selection; **Faint** (the default) 95 %, a trace of it; **Hide** does not draw it at all, so
+  a picture shows only the selection, its parts and its truth. Hits, clusters, tracks, jet cones and their outlines
+  and the MET arrow alike. The detector's outlines, and a layer drawn as the detector's context, are dimmed whatever
+  the choice. Showers not related to it are not drawn. The choice is remembered in this browser.
 
 The view then shows the object with its smallest parts, one kind per branch. Parts drawn as lines do not hide the
 others. For example, a candidate is shown with its calorimeter hits, its track and the track's hits; a vertex with
@@ -331,20 +337,25 @@ From top to bottom, the side panel has:
 The panel shows names, counts and state. What a thing is, and how a number is counted, is behind an **i** next to it
 (a pop-up, `viewer/src/ui/Info.tsx`). The selection's card works the same way.
 
-### Detector tabs
+### The Collections tab
 
-There is one tab per part of the detector (display hint `domain`), for example **HGCal**. Bundles made before
-layers had a part show one tab, **Objects**. The tabs are in the order of the header's `domains`, as in the top bar.
+With two or more parts of the detector (a header with `domains`, the **Look at** bar), every part's layers are in one
+tab, **Collections**, which follows the bar:
 
-With two or more parts, a shared part (for example **Physics**) keeps a tab of its own. The other parts share one
-tab, **Detector**, which follows the **Look at** bar:
-
-- it has one section per part. The part you look at is open and first; the others are folded;
-- in All, every section is open. In a shared part's view, every section is folded;
-- each section says whether it is drawn: looked at, drawn, or not in this view. Hover to see what this means;
+- it has one section per part, in the bar's order (for example Physics, Tracker, Calo, HGCal, Muons). The part you
+  look at is open and first; the others are folded under it. In All, the shared parts (Physics: the event's objects)
+  are open and the parts of the detector folded, so the tab starts as the event's summary over an overview of the
+  parts: open the one you want;
+- each section's heading says whether the view draws it: looked at, drawn (in All), drawn over (a shared part such as
+  Physics with its overlay on), or not in this view. Hover to see what this means. **show** looks at that part;
+- a collection the view does not draw (not ticked, or in a part not looked at) has its name muted, so the list says
+  what is on screen;
 - the cuts of a folded section still apply to a selection's objects there.
 
-In each tab, the collections are grouped by kind of object.
+Without the bar there is one tab per part of the detector (display hint `domain`), for example **HGCal**. Bundles made
+before layers had a part show one tab, **Objects**.
+
+In each part, the collections are grouped by kind of object.
 
 **A kind's heading** carries its cut as a chip, for example "pT ≥ 30 GeV" ("no pT cut" at 0). The chip is in the
 accent colour when the cut differs from the profile's. Click it to open a slider in a pop-up:
@@ -358,14 +369,15 @@ accent colour when the cut differs from the profile's. Click it to open a slider
 A kind with several cuts (one per calorimeter) shows each cut on the first row it cuts, without the row's name
 ("energy ≥ 1 GeV" on the ECAL barrel row). A long name wraps onto a second line instead of being cut short.
 
-A kind with several collections, and each part of the detector in the Detector tab, has a tick of its own on its
+A kind with several collections, and each part of the detector in the Collections tab, has a tick of its own on its
 heading: one click ticks all of its collections, or unticks them all when all are ticked. It is half ticked when
 only some are.
 
 Clicking a kind's heading folds it. The folded heading says how many of its collections are drawn. This lasts for
 the life of the page. A slider shared with a later kind moves to that kind.
 
-**One row per layer** shows: a visibility tick, the name, its state as chips, its count and **⋯**. Under the row
+**One row per layer** shows: a visibility tick, the name, its state as chips, its count and **⋯**. A kind's **only**
+and a row's **⋯** show where the pointer is (always on a touch screen), so the list reads as names and counts. Under the row
 there is its colour scale, if the colour key does not already explain it. The chips are:
 
 | chip | meaning |
@@ -389,8 +401,8 @@ its eight largest objects in the same way (for example the tracksters by energy)
 
 The tab opens with a headline: how many objects of each such layer pass, or the value of a one-object table (for
 example MET). A selected object that does not pass is not counted, and the headline says why: "Electrons 0 (+1
-selected, below the electron pT cut)", or "left out by the filter" when the cut alone would keep it. The Physics tab
-has none: the view's title gives that line.
+selected, below the electron pT cut)", or "left out by the filter" when the cut alone would keep it. The Physics
+section has none: the view's title gives that line.
 
 **In the truth colours**, each kind's heading gets one word for what the truth graph says about it: match, sim,
 or no associator. Hover for the reason. Where a kind's layers differ, each row gets its own word. The rows of

@@ -1,5 +1,5 @@
 // The view's top-left corner: what is on screen, in words that stay in a screenshot. The event ("SIMULATION · ttbar
-// 0PU · Run 1 · LS 1 · Event 18"), the physics objects in one line under it (as the Physics tab's), and, while one
+// 0PU · Run 1 · LS 1 · Event 18"), the physics objects in one line under it (as the Physics section's), and, while one
 // kind is looked at alone, that kind with the way back to everything.
 import { eventTitle, isSimulation } from "../model/about";
 import { sharedDomains } from "../model/domains";

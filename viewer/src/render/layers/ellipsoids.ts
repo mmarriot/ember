@@ -10,6 +10,7 @@ const SHOWER_STYLES = { solid: 0, shell: 1, cage: 2, core: 3 } as const;
 // Instanced unit spheres scaled and rotated per shower; normals use the inverse transpose, so the shading and the
 // rim follow the ellipsoid's real surface.
 const SHOWER_VERTEX = /* glsl */ `
+  uniform float uFront;
   attribute float ipair;
   varying vec3 vN, vV, vP, vCol;
   varying float vPair;
@@ -26,6 +27,9 @@ const SHOWER_VERTEX = /* glsl */ `
     vCol = vec3(0.6);
     #endif
     gl_Position = projectionMatrix * p;
+    // While something is selected, the showers still drawn are its own: in the near half of the depth range, as the
+    // selection's objects of the other layers (SHADER_COMMON inFront).
+    if (uFront > 0.5) gl_Position.z = 0.5 * gl_Position.z - 0.5 * gl_Position.w;
   }`;
 // Surfaces: solid (tracksters): translucent, softly shaded, a light rim; shell (linked tracksters): clear inside,
 // bright outline; cage (interpretations): three rings around the principal axes; core (candidates): opaque, glossy.
@@ -74,7 +78,7 @@ export function ellipsoids(input: LayerInput): Layer {
   const material = new THREE.ShaderMaterial({
     vertexShader: SHOWER_VERTEX,
     fragmentShader: SHOWER_FRAGMENT,
-    uniforms: { uStyle: { value: style } },
+    uniforms: { uStyle: { value: style }, uFront: { value: 0 } },
     transparent: shape !== "core",
     depthWrite: shape === "core",
     side: shape === "shell" || shape === "cage" ? THREE.DoubleSide : THREE.FrontSide,
@@ -219,11 +223,14 @@ export function ellipsoids(input: LayerInput): Layer {
       previous = highlighted;
       highlighted = rows;
       hlMix = 0;
+      material.uniforms.uFront.value = previous ? 1 : 0;
       update();
     },
     setHighlightMix(k) {
       if (k !== hlMix) {
         hlMix = k;
+        // the near half from the middle of the cross-fade, as the shader layers (selActive() > 0.5)
+        material.uniforms.uFront.value = (k > 0.5 ? highlighted : previous) ? 1 : 0;
         update();
       }
     },

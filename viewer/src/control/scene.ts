@@ -39,6 +39,7 @@ import {
   parentRows,
   rawEvent,
   replayCaption,
+  rest,
   selection,
   showAll,
   shown,
@@ -56,6 +57,7 @@ import {
 import { colours, type LayerFor, type Legend, PALETTES, valueRange, type Pal, type Range } from "../render/colour";
 import { Engine, MIN_RADIUS } from "../render/engine";
 import { builders, type Layer } from "../render/layers";
+import { REST_FADE, restUniform } from "../render/layers/layer";
 import { growIn, planReplay, type Parts, type Plan } from "../render/replay";
 
 /** The engine, once the view's canvas exists (startScene). */
@@ -465,6 +467,12 @@ export function startScene(canvas: HTMLCanvasElement): () => void {
     eng.requestRender();
   });
   const stopView = effect(() => eng.setView(view.value, highlight.peek() ?? undefined));
+  // How the rest of the event is drawn around a selection: one uniform shared by every layer, so a new frame is all
+  // it takes.
+  const stopRest = effect(() => {
+    restUniform.value = REST_FADE[rest.value];
+    eng.requestRender();
+  });
   return () => {
     cancelAnimationFrame(recolourFrame);
     stopRadius();
@@ -476,6 +484,7 @@ export function startScene(canvas: HTMLCanvasElement): () => void {
     stopEnvelope();
     stopRank();
     stopView();
+    stopRest();
   };
 }
 

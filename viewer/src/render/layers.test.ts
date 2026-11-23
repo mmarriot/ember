@@ -4,6 +4,7 @@ import type { DisplayLayer, Table } from "../io/format";
 import { PALETTES } from "./colour";
 import { builders, type Layer } from "./layers";
 import { hexPrism } from "./layers/cells";
+import { REST_FADE, restUniform } from "./layers/layer";
 import { unitCone } from "./layers/cones";
 import { polylinePoints } from "./layers/polylines";
 import { segmentEnds } from "./layers/segments";
@@ -400,5 +401,51 @@ describe("hexagonal prism", () => {
         n = b.clone().sub(a).cross(d.clone().sub(a));
       expect(n.dot(a.clone().add(b).add(d))).toBeGreaterThan(0); // facing away from the centre
     }
+  });
+});
+
+describe("the rest of the event around a selection", () => {
+  const t = () => table({ x: col(1, 2), y: col(0, 1), z: col(0, 3), ex: col(1, 1), ey: col(0, 1), ez: col(1, 0) });
+  const shaderLayers = (context?: boolean) => [
+    build(hint({ repr: "cells", context }), crystals()),
+    build(hint({ repr: "segments", end: ["ex", "ey", "ez"], context }), t()),
+    build(
+      hint({ repr: "cones", position: ["x", "y", "z"], direction: ["eta", "phi"], radius: 0.4, context }),
+      table({ x: col(0), y: col(0), z: col(1), eta: col(0.5), phi: col(1), pt: col(50) }),
+    ),
+  ];
+  it("fades every layer by one shared uniform, which context layers do not follow", () => {
+    for (const l of shaderLayers()) expect(parts(l).m.uniforms.uRest).toBe(restUniform);
+    for (const l of shaderLayers(true)) {
+      expect(parts(l).m.uniforms.uRest).not.toBe(restUniform);
+      expect(parts(l).m.uniforms.uRest.value).toBe(REST_FADE.dim);
+    }
+  });
+  it("is hidden with the rest, and drawn behind the selection, by every shader-drawn layer", () => {
+    for (const l of shaderLayers()) {
+      const v = parts(l).m.vertexShader;
+      expect(v).toMatch(/gone\(selected\(ipsel, isel\)\)/); // CULL
+      expect(v).toMatch(/inFront\(/);
+    }
+  });
+  it("keeps markers over everything but the selection: the rest's go behind it, and they test depth", () => {
+    Object.assign(globalThis, { window: { devicePixelRatio: 1 } }); // markers read it; the tests run without a DOM
+    const l = build(hint({ repr: "markers" }), crystals()),
+      { m } = parts(l);
+    expect(m.vertexShader).toMatch(/gone\(selected\(ipsel, isel\)\)/);
+    expect(m.vertexShader).toMatch(/selActive\(\) > 0\.5 && s < 0\.5 \? 0\.0 : -0\.9999/);
+    expect(m.depthTest).toBe(true);
+  });
+  it("puts the selection's showers in front from the middle of the cross-fade, as the other layers", () => {
+    const l = build(hint({ repr: "ellipsoids" }), crystals()),
+      front = () => parts(l).m.uniforms.uFront.value;
+    l.setHighlight(new Set([0]));
+    expect(front()).toBe(0); // fading in: still where they were
+    l.setHighlightMix(0.6);
+    expect(front()).toBe(1);
+    l.setHighlight(null);
+    expect(front()).toBe(1); // fading out
+    l.setHighlightMix(1);
+    expect(front()).toBe(0);
   });
 });

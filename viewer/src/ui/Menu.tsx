@@ -12,7 +12,9 @@ import {
   focusHistory,
   highlight,
   labelsOn,
+  rest,
   selection,
+  setRest,
   stepEvent,
   stepFocusLevel,
   theme,
@@ -24,7 +26,7 @@ import {
 import { back, cross, frameFocus, nextDomain, nextObject, showWhole } from "../control/navigate";
 import { stopTour, toggleTour } from "../control/tour";
 import { replayEvent } from "../control/scene";
-import { VIEWS } from "./Viewport";
+import { REST_NAMES, VIEWS } from "./Viewport";
 import { usePressOutside } from "./widgets";
 
 /** Open or closed; Esc closes it first (App.tsx). */
@@ -83,6 +85,7 @@ export function Menu() {
           off: !anchor.value && !focusHistory.value.length,
           run: back,
         },
+        { label: `Others: ${REST_NAMES[rest.value][0]} (next)`, keys: "H", off: !f, run: () => setRest() },
         { label: "One level down", keys: "↓", off: !levels, run: () => stepFocusLevel(1) },
         { label: "One level up", keys: "↑", off: !levels, run: () => stepFocusLevel(-1) },
         {

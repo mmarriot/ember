@@ -1,14 +1,15 @@
 // The help dialog (key ?): every control with its key and the mouse or button that does it too, grouped as the menu
 // is, then what the side panel, the colours, expressions and sharing are.
 import { PUBLISH_COMMAND } from "../model/library";
-import { bundle } from "../model/store";
+import { bundle, tabOfDomain } from "../model/store";
 import { SYNTAX } from "./ExprForm";
 import { Modal } from "./widgets";
 
 export function HelpDialog() {
-  // The tab with the object rows: the shared domain's (e.g. Physics), named as the bundle names it.
+  // The tab with the object rows: the shared domain's (e.g. Physics), or Collections where the bar's parts share one.
   const h = bundle.value?.header,
-    listTab = h?.domains?.find((d) => d.shared && h.display.some((l) => l.list && l.domain === d.name))?.name;
+    listed = h?.domains?.find((d) => d.shared && h.display.some((l) => l.list && l.domain === d.name))?.name,
+    listTab = h && listed ? tabOfDomain(h, listed) : undefined;
   // Grouped as the menu is; each row: its keys, the mouse or button that does it too, what it does.
   const groups: [string, [string[], string, string][]][] = [
     [
@@ -66,6 +67,11 @@ export function HelpDialog() {
           ["N", "⇧N"],
           "the count on a collection's row lists its largest objects",
           "Next / previous object of the selected kind, largest first (e.g. the next jet, the next track); with nothing selected, the leading object",
+        ],
+        [
+          ["H"],
+          "Others: Dim | Faint | Hide, on the view while something is selected",
+          "How the rest of the event is drawn around the selection: dimmed, as a faint trace, or not at all (for a picture of just the selection)",
         ],
         [
           ["Esc"],

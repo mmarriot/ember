@@ -343,7 +343,7 @@ async function checkHelices(page, fail, tag) {
 
 /** With two or more domains: each one draws only its layers, those of shared domains and those without a domain,
  *  puts itself in the URL, hides the particle-type colour key if it colours layer by layer (`colourMode`), and opens
- *  its layers' tab (a shared domain its own tab; the parts of the detector the Detector tab, with its section open);
+ *  its layers' tab (with a bar, Collections, with its section open and first);
  *  another tab leaves the view as it is; All brings every layer back. */
 async function checkDomains(page, h, fail, shot, tag) {
   const names = (h.domains ?? []).map((d) => d.name);
@@ -370,13 +370,16 @@ async function checkDomains(page, h, fail, shot, tag) {
     const tabs = page.locator(".sidebar .tablist [role=tab]"),
       tabNames = await tabs.allInnerTexts();
     const tab = await page.locator(".sidebar .tablist [aria-selected=true]").innerText();
-    const expected = shared.has(name) || !tabNames.includes("Detector") ? name : "Detector";
+    const expected = tabNames.includes("Collections") ? "Collections" : name;
     if (tabNames.includes(expected) && tab !== expected)
       fail(`domain ${name} did not open its tab ${expected} (open: ${tab})`);
-    if (expected === "Detector") {
-      const open = await page.locator(".tabpanel details.part[open] > summary b").allInnerTexts();
-      if (open.join() !== name)
-        fail(`the Detector tab does not follow the bar to ${name} (open: ${open.join() || "none"})`);
+    if (expected === "Collections") {
+      const open = await page.locator(".tabpanel details.part[open] > summary b").allInnerTexts(),
+        first = await page.locator(".tabpanel details.part > summary b").first().innerText();
+      if (open.join() !== name || first !== name)
+        fail(
+          `the Collections tab does not follow the bar to ${name} (open: ${open.join() || "none"}, first: ${first})`,
+        );
     }
     await tabs.last().click({ timeout: 120000 });
     if (!new URL(page.url()).hash.includes(`d=${encodeURIComponent(name)}`))
@@ -394,10 +397,7 @@ async function checkDomains(page, h, fail, shot, tag) {
  *  inspector, the row marked). */
 async function checkObjectRows(page, h, fail, shot, tag) {
   // The first ticked layer with object rows that this viewer draws (it leaves out reprs it does not know), in its tab.
-  const tabOf = (d) =>
-    (h.domains ?? []).find((x) => x.name === d.domain)?.shared || (h.domains?.length ?? 0) < 2
-      ? (d.domain ?? "Objects")
-      : "Detector";
+  const tabOf = (d) => ((h.domains?.length ?? 0) >= 2 ? "Collections" : (d.domain ?? "Objects"));
   let d;
   for (const x of h.display.filter((l) => l.list && l.visible)) {
     await page
@@ -434,7 +434,23 @@ async function checkObjectRows(page, h, fail, shot, tag) {
     fail(`a click on a ${d.label} row did not select it (s=${s})`);
   if (!marked?.includes("selected")) fail("the selected object's row is not marked");
   await shot("1_rows");
+  // With a selection, the view offers how the rest of the event is drawn; H steps through dim, faint and hidden.
+  const others = () =>
+    page
+      .locator(".viewchips .rest button.on")
+      .innerText({ timeout: 5000 })
+      .catch(() => "");
+  const was = await others();
+  await page.keyboard.press("h");
+  await page.waitForTimeout(600);
+  const now = await others();
+  log(`${tag}: the rest of the event: ${was || "no choice shown"} -> H -> ${now}`);
+  if (!was) fail("no choice of how the rest of the event is drawn while something is selected");
+  else if (now === was) fail("H did not change how the rest of the event is drawn");
+  for (let i = 0; i < 2; i++) await page.keyboard.press("h"); // back to the level it had
   await page.keyboard.press("Escape");
+  await page.waitForTimeout(600);
+  if (await page.locator(".viewchips .rest").count()) fail("the rest's choice stays without a selection");
 }
 
 /** A selection draws its objects that a layer's filter hides (cuts still apply), and its levels drawn as lines (e.g. a
@@ -639,7 +655,9 @@ async function checkOnly(page, h, fail, shot, tag) {
   const button = page.locator(".sidebar .tabpanel section.kind:not(.folded) h3 .only").first();
   if (!(await button.count())) return;
   const before = await tables(),
-    group = (await button.locator("xpath=..").locator(".fold").innerText()).trim();
+    heading = button.locator("xpath=.."),
+    group = (await heading.locator(".fold").innerText()).trim();
+  await heading.hover({ timeout: 120000 }); // "only" shows where the pointer is
   await button.click({ timeout: 120000 });
   await page.waitForTimeout(1200);
   const alone = (await tables()).split(",").filter(Boolean),
@@ -746,6 +764,7 @@ async function deepChecks(page, h, fail, shot) {
     "x" in columns && "y" in columns
       ? "hypot(x, y)"
       : `abs(${Object.keys(columns).find((c) => columns[c].type === "f32")})`;
+  await firstLayer.locator(".row").hover(); // ⋯ shows where the pointer is
   await firstLayer.locator(".more").click();
   await firstLayer.locator(".exprform .expr").fill(expr);
   await firstLayer.locator(".exprform .name").fill("r");

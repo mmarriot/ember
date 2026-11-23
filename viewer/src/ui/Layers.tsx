@@ -3,7 +3,7 @@
 // opens its slider, Cuts.tsx) and "only". A collection is one line: tick, name, its state as chips (a filter, drawn
 // for the selection only, hidden while something is selected), its count (a click lists its largest objects,
 // ObjectRows.tsx) and ⋯ (colour, filter, new columns: LayerOptions.tsx). Under it only its colour scale, when the
-// colour key does not explain it.
+// colour key does not explain it. A row the view does not draw (not ticked, or of a part not looked at) is muted.
 import { signal } from "@preact/signals";
 import { useState } from "preact/hooks";
 import type { DisplayLayer } from "../io/format";
@@ -12,6 +12,7 @@ import { explainedByKey } from "../model/key";
 import {
   activeMode,
   bundle,
+  drawnLayers,
   event,
   focusHidden,
   focusLayers,
@@ -224,7 +225,7 @@ function LayerRow({ d, cut, here }: { d: DisplayLayer; cut?: string; here: Displ
     showLevel = () => level && (focusLevel.value = level);
   return (
     <div
-      class={`layer${on || focusLayers.value.has(key) ? "" : " off"}${activeMode.value === "truth" && noTruth(d.table) ? " faint" : ""}`}
+      class={`layer${drawnLayers.value[key] || focusLayers.value.has(key) ? "" : " off"}${activeMode.value === "truth" && noTruth(d.table) ? " faint" : ""}`}
     >
       <div class="row">
         <label title={`${d.table}${b.header.tables[d.table]?.doc ? `: ${b.header.tables[d.table].doc}` : ""}`}>

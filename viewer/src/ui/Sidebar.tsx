@@ -1,6 +1,7 @@
 // The side panel: the profile's presets, the tabs, and the colour key under them (Key.tsx). The tabs:
-// - one per part of the detector (layer `domain`) with its collections (Layers.tsx). With a domain bar, the parts of
-//   the detector share one Detector tab, which follows the bar, and each shared domain (e.g. Physics) has its own;
+// - with a domain bar (Look at), one Collections tab: the parts in the bar's order (e.g. Physics, Tracker, Calo), each
+//   a section that folds, the one looked at open and first, each saying whether the view draws it; without one, a tab
+//   per part (layer `domain`). A part's collections are listed by kind (Layers.tsx);
 // - Truth (TruthTab.tsx): the hard process, then folded: the particles in the view, the scorecard, the coverage, and
 //   the truth graph browser (its collections and the tree);
 // - Event (EventInfo.tsx).
@@ -10,7 +11,7 @@ import type { ComponentChildren } from "preact";
 import { activePreset } from "../model/custom";
 import { applyPreset, presetFits } from "../model/presets";
 import type { DisplayLayer } from "../io/format";
-import { bundle, bundleName, DETECTOR, domain, openTab } from "../model/store";
+import { bundle, bundleName, COLLECTIONS, domain, openTab, overlay, shared } from "../model/store";
 import { chooseDomain } from "../control/navigate";
 import { EventInfo } from "./EventInfo";
 import { ColourKey } from "./Key";
@@ -72,17 +73,17 @@ export function Sidebar() {
   const order = (b?.header.domains ?? []).map((d) => d.name),
     rank = (name: string) => (order.includes(name) ? order.indexOf(name) : order.length);
   const names = [...new Set(reco.map(tabOf))].sort((x, y) => rank(x) - rank(y)); // a stable sort: ties keep display order
-  // With a domain bar, the parts of the detector share one tab, Detector, which follows the bar; shared domains (e.g.
-  // Physics) and layers of no part keep a tab each.
+  // With a domain bar, its parts share one tab, Collections, which follows the bar; layers of no part keep a tab.
   const domains = b?.header.domains ?? [],
-    detectors = domains.length >= 2 ? domains.filter((d) => !d.shared).map((d) => d.name) : [];
-  const own = names.filter((name) => !detectors.includes(name));
-  const tabs: [string, () => ComponentChildren][] = own.map((name) => [
-    name,
-    () => <Collections key={`${bundleName.value}|${name}`} layers={reco.filter((d) => tabOf(d) === name)} />,
-  ]);
-  if (names.some((name) => detectors.includes(name)))
-    tabs.push([DETECTOR, () => <Detector names={detectors.filter((name) => names.includes(name))} layers={reco} />]);
+    parts = domains.length >= 2 ? domains.map((d) => d.name).filter((name) => names.includes(name)) : [];
+  const own = names.filter((name) => !parts.includes(name));
+  const tabs: [string, () => ComponentChildren][] = [];
+  if (parts.length) tabs.push([COLLECTIONS, () => <Parts names={parts} layers={reco} />]);
+  for (const name of own)
+    tabs.push([
+      name,
+      () => <Collections key={`${bundleName.value}|${name}`} layers={reco.filter((d) => tabOf(d) === name)} />,
+    ]);
   if (truth || treeRelations().length) tabs.push([truth ? "Truth" : "Tree", TruthTab]);
   tabs.push(["Event", EventInfo]);
   return (
@@ -143,23 +144,28 @@ export function Sidebar() {
   );
 }
 
-/** The parts of the detector, one section each: the one looked at open and first, with the others folded; in a shared
- *  domain's view all folded (it draws none of them), in All all open (it draws them all). */
-function Detector({ names, layers }: { names: string[]; layers: DisplayLayer[] }) {
+/** The parts of the bar (Look at), one section each, in the bar's order: the one looked at open and first, the others
+ *  folded under it; in All the shared parts (e.g. Physics: the event's objects) open and the parts of the detector
+ *  folded, so the panel starts as the event's summary over an overview of the parts (with no shared part, all open). Each says whether the view draws
+ *  it: a shared part is drawn over another part's view with its overlay. */
+function Parts({ names, layers }: { names: string[]; layers: DisplayLayer[] }) {
   const current = domain.value,
     order = [...names.filter((n) => n === current), ...names.filter((n) => n !== current)];
   return (
     <>
       {order.map((name) => {
         const here = name === current,
-          drawn = here || !current;
+          over = !here && !!current && shared.value.has(name) && overlay.value,
+          drawn = here || !current || over;
+        const own = layers.filter((d) => d.domain === name);
         return (
-          <details class="part" open={here || !current} key={`${bundleName.value}|${name}|${current}`}>
+          <details
+            class="part"
+            open={here || (!current && (shared.value.has(name) || !names.some((n) => shared.value.has(n))))}
+            key={`${bundleName.value}|${name}|${current}`}
+          >
             <summary>
-              <TickAll
-                layers={layers.filter((d) => d.domain === name)}
-                name={`collections of ${name}, of every kind`}
-              />
+              <TickAll layers={own} name={`collections of ${name}, of every kind`} />
               <b>{name}</b>{" "}
               <span
                 class="muted"
@@ -167,11 +173,13 @@ function Detector({ names, layers }: { names: string[]; layers: DisplayLayer[] }
                   drawn
                     ? here
                       ? "Drawn: the part looked at"
-                      : "Drawn in All"
+                      : over
+                        ? "Drawn over this view (its overlay is on)"
+                        : "Drawn in All"
                     : "Not drawn in this view: drawn when it is looked at (show, or D), and its objects for a selection"
                 }
               >
-                {drawn ? (here ? "looked at" : "drawn") : "not in this view"}
+                {drawn ? (here ? "looked at" : over ? "drawn over" : "drawn") : "not in this view"}
               </span>
               {!here && (
                 <button
@@ -186,7 +194,7 @@ function Detector({ names, layers }: { names: string[]; layers: DisplayLayer[] }
                 </button>
               )}
             </summary>
-            <Collections key={`${bundleName.value}|${name}`} layers={layers.filter((d) => d.domain === name)} />
+            <Collections key={`${bundleName.value}|${name}`} layers={own} />
           </details>
         );
       })}

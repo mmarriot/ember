@@ -128,7 +128,7 @@ export function helices(input: LayerInput): Layer {
   }
   const material = new THREE.ShaderMaterial({
     uniforms: {
-      ...baseUniforms(input.pal),
+      ...baseUniforms(input.pal, input.d.context),
       uDash: { value: d.truth ? 1 : 0 },
       uWidth: { value: (d.width ?? 1) * (globalThis.devicePixelRatio ?? 1) },
       uRes: { value: new THREE.Vector2(1, 1) },
@@ -177,6 +177,7 @@ export function helices(input: LayerInput): Layer {
         vec2 across = length(dir) > 1e-6 ? normalize(vec2(-dir.y, dir.x)) : vec2(0.0, 1.0);
         gl_Position.xy += across * position.y * (uWidth * (1.0 + 0.5 * s * selActive() + 2.0 * gPin) + HALO_PX) / uRes * gl_Position.w;
         #endif
+        gl_Position = inFront(gl_Position, s);
         // A selected line is lifted towards white: a thin line in a dark colour (a low-pT track) would be hard to see.
         // It flashes as it appears and, when built, as it is complete.
         float p = max(pop(iT), iL > iT && grow >= 1.0 ? pop(iL) : 0.0);

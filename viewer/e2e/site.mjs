@@ -1,13 +1,17 @@
-// The site around the bundles: the data set chooser with my files, the recent ones and the shared ones, its filter and
-// keys; a link to someone else's file; the login typed where the site does not say who is signed in; the start panel
-// of a site without data; a link to a file that is gone, or to one that is not a bundle; links that are not trusted;
-// a local file, dropped or picked; the share pop-up.
+// The site around the bundles: the data set chooser (my files, recent, shared; its filter and keys), a link to
+// someone else's file, a typed login, the start panel, links to files that are gone, not bundles or not trusted, a
+// local file dropped or picked, and the share pop-up.
 //
-// It brings its own people and files: two people (tester, who is signed in, and alice) and their files are answers
-// given to the page's requests for whoami and data/u/..., so it runs against any development server. Their bundles
-// are the site's smallest one under other names. Some of the names end in .evdb, as bundles did before the project
-// was called Ember: those still list, open from a link and open when dropped.
-import { eventRead, expected404, header, log } from "./common.mjs";
+// It brings its own people: tester (signed in) and alice, whose indexes and files answer the page's requests for
+// whoami and data/u/..., so it runs against any development server. Their bundles are the site's smallest one under
+// other names. Some end in .evdb, as bundles did before Ember: those still list, open from a link and when dropped.
+import { eventRead, failOnErrors, hasDomainBar, header, log, screenshot, succeeds } from "./common.mjs";
+
+/** The two looks each page below is checked in: theme and window width. */
+const LOOKS = [
+  ["dark", 1440],
+  ["light", 900],
+];
 
 /** Check the site around the bundles (see above). `run`: what every check needs (smoke.mjs). */
 export async function checkSite(run) {
@@ -54,7 +58,7 @@ export async function checkSite(run) {
   };
   const json = (body, status = 200) => ({ status, contentType: "application/json", body: JSON.stringify(body) });
   /** A page of the site as `who` sees it: signed in as them ("": the site has no whoami), with `shared` as the site's
-   *  list (default: its own). */
+   *  list (default: its own) and `people`'s indexes; `setup` adds a scenario's own answers, which go first. */
   const visit = async (
     hash,
     { who = "tester", shared, width = 1440, theme = "dark", people = indexes, setup } = {},
@@ -62,8 +66,7 @@ export async function checkSite(run) {
     const context = await browser.newContext({ viewport: { width, height: 860 } });
     await context.grantPermissions(["clipboard-read", "clipboard-write"]);
     const page = await context.newPage();
-    page.on("console", (m) => m.type() === "error" && !expected404(m, base) && fail(m.text()));
-    page.on("pageerror", (e) => fail(e.message));
+    failOnErrors(page, base, fail);
     await page.addInitScript((t) => {
       try {
         localStorage.setItem("evd.theme", t);
@@ -96,7 +99,7 @@ export async function checkSite(run) {
         (url) => url.pathname.endsWith("/index.json") && !url.pathname.includes("/data/u/"),
         (r) => r.fulfill(json({ bundles: shared })),
       );
-    if (setup) await setup(page); // a scenario's own answers, which go before the ones above
+    if (setup) await setup(page); // routes added last are tried first
     await page.goto(`${base}${hash}`, { timeout: 90000 });
     return page;
   };
@@ -106,20 +109,29 @@ export async function checkSite(run) {
   };
   const shot = async (page, name) => {
     await page.waitForTimeout(300);
-    await page
-      .screenshot({ path: `${out}/site_${name}.png`, timeout: 60000 })
-      .catch(() => log(`site: screenshot ${name} timed out`));
+    await screenshot(page, out, "site", name);
   };
   const sectionNames = (page) => page.$$eval(".sectionhead > span:first-child", (h) => h.map((x) => x.textContent));
   const rowTitles = (page) => page.$$eval(".dataset-row .title", (r) => r.map((x) => x.textContent));
+  /** The chooser's button: what it says, and waiting until it names `title`. */
   const label = (page) => page.textContent(".dataset .name");
+  const labelBecomes = (page, title, timeout) =>
+    page.waitForFunction((t) => document.querySelector(".dataset .name")?.textContent === t, title, { timeout });
+  /** Fire a drag event of `type` at the window, carrying a file `name` holding the bytes at `url` or the `text`. */
+  const drag = (page, type, name, { url, text }) =>
+    page.evaluate(
+      async ([type, name, url, text]) => {
+        const data = new DataTransfer();
+        data.items.add(new File([url ? await (await fetch(url)).blob() : text], name));
+        window.dispatchEvent(new DragEvent(type, { dataTransfer: data, bubbles: true, cancelable: true }));
+      },
+      [type, name, url, text],
+    );
 
   // The chooser, signed in: the button names the data set open; the panel lists the site's data sets, with the open
-  // one marked, then my files (newest first, with their expiry); the filter narrows them; ↓ and Enter open one; Esc closes.
-  for (const [theme, width] of [
-    ["dark", 1440],
-    ["light", 900],
-  ]) {
+  // one marked, then my files (newest first, with their expiry); the filter narrows them; ↓ and Enter open one; Esc
+  // closes.
+  for (const [theme, width] of LOOKS) {
     const page = await visit(`#b=${small.file}&e=0`, { theme, width });
     await shown(page);
     if ((await label(page)) !== small.title)
@@ -128,8 +140,8 @@ export async function checkSite(run) {
       fail(`the page's title "${await page.title()}" does not start with the data set's`);
     const before = await page.$eval(".chooser", (c) => c.getBoundingClientRect().width);
     // The button keeps its width from one data set to another, whatever the lengths of their names and event titles
-    // (two that differ in both; of the same kind: the detector's parts add their buttons to the bar).
-    const plain = (b) => (headers[b.file].domains ?? []).length < 2,
+    // (two that differ in both; both without a domain bar, which adds its buttons to the bar).
+    const plain = (b) => !hasDomainBar(headers[b.file]),
       twin =
         plain(small) &&
         listed.filter((b) => b !== small && plain(b)).sort((a, c) => c.title.length - a.title.length)[0];
@@ -137,9 +149,7 @@ export async function checkSite(run) {
       await page.click(".dataset");
       await page.fill(".chooserpanel .filter", twin.title);
       await page.keyboard.press("Enter");
-      await page.waitForFunction((t) => document.querySelector(".dataset .name")?.textContent === t, twin.title, {
-        timeout: 30000,
-      });
+      await labelBecomes(page, twin.title, 30000);
       await shown(page);
       const wide = await page.$eval(".chooser", (c) => c.getBoundingClientRect().width);
       if (Math.abs(wide - before) > 0.5)
@@ -149,9 +159,7 @@ export async function checkSite(run) {
       await page.click(".dataset");
       await page.fill(".chooserpanel .filter", small.title);
       await page.keyboard.press("Enter");
-      await page.waitForFunction((t) => document.querySelector(".dataset .name")?.textContent === t, small.title, {
-        timeout: 30000,
-      });
+      await labelBecomes(page, small.title, 30000);
       await shown(page);
     } else if (width > 900) log("site: no second data set without detector parts to compare the chooser's width with");
     await page.click(".dataset");
@@ -216,11 +224,7 @@ export async function checkSite(run) {
   {
     const page = await visit("#b=data/u/alice/for_the_meeting.evdb&e=1");
     await shown(page);
-    await page
-      .waitForFunction(() => document.querySelector(".dataset .name")?.textContent === "Events for the meeting", null, {
-        timeout: 10000,
-      })
-      .catch(() => {});
+    await labelBecomes(page, "Events for the meeting", 10000).catch(() => {});
     if ((await label(page)) !== "Events for the meeting")
       fail(`a link to someone's file is named "${await label(page)}", not by its title in their index`);
     await page.click(".share");
@@ -303,10 +307,7 @@ export async function checkSite(run) {
 
   // A site with no data set: the start panel says what this is and how data gets in, in place of the empty side panel;
   // its command can be copied.
-  for (const [theme, width] of [
-    ["dark", 1440],
-    ["light", 900],
-  ]) {
+  for (const [theme, width] of LOOKS) {
     const page = await visit("", { who: "", shared: [], theme, width });
     await page.waitForSelector(".startpanel .card", { timeout: 30000 });
     const text = await page.textContent(".startpanel");
@@ -325,10 +326,7 @@ export async function checkSite(run) {
 
   // A link to a file that is gone: the page says so in full (whose it was, what to do); choosing a data set from there
   // opens it and the panel goes.
-  for (const [theme, width] of [
-    ["dark", 1440],
-    ["light", 900],
-  ]) {
+  for (const [theme, width] of LOOKS) {
     const page = await visit("#b=data/u/alice/gone.ember&e=3", { theme, width });
     await page.waitForSelector(".startpanel [role=alert]", { timeout: 30000 });
     const text = await page.textContent(".startpanel");
@@ -384,11 +382,9 @@ export async function checkSite(run) {
     await page.click(".dataset");
     await page.fill(".chooserpanel .filter", quick.title);
     await page.keyboard.press("Enter");
-    await page
-      .waitForFunction((t) => document.querySelector(".dataset .name")?.textContent === t, quick.title, {
-        timeout: 60000,
-      })
-      .catch(() => fail("the data set chosen while a link was opening did not open"));
+    await labelBecomes(page, quick.title, 60000).catch(() =>
+      fail("the data set chosen while a link was opening did not open"),
+    );
     await shown(page);
     const chosen = page.url();
     await page.waitForTimeout(7000); // the link's file has answered by now
@@ -446,11 +442,7 @@ export async function checkSite(run) {
           },
         ),
     });
-    const opened = await eventRead(page).then(
-      () => true,
-      () => false,
-    );
-    if (!opened)
+    if (!(await succeeds(eventRead(page))))
       fail(`an address on another site did not open: ${await page.textContent(".startpanel").catch(() => "")}`);
     else {
       if ((await page.textContent(".dataset .tag").catch(() => "")) !== "external")
@@ -537,16 +529,8 @@ export async function checkSite(run) {
           },
         ),
     });
-    const t0 = Date.now(),
-      opened = await page
-        .waitForFunction((t) => document.querySelector(".dataset .name")?.textContent === t, listed[0].title, {
-          timeout: 3500,
-        })
-        .then(
-          () => true,
-          () => false,
-        );
-    if (!opened)
+    const t0 = Date.now();
+    if (!(await succeeds(labelBecomes(page, listed[0].title, 3500))))
       fail(
         `with a whoami that hangs, a bare address had not opened the newest shared data set after ${Date.now() - t0} ms: ${await label(page)}`,
       );
@@ -559,25 +543,13 @@ export async function checkSite(run) {
     const page = await visit(`#b=${(other ?? small).file}&e=0`);
     await shown(page);
     // Dragged over the page, the page says it can be dropped; dropped, it opens.
-    const drag = (type, name) =>
-      page.evaluate(
-        async ([type, name, url]) => {
-          const data = new DataTransfer();
-          data.items.add(new File([await (await fetch(url)).blob()], name));
-          window.dispatchEvent(new DragEvent(type, { dataTransfer: data, bubbles: true, cancelable: true }));
-        },
-        [type, name, `${base}${small.file}`],
-      );
-    await drag("dragenter", "dropped.evdb");
+    const url = `${base}${small.file}`;
+    await drag(page, "dragenter", "dropped.evdb", { url });
     if (!(await page.waitForSelector(".drophint", { timeout: 3000 }).catch(() => null)))
       fail("a file dragged over the page gets no hint that it can be dropped");
     await shot(page, "drop");
-    await drag("drop", "dropped.evdb");
-    await page
-      .waitForFunction(() => document.querySelector(".dataset .name")?.textContent === "dropped.evdb", null, {
-        timeout: 30000,
-      })
-      .catch(() => fail("a dropped file does not open"));
+    await drag(page, "drop", "dropped.evdb", { url });
+    await labelBecomes(page, "dropped.evdb", 30000).catch(() => fail("a dropped file does not open"));
     if (await page.$(".drophint")) fail("the drop hint stays after the drop");
     await shown(page);
     const bytes = Buffer.from(await (await fetch(`${base}${small.file}`)).arrayBuffer());
@@ -586,11 +558,9 @@ export async function checkSite(run) {
     const accept = await picker.element().getAttribute("accept");
     if (accept !== ".ember,.evdb") fail(`the file chooser offers "${accept}", not .ember and .evdb files`);
     await picker.setFiles({ name: "from_my_disk.ember", mimeType: "application/octet-stream", buffer: bytes });
-    await page
-      .waitForFunction(() => document.querySelector(".dataset .name")?.textContent === "from_my_disk.ember", null, {
-        timeout: 30000,
-      })
-      .catch(() => fail("a local file does not open from the chooser"));
+    await labelBecomes(page, "from_my_disk.ember", 30000).catch(() =>
+      fail("a local file does not open from the chooser"),
+    );
     await shown(page);
     if (!(await page.$(".dataset .tag"))) fail("a local file is not marked as local on the chooser's button");
     if (page.url().includes("b=")) fail(`a local file is in the address, which cannot open it: ${page.url()}`);
@@ -618,11 +588,7 @@ export async function checkSite(run) {
     const requests = [],
       page = await visit("", { who: "", shared: [], setup: (p) => p.on("request", (r) => requests.push(r.url())) });
     await page.waitForSelector(".startpanel .card", { timeout: 30000 });
-    await page.evaluate(() => {
-      const data = new DataTransfer();
-      data.items.add(new File(["these are my notes, not a bundle"], "notes.ember"));
-      window.dispatchEvent(new DragEvent("drop", { dataTransfer: data, bubbles: true, cancelable: true }));
-    });
+    await drag(page, "drop", "notes.ember", { text: "these are my notes, not a bundle" });
     await page
       .waitForSelector(".startpanel [role=alert]", { timeout: 10000 })
       .catch(() => fail("a local file that is not a bundle gets no panel"));

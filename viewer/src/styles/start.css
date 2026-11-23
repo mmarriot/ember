@@ -10,7 +10,7 @@
 }
 .app.nodata .eventnav,
 .app.nodata .topbar > .views {
-  /* nothing to step through or turn: inert, disabled (Header.tsx, Viewport.tsx) */
+  /* nothing to step through or turn: inert, disabled (Header.tsx, ViewControls.tsx) */
   opacity: 0.4;
 }
 .app.nodata .topbar > .views button {

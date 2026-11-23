@@ -2,15 +2,13 @@
 // failed, and the actions that set data.ts's signals (openBundle, showEvent). Opens and event reads may overlap; the
 // last one asked for always wins.
 import { batch, computed, signal } from "@preact/signals";
-import { around, blobSource, Bundle, HttpError, httpSource, type Source } from "../../io/bundle";
+import { around, blobSource, Bundle, httpSource, type Source } from "../../io/bundle";
 import { type DisplayLayer, type EventData, type IndexEntry, REPRS } from "../../io/format";
 import { loadCustom } from "../custom/settings";
 import { startDomain } from "../event/domains";
 import { findEvent } from "../event/find";
 import {
   cleanList,
-  describeFailure,
-  type Failure,
   forgetRecent,
   type Listed,
   locate,
@@ -21,6 +19,7 @@ import {
   readIndex,
   titleOf,
 } from "../site/library";
+import { describeFailure, type Failure, isMissing } from "../site/failure";
 import { colourChoice, truthLevel } from "./colours";
 import { bundle, bundleName, eventIndex, loadMs, loading, rawEvent, shownEntry, shownOf } from "./data";
 import { layerKey } from "./names";
@@ -219,9 +218,6 @@ export async function openSameEvent(file: string, open?: () => Promise<Source>, 
   if (ok) toast(found ? `Opened on ${id}, as before` : `${id} is not in this data set: its first event is shown`);
   return ok;
 }
-
-/** The server has no such file (what library.ts describeFailure calls "gone"). */
-const isMissing = (e: unknown) => e instanceof HttpError && (e.status === 404 || e.status === 410);
 
 /** Leave out the layers this viewer cannot draw, so the rest of the bundle still shows: a representation it does not
  *  know (a newer bundle; a console warning), or position columns the table lacks (they would be drawn at the origin;

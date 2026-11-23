@@ -124,7 +124,6 @@
   border: none;
   background: none;
   padding: 0;
-  font: inherit;
   color: inherit;
   text-transform: inherit;
   letter-spacing: inherit;
@@ -165,13 +164,11 @@
   align-items: center;
   gap: 2px;
 }
-.layer label {
+.layer .row label {
   display: flex;
   gap: 6px;
   align-items: center;
   cursor: pointer;
-}
-.layer .row label {
   flex: 1;
   min-width: 0;
 }
@@ -192,9 +189,6 @@
 .layer .row .tag {
   flex: none;
   margin-left: -2px;
-}
-.layer .row .count {
-  margin-left: auto;
 }
 .layer .count {
   white-space: nowrap;
@@ -265,7 +259,7 @@
 .truthword.match,
 .truthword.fact {
   padding: 0 4px;
-  border-color: var(--line-strong, var(--line));
+  border-color: var(--line-strong);
   color: var(--text);
 }
 /* Faint by colour, not opacity, so its text keeps a contrast of at least 4.5:1 (muted on the panel: about 5.6:1). */
@@ -303,7 +297,6 @@
   border: none;
   background: none;
   padding: 0 2px;
-  font: inherit;
   font-size: 12px;
   margin-left: auto;
 }
@@ -392,7 +385,8 @@
   display: flex;
   gap: 2px;
 }
-.dots i {
+.dots i,
+.items i {
   width: 8px;
   height: 8px;
   border-radius: 50%;
@@ -407,12 +401,6 @@
   display: flex;
   align-items: center;
   gap: 4px;
-}
-.items i {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  display: block;
 }
 .defn {
   display: flex;
@@ -535,7 +523,6 @@ details.part > summary {
   display: flex;
   align-items: baseline;
   gap: 6px;
-  cursor: pointer;
   padding: 5px 8px;
   margin: 0 -4px 4px;
   border: 1px solid var(--line);
@@ -659,14 +646,6 @@ table.outcome td:nth-child(3) {
   color: var(--muted);
   text-align: right;
 }
-table.outcome .outcell {
-  display: inline-block;
-  margin-right: 6px;
-  white-space: nowrap;
-}
-.outcome td:has(.outcell) {
-  white-space: normal;
-}
 /* A3: a particle's chip never wraps one character per line next to a wide cell. */
 table.outcome td:first-child,
 table.outcome .chip {
@@ -735,7 +714,6 @@ table.inview td > span {
 }
 .inview details.indet > summary {
   font-size: 12px;
-  cursor: pointer;
 }
 ul.hard {
   list-style: none;
@@ -770,25 +748,22 @@ ul.hard li {
   border: 0;
   background: none;
   color: var(--muted);
-  cursor: pointer;
   padding: 0;
 }
 .tree .label {
   border: 0;
   background: none;
   color: inherit;
-  cursor: pointer;
   text-align: left;
   padding: 1px 4px;
   border-radius: 4px;
-  font: inherit;
 }
 .tree .label:hover {
   background: var(--surface-2);
 }
 .tree .label.selected {
   background: var(--accent);
-  color: white;
+  color: #fff;
 }
 .tree .swatch {
   width: 8px;
@@ -801,7 +776,7 @@ ul.hard li {
 }
 .tree .chip.selected {
   background: var(--accent);
-  color: white;
+  color: #fff;
 }
 .tree input.expr {
   width: 100%;
@@ -886,10 +861,8 @@ ul.hard li {
   border: 0;
   background: none;
   color: var(--muted);
-  font: inherit;
   font-size: 11px;
   padding: 1px 7px;
-  cursor: pointer;
 }
 .colourkey .switch > .muted {
   font-size: 11px;
@@ -944,7 +917,7 @@ ul.hard li {
 }
 .key li b {
   font-weight: 600;
-  color: var(--text, inherit);
+  color: var(--text);
 }
 .keyhelp {
   margin: 4px 0 0;
@@ -966,8 +939,6 @@ ul.hard li {
 .colourkey .levelpick select {
   flex: 1;
   min-width: 0;
-  font: inherit;
-  color: var(--text);
   background: var(--surface-2);
   border: 1px solid var(--line-strong);
   border-radius: 4px;

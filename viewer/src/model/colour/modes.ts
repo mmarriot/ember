@@ -1,17 +1,15 @@
-// How colours follow the links between tables, from one root table: the truth root (the truth particles) or the
-// reconstruction root (candidates). Each table is coloured through the relation that leads towards the root, so a
-// colour chain such as hit -> layer cluster -> candidate is worked out from the bundle's relations, not named in the
-// profile. Used by the "pid" colour mode (everything takes its candidate's colour) and by the pair view
-// (model/truth/pair.ts: which candidate and which truth particle each object belongs to); the signals are in store/colours.ts.
+// How colours follow the links between tables to one root: the truth particles or the candidates. Each table is
+// coloured through the relation that leads towards the root, so a chain such as hit -> layer cluster -> candidate is
+// worked out from the bundle's relations, not named in the profile. Used by the "pid" and "truth" modes and the pair
+// view; the signals are in store/colours.ts.
 import type { DisplayLayer, Header, RelationInfo } from "../../io/format";
 
 export type ColourBy = NonNullable<DisplayLayer["colourBy"]>;
 
-/** The root tables: for truth, the truth layer with the most associations (the particles); for reco, the layer of the
- *  last reconstruction stage that holds the others of that stage (e.g. candidates, not their tracks), or the layer of
- *  the profile's `view.colourRoot` kind (the PF candidates, so that every detector takes a candidate's colour), if it
- *  holds that stage's layer (each PF candidate made from a TICL candidate points at it): without that link, the stage
- *  would lose its colours. */
+/** The root tables: for truth, the truth layer with the most associations; for reco, the layer of the last stage
+ *  that holds the others of that stage (candidates, not their tracks), or the profile's `view.colourRoot` kind (PF
+ *  candidates, so every detector takes a candidate's colour) if it holds that stage's layer (else the stage would lose
+ *  its colours). */
 export function modeRoots(header: Header): { truth?: string; reco?: string } {
   const links = (table: string) =>
     Object.values(header.relations).filter((r) => r.association && (r.from === table || r.to === table)).length;
@@ -32,22 +30,18 @@ export function modeRoots(header: Header): { truth?: string; reco?: string } {
   return { ...(truth ? { truth: truth.table } : {}), ...(reco ? { reco: reco.table } : {}) };
 }
 
-/** How each table follows the links to `root`: the root itself is "identity"; a table related to the root takes
- *  its partner through that relation; a table whose parts are linked to the root, but which is not itself, takes the
- *  root object with the most in its parts (layer clusters from the truth root: the particle with the most simulated
- *  energy in their hits; tracksters from the reco root: the candidate holding most of their layer clusters); every
- *  other table takes its neighbour on the shortest path to the root (associations count as long steps, so the
- *  reconstruction is followed first). Tables that cannot reach the root are not listed.
+/** How each table follows the links to `root`: the root is "identity"; a table related to it takes its partner; a
+ *  table whose parts are linked to the root takes the root object with the most in its parts (a trackster: the
+ *  candidate holding most of its layer clusters); any other takes its neighbour on the shortest path to the root
+ *  (associations are long steps, so the reconstruction is followed first). Tables that cannot reach it are left out.
  *
- *  `truthRoot` (the root is the truth particles; docs/truth.md "Constituents"): a reco table takes a truth colour only
- *  across its own association, or from the container it is part of (a track's hits), never from its parts or through
- *  them (a jet from its particles' tracks, a muon from its inner track, a layer cluster from the simulated energy in
- *  its hits): that would show a part's match, or a vote through hits, as the object's own. A kind with a `truthGap`
- *  and no association of its own takes no truth colour, not even its container's. */
+ *  `truthRoot` (docs/truth.md "Constituents"): a reco table takes a truth colour only across its own association or
+ *  from its container (a track's hits), never from or through its parts, which would show a part's match or a vote
+ *  through hits as its own. A kind with a `truthGap` and no association of its own takes none. */
 export function modeColouring(header: Header, root: string, truthRoot = false): Record<string, ColourBy> {
   const rels = Object.entries(header.relations).filter(([, r]) => r.from !== r.to);
   const out: Record<string, ColourBy> = { [root]: "identity" };
-  // Shortest paths from the root (a few dozen tables: a simple Dijkstra over a list is enough).
+  // Shortest paths from the root (a few dozen tables: a Dijkstra over a list is enough).
   const cost = (assoc?: boolean) => (assoc ? 1000 : 1),
     dist = new Map<string, number>([[root, 0]]),
     todo = [root];
@@ -63,21 +57,20 @@ export function modeColouring(header: Header, root: string, truthRoot = false): 
       }
     }
   }
-  // A table takes a colour from what contains it, or across an association; from what it contains (upwards) only if it
-  // is a reconstruction stage (a vote: a trackster by the candidate holding most of its clusters), and never across a
-  // pair of relations that are each other's inverse (a vertex and its tracks): a vertex is not part of a candidate.
-  // By truth, never upwards (see above).
+  // A table takes a colour from what contains it, or across an association; from what it contains only if it is a
+  // stage (a vote), and never across a pair of inverse relations (a vertex is not part of a candidate). By truth,
+  // never from what it contains.
   const staged = (table: string) =>
     !truthRoot && header.display.some((d) => d.table === table && d.stage !== undefined);
   const inverse = (r: RelationInfo) => rels.some(([, o]) => !o.association && o.from === r.to && o.to === r.from);
-  // By truth, nearest the root first, so that a table only steps towards one that already has its colour.
+  // By truth, nearest the root first, so a table only steps towards one that already has its colour.
   const tables = header.display.map((d) => d.table);
   if (truthRoot) tables.sort((a, b) => (dist.get(a) ?? Infinity) - (dist.get(b) ?? Infinity));
   for (const table of tables) {
     if (table in out || !dist.has(table)) continue;
     const gap = truthRoot ? header.display.find((d) => d.table === table)?.truthGap : undefined;
-    // By truth, an association is crossed only to the root itself: a vertex matched to a truth vertex is not given the
-    // colour of whatever particle that vertex belongs to.
+    // By truth, an association is crossed only to the root itself: a vertex matched to a truth vertex does not take
+    // that vertex's particle's colour.
     const usable = (r: RelationInfo) =>
       (r.association && (!truthRoot || r.from === root || r.to === root)) ||
       staged(table) ||
@@ -121,8 +114,7 @@ export function modeColouring(header: Header, root: string, truthRoot = false): 
   return out;
 }
 
-/** Whether `table`'s colouring leads all the way to the root (a step towards a table that is itself not coloured
- *  leads nowhere: e.g. a PF cluster by the PF candidate containing it, when PF candidates are not in the chain). */
+/** Whether `table`'s colouring leads all the way to the root (a step towards a table not coloured leads nowhere). */
 export function reachesRoot(
   header: Header,
   colouring: Record<string, ColourBy>,

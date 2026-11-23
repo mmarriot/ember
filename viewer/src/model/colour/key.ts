@@ -1,7 +1,6 @@
-// The colour key as data: what each colour in the view means, in groups: the colour mode's (truth particles,
-// candidate types, or the truth <-> reco pair), then each drawn layer's own scale that the mode does not explain. The
-// side panel draws it as HTML (ui/sidebar/Key.tsx, ui/sidebar/LayerOptions.tsx Scale) and a saved picture as 2D drawing or SVG
-// (render/overlay.ts), so a picture's key always says what the screen's says.
+// The colour key as data: what each colour in the view means, the colour mode's group first, then each drawn layer's
+// own scale that the mode does not explain. The side panel (ui/sidebar/Key.tsx) and a saved picture
+// (render/overlay.ts) both draw it, so a picture's key always says what the screen's says.
 import { computed } from "@preact/signals";
 import type { DisplayLayer, Header } from "../../io/format";
 import { PALETTES, type Legend, type Pal } from "../../render/colour";
@@ -30,9 +29,8 @@ import {
   truthText,
 } from "../store";
 
-/** One line of the key: a swatch (one colour), a few colours of one kind (one colour per object), or a value ramp
- *  (`ramp`: its colours from low to high). `small`: drawn small in the view (pile-up, no truth). `ref`: the truth
- *  particle it names. */
+/** One line of the key: one colour, a few colours of one kind, or a value ramp (`ramp`, low to high). `small`: drawn
+ *  small in the view (pile-up, no truth). `ref`: the truth particle it names. */
 export interface KeyEntry {
   label: string;
   colours: readonly string[];
@@ -40,9 +38,8 @@ export interface KeyEntry {
   small?: boolean;
   ref?: { table: string; row: number };
 }
-/** A group of lines under a title. `id`: what it is ("truth", "pair", "pid", "kinds", or a layer's key), whatever
- *  its title says, so that a user's edits of it (ui/dialogs/Picture.tsx) hold from event to event. `about`: what the title is
- *  about in this view (the pair's particle), said after it. */
+/** A group of lines under a title. `id`: what it is ("truth", "pair", "pid", "kinds", or a layer's key), so a user's
+ *  edits of it (ui/dialogs/Picture.tsx) hold from event to event. `about`: said after the title (the pair's particle). */
 export interface KeyGroup {
   id: string;
   title: string;
@@ -50,8 +47,7 @@ export interface KeyGroup {
   entries: KeyEntry[];
 }
 
-/** The pair view's classes (model/truth/pair.ts): colour, plain name, definition (behind the ⓘ). "Its match": the objects
- *  the associator rates best for the branch, in each detector's compared kind (named in the card). */
+/** The pair view's classes (truth/pair.ts): class, plain name, definition (behind the ⓘ). */
 export const CLASSES: [Exclude<PairClass, 0>, string, string][] = [
   [PAIR.matched, "found", "the particle's (its branch's) hits and objects, in its match"],
   [PAIR.split, "in another object", "the particle's, in another object of the kind compared (split off)"],
@@ -62,16 +58,15 @@ export const CLASSES: [Exclude<PairClass, 0>, string, string][] = [
   [PAIR.uncompared, "not compared", "the particle's hits where no reco kind has an association (HF, HO)"],
 ];
 
-/** The colour level the truth colours use: the one chosen in the key, else the profile's (the truth particles'
- *  `particle` bit). */
+/** The colour level the truth colours use: the one chosen in the key, else the profile's `particle` bit. */
 export function truthLevelOf(header: Header) {
   const root = modes.value.roots.truth,
     d = root ? header.display.find((l) => l.table === root) : undefined;
   return truthLevel.value ?? colourLevel(2 ** (d?.particle?.bit ?? 2));
 }
 
-/** The colour mode's group: its title ("Colour = <title>") and lines; null where there is no key (a bundle without
- *  candidates or truth). Colouring layer by layer has a title and no lines: each layer's own scale says it. */
+/** The colour mode's group; null without a key (no candidates or truth). Colouring layer by layer has a title and no
+ *  lines: each layer's own scale says it. */
 export const modeKey = computed<KeyGroup | null>(() => {
   const pair = pairView.value,
     pal = PALETTES[theme.value],
@@ -139,9 +134,8 @@ export const modeKey = computed<KeyGroup | null>(() => {
   return { id: "layers", title: "each layer's own", entries: [] };
 });
 
-/** Whether the colour key at the bottom of the panel explains the layer's colours (particle type, generator
- *  particle, or the pair view), so its own legend would only repeat it. In the truth colours, a kind with no CMSSW
- *  associator is the key's one "faint" line (and its heading's word), not a line under each of its collections. */
+/** Whether the mode's key explains the layer's colours, so its own legend would only repeat it. In the truth colours,
+ *  a kind with no associator is the key's one "faint" line, not a line under each of its collections. */
 export function explainedByKey(d: DisplayLayer) {
   const mode = activeMode.value;
   if (mode === "layers" || d.context || colourBy.value[layerKey(d)]) return false;
@@ -157,8 +151,8 @@ export function explainedByKey(d: DisplayLayer) {
   return !d.truth && (d.table === modes.value.roots.reco || shownLayer(d).colourBy !== d.colourBy);
 }
 
-/** A layer's own colours as key lines: its categories, or a few of its colours and what they stand for, or its value
- *  ramp with its range (`column`: and the column it shows). */
+/** A layer's own colours as key lines: its categories, a few of its colours and what they stand for, or its value
+ *  ramp with its range (`column`: and its column). */
 export function layerEntries(d: DisplayLayer, legend: Legend, pal: Pal, column = true): KeyEntry[] {
   const shownD = shownLayer(d, activeMode.value, colourBy.value);
   if (legend.kind === "ramp") {
@@ -177,15 +171,14 @@ export function layerEntries(d: DisplayLayer, legend: Legend, pal: Pal, column =
   return [{ label, colours: (identity ? pal.identity : pal.categories).slice(0, 5) }];
 }
 
-/** A layer's name standing alone, as in a picture's key: its label, after its kind's where the label does not say it
- *  ("Jets: AK4 PUPPI (raw, no JEC)", "GSF tracks: Of the electrons"; but "Electrons (HGCal)"). */
+/** A layer's name standing alone: its label, after its kind's where the label does not say it ("Jets: AK4 PUPPI (raw,
+ *  no JEC)"; but "Electrons (HGCal)"). */
 export const layerTitle = (d: DisplayLayer) =>
   d.label.toLowerCase().includes(d.group.toLowerCase()) ? d.label : `${d.group}: ${d.label}`;
 
-/** The whole key of the view as drawn now, for a picture that stands alone: the mode's group (the pair's about its
- *  particle) where something drawn takes its colours, then each layer with something drawn whose colours the mode
- *  does not explain (as the side panel shows them under the layers' rows). Layers in one colour of their kind, which
- *  the panel names by their row alone, share one untitled group ("● Jets ● Muons"). */
+/** The whole key of the view as drawn now, for a picture: the mode's group where something drawn takes its colours,
+ *  then each drawn layer whose colours the mode does not explain. Layers in one colour of their kind share one
+ *  untitled group ("● Jets ● Muons"). */
 export const viewKey = computed<KeyGroup[]>(() => {
   const pal = PALETTES[theme.value],
     pair = pairView.value,

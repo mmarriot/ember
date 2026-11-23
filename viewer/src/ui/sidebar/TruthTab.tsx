@@ -1,14 +1,14 @@
-// The Truth tab of the side panel: the hard process, open; then, each folded to its heading, the particles in the view
-// (what became of each one that left hits), the event's reco <-> truth scorecard, the truth coverage of each kind, and
-// the truth graph browser (the truth collections and the trees of objects linked to objects of the same table,
-// Tree.tsx). A bundle with such trees but no truth calls the tab "Tree", and folds nothing.
+// The side panel's Truth tab (docs/viewer.md "Truth tab"): the hard process, open; then, each folded to its heading,
+// the particles in the view, the reco <-> truth scorecard, the truth coverage of each kind, and the truth graph browser
+// (Tree.tsx). A bundle with trees but no truth calls the tab "Tree", and folds nothing.
 import { effect, signal } from "@preact/signals";
 import { filterMask, filters } from "../../model/custom/custom";
 import { matchTally } from "../../model/event/chain";
 import { factIn, facts } from "../../model/truth/facts";
 import { particlesInView, topCopy, type ViewRow } from "../../model/truth/truth";
 import { percent, TARGETS, type TruthStatus } from "../../model/truth/match";
-import { bestPartners, cached } from "../../model/event/relations";
+import { bestPartners, cached, type Ref } from "../../model/event/relations";
+import type { Match } from "../../io/format";
 import {
   bundle,
   chipText,
@@ -34,8 +34,8 @@ import { jump } from "../../control/navigate";
 import { passing } from "./ObjectRows";
 import { Tree, treeRelations } from "./Tree";
 
-/** Which of the tab's folded sections are open, kept while the tab is closed and between events (a plain <details>
- *  would fold again on every visit). */
+/** Which folded sections are open, kept while the tab is closed and between events (a plain <details> would fold
+ *  again on every visit). */
 const folds = signal<Record<string, boolean>>({});
 const fold = (name: string) => ({
   open: folds.value[name] ?? false,
@@ -44,7 +44,7 @@ const fold = (name: string) => ({
     if (open !== (folds.peek()[name] ?? false)) folds.value = { ...folds.peek(), [name]: open };
   },
 });
-// a truth particle selected anywhere (X, a hard-process chip) opens the browser, whose tree shows its path
+// A truth particle selected anywhere (X, a hard-process chip) opens the browser, whose tree shows its path.
 effect(() => {
   const sel = selection.value;
   if (sel && sel.table === modes.peek().roots.truth && !folds.peek().browser)
@@ -52,14 +52,23 @@ effect(() => {
 });
 
 const go = (table: string, row: number) => jump({ table, row });
-const LISTED = 100; // objects listed under "what became of each one"; the rest are counted
+const LISTED = 100; // objects listed per table; the rest are counted
+
+/** A chip that selects row `row` of `table`, lit while it is the selection; a truth object is named by `describe`. */
+const selectChip = (sel: Ref | null, table: string, row: number, text?: string) => (
+  <button class={sel?.table === table && sel.row === row ? "chip selected" : "chip"} onClick={() => go(table, row)}>
+    {text ?? ((layerOf(table)?.truth && describe(table, row)) || chipText(table, row))}
+  </button>
+);
+
+/** What a match counts, for "clean from 50% of its energy". */
+const counted = (m: Match) => (m.measure === "hits" ? "hits" : m.measure === "pt2" ? "tracks' pT²" : "energy");
 
 /** The tab's content. The tabs (widgets.tsx) call it as a plain function, not as a component: it must not use hooks. */
 export function TruthTab() {
   const trees = treeRelations(),
     truth = bundle.value?.header.display.filter((d) => d.truth) ?? [];
   const browse = trees.map(([name, table]) => <Tree name={name} table={table} />);
-  // With truth, the tab opens on the hard process: everything under it is folded, each section to its own heading.
   return (
     <div>
       {truth.length > 0 && <HardProcess />}
@@ -85,9 +94,8 @@ export function TruthTab() {
   );
 }
 
-/** The hard process (docs/viewer.md "Truth tab"): the outgoing legs of the hard scatter (truth level HardProcess, bit
- *  1), each once (its generator copies folded), under the particle they came from (t -> b W⁺; W⁺ -> μ⁺ ν). A leg
- *  that is a parton jet (bit 7) says so. Each is a button. */
+/** The outgoing legs of the hard scatter (truth level HardProcess, bit 1), each once (its generator copies folded),
+ *  under the particle they came from (t -> b W⁺; W⁺ -> μ⁺ ν). */
 function HardProcess() {
   const tg = truthGraph.value,
     d = tg ? layerOf(tg.particles) : undefined,
@@ -104,7 +112,7 @@ function HardProcess() {
       if (!legs.includes(top)) legs.push(top);
     }
   if (!legs.length) return null;
-  const from = new Map<number, number[]>(); // the leg's parent (its top copy), -1 for none -> its legs
+  const from = new Map<number, number[]>(); // a parent's top copy (-1 for none) -> its legs
   for (const r of legs) {
     const p = g.parents(r)[0],
       k = p === undefined ? -1 : topCopy(g, p);
@@ -148,7 +156,7 @@ function HardProcess() {
   );
 }
 
-/** The count unfolded in the scorecard: "<table>|<class>". */
+/** The scorecard's unfolded count: "<table>|<class>". */
 const opened = signal<string | null>(null);
 const CLASSES = [
   ["clean", "q-clean", "a best match with purity at or above the kind's threshold"],
@@ -160,9 +168,8 @@ const CLASSES = [
   ],
 ] as const;
 
-/** The Truth tab's scorecard: for each reco kind the CMSSW associator matches, how many of the objects that pass their
- *  cuts and filters are a clean match, an impure one, or unmatched (model/event/chain.ts matchTally). A count unfolds to its
- *  objects, largest first: the event's fakes and merges, one click away. */
+/** For each reco kind the CMSSW associator matches, how many of the objects that pass their cuts and filters are a
+ *  clean match, an impure one, or unmatched (model/event/chain.ts matchTally). A count unfolds to its objects. */
 function Scorecard() {
   const b = bundle.value,
     ev = event.value,
@@ -208,7 +215,7 @@ function Scorecard() {
                 <>
                   <tr>
                     <td
-                      title={`${match.target ? `They reconstruct ${TARGETS[match.target]}. ` : ""}${tally.good !== undefined ? `Clean: at least ${percent(tally.good)} of its ${match.measure === "hits" ? "hits" : match.measure === "pt2" ? "tracks' pT²" : "energy"} from its match.` : ""}`}
+                      title={`${match.target ? `They reconstruct ${TARGETS[match.target]}. ` : ""}${tally.good !== undefined ? `Clean: at least ${percent(tally.good)} of its ${counted(match)} from its match.` : ""}`}
                     >
                       {stepName(d.table)}
                     </td>
@@ -252,8 +259,7 @@ function Scorecard() {
   );
 }
 
-/** The Truth tab's first section: what the truth graph says about each kind drawn from this bundle (docs/truth.md
- *  "Where truth stops"), in the words of the inspector and the colour key. */
+/** What the truth graph says about each kind drawn from this bundle (docs/truth.md "Where truth stops"). */
 function Coverage() {
   const b = bundle.value,
     statuses = truthStatuses.value;
@@ -271,7 +277,7 @@ function Coverage() {
     s.kind === "match"
       ? [
           `matched by CMSSW`,
-          `${s.match.target ? `reconstruct ${TARGETS[s.match.target]}; ` : ""}clean from ${percent(s.match.good)} of its ${s.match.measure === "hits" ? "hits" : s.match.measure === "pt2" ? "tracks' pT²" : "energy"}${s.match.in ? ` (${s.match.in})` : ""}`,
+          `${s.match.target ? `reconstruct ${TARGETS[s.match.target]}; ` : ""}clean from ${percent(s.match.good)} of its ${counted(s.match)}${s.match.in ? ` (${s.match.in})` : ""}`,
         ]
       : s.kind === "fact"
         ? [
@@ -281,8 +287,7 @@ function Coverage() {
         : s.kind === "container"
           ? ["with what contains it", "no truth of its own: drawn in the colour of the object it belongs to"]
           : ["no CMSSW associator", s.reason];
-  // Folded to one line of counts (e.g. "7 matched · 9 no associator"): the list is long, and the collections come
-  // after it.
+  // Folded to one line of counts: "7 matched · 9 no associator".
   const counts = (["match", "fact", "container", "none"] as const)
     .map((k) => [k, rows.filter(([, st]) => st.kind === k).length] as const)
     .filter(([, n]) => n);
@@ -321,12 +326,9 @@ function Coverage() {
   );
 }
 
-/** What became of each object of `table` that left hits (associations to a layer drawn as cells; e.g. each simulated
- *  particle): its best match (by the association's `best` weight) among the objects of the latest reconstruction
- *  stage it has associations to. Only reads the associations in the file; objects with none are flagged. With
- *  simulation facts in several detectors (the truth particles), one match per detector it left hits in, each against
- *  the kind compared there (model/truth/pair.ts comparedKind): a barrel electron is matched by its ECAL cluster, not "lost"
- *  for want of an HGCal trackster. */
+/** What became of each object of `table` that left hits: its best match among the objects of the latest
+ *  reconstruction stage it has associations to, from the associations in the file. The truth particles, with
+ *  simulation facts in several detectors, are listed per detector instead (InView). */
 function Outcome({ table }: { table: string }) {
   const b = bundle.value!,
     ev = event.value!,
@@ -337,7 +339,8 @@ function Outcome({ table }: { table: string }) {
   const rels = Object.entries(b.header.relations).filter(
     ([n, r]) => r.from === table && r.association && ev.relations[n],
   );
-  const hitRels = rels.filter(([n, r]) => factIn(b.header, n) !== undefined || isHitLayer(layerOf(r.to))); // facts; cells without truth (a tree)
+  // to hits: simulation facts, or cells without truth (a tree)
+  const hitRels = rels.filter(([n, r]) => factIn(b.header, n) !== undefined || isHitLayer(layerOf(r.to)));
   const final = b.header.display
     .filter((l) => l.stage !== undefined && rels.some(([, r]) => r.to === l.table))
     .reduce<(typeof b.header.display)[number] | undefined>((a, l) => (!a || l.stage! > a.stage! ? l : a), undefined);
@@ -361,11 +364,7 @@ function Outcome({ table }: { table: string }) {
   const best = bestPartners(rel, info, true, t.n).entry;
   const matched = withHits.filter((r) => best[r] >= 0),
     missed = withHits.filter((r) => best[r] < 0);
-  const chip = (tab: string, r: number) => (
-    <button class={sel?.table === tab && sel.row === r ? "chip selected" : "chip"} onClick={() => go(tab, r)}>
-      {(layerOf(tab)?.truth && describe(tab, r)) || chipText(tab, r)}
-    </button>
-  );
+  const chip = (tab: string, r: number) => selectChip(sel, tab, r);
   return (
     <section class="outcome">
       <h3>
@@ -412,10 +411,10 @@ function Outcome({ table }: { table: string }) {
 /** Which column "Particles in this view" is sorted by, largest first. */
 const sortBy = signal<"amount" | "completeness" | "split">("amount");
 
-/** The truth entry point (docs/viewer.md "Particles in this view"): detector by detector of the view, the particles
- *  with simulated energy in its hits (in the tracker, those its tracks are matched to), largest first, each with its
- *  best object of the kind compared there, that object's completeness for it, how many objects of the kind hold part of
- *  it, and whether its best object is also another particle's. Sortable; a click selects. */
+/** Particles in this view (docs/viewer.md): per detector of the view, the particles with simulated energy in its hits
+ *  (in the tracker, those its tracks are matched to), each with its best object of the kind compared there
+ *  (model/truth/pair.ts comparedKind), that object's completeness, how many objects hold part of it, and whether its
+ *  best object is also another particle's. */
 function InView({ table }: { table: string }) {
   const b = bundle.value!,
     ev = event.value!,
@@ -431,15 +430,11 @@ function InView({ table }: { table: string }) {
   const order = sortBy.value,
     value = (r: ViewRow) =>
       order === "amount" ? r.amount : order === "completeness" ? (r.completeness ?? -1) : r.split;
-  const chip = (tab: string, r: number, text?: string) => (
-    <button class={sel?.table === tab && sel.row === r ? "chip selected" : "chip"} onClick={() => go(tab, r)}>
-      {text ?? ((layerOf(tab)?.truth && describe(tab, r)) || chipText(tab, r))}
-    </button>
-  );
+  const chip = (tab: string, r: number, text?: string) => selectChip(sel, tab, r, text);
   const amount = (x: number) => (x < 1 ? `${short(1000 * x)} MeV` : `${short(x)} GeV`);
   const total = new Set(dets.flatMap((d) => d.rows.map((r) => r.particle))).size,
     sims = new Set(dets.map((d) => d.by === "simEnergy")),
-    // what the first column sorts by: the energy deposited in a calorimeter, a track's particle's pT
+    // the energy deposited in a calorimeter, or a track's particle's pT
     amountName = sims.size > 1 ? "deposited energy or pT" : sims.has(true) ? "deposited energy" : "pT";
   return (
     <section class="outcome inview fold">

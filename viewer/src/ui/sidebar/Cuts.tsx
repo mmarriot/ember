@@ -1,5 +1,5 @@
-// A cut group's minimum (e.g. the pT of jets): a chip on a kind's heading or a collection's row that names it, and in
-// its pop-up a slider on a log scale with the exact value. A cut applies to every collection of its group.
+// A cut group's minimum (e.g. the pT of jets): a chip on a kind's heading or a collection's row, and in its pop-up a
+// log slider with the exact value. A cut applies to every collection of its group.
 import { computed } from "@preact/signals";
 import type { DisplayLayer } from "../../io/format";
 import { cutAmount, cutName } from "../../model/custom/cuts";
@@ -32,8 +32,7 @@ const sliderRanges = computed(() => {
   return out;
 });
 
-/** A cut group's minimum as one chip, "pT ≥ 30 GeV" ("no cut" at 0; marked when it is not the profile's): a click
- *  opens its slider in a pop-up. */
+/** A cut group's minimum as a chip, "pT ≥ 30 GeV" ("no cut" at 0; marked when not the profile's). */
 export function CutChip({ name, here, row }: { name: string; here: DisplayLayer[]; row?: string }) {
   const g = cutGroups.value.get(name);
   if (!g) return null;
@@ -50,8 +49,7 @@ export function CutChip({ name, here, row }: { name: string; here: DisplayLayer[
   );
 }
 
-/** A cut group's minimum (in the pop-up of its chip): log slider and exact value, labelled by its `label` or the
- *  column it cuts. It applies to every layer of the group, also those listed elsewhere (named under it). */
+/** A cut group's slider and exact value; the layers of the group listed elsewhere are named under it. */
 function CutRow({ name, here }: { name: string; here: DisplayLayer[] }) {
   const g = cutGroups.value.get(name);
   if (!g) return null;

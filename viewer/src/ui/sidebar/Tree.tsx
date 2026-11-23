@@ -1,7 +1,7 @@
 // Objects linked to objects of the same table (e.g. truth particles -> their daughters) as a tree that folds, in the
-// Truth tab (TruthTab.tsx). A click on an object selects it; an object selected elsewhere opens the tree down to it.
-// For the truth particles, a particle's generator copies are one node ("μ⁺ ×4"), and the search takes a name, a pdgId,
-// truth levels and what a particle did (docs/viewer.md "Truth tab").
+// Truth tab. An object selected elsewhere opens the tree down to it. For the truth particles, a particle's generator
+// copies are one node ("μ⁺ ×4"), and the search takes a name, a pdgId, truth levels and what a particle did
+// (docs/viewer.md "Truth tab").
 import { useEffect, useMemo, useState } from "preact/hooks";
 import type { Relation } from "../../io/format";
 import { filterMask, filters } from "../../model/custom/custom";
@@ -73,8 +73,7 @@ export function Tree({ name, table }: { name: string; table: string }) {
   const q = parseTruthQuery(query),
     flags = g && layerOf(table)?.particle ? layerOf(table)!.particle!.flags : undefined;
   const pdgNames = layerOf(table)?.describe?.names?.pdgId ?? {};
-  // A particle's levels are those of any of its copies (the hard process is the first copy's, status 23): OR-ed per
-  // top copy, once per event.
+  // A particle's levels are those of any of its copies (the hard process is the first copy's, status 23).
   const topFlags = useMemo(() => {
     const out = new Uint32Array(g?.n ?? 0);
     if (g && flags) for (let r = 0; r < g.n; r++) out[g.top[r]] |= g.col(flags, r);
@@ -82,7 +81,7 @@ export function Tree({ name, table }: { name: string; table: string }) {
   }, [g, flags]);
   const groupFlags = (r: number) => (g ? topFlags[g.top[r]] : 0);
   // What a particle did: the reasons of the vertices where its daughters were made (not its end vertex, which is
-  // only the latest of them), and where.
+  // only the latest of them).
   const did = (r: number, reason: number) => (g ? daughterVertices(g, r).find((v) => v.reason === reason) : undefined);
   const searching = !!q || levels.size > 0 || process !== null;
   const found = searching
@@ -99,7 +98,7 @@ export function Tree({ name, table }: { name: string; table: string }) {
         }),
       )
     : [];
-  // The levels and processes offered, with how many particles (the filter's) have them.
+  // The levels offered, with how many particles (passing the filter) have them.
   const levelCounts = useMemo(
     () =>
       g && flags
@@ -121,7 +120,7 @@ export function Tree({ name, table }: { name: string; table: string }) {
   };
   const sel = selection.value;
   useEffect(() => {
-    // open the path to an object selected elsewhere (e.g. a matched truth particle)
+    // Open the path to an object selected elsewhere (e.g. a matched truth particle).
     if (sel?.table !== table) return;
     const path = new Set(open);
     for (let todo = [...parents[sel.row]]; todo.length; ) {

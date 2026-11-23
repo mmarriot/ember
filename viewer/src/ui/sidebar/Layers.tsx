@@ -1,9 +1,7 @@
-// The collections of one side-panel tab (a part of the detector, or the truth): grouped by kind of object. A kind's
-// heading carries its cut as a chip ("pT ≥ 30 GeV": a click
-// opens its slider, Cuts.tsx) and "only". A collection is one line: tick, name, its state as chips (a filter, drawn
-// for the selection only, hidden while something is selected), its count (a click lists its largest objects,
-// ObjectRows.tsx) and ⋯ (colour, filter, new columns: LayerOptions.tsx). Under it only its colour scale, when the
-// colour key does not explain it. A row the view does not draw (not ticked, or of a part not looked at) is muted.
+// The collections of one side-panel tab (a part of the detector, or the truth), grouped by kind of object. A kind's
+// heading carries its cut chip (Cuts.tsx) and "only". A collection is one line: tick, name, its state as chips, its
+// count (a click lists its largest objects, ObjectRows.tsx) and ⋯ (LayerOptions.tsx); under it its colour scale when
+// the colour key does not explain it. A row the view does not draw is muted.
 import { signal } from "@preact/signals";
 import { useState } from "preact/hooks";
 import type { DisplayLayer } from "../../io/format";
@@ -39,7 +37,7 @@ import { summaryLayers } from "../viewport/TitleBox";
 /** The tab a layer is listed in: its `domain`, or "Objects" for bundles made before layers had one. */
 export const tabOf = (d: DisplayLayer) => d.domain ?? "Objects";
 
-/** Kinds folded to their heading (by their first layer), for this page's life: a long tab (e.g. Physics) gets short. */
+/** Kinds folded to their heading (by their first layer's key), for this page's life. */
 const folded = signal(new Set<string>());
 const fold = (id: string) => {
   const f = new Set(folded.peek());
@@ -56,7 +54,7 @@ export function Collections({ layers }: { layers: DisplayLayer[] }) {
   const onHeading = (ls: DisplayLayer[]) => cutsOf(ls).length === 1 && ls.every((d) => d.cut);
   const rowCut = (d: DisplayLayer, ls: DisplayLayer[]) =>
     d.cut && !onHeading(ls) && ls.find((x) => x.cut?.group === d.cut!.group) === d ? d.cut.group : undefined;
-  // The tab's count in one line, unless the view's title box gives it (a tab of the physics objects)
+  // The tab's count in one line, unless the view's title box gives it (a tab of the physics objects).
   const inTitle = new Set(summaryLayers());
   return (
     <>
@@ -133,9 +131,9 @@ export function TickAll({ layers, name }: { layers: DisplayLayer[]; name: string
   );
 }
 
-/** In the truth colours: what the truth graph says about a kind (docs/truth.md, model/truth/match.ts truthStatus), in one
- *  word on its heading, the reason on hover; on each row instead where its layers differ (e.g. ECAL PF clusters are
- *  matched, HF ones have none). Nothing in the reco colours. */
+/** In the truth colours: what the truth graph says about a kind (model/truth/match.ts truthStatus), in one word on its
+ *  heading, the reason on hover; on each row instead where its layers differ (ECAL PF clusters are matched, HF ones
+ *  have none). */
 const WORDS = {
   match: ["match", "matched by CMSSW's associator"],
   fact: ["sim", "a simulation fact: simulated energy per particle in each hit"],
@@ -157,31 +155,32 @@ const kindLayers = (d: DisplayLayer) => (bundle.value?.header.display ?? []).fil
 /** Whether the layers have one truth status (so one word on their heading). */
 const sameTruth = (ls: DisplayLayer[]) => new Set(ls.map((l) => truthStatuses.value.get(l.table)?.kind)).size <= 1;
 
-/** A symbol for how a layer is drawn, shown before its name. */
-const glyph = (d: DisplayLayer) =>
-  d.repr === "cells"
-    ? "⬢"
-    : d.repr === "markers"
-      ? "•"
-      : d.repr === "segments"
-        ? d.truth
-          ? "┄"
-          : "─"
-        : d.repr === "helix"
-          ? d.truth
-            ? "┄"
-            : "∿"
-          : d.repr === "polyline"
-            ? "⟋"
-            : d.repr === "cones"
-              ? "◺"
-              : d.shape === "shell"
-                ? "◯"
-                : d.shape === "cage"
-                  ? "⊕"
-                  : d.shape === "core"
-                    ? "●"
-                    : "⬮";
+/** A symbol for how a layer is drawn, shown before its name; a truth line is dashed. */
+function glyph(d: DisplayLayer) {
+  switch (d.repr) {
+    case "cells":
+      return "⬢";
+    case "markers":
+      return "•";
+    case "segments":
+      return d.truth ? "┄" : "─";
+    case "helix":
+      return d.truth ? "┄" : "∿";
+    case "polyline":
+      return "⟋";
+    case "cones":
+      return "◺";
+  }
+  switch (d.shape) {
+    case "shell":
+      return "◯";
+    case "cage":
+      return "⊕";
+    case "core":
+      return "●";
+  }
+  return "⬮";
+}
 
 /** A layer's filter (in the pop-up of its chip): the expression, and its removal. */
 function FilterPop({ table }: { table: string }) {
@@ -205,7 +204,7 @@ function FilterPop({ table }: { table: string }) {
   );
 }
 
-/** One collection's row; under it its colour scale or, behind ⋯, its options, and its largest objects when listed. */
+/** One collection's row; under it its colour scale or its options (⋯), and its largest objects when listed. */
 function LayerRow({ d, cut, here }: { d: DisplayLayer; cut?: string; here: DisplayLayer[] }) {
   const b = bundle.value!,
     key = layerKey(d),

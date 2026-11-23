@@ -1,7 +1,7 @@
-// A collection's colours: its scale under its row (Scale), and behind its ⋯ what colours it, with a filter or a new
-// column for its table (Options, ExprForm.tsx) and the table's custom columns.
+// A collection's colours: its scale under its row (Scale), and behind its ⋯ what colours it, a filter or a new column
+// for its table (ExprForm.tsx) and the table's custom columns (Options).
 import { type DisplayLayer } from "../../io/format";
-import { colourBy, customColumns, RELATION } from "../../model/custom/custom";
+import { colourBy, type CustomColumn, customColumns, RELATION } from "../../model/custom/custom";
 import { PALETTES, relatedColourText, type Legend } from "../../render/colour";
 import { layerEntries } from "../../model/colour/key";
 import { activeMode, bundle, event, layerKey, modes, shownLayer, theme } from "../../model/store";
@@ -9,15 +9,14 @@ import { ExprForm } from "./ExprForm";
 import { Swatch } from "./Key";
 import { Icon } from "../common/widgets";
 
-/** Behind ⋯: what colours the layer (any column, custom ones too, or a related object), with its scale; a filter or a
- *  new column for its table; the table's custom columns. */
+/** Behind ⋯: what colours the layer (any column, or a related object), with its scale; the expression form; the
+ *  table's custom columns. */
 export function Options({ d, legend }: { d: DisplayLayer; legend?: Legend }) {
   const key = layerKey(d),
     chosen = colourBy.value[key] ?? "",
     header = bundle.value!.header;
   const columns = Object.keys(event.value?.tables[d.table]?.columns ?? {});
-  // One choice per related drawn table; of two relations between the same tables (e.g. reco -> truth best match, and
-  // truth -> reco sharing), the one that points from this layer wins.
+  // One choice per related drawn table; of two relations between the same tables, the one from this layer wins.
   const drawnTables = new Set(header.display.map((l) => l.table)),
     byTable = new Map<string, string>();
   for (const [name, r] of Object.entries(header.relations)) {
@@ -70,26 +69,33 @@ export function Options({ d, legend }: { d: DisplayLayer; legend?: Legend }) {
       </div>
       <ExprForm table={d.table} />
       {defs.map((c) => (
-        <div class="defn">
-          <code>
-            {c.name} = {c.expr}
-          </code>
-          <button
-            class="icon-button small"
-            title="Remove column"
-            onClick={() => (customColumns.value = customColumns.value.filter((x) => x !== c))}
-          >
-            <Icon name="close" />
-          </button>
-        </div>
+        <ColumnDef c={c} />
       ))}
     </div>
   );
 }
 
-/** A layer's colours: its categories, or a few swatches and what they stand for, or a value ramp with its range (and
- *  its column, unless `full`: there the colour choice above names it). A kind's own colour needs none: its row names
- *  it. */
+/** A custom column's definition, with a button that removes it. `withTable`: its table named before it. */
+export function ColumnDef({ c, withTable, title }: { c: CustomColumn; withTable?: boolean; title?: string }) {
+  return (
+    <div class="defn" title={title}>
+      {withTable && <span class="muted">{c.table}</span>}
+      <code>
+        {c.name} = {c.expr}
+      </code>
+      <button
+        class="icon-button small"
+        title="Remove column"
+        onClick={() => (customColumns.value = customColumns.value.filter((x) => x !== c))}
+      >
+        <Icon name="close" />
+      </button>
+    </div>
+  );
+}
+
+/** A layer's colours: its categories, a few swatches, or a value ramp with its range (and its column, unless `full`:
+ *  the colour choice above names it). A kind's own colour needs none. */
 export function Scale({ d, legend, full = false }: { d: DisplayLayer; legend: Legend; full?: boolean }) {
   const shownD = shownLayer(d, activeMode.value, colourBy.value);
   if (shownD.fixedColour && (shownD.colourBy === undefined || shownD.colourBy === "none")) return null;

@@ -1,6 +1,5 @@
 // A side-panel tab's objects as rows: the event in one line over the collections (Headline), and a collection's
-// largest objects, one row each with its columns (ObjectRows). A click on a row selects the object; pointing at one
-// rings it in the view.
+// largest objects, one row each with its columns (ObjectRows).
 import { type DisplayLayer, kindName, unitOf } from "../../io/format";
 import { filterMask, filters } from "../../model/custom/custom";
 import { columnName, passes, topRows, whyHidden } from "../../model/event/objects";
@@ -29,10 +28,16 @@ export function passing(d: DisplayLayer) {
   return { t, min, keep, pass: passes(d, t, min, keep) };
 }
 
+/** How many rows pass. */
+function countPassing(p: NonNullable<ReturnType<typeof passing>>) {
+  let n = 0;
+  for (let i = 0; i < p.t.n; i++) if (p.pass(i)) n++;
+  return n;
+}
+
 /** The event in one line, from the ticked layers with object rows (`list`): how many objects of each kind pass the cuts
- *  and filters ("Jets 4", the layers of a kind summed, e.g. barrel and endcap electrons), or the value of a one-object
- *  table ("Puppi MET 42.2 GeV"). As [name, value, note] triples; `note`: why a selected object of the kind is not
- *  counted ("below the electron pT cut"). */
+ *  and filters ("Jets 4", a kind's layers summed), or a one-object table's value ("Puppi MET 42.2 GeV"). As [name,
+ *  value, note] triples; `note`: why a selected object of the kind is not counted ("below the electron pT cut"). */
 export function headline(layers: DisplayLayer[]): [string, string, string?][] {
   const parts = new Map<string, number | string>(),
     sel = selection.value,
@@ -48,10 +53,8 @@ export function headline(layers: DisplayLayer[]): [string, string, string?][] {
       parts.set(d.label, `${plain(Number(col[0]))}${unit ? ` ${unit}` : ""}`);
       continue;
     }
-    let n = 0;
-    for (let i = 0; i < p.t.n; i++) if (p.pass(i)) n++;
     const name = kindName(d);
-    parts.set(name, (Number(parts.get(name)) || 0) + n);
+    parts.set(name, (Number(parts.get(name)) || 0) + countPassing(p));
     const why = sel?.table === d.table && sel.row < p.t.n ? whyHidden(d, p.t, p.min, p.keep, sel.row) : undefined;
     if (why)
       hidden.set(
@@ -81,8 +84,8 @@ export function Headline({ layers }: { layers: DisplayLayer[] }) {
   ) : null;
 }
 
-/** The largest objects of a layer with a `list` hint, one row each with its columns; a click selects (and frames) it,
- *  the pointer over a row rings the object in the view. */
+/** A layer's largest objects, one row each with its columns; a click selects it, pointing at a row rings it in the
+ *  view. */
 export function ObjectRows({ d, list = d.list! }: { d: DisplayLayer; list?: NonNullable<DisplayLayer["list"]> }) {
   const p = passing(d),
     sel = selection.value;
@@ -90,11 +93,7 @@ export function ObjectRows({ d, list = d.list! }: { d: DisplayLayer; list?: NonN
   const cols = list.columns.filter((c) => c in p.t.columns);
   const rows = topRows(p.t, list.sort ?? sizeColumn(d.table, p.t), p.pass, list.max ?? 10);
   if (!rows.length) return null;
-  const more = (() => {
-    let n = 0;
-    for (let i = 0; i < p.t.n; i++) if (p.pass(i)) n++;
-    return n - rows.length;
-  })();
+  const more = countPassing(p) - rows.length;
   return (
     <table class="objects">
       <thead>

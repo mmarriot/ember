@@ -1,11 +1,6 @@
-// The side panel: the profile's presets, the tabs, and the colour key under them (Key.tsx). The tabs:
-// - with a domain bar (Look at), one Collections tab: the parts in the bar's order (e.g. Physics, Tracker, Calo), each
-//   a section that folds, the one looked at open and first, each saying whether the view draws it; without one, a tab
-//   per part (layer `domain`). A part's collections are listed by kind (Layers.tsx);
-// - Truth (TruthTab.tsx): the hard process, then folded: the particles in the view, the scorecard, the coverage, and
-//   the truth graph browser (its collections and the tree);
-// - Event (EventInfo.tsx).
-// Its width can be dragged; on phones it is a sheet under the view, folded until a tab or its handle opens it.
+// The side panel: the profile's presets, the tabs, and the colour key under them (Key.tsx). The tabs: with a domain
+// bar (Look at), one Collections tab with a folding section per part, else a tab per part (Layers.tsx); Truth
+// (TruthTab.tsx); Event (EventInfo.tsx). Its width can be dragged; on phones it is a sheet under the view.
 import { signal } from "@preact/signals";
 import type { ComponentChildren } from "preact";
 import { activePreset } from "../../model/custom/custom";
@@ -21,12 +16,11 @@ import { TruthTab } from "./TruthTab";
 import { stopTour } from "../../control/tour";
 import { Icon, Tabs } from "../common/widgets";
 
-/** Phones (narrow screens): the panel is a sheet under the view, folded to its tabs and the colour key's title until
- *  a tab or the handle opens it; wider screens ignore it. */
+/** Phones: the sheet is unfolded (by a tab or its handle); wider screens ignore it. */
 const sheetOpen = signal(false);
 
-// The panel's width: the CSS variable --sidebar on the root, remembered in this browser (when storage is available: not
-// always, e.g. in a private window). Read once, as the page loads.
+// The panel's width: the CSS variable --sidebar on the root, remembered in this browser when storage is available (not
+// in every private window). Read once, as the page loads.
 const DEFAULT_WIDTH = 340,
   KEY = "evd.sidebar"; // the "evd." prefix is kept so that saved widths survive the rename (see model/site/library.ts)
 function setWidth(px: number) {
@@ -45,9 +39,8 @@ try {
   /* default width */
 }
 
-/** A drag on the panel's edge: the width follows the pointer until it is released. The handle captures the pointer, so
- *  its moves keep coming when it leaves the thin handle. The capture ends on a release and also on a cancel (a touch
- *  turned into a scroll), so the drag ends with it. */
+/** A drag on the panel's edge. The handle captures the pointer, so its moves keep coming when it leaves the thin
+ *  handle; the capture ends on a release and on a cancel (a touch turned into a scroll), and the drag with it. */
 function startResize(e: PointerEvent) {
   const handle = e.currentTarget as HTMLElement;
   handle.setPointerCapture(e.pointerId);
@@ -69,7 +62,7 @@ export function Sidebar() {
   const chosen = presets.some(([, i]) => i === activePreset.value) ? activePreset.value : (presets[0]?.[1] ?? 0);
   const reco = display.filter((d) => !d.truth),
     truth = display.some((d) => d.truth);
-  // One tab per part, in the order of the header's `domains` (as the top bar's buttons), then the others in display order.
+  // One tab per part, in the order of the header's `domains` (as the top bar), then the others in display order.
   const order = (b?.header.domains ?? []).map((d) => d.name),
     rank = (name: string) => (order.includes(name) ? order.indexOf(name) : order.length);
   const names = [...new Set(reco.map(tabOf))].sort((x, y) => rank(x) - rank(y)); // a stable sort: ties keep display order
@@ -144,10 +137,9 @@ export function Sidebar() {
   );
 }
 
-/** The parts of the bar (Look at), one section each, in the bar's order: the one looked at open and first, the others
- *  folded under it; in All the shared parts (e.g. Physics: the event's objects) open and the parts of the detector
- *  folded, so the panel starts as the event's summary over an overview of the parts (with no shared part, all open). Each says whether the view draws
- *  it: a shared part is drawn over another part's view with its overlay. */
+/** The parts of the bar (Look at), one section each, the one looked at open and first. In All, the shared parts (e.g.
+ *  Physics) are open and the detector's folded (with no shared part, all open). Each says whether the view draws it:
+ *  a shared part is drawn over another part's view with its overlay. */
 function Parts({ names, layers }: { names: string[]; layers: DisplayLayer[] }) {
   const current = domain.value,
     order = [...names.filter((n) => n === current), ...names.filter((n) => n !== current)];

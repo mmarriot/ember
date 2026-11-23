@@ -1,8 +1,7 @@
 // The colour key, at the bottom of the side panel so it stays in sight from every tab. Colour has one meaning at a
-// time, and the key's title says which (docs/truth.md): the reconstruction (candidates by particle type, everything
-// they are made of in the same colour), the truth (everything by the generator particle it comes from), or, with
-// something selected, its truth <-> reco pair. The "Colour by: reco type | truth particle" switch (key T) chooses between the first two. Bundles
-// without candidates or truth, and a domain coloured layer by layer, have no key: each layer shows its own colours.
+// time, named in its title (docs/truth.md): the reconstruction (candidates by particle type), the truth (by generator
+// particle), or the selection's truth <-> reco pair. The "Colour by" switch (T) chooses between the first two. Without
+// candidates or truth, or in a domain coloured layer by layer, there is no key: each layer shows its own colours.
 import { CLASSES, type KeyEntry, modeKey, truthLevelOf } from "../../model/colour/key";
 import { percent } from "../../model/truth/match";
 import { cached } from "../../model/event/relations";
@@ -28,8 +27,7 @@ import {
 import { Info } from "../common/Info";
 import { jump } from "../../control/navigate";
 
-/** A key line's colours, as a saved picture draws them too: a dot (small: pile-up, no truth), a few dots (one colour
- *  per object), or a value ramp. */
+/** A key line's colours: a dot (small: pile-up, no truth), a few dots (one colour per object), or a value ramp. */
 export function Swatch({ e }: { e: KeyEntry }) {
   if (e.ramp) return <span class="ramp" style={{ background: `linear-gradient(to right, ${e.colours.join(",")})` }} />;
   if (e.colours.length > 1)
@@ -140,8 +138,7 @@ function PidKey({ entries }: { entries: KeyEntry[] }) {
   );
 }
 
-/** Why the view is grey in the truth colours with a selection whose particles take no colour, from what the truth
- *  says of its kind (model/truth/match.ts truthStatus) and of its parts. */
+/** Why the view is grey in the truth colours when the selection's particles take no colour. */
 function greyWhy() {
   const sel = selection.value,
     s = sel ? truthStatuses.value.get(sel.table) : undefined,
@@ -155,8 +152,7 @@ function greyWhy() {
   return `Grey: ${parts.replace(/^and /, "")}.`;
 }
 
-/** The level picker: the levels the colours can group the particles by, each with the number of signal particles in
- *  it in this event; the profile's level is the default. */
+/** The levels the colours can group the particles by, each with its number of signal particles in this event. */
 function LevelPicker() {
   const b = bundle.value!,
     ev = event.value,
@@ -169,7 +165,7 @@ function LevelPicker() {
     profile = colourLevel(2 ** d.particle.bit),
     current = truthLevelOf(b.header).id;
   const levels = COLOUR_LEVELS.includes(profile) ? COLOUR_LEVELS : [profile, ...COLOUR_LEVELS];
-  // Per level, its signal particles in the event: one pass, once per event (not at each render of the key).
+  // One pass, once per event (not at each render of the key).
   const counts = cached(ev!, `levelCounts|${root}|${d.particle.flags}|${levels.map((l) => l.id).join(",")}`, () => {
     const out = levels.map(() => 0);
     for (let i = 0; flags && i < t.n; i++)
@@ -210,7 +206,7 @@ function TruthKey({ entries }: { entries: KeyEntry[] }) {
     b = bundle.value!;
   const truthLayer = roots.truth ? layerOf(roots.truth) : undefined,
     legend = truthLayer ? legends.value[layerKey(truthLayer)] : undefined;
-  // The clean-match thresholds of the drawn reco kinds, e.g. tracks 75% of hits, calorimeter objects 50% of energy.
+  // The clean-match thresholds, e.g. tracks 75% of hits, calorimeter objects 50% of energy.
   const rules = new Map<string, string>();
   // The kinds drawn now that have no truth of their own (docs/truth.md "Where truth stops").
   const faint = [

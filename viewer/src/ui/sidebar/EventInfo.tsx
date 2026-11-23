@@ -1,11 +1,11 @@
-// Event tab: event identity, run information and summary charts (where the bundle has them), provenance with every
-// table of the event, and the custom columns no collection lists. (Each collection's count is on its row in its tab.)
+// The Event tab: the event's identity, its run's information and summary charts (where the bundle has them), its
+// provenance with every table of the event, and the custom columns no collection lists.
 import type { Summary } from "../../io/format";
 import { customColumns, evaluate, filters } from "../../model/custom/custom";
 import { provenance } from "../../model/site/about";
 import { cutMin, cutValues } from "../../model/custom/cuts";
 import { bundle, cuts, event, eventIndex, layerOf, loadMs, opened, short } from "../../model/store";
-import { Icon } from "../common/widgets";
+import { ColumnDef } from "./LayerOptions";
 
 export function EventInfo() {
   const b = bundle.value,
@@ -62,8 +62,8 @@ export function EventInfo() {
   );
 }
 
-/** Custom columns on tables that are not drawn (their collections' ⋯ list the others), e.g. saved with another data
- *  set of the same profile: still computed where the table exists, and removable here. */
+/** Custom columns on tables that are not drawn (the collections' ⋯ list the others), e.g. saved with another data set
+ *  of the same profile. */
 function OtherColumns() {
   const h = bundle.value!.header,
     drawn = new Set(h.display.map((d) => d.table));
@@ -73,19 +73,7 @@ function OtherColumns() {
     <section>
       <h3>Other custom columns</h3>
       {defs.map((c) => (
-        <div class="defn" title={h.tables[c.table] ? undefined : "This data set has no such table"}>
-          <span class="muted">{c.table}</span>
-          <code>
-            {c.name} = {c.expr}
-          </code>
-          <button
-            class="icon-button small"
-            title="Remove column"
-            onClick={() => (customColumns.value = customColumns.value.filter((x) => x !== c))}
-          >
-            <Icon name="close" />
-          </button>
-        </div>
+        <ColumnDef c={c} withTable title={h.tables[c.table] ? undefined : "This data set has no such table"} />
       ))}
     </section>
   );

@@ -1,7 +1,7 @@
 // Navigation over the CSR relations of an event: what is related to a selected object.
 import type { DisplayLayer, EventData, Header, Relation, RelationInfo, Table } from "../io/format";
 import { facts, isFactTable } from "./facts";
-import type { SlotRule } from "./truth";
+import type { SlotRule, TruthClass } from "./truth";
 
 export interface Ref {
   table: string;
@@ -240,11 +240,14 @@ export interface SlotRank {
   level?: number;
   /** Only the level's particles take slots (the b / c hadron level: the rest stays grey). */
   only?: boolean;
+  /** A class level's classes (model/truth.ts ColourLevel): one colour per class, no slots (truthClasses). */
+  classes?: TruthClass[];
 }
 
 /** Identity colouring of a table (render/colour.ts): per object, the key whose colour it takes, and the keys that get
  *  a colour of their own (`top`, at most `slots`), and the rule they were chosen by (`rule`, model/truth.ts).
- *  `others`: keys in use beyond `top`; `parent`: each object's first parent, -1 for none (truth tables only);
+ *  `others`: keys in use beyond `top`; `parent`: each object's first parent, -1 for none, and `anchor`: 1 for the
+ *  particles that own hits or are matched (truth tables only);
  *  `preferred`: how many of `top` the selection points at (rank.prefer).
  *  Every object is its own key, except in a truth table (`truth`) with a parent ->
  *  children relation (truth particles), where colours follow truth branches:
@@ -273,7 +276,7 @@ export function identities(
   rank: SlotRank = {},
 ) {
   const mask = rank.level ?? (d.particle ? 2 ** d.particle.bit : 0);
-  const { key, used, bySize, parent } = cached(
+  const { key, used, bySize, parent, anchor } = cached(
     ev,
     `identities|${d.table}|${d.truth}|${d.colour}|${d.particle?.flags}|${mask}|${d.particle?.first}`,
     () => identityKeys(d, t, ev, header, mask),
@@ -307,11 +310,40 @@ export function identities(
     key,
     used,
     parent,
+    anchor,
     top,
     others: Math.max(0, eligible.length - top.length),
     rule: { ...rule, selection: rank.prefer !== undefined } as SlotRule,
     preferred: Math.min(preferred.length, slots),
   };
+}
+
+/** Each truth particle's class under a class level (model/truth.ts ColourLevel `classes`): the first class with a bit
+ *  of its nearest ancestor (or itself) that has any of the classes' bits; without one, the class without bits (all
+ *  of the signal collision) or else `classes.length` (the rest of the signal collision). Pile-up (the level's `first`
+ *  column 0) is `classes.length + 1`, whatever its bits (the underlying-event bit is set on pile-up too). Once per
+ *  event and level: a walk up the first parents, O(particles x depth). */
+export function truthClasses(d: DisplayLayer, t: Table, ev: EventData, header: Header, classes: TruthClass[]) {
+  return cached(ev, `classes|${d.table}|${classes.map((c) => `${c.name}:${c.mask}`).join(",")}`, () => {
+    const { parent } = identities(d, t, ev, header, 0),
+      flags = d.particle ? t.columns[d.particle.flags] : undefined,
+      first = d.particle?.first ? t.columns[d.particle.first] : undefined,
+      any = classes.reduce((m, c) => m | (c.mask ?? 0), 0),
+      all = classes.findIndex((c) => c.mask === undefined),
+      out = new Uint8Array(t.n);
+    for (let i = 0; i < t.n; i++) {
+      if (first && !Number(first[i])) {
+        out[i] = classes.length + 1;
+        continue;
+      }
+      let f = 0; // the bits of the nearest particle with any (at most n steps: no endless loop on a cycle)
+      for (let j = i, steps = 0; flags && j >= 0 && steps < t.n && !f; j = parent[j], steps++)
+        f = Number(flags[j]) & any;
+      const k = f ? classes.findIndex((c) => (c.mask ?? 0) & f) : -1;
+      out[i] = k >= 0 ? k : all >= 0 ? all : classes.length;
+    }
+    return out;
+  });
 }
 
 /** The eligible keys in slot order, and the rule used (see identities): one pass over the domain's hit-index
@@ -437,7 +469,7 @@ function identityKeys(d: DisplayLayer, t: Table, ev: EventData, header: Header, 
   const rank = (i: number) => (first && Number(first[i]) ? 2 : 0) + (flags && Number(flags[i]) & mask ? 1 : 0);
   if (col || first || flags)
     bySize.sort((a, b) => rank(b) - rank(a) || (col ? Number(col[b]) - Number(col[a]) : 0) || a - b);
-  return { key, used, bySize, parent }; // parent: each object's first parent (-1 none), truth tables only
+  return { key, used, bySize, parent, anchor }; // parent: each object's first parent (-1 none), truth tables only
 }
 
 /** Per-event results that do not depend on the selection (identity keys, content partners), so a click that only

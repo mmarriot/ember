@@ -626,7 +626,7 @@ function slotsKey(header: Header, ev: EventData, rank: SlotRank) {
   const root = modes.peek().roots.truth,
     d0 = root ? layerOf(root) : undefined,
     t = root ? ev.tables[root] : undefined;
-  if (!d0 || !t) return "";
+  if (!d0 || !t || rank.classes) return ""; // a class level has no slots: a selection never recolours
   const d = shownLayer(d0);
   if (d.colourBy !== "identity") return "";
   const r = identities(d, t, ev, header, PALETTES[theme.peek()].identity.length, rank);

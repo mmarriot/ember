@@ -16,7 +16,6 @@ import { matchClass, recoLadder, recoOfTruth } from "../chain";
 import { focusLevels, levelLayers, mergeAcrossDomains, partsFirst, scopeLevels, stepLevel } from "../levels";
 import { delegatedPart, PAIR, type Pair, pairFor, pairShows } from "../pair";
 import { simEnergyByParticle } from "../match";
-import { colourLevel } from "../truth";
 import { cached, levelsOf, type Related, relatedParts, sameRef, type Ref, type SlotRank } from "../relations";
 import { activeMode, modes, truthLevel, truthStatuses } from "./colours";
 import { truthStatement } from "../statement";
@@ -205,8 +204,10 @@ export const truthRank = computed<SlotRank>(() => {
     root = modes.value.roots.truth,
     sel = selection.value;
   if (activeMode.value !== "truth" || !b || !ev || !root) return {};
-  const level = truthLevel.value ?? undefined,
-    base = { domain: domain.value, level, only: level !== undefined && colourLevel(level).only };
+  const level = truthLevel.value,
+    base = level?.classes
+      ? { domain: domain.value, classes: level.classes }
+      : { domain: domain.value, level: level?.mask, only: level?.only };
   const parts = relatives.value;
   if (!sel || pairView.value || !parts) return base;
   const pt = ev.tables[root]?.columns.pt,
@@ -222,7 +223,7 @@ export function truthPreview(d: DisplayLayer): Set<number> | undefined {
   const ev = event.peek(),
     t = ev?.tables[d.table];
   if (activeMode.peek() !== "truth" || !d.truth || !d.particle || !ev || !t) return undefined;
-  const mask = truthLevel.peek() ?? 2 ** d.particle.bit,
+  const mask = truthLevel.peek()?.mask || 2 ** d.particle.bit, // a class level of no bits (collision): the profile's
     flags = t.columns[d.particle.flags],
     first = d.particle.first ? t.columns[d.particle.first] : undefined,
     pt = t.columns.pt;

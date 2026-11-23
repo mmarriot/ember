@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { DisplayLayer, EventData, Header } from "../io/format";
-import { bestPartners, contentPartners, identities, levelsOf, related, relatedParts } from "./relations";
+import { bestPartners, contentPartners, identities, levelsOf, related, relatedParts, truthClasses } from "./relations";
 
 // candidate 0 -> trackster 1 -> clusters 0, 2 -> hits; candidate 0 -> track 1; trackster 0 -> cluster 1 (no candidate)
 const csr = (rows: number[][]) => ({
@@ -333,6 +333,38 @@ describe("truth identities", () => {
     const { key, top } = identities({ ...d, truth: false }, tev.tables.P, tev, th, 10);
     expect([...key]).toEqual([0, 1, 2, 3, 4, 5]);
     expect(top).toEqual([4, 0, 1, 3, 2, 5]);
+  });
+});
+
+describe("truth classes", () => {
+  // 0 t (bit 4) -> 1 b (bit 5) -> 2 a secondary (no bits); 3 a UE particle (bit 6) -> 4 its secondary; 5 an ISR
+  // particle (bit 0); 6 a pile-up particle, which carries the UE bit too
+  const cev = {
+    id: [1, 1, 1],
+    tables: {
+      P: {
+        n: 7,
+        columns: {
+          flags: Uint32Array.from([16, 32, 0, 64, 0, 1, 64]),
+          signal: Uint8Array.from([1, 1, 1, 1, 1, 1, 0]),
+        },
+      },
+    },
+    relations: { kids: csr([[1], [2], [], [4], [], [], []]) },
+  } as unknown as EventData;
+  const ch = { relations: { kids: { from: "P", to: "P", weights: [] } }, display: [] } as unknown as Header;
+  const cd = {
+    table: "P",
+    repr: "segments",
+    truth: true,
+    particle: { flags: "flags", bit: 2, first: "signal" },
+  } as DisplayLayer;
+  it("puts a particle in the class of its nearest ancestor in one, the rest after the classes, pile-up last", () => {
+    const signalUE = [{ name: "signal", mask: 48 }, { name: "underlying event", mask: 64 }];
+    expect([...truthClasses(cd, cev.tables.P, cev, ch, signalUE)]).toEqual([0, 0, 0, 1, 1, 2, 3]);
+  });
+  it("puts every particle of the signal collision in a class without bits", () => {
+    expect([...truthClasses(cd, cev.tables.P, cev, ch, [{ name: "signal collision" }])]).toEqual([0, 0, 0, 0, 0, 0, 2]);
   });
 });
 

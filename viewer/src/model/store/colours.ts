@@ -8,7 +8,7 @@ import { colourBy, type ColourMode, withColour } from "../custom";
 import { inText } from "../describe";
 import { facts } from "../facts";
 import { truthStatus, type TruthStatus } from "../match";
-import { graphOf } from "../truth";
+import { type ColourLevel, graphOf } from "../truth";
 import { modeColouring, modeRoots, recoColourOf } from "../modes";
 import { bundle, event } from "./data";
 import { kindOf, labelOf, layerKey, layerOf } from "./names";
@@ -30,9 +30,9 @@ export const modes = computed(() => {
  *  truth. Not remembered: a bundle opens on the reconstruction. */
 export const colourChoice = signal<"reco" | "truth">("reco");
 
-/** The truth level the truth colours group the particles by (a mask of level-flag bits, model/truth.ts
- *  COLOUR_LEVELS), as chosen in the colour key; null: the profile's (the truth particles' `particle` bit). */
-export const truthLevel = signal<number | null>(null);
+/** The truth level the truth colours group the particles by (model/truth.ts COLOUR_LEVELS), as chosen in the colour
+ *  key; null: the profile's (the truth particles' `particle` bit). */
+export const truthLevel = signal<ColourLevel | null>(null);
 
 /** Whether the bundle can colour by truth: its truth particles say which level is "the particle" (display hint
  *  `particle`). Bundles made before that hint have none, and their truth colours would follow other rules than the

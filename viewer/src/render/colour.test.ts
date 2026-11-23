@@ -94,6 +94,42 @@ describe("relation colouring", () => {
     const ts = colours(th.display[2], tev.tables.T, tev, th, pal);
     expect([hex(ts.rgb, 0), hex(ts.rgb, 1)]).toEqual([pal.identity[0].toLowerCase(), pal.unassigned]); // 30% is not a clean match
   });
+  // particle 0 (signal, a b hadron) owns hit 0, particle 1 (pile-up) hit 1, particle 2 (signal) hit 3; hit 2 has no
+  // simulated energy
+  const cev = {
+    id: [1, 1, 1],
+    tables: {
+      P: table(3, { flags: Uint32Array.from([256, 4, 4]), signal: Uint8Array.from([1, 0, 1]) }),
+      Hit: table(4),
+    },
+    relations: { pHits: { ...csr([[0], [1], [3]]), weights: { simE: Float32Array.from([1, 1, 1]) } } },
+  } as unknown as EventData;
+  const ch = {
+    relations: {
+      pHits: { from: "P", to: "Hit", weights: ["simE"], association: true, best: { weight: "simE", order: "max" } },
+    },
+    display: [
+      { ...layer("P", "identity"), truth: true, particle: { flags: "flags", bit: 2, first: "signal" } },
+      { ...layer("Hit", { relation: "pHits" }), repr: "cells" }, // cells: hits holding simulated energy
+    ],
+  } as unknown as Header;
+  it("by class, colours hits by their particle's class, pile-up as large as the signal, and lists the classes", () => {
+    const rank = { classes: [{ name: "signal collision" }] },
+      hits = colours(ch.display[1], cev.tables.Hit, cev, ch, pal, { rank });
+    expect([0, 1, 2, 3].map((i) => hex(hits.rgb, i))).toEqual(
+      [pal.identity[0], pal.identity[1], pal.unassigned, pal.identity[0]].map((c) => c.toLowerCase()),
+    );
+    expect([...hits.emphasis!]).toEqual([1, 1, 0, 1]);
+    const particles = colours(ch.display[0], cev.tables.P, cev, ch, pal, { rank }).legend;
+    expect(particles.kind === "category" && particles.items?.map((it) => it.label)).toEqual([
+      "signal collision",
+      "pile-up",
+    ]);
+  });
+  it("by a level whose particles alone take colours, draws the rest of the signal small", () => {
+    const hits = colours(ch.display[1], cev.tables.Hit, cev, ch, pal, { rank: { level: 768, only: true } });
+    expect([...hits.emphasis!]).toEqual([1, 0, 0, 0]); // the b hadron's hit; pile-up, none and outside the level small
+  });
   it("stops at a loop", () => {
     const loop = {
       ...header,

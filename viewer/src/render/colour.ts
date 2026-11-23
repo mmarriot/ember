@@ -6,7 +6,7 @@
 import { type DisplayLayer, type EventData, type Header, kindName, type Table, toF32, unitOf } from "../io/format";
 import { kindLabel } from "../model/describe";
 import { bestPurities, percent } from "../model/match";
-import { bestPartners, contentPartners, identities, type SlotRank } from "../model/relations";
+import { bestPartners, contentPartners, identities, type SlotRank, truthClasses } from "../model/relations";
 import { ruleText } from "../model/truth";
 
 export const PALETTES = {
@@ -282,6 +282,29 @@ export function colours(
     for (let i = 0; i < t.n; i++) set(i, c);
     return { rgb: out, legend: { kind: "category", text: noLinkText(d) } };
   }
+  if (d.colourBy === "identity" && d.truth && rank?.classes) {
+    // A class level: one colour per class, every class drawn alike (pile-up too, small by particle). The classes take
+    // the identity colours but the second, which is pile-up's in every class level; the rest of the collision is grey.
+    const cls = truthClasses(d, t, ev, header, rank.classes),
+      { anchor } = identities(d, t, ev, header, 0),
+      names = [...rank.classes.map((c) => c.name), "rest of the signal collision", "pile-up"],
+      hexes = [...rank.classes.map((_, k) => pal.identity[k ? k + 1 : 0]), pal.other, pal.identity[1]],
+      rgbs = hexes.map(rgb),
+      present = new Uint8Array(names.length);
+    for (let i = 0; i < t.n; i++) {
+      set(i, rgbs[cls[i]]);
+      if (anchor[i]) present[cls[i]] = 1; // the key names a class only if one of its particles left hits or is matched
+    }
+    return {
+      rgb: out,
+      emphasis: new Uint8Array(t.n).fill(1),
+      legend: {
+        kind: "category",
+        text: "a particle: the class of its nearest ancestor in one; a hit: its particle's with most simulated energy",
+        items: names.map((label, k) => ({ label, colour: hexes[k] })).filter((_, k) => present[k]),
+      },
+    };
+  }
   if (d.colourBy === "identity") {
     const { key, used, top, others, rule, preferred } = identities(d, t, ev, header, pal.identity.length, rank);
     const slot = new Map(top.map((k, j) => [k, j])),
@@ -290,12 +313,16 @@ export function colours(
       none = rgb(pal.unassigned);
     const first = d.particle?.first ? t.columns[d.particle.first] : undefined,
       pileup = rgb(pal.pileup);
+    // A level whose particles alone take colours (b / c hadron, parton jet, τ): the rest is drawn small, so its chains
+    // stand out.
+    const levelFlags = rank?.only && d.particle ? t.columns[d.particle.flags] : undefined;
     const emphasis = new Uint8Array(t.n); // linked to nothing (e.g. a quark): small and grey, like any object without a partner
     for (let i = 0; i < t.n; i++) {
       const j = slot.get(key[i]);
       const background = first && !Number(first[key[i]]); // pile-up: its own grey, drawn small so the signal shows
+      const outside = levelFlags && !(Number(levelFlags[key[i]]) & (rank?.level ?? 0));
       set(i, !used[key[i]] ? none : j !== undefined ? ids[j] : background ? pileup : other);
-      emphasis[i] = used[key[i]] && !background ? 1 : 0;
+      emphasis[i] = used[key[i]] && !background && !outside ? 1 : 0;
     }
     // With a selection, the key lists only its own particles: the other colours are faded with what is not selected.
     const items = top

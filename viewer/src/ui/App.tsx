@@ -40,9 +40,11 @@ import {
   stepEvent,
   stepFocusLevel,
   truthColours,
+  truthLevel,
   unlook,
   view,
 } from "../model/store";
+import { COLOUR_LEVELS } from "../model/truth";
 import { chooserOpen } from "./Chooser";
 import { Header } from "./Header";
 import { HelpDialog } from "./Help";
@@ -125,7 +127,7 @@ function openFromAddress() {
       // chosen while the link's was on its way wins: openBundle then returns false (store/open.ts).
       if (!name || !(await openBundle(name, undefined, link?.event ?? 0)) || !link) return;
 
-      const { domain: d, view: v, only, selection: s0, truth, level } = link;
+      const { domain: d, view: v, only, selection: s0, truth, level, group } = link;
       // A link made before the data set was converted again may name a row that no longer exists.
       const s = s0 && s0.row < (event.peek()?.tables[s0.table]?.n ?? 0) ? s0 : null;
       // Without a domain, a selection opens in its own part of the detector (its card's chain is about it).
@@ -135,6 +137,7 @@ function openFromAddress() {
       if (only && bundle.peek()?.header.display.some((l) => soloKey(l) === only)) lookAlone(only);
       if (s) selection.value = s;
       if (truth && truthColours.peek()) colourChoice.value = "truth";
+      truthLevel.value = COLOUR_LEVELS.find((l) => l.id === group) ?? null; // an unknown level: the profile's
       if (level && selection.peek()) focusLevel.value = level; // a level the focus does not have is ignored (store/selection.ts shownLevel)
       if (s) requestAnimationFrame(() => frameFocus(0)); // beside its card, once the card is drawn (measured)
     })
@@ -186,6 +189,7 @@ function writeAddress() {
       ...(s ? { selection: s } : {}),
       ...(lv ? { level: lv } : {}),
       truth: activeMode.value === "truth",
+      ...(activeMode.value === "truth" && truthLevel.value ? { group: truthLevel.value.id } : {}),
       ...(solo.value ? { only: solo.value } : {}),
     });
 

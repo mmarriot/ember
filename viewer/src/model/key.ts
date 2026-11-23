@@ -7,6 +7,7 @@ import type { DisplayLayer, Header } from "../io/format";
 import { PALETTES, type Legend, type Pal } from "../render/colour";
 import { colourBy } from "./custom";
 import { PAIR, type PairClass } from "./pair";
+import { cached } from "./relations";
 import { colourLevel } from "./truth";
 import {
   activeMode,
@@ -66,7 +67,7 @@ export const CLASSES: [Exclude<PairClass, 0>, string, string][] = [
 export function truthLevelOf(header: Header) {
   const root = modes.value.roots.truth,
     d = root ? header.display.find((l) => l.table === root) : undefined;
-  return colourLevel(truthLevel.value ?? 2 ** (d?.particle?.bit ?? 2));
+  return truthLevel.value ?? colourLevel(2 ** (d?.particle?.bit ?? 2));
 }
 
 /** The colour mode's group: its title ("Colour = <title>") and lines; null where there is no key (a bundle without
@@ -98,21 +99,34 @@ export const modeKey = computed<KeyGroup | null>(() => {
       ],
     };
   }
-  if (mode === "truth")
+  if (mode === "truth") {
+    const level = truthLevelOf(b.header),
+      ev = event.value,
+      d = roots.truth ? layerOf(roots.truth) : undefined,
+      first = d?.particle?.first ? ev?.tables[d.table]?.columns[d.particle.first] : undefined,
+      pileup = !!first && cached(ev!, `pileup|${d!.table}`, () => first.some((v) => !Number(v)));
     return {
       id: "truth",
-      title: `${truthLevelOf(b.header).name} (truth)`,
+      title: `${level.name} (truth)`,
       entries: [
         ...legendOf(roots.truth).map((it) => ({
           label: (it.ref && truthText(it.ref.table, it.ref.row, caloView.value)) || it.label,
           colours: [it.colour],
           ref: it.ref,
         })),
-        { label: "other signal", colours: [pal.other] },
-        { label: "pile-up", colours: [pal.pileup], small: true },
+        // A class level's legend names every class drawn, the rest and pile-up among them.
+        ...(level.classes
+          ? []
+          : [
+              level.only
+                ? { label: `outside the ${level.name} level`, colours: [pal.other], small: true }
+                : { label: "other signal", colours: [pal.other] },
+              ...(pileup ? [{ label: "pile-up", colours: [pal.pileup], small: true }] : []),
+            ]),
         none("no simulated energy, or not cleanly matched"),
       ],
     };
+  }
   if (mode === "pid")
     return {
       id: "pid",

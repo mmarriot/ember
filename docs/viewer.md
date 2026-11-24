@@ -463,12 +463,14 @@ objects that left hits, and the tree, which folds. With truth, from the top:
   vertex where its daughters were made stands on their line, a grey ◆ with its process in italics ("decay",
   "hadronization"; "⋯" when particles were skipped in between); pointing at it (or a tap) names the particles in and
   out. A hadron made from several partons (a string between the b and the s̄) hangs under the one of highest energy
-  and says "also from" the others (a click goes to it). "▸ 23 below" counts the particles under it at no level shown;
-  a click lists them under it, with a hollow dot, each folding its own. A list of more than 50 shows the 50 largest
-  and "show 50 more". A particle selected elsewhere (in the view, `X`) is unfolded to and scrolled into view (one at
-  no level shown under the particle it hides under); so are the particles the search finds, marked, the 20 largest
-  unfolded to. Enter in the search box picks the next one found. In the tree, ↑ ↓ move between the names and → ←
-  unfold and fold. Its groups:
+  and says "also from" the others (a click goes to it). "▸ 23 below" counts the particles at no level shown that it
+  made; a click lists them under it (unfolding it), with a hollow dot, each folding its own. A list of more than 50
+  shows the 50 largest and "show 50 more". A particle selected elsewhere (in the view, `X`) is unfolded to and
+  scrolled into view (one at no level shown under the particle it hides under). The particles the search finds are
+  marked, and the way to the 20 largest is open while the search is typed (clearing it folds them back); the
+  controls say how many it found, and Enter or "next" picks the next one. The levels and the controls stay at the top
+  of the panel while the graph scrolls. In the tree, ↑ ↓ move between the names and → ← unfold and fold (there they
+  do not step the event or the focus level). Its groups:
   - **hard process**, open: the outgoing legs of the hard scatter (level HardProcess) under the particles they came
     from, so `t → b W⁺` and `W⁺ → s̄ c`, and everything below them (with the hard process hidden, what came from it
     stays in this group). Without a hard process, the signal process of a truth preset;

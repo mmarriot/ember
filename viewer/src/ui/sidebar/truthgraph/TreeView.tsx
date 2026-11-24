@@ -2,11 +2,12 @@
 // parent, joined by the lines of the tree, with the vertex its daughters were made at standing on their line (◆).
 // The rows are rows.ts treeRows: only what is unfolded, long lists in parts.
 import { signal } from "@preact/signals";
-import { useEffect, useMemo, useRef } from "preact/hooks";
+import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import type { EventData } from "../../../io/format";
+import type { Ref } from "../../../model/event/relations";
 import {
   event,
-  graphQuery,
+  graphFound,
   graphVertices,
   layerOf,
   pickedTops,
@@ -18,28 +19,36 @@ import {
   truthPicks,
   truthText,
 } from "../../../model/store";
-import { GRAPH_LEVELS } from "../../../model/truth/levelGraph";
+import { GRAPH_LEVELS, type LevelGraph } from "../../../model/truth/levelGraph";
 import { PALETTES } from "../../../render/colour";
 import { categoryNames } from "../../card/chips";
 import { emptyState, LIST, pathTo, reveal, type Path, type Place, type Row, treeRows, type TreeState } from "./rows";
-import { type GraphViewProps, levelColour, matchingNodes } from "./view";
+import { type GraphViewProps, levelColour } from "./view";
 
 /** The search unfolds the way to this many of the particles it finds, the largest. */
 const REVEAL = 20;
 /** Rails beyond this depth are narrower, so a deep tree still fits the side panel. */
 const WIDE = 8;
 
-/** The tree's display state (rows.ts TreeState), for the event it was made in: a new event starts afresh. */
-const tree = signal<{ ev: EventData | null; s: TreeState }>({ ev: null, s: emptyState() });
-const stateOf = (ev: EventData) => (tree.value.ev === ev ? tree.value.s : emptyState());
-const update = (ev: EventData, change: (s: TreeState) => TreeState) => {
-  const now = tree.peek();
-  tree.value = { ev, s: change(now.ev === ev ? now.s : emptyState()) };
+/** The tree's display state (rows.ts TreeState) for the event it was made in (a new event starts afresh), and the
+ *  particle (by top) last gone to from an "also from" link, kept listed. */
+const tree = signal<{ ev: EventData | null; s: TreeState; asked: number }>({ ev: null, s: emptyState(), asked: -1 });
+const stateOf = (ev: EventData) => (tree.value.ev === ev ? tree.value : { ev, s: emptyState(), asked: -1 });
+const update = (ev: EventData, change: (s: TreeState) => TreeState, asked?: number) => {
+  const now = tree.peek().ev === ev ? tree.peek() : { ev, s: emptyState(), asked: -1 },
+    s = change(now.s);
+  if (s !== now.s || (asked !== undefined && asked !== now.asked)) tree.value = { ev, s, asked: asked ?? now.asked };
+};
+/** The selection made by a pick or a tick in the tree: it is in view already, so it is not revealed again. */
+let ownSelection: Ref | null = null;
+const own = (pick: (row: number) => void, row: number) => {
+  pick(row);
+  ownSelection = selection.peek();
 };
 
 export function TreeView({ lg, g, particles, vertices }: GraphViewProps) {
   const ev = event.value!,
-    s = stateOf(ev),
+    { s, asked } = stateOf(ev),
     P = lg.particles,
     pal = PALETTES[theme.value],
     picked = pickedTops.value,
@@ -47,37 +56,53 @@ export function TreeView({ lg, g, particles, vertices }: GraphViewProps) {
     sel = selection.value,
     selRow = sel?.table === particles ? sel.row : -1,
     current = selRow >= 0 ? g.top[selRow] : -1,
-    query = graphQuery.value,
+    found = graphFound.value,
     names = layerOf(particles)?.describe?.names?.pdgId ?? {},
     reasons = categoryNames(vertices);
-  const found = useMemo(() => matchingNodes(lg, g, names, query), [lg, query]);
   const marked = useMemo(() => new Set(found.map((i) => P[i].top)), [found]);
-  // The ways to the picks, the selection and the largest found: listed whatever a list's length.
+  // The ways to the largest found: open while the search is typed (not written into the folds).
+  const searched = useMemo(() => found.slice(0, REVEAL).flatMap((i) => pathTo(g, lg, P[i].top) ?? []), [found]);
+  const force = useMemo(() => searched.reduce(reveal, emptyState()), [searched]);
+  // The ways to the picks, the selection, the largest found and the particle gone to: listed whatever a list's length.
   const keep = useMemo(() => {
-    const rows = [...picks, ...(selRow >= 0 ? [selRow] : []), ...found.slice(0, REVEAL).map((i) => P[i].top)];
-    return new Set(rows.flatMap((r) => pathTo(g, lg, r)?.tops ?? []));
-  }, [lg, picks, selRow, found]);
-  const rows = treeRows(lg, g, s, graphVertices.value, keep);
+    const rows = [...picks, ...(selRow >= 0 ? [selRow] : []), ...(asked >= 0 ? [asked] : [])];
+    return new Set([...rows.flatMap((r) => pathTo(g, lg, r)?.tops ?? []), ...searched.flatMap((p) => p.tops)]);
+  }, [lg, picks, selRow, asked, searched]);
+  const rows = treeRows(lg, g, s, graphVertices.value, keep, force);
 
-  // Unfold the way to a particle selected anywhere (the view, a card, X, a pick here), to what the search finds and
-  // to a particle asked for here; then scroll it into view (once its row is drawn).
+  // Unfold the way to a particle selected elsewhere (the view, a card, X) and to one asked for here, and scroll to it
+  // and to the largest found once its row is drawn: in the render after, or not at all.
   const root = useRef<HTMLDivElement>(null),
-    target = useRef<{ top: number; focus: boolean } | null>(null);
-  const goTo = (paths: Path[], focus = false) => {
-    if (!paths.length) return;
-    update(ev, (s) => paths.reduce(reveal, s));
-    target.current = { top: paths[0].tops.at(-1)!, focus };
+    target = useRef<{ top: number; focus: boolean; waited: boolean } | null>(null),
+    shownLg = useRef<LevelGraph | null>(null);
+  const goTo = (path: Path | null, focus = false, ask?: number) => {
+    if (!path) return;
+    update(ev, (s) => reveal(s, path), ask);
+    target.current = { top: path.tops.at(-1)!, focus, waited: false };
   };
-  const pathsOf = (rows: number[]) => rows.flatMap((r) => pathTo(g, lg, r) ?? []);
-  useEffect(() => goTo(pathsOf(selRow >= 0 ? [selRow] : [])), [selRow, lg]);
-  useEffect(() => goTo(pathsOf(found.slice(0, REVEAL).map((i) => P[i].top))), [found]);
   useEffect(() => {
-    const t = target.current,
-      row = t && root.current?.querySelector<HTMLElement>(`[data-top="${t.top}"]`);
-    if (!t || !row) return;
-    target.current = null;
-    row.scrollIntoView({ block: "nearest" });
-    if (t.focus) row.querySelector<HTMLElement>(".tg-name")?.focus();
+    const levels = shownLg.current !== lg; // also on opening the tab
+    shownLg.current = lg;
+    if (selRow >= 0 && (levels || sel !== ownSelection)) goTo(pathTo(g, lg, selRow));
+  }, [selRow, lg]);
+  useEffect(() => {
+    if (searched.length) target.current = { top: searched[0].tops.at(-1)!, focus: false, waited: false };
+  }, [searched]);
+  useEffect(() => {
+    const t = target.current;
+    if (!t) return;
+    const row = root.current?.querySelector<HTMLElement>(`[data-top="${t.top}"]`);
+    if (row) {
+      // clear of what stays at the top of the panel: the tab list and, where sticky, TruthTab's levels and controls
+      const head = root.current?.parentElement?.querySelector<HTMLElement>(".graphhead"),
+        style = head && getComputedStyle(head);
+      row.style.scrollMarginTop =
+        style?.position === "sticky" ? `${parseFloat(style.top) + head!.offsetHeight + 20}px` : "";
+      row.scrollIntoView({ block: "nearest" });
+      if (t.focus) row.querySelector<HTMLElement>(".tg-name")?.focus();
+    }
+    if (row || t.waited) target.current = null;
+    else t.waited = true;
   });
 
   const name = (top: number) => names[String(g.col("pdgId", top))] ?? `pdgId ${g.col("pdgId", top)}`;
@@ -88,14 +113,18 @@ export function TreeView({ lg, g, particles, vertices }: GraphViewProps) {
       const top = row.kind === "particle" ? P[row.node].top : row.kind === "hidden" ? row.top : -1;
       return { ...s, folds: new Map(s.folds).set(top, !("open" in row && row.open)) };
     });
-  const toggleBelow = (top: number) =>
+  /** Lists the particles at no shown level under particle `top` (unfolding it), or stops listing them. */
+  const toggleBelow = (top: number, listed: boolean) =>
     update(ev, (s) => {
       const below = new Set(s.below);
-      if (!below.delete(top)) below.add(top);
-      return { ...s, below };
+      if (listed) below.delete(top);
+      else below.add(top);
+      return { ...s, below, folds: listed ? s.folds : new Map(s.folds).set(top, true) };
     });
   const more = (list: string) =>
     update(ev, (s) => ({ ...s, more: new Map(s.more).set(list, (s.more.get(list) ?? LIST) + LIST) }));
+  // The vertex whose particles in and out show after a click or tap (pointing at a vertex shows them too).
+  const [io, setIo] = useState<string | null>(null);
 
   /** The lines of the tree left of a row: a rail per ancestor level, then its own elbow (├, └, or ◆ for a vertex). */
   const guides = (r: Place, vertex = false) => (
@@ -123,22 +152,35 @@ export function TreeView({ lg, g, particles, vertices }: GraphViewProps) {
         type="checkbox"
         checked={picked.has(top)}
         title="Draw it too, or take it out"
-        onChange={() => togglePick(row)}
+        onChange={() => own(togglePick, row)}
       />
       {dot}
-      <button class="tg-name" title={title} onClick={() => pickTruth(row)}>
+      <button class="tg-name" title={title} onClick={() => own(pickTruth, row)}>
         {name(top)}
       </button>
     </>
   );
-  const rowClass = (kind: string, top: number) =>
-    `tg-row ${kind}${top === current ? " sel" : picked.has(top) ? " picked" : ""}${marked.has(top) ? " found" : ""}`;
+  /** A particle row's element: its classes (selected, picked, found) and its place in the tree for assistive tech. */
+  const item = (r: Place & { open?: boolean }, kind: string, top: number, children: preact.ComponentChildren) => (
+    <div
+      class={`tg-row ${kind}${top === current ? " sel" : picked.has(top) ? " picked" : ""}${marked.has(top) ? " found" : ""}`}
+      key={r.key}
+      data-key={r.key}
+      data-top={top}
+      role="treeitem"
+      aria-level={r.depth + 2}
+      aria-expanded={r.open}
+      aria-selected={top === current}
+    >
+      {children}
+    </div>
+  );
 
   const line = (r: Row) => {
     if (r.kind === "group")
       return (
-        <div class="tg-group" key={r.key} data-key={r.key}>
-          <button class="tg-name" aria-expanded={r.open} onClick={() => toggle(r)}>
+        <div class="tg-group" key={r.key} data-key={r.key} role="treeitem" aria-level={1} aria-expanded={r.open}>
+          <button class="tg-name" onClick={() => toggle(r)}>
             <span class="tg-caret">{r.open ? "▾" : "▸"}</span>
             {r.group.name} <span class="count">{r.size.toLocaleString()}</span>
           </button>
@@ -152,7 +194,12 @@ export function TreeView({ lg, g, particles, vertices }: GraphViewProps) {
             .map((i) => name(P[i].top))
             .join(" ") + (ns.length > 6 ? " …" : "");
       return (
-        <div class="tg-row vertex" key={r.key} tabIndex={0}>
+        <div
+          class={io === r.key ? "tg-row vertex io" : "tg-row vertex"}
+          key={r.key}
+          role="none"
+          onClick={() => setIo(io === r.key ? null : r.key)}
+        >
           {guides(r, true)}
           <span class="tg-vname">
             {Number.isNaN(v.reason) ? "vertex" : (reasons[String(v.reason)] ?? `reason ${v.reason}`)}
@@ -166,7 +213,7 @@ export function TreeView({ lg, g, particles, vertices }: GraphViewProps) {
     }
     if (r.kind === "more")
       return (
-        <div class="tg-row more" key={r.key}>
+        <div class="tg-row more" key={r.key} role="none">
           {guides(r)}
           <i class={r.depth ? "tg-fold leaf" : "tg-fold"} />
           <button class="link" onClick={() => more(r.list)}>
@@ -176,8 +223,11 @@ export function TreeView({ lg, g, particles, vertices }: GraphViewProps) {
         </div>
       );
     if (r.kind === "hidden")
-      return (
-        <div class={rowClass("hidden", r.top)} key={r.key} data-key={r.key} data-top={r.top}>
+      return item(
+        r,
+        "hidden",
+        r.top,
+        <>
           {guides(r)}
           {fold(r, r.open)}
           {particle(
@@ -187,13 +237,16 @@ export function TreeView({ lg, g, particles, vertices }: GraphViewProps) {
             `${truthText(particles, g.last[r.top])} · at no level shown`,
           )}
           {energy(g.last[r.top])}
-        </div>
+        </>,
       );
     const p = P[r.node],
       also = p.parents.slice(1),
-      below = s.below.has(p.top);
-    return (
-      <div class={rowClass("particle", p.top)} key={r.key} data-key={r.key} data-top={p.top}>
+      listed = r.open !== false && s.below.has(p.top);
+    return item(
+      r,
+      "particle",
+      p.top,
+      <>
         {guides(r)}
         {fold(r, r.open)}
         {particle(
@@ -208,59 +261,43 @@ export function TreeView({ lg, g, particles, vertices }: GraphViewProps) {
           <span class="tg-more">
             also from{" "}
             {also.map((a) => (
-              <button class="link" title="Go to it" onClick={() => goTo(pathsOf([P[a].top]), true)}>
+              <button class="link" title="Go to it" onClick={() => goTo(pathTo(g, lg, P[a].top), true, P[a].top)}>
                 {name(P[a].top)}
               </button>
             ))}
           </span>
         )}
-        {p.below > 0 && (
+        {r.below > 0 && (
           <button
             class="link tg-more"
-            aria-expanded={below}
-            title={`${below ? "Hide" : "List"} the particles below it at no level shown`}
-            onClick={() => toggleBelow(p.top)}
+            aria-expanded={listed}
+            title={`${listed ? "Hide" : "List"} the particles at no level shown that it made`}
+            onClick={() => toggleBelow(p.top, listed)}
           >
-            {below ? "▾" : "▸"} {p.below} below
+            {listed ? "▾" : "▸"} {r.below} below
           </button>
         )}
-      </div>
+      </>,
     );
   };
 
-  // Keys: ↑ ↓ move between the names, → unfolds, ← folds.
+  // Keys: ↑ ↓ move between the names, → unfolds, ← folds. Handled here only: not the view's (← → step the event).
   const byKey = new Map(rows.map((r) => [r.key, r]));
   const onKey = (e: KeyboardEvent) => {
+    if (!/^Arrow(Up|Down|Left|Right)$/.test(e.key)) return;
     const names = [...(root.current?.querySelectorAll<HTMLElement>(".tg-name") ?? [])],
       at = names.indexOf(document.activeElement as HTMLElement);
     if (at < 0) return;
+    e.preventDefault();
+    e.stopPropagation();
     const row = byKey.get(names[at].closest<HTMLElement>("[data-key]")?.dataset.key ?? ""),
       open = row && "open" in row ? row.open : undefined;
     if (e.key === "ArrowDown" || e.key === "ArrowUp") names[at + (e.key === "ArrowDown" ? 1 : -1)]?.focus();
-    else if (row && open !== undefined && open !== (e.key === "ArrowRight") && /^Arrow(Left|Right)$/.test(e.key))
-      toggle(row);
-    else return;
-    e.preventDefault();
+    else if (row && open !== undefined && open !== (e.key === "ArrowRight")) toggle(row);
   };
 
   return (
-    <div class="truthgraph" ref={root} onKeyDown={onKey}>
-      {query.trim() && (
-        <p class="tg-hint">
-          {found.length ? (
-            <>
-              {found.length.toLocaleString()} found
-              {found.length > REVEAL ? `, the ${REVEAL} largest unfolded` : ""} ·{" "}
-              <button class="link" onClick={() => pickTruth(P[found[0]].last)}>
-                pick the first
-              </button>{" "}
-              · Enter: the next
-            </>
-          ) : (
-            "None at the levels shown"
-          )}
-        </p>
-      )}
+    <div class="truthgraph" ref={root} role="tree" aria-label="Truth graph" onKeyDown={onKey}>
       {rows.map(line)}
     </div>
   );

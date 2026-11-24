@@ -849,11 +849,6 @@ table.inview td > span {
   font-size: 12px;
   line-height: 22px;
 }
-.tg-hint {
-  margin: 0 0 4px;
-  color: var(--muted);
-  font-size: 11px;
-}
 .tg-group {
   border-bottom: 1px solid var(--line);
   margin-top: 6px;
@@ -1002,7 +997,7 @@ table.inview td > span {
   background: var(--accent);
   color: #fff;
 }
-.tg-row.found .tg-name {
+.tg-row.found:not(.sel) .tg-name {
   background: color-mix(in srgb, var(--impure) 30%, transparent);
 }
 .hidden .tg-name {
@@ -1045,17 +1040,13 @@ table.inview td > span {
   font-style: italic;
   margin-left: 4px;
 }
-/* A vertex's particles in and out: on pointing at it, or a tap (focus). */
+/* A vertex's particles in and out: on pointing at it, or after a click or tap (.io). */
 .tg-io {
   display: none;
 }
 .tg-row.vertex:hover .tg-io,
-.tg-row.vertex:focus .tg-io {
+.tg-row.vertex.io .tg-io {
   display: inline;
-}
-.tg-row.vertex:focus {
-  outline: none;
-  background: color-mix(in srgb, var(--text) 5%, transparent);
 }
 
 /* Truth search: level and process chips, on when chosen. */

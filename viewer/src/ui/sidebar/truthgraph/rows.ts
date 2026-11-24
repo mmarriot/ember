@@ -34,11 +34,12 @@ export interface Place {
   rails: boolean[];
   last: boolean;
 }
-/** A row of the tree. `open` is undefined for a particle with nothing to fold. A vertex row stands on the line of the
- *  daughters made at it, which follow it. "more": the rest of list `list`, `left` particles. */
+/** A row of the tree. `open` is undefined for a particle with nothing to fold. A particle's `below`: how many particles
+ *  at no shown level it made, which "▸ N below" lists. A vertex row stands on the line of the daughters made at it,
+ *  which follow it. "more": the rest of list `list`, `left` particles. */
 export type Row =
   | { kind: "group"; key: string; group: Group; open: boolean; size: number }
-  | (Place & { kind: "particle"; node: number; open?: boolean })
+  | (Place & { kind: "particle"; node: number; open?: boolean; below: number })
   | (Place & { kind: "hidden"; top: number; open?: boolean })
   | (Place & { kind: "vertex"; vertex: number })
   | (Place & { kind: "more"; list: string; left: number });
@@ -93,24 +94,52 @@ export function pathTo(g: Graph, lg: LevelGraph, row: number): Path | null {
 }
 
 /** `s` with `path` unfolded down to its particle: its group, the particles above it, and the list of particles at no
- *  shown level of the node it hides under. */
+ *  shown level of the node it hides under; `s` itself when all that is open already. */
 export function reveal(s: TreeState, path: Path): TreeState {
-  const folds = new Map(s.folds),
-    below = new Set(s.below);
-  path.tops.slice(0, -1).forEach((t, k) => (k === path.hidden - 1 ? below.add(t) : folds.set(t, true)));
-  return { ...s, groups: { ...s.groups, [path.group]: true }, folds, below };
+  const open = path.tops.slice(0, -1),
+    under = path.hidden < path.tops.length ? path.tops[path.hidden - 1] : -1;
+  if (s.groups[path.group] && open.every((t) => s.folds.get(t)) && (under < 0 || s.below.has(under))) return s;
+  const below = new Set(s.below);
+  if (under >= 0) below.add(under);
+  return {
+    ...s,
+    groups: { ...s.groups, [path.group]: true },
+    folds: new Map([...s.folds, ...open.map((t): [number, boolean] => [t, true])]),
+    below,
+  };
 }
+
+/** How many particles each group holds, once per level graph. */
+const sizes = new WeakMap<LevelGraph, Partial<Record<GroupId, number>>>();
+function sizesOf(lg: LevelGraph) {
+  let size = sizes.get(lg);
+  if (!size) {
+    sizes.set(lg, (size = {}));
+    for (const p of lg.particles) size[p.group] = (size[p.group] ?? 0) + 1;
+  }
+  return size;
+}
+const NONE = emptyState();
 
 /** The rows of the tree of `lg` in state `s`: the groups, and under each open one its roots and what is unfolded
  *  below them. `vertices`: vertex rows between a particle and its daughters. A list shows its first particles (LIST,
- *  or `s.more`) and those in `keep` (by top: the ways to the picks and to what the search found). */
-export function treeRows(lg: LevelGraph, g: Graph, s: TreeState, vertices: boolean, keep: Set<number>): Row[] {
+ *  or `s.more`) and those in `keep` (by top: the ways to the picks and to what the search found). `force`: what is
+ *  open besides, whatever `s` says (the ways to what the search finds, while it is typed). A particle's list of
+ *  particles at no shown level shows only while it is unfolded. */
+export function treeRows(
+  lg: LevelGraph,
+  g: Graph,
+  s: TreeState,
+  vertices: boolean,
+  keep: Set<number>,
+  force: TreeState = NONE,
+): Row[] {
   const P = lg.particles,
     out: Row[] = [];
   /** The particles of list `list` shown, and a "more" entry for the rest. */
   const part = (list: string, items: number[], top: (x: number) => number) => {
     const n = s.more.get(list) ?? LIST,
-      shown = items.filter((x, k) => k < n || keep.has(top(x)));
+      shown = keep.size ? items.filter((x, k) => k < n || keep.has(top(x))) : items.slice(0, n);
     const more: Entry[] =
       shown.length < items.length ? [{ kind: "more", list, left: items.length - shown.length }] : [];
     return { shown, more };
@@ -138,15 +167,16 @@ export function treeRows(lg: LevelGraph, g: Graph, s: TreeState, vertices: boole
     if (e.kind === "particle") {
       const p = P[e.node],
         kids = treeChildren(lg, e.node),
-        open = kids.length ? (s.folds.get(p.top) ?? defaultOpen(p)) : undefined;
-      out.push({ ...place, ...e, open });
-      const c = part(`c${p.top}`, open ? kids : [], (i) => P[i].top);
-      const below = p.below && s.below.has(p.top) ? hiddenChildren(g, lg, p.top) : [];
-      return [...daughters(c.shown), ...c.more, ...hidden(`h${p.top}`, below)];
+        open = kids.length ? force.folds.get(p.top) || (s.folds.get(p.top) ?? defaultOpen(p)) : undefined,
+        below = p.below ? hiddenChildren(g, lg, p.top) : [];
+      out.push({ ...place, ...e, open, below: below.length });
+      const c = part(`c${p.top}`, open ? kids : [], (i) => P[i].top),
+        listed = open !== false && (s.below.has(p.top) || force.below.has(p.top));
+      return [...daughters(c.shown), ...c.more, ...hidden(`h${p.top}`, listed ? below : [])];
     }
     if (e.kind === "hidden") {
       const kids = hiddenChildren(g, lg, e.top),
-        open = kids.length ? (s.folds.get(e.top) ?? false) : undefined;
+        open = kids.length ? force.folds.get(e.top) || (s.folds.get(e.top) ?? false) : undefined;
       out.push({ ...place, ...e, open });
       return open ? hidden(`h${e.top}`, kids) : [];
     }
@@ -169,10 +199,9 @@ export function treeRows(lg: LevelGraph, g: Graph, s: TreeState, vertices: boole
       if (kids.length) walk(kids, depth + 1, depth ? [...rails, !last] : [], key);
     });
 
-  const size: Partial<Record<GroupId, number>> = {};
-  for (const p of P) size[p.group] = (size[p.group] ?? 0) + 1;
+  const size = sizesOf(lg);
   for (const group of lg.groups) {
-    const open = s.groups[group.id] ?? group.id === "hard";
+    const open = force.groups[group.id] || (s.groups[group.id] ?? group.id === "hard");
     out.push({ kind: "group", key: group.id, group, open, size: size[group.id] ?? 0 });
     if (!open) continue;
     const r = part(`g${group.id}`, group.roots, (i) => P[i].top);

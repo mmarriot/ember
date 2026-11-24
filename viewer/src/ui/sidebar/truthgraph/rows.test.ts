@@ -127,11 +127,12 @@ describe("treeRows", () => {
     expect(path).toEqual({ group: "hard", tops: [2, 5, 9, 11, 12, 13], hidden: 5 });
     const s = reveal(emptyState(), path);
     expect([...s.below]).toEqual([12]);
-    expect([...s.folds.keys()]).toEqual([2, 5, 9, 11]);
+    expect([...s.folds.keys()]).toEqual([2, 5, 9, 11, 12]); // the K⁻ unfolded too: its list shows only then
     expect(text(rows(s)).slice(13, 16)).toEqual(["        K⁻", "          ~π⁻", "          ~γ"]);
     expect(pathTo(g, lg, 16)).toEqual({ group: "underlying", tops: [16], hidden: 1 });
     expect(reveal(emptyState(), pathTo(g, lg, 16)!).groups).toEqual({ underlying: true });
     expect(pathTo(g, lg, 15)).toBeNull(); // no shown particle above it
+    expect(reveal(s, path)).toBe(s); // open already: the same state
   });
   it("climbs to a hidden particle through a parent with a shown particle above it, not a dead end", () => {
     // 0 p (beam) -> 1 a remnant string (no level, 5 TeV); 1 and 2 b (leg) -> 3 B̄*⁰ (no level) -> 4 B̄⁰ (b hadron)
@@ -162,6 +163,32 @@ describe("treeRows", () => {
               ? d.col("pdgId", dlg.particles[x.node].top)
               : x.kind);
     expect(r.map(pdg)).toEqual(["", "5", "  -511", "  ~-513"]);
+  });
+  it("lists the particles at no shown level of a node only while it is unfolded", () => {
+    const s = emptyState();
+    s.below.add(5);
+    s.folds.set(5, false);
+    const r = rows(s),
+      b = r.find((x) => x.kind === "particle" && lg.particles[x.node].top === 5);
+    expect(text(r)).not.toContain("    ~str");
+    expect(b && b.kind === "particle" && [b.open, b.below]).toEqual([false, 1]); // "▸ 1 below": what a click lists
+  });
+  it("gives a particle at no shown level listed under two parents a key under each", () => {
+    const s = emptyState();
+    s.below.add(5);
+    s.below.add(7); // the string, under the b and the s̄
+    const r = rows(s),
+      keys = r.map((x) => x.key);
+    expect(text(r).filter((x) => x.endsWith("~str"))).toHaveLength(2);
+    expect(new Set(keys).size).toBe(keys.length);
+  });
+  it("opens what is forced, whatever the state, without changing it", () => {
+    const s = emptyState();
+    s.folds.set(5, false);
+    const force = reveal(emptyState(), pathTo(g, lg, 12)!);
+    expect(text(rows(s))).not.toContain("        K⁻");
+    expect(text(treeRows(lg, g, s, true, new Set(), force))).toContain("        K⁻");
+    expect(s.folds.get(5)).toBe(false);
   });
 });
 
@@ -196,5 +223,37 @@ describe("treeRows of a large group", () => {
   });
   it("lists a kept one wherever it is", () => {
     expect(listed(open, new Set([n - 1]))).toEqual([LIST + 1, n - LIST - 1]);
+  });
+  it("lists the first daughters of a particle under their vertices, a kept one under its own", () => {
+    // 0 b (leg) -> 1 .. n daughters, largest first, made at vertices 0 and 1 in turn
+    const m = n + 1,
+      fam = graphOf(
+        {
+          n: m,
+          columns: {
+            pdgId: Array.from({ length: m }, (_, i) => (i ? 211 : 5)),
+            status: Array.from({ length: m }, (_, i) => (i ? 1 : 23)),
+            energy: Array.from({ length: m }, (_, i) => (i ? m - i : 1e4)),
+            levelFlags: Array.from({ length: m }, (_, i) => (i ? RECO : HARD)),
+            isSignal: Array(m).fill(1),
+            prodVertexIdx: Array.from({ length: m }, (_, i) => (i ? (i + 1) % 2 : -1)),
+          },
+        },
+        csr([Array.from({ length: n }, (_, i) => i + 1), ...Array.from({ length: n }, () => [])]),
+        { n: 2, columns: { reason: [2, 11] } },
+      );
+    const flg = levelGraph(fam, "levelFlags", "isSignal", DEFAULT_LEVELS);
+    const shape = (keep: Set<number>) =>
+      treeRows(flg, fam, emptyState(), true, keep)
+        .slice(2) // the heading and the b
+        .reduce<string[]>((out, r) => {
+          const k =
+            r.kind === "particle" ? "p" : r.kind === "vertex" ? `◆${r.vertex}` : `+${(r as { left: number }).left}`;
+          if (k === "p" && out.at(-1)?.startsWith("p")) out[out.length - 1] = `p${Number(out.at(-1)!.slice(1)) + 1}`;
+          else out.push(k === "p" ? "p1" : k);
+          return out;
+        }, []);
+    expect(shape(new Set())).toEqual(["◆0", "p25", "◆1", "p25", `+${n - LIST}`]);
+    expect(shape(new Set([n]))).toEqual(["◆0", "p25", "◆1", "p26", `+${n - LIST - 1}`]); // the last, made at 1
   });
 });

@@ -30,10 +30,10 @@ export const inDomain = (d: DisplayLayer, current = domain.value) =>
 /** The side-panel tab to open: a domain's, when it is chosen. A new object each time, so the same domain reopens it. */
 export const openTab = signal<{ name: string } | null>(null);
 /** The side-panel tab that lists the layers of the domain bar's parts, one section per part (it follows the bar). */
-export const COLLECTIONS = "Collections";
-/** The side-panel tab that lists a domain's layers: Collections in a bundle with a domain bar, else its own. */
+export const RECONSTRUCTION = "Reconstruction";
+/** The side-panel tab that lists a domain's layers: Reconstruction in a bundle with a domain bar, else its own. */
 export const tabOfDomain = (h: Pick<Header, "domains">, name: string) =>
-  (h.domains?.length ?? 0) >= 2 && h.domains!.some((d) => d.name === name) ? COLLECTIONS : name;
+  (h.domains?.length ?? 0) >= 2 && h.domains!.some((d) => d.name === name) ? RECONSTRUCTION : name;
 
 /** One kind of object looked at alone (its heading's "only"), as `soloKey` names it: only its collections are drawn,
  *  in any domain; null: everything ticked. A view like `domain`: the ticks are kept, and a selection still draws its

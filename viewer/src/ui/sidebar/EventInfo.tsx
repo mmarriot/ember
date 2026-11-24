@@ -1,9 +1,10 @@
-// The Event tab: the event's identity, its run's information and summary charts (where the bundle has them), its
+// The Metadata tab: the event's identity, its run's information and summary charts (where the bundle has them), its
 // provenance with every table of the event, and the custom columns no collection lists.
 import type { Summary } from "../../io/format";
 import { customColumns, evaluate, filters } from "../../model/custom/settings";
 import { provenance } from "../../model/site/about";
 import { cutMin, cutValues } from "../../model/custom/cuts";
+import { showUnclustered, unclusteredHidden } from "../../model/event/clustered";
 import { bundle, cuts, event, eventIndex, layerOf, loadMs, opened, short } from "../../model/store";
 import { ColumnDef } from "./LayerOptions";
 
@@ -115,7 +116,9 @@ function Chart({ s }: { s: Summary }) {
   const group = t?.columns[s.groupBy],
     value = s.value ? t.columns[s.value] : undefined;
   if (!t?.n || !group || (s.value && !value)) return null;
-  const passing = d ? cutValues(d, t, filters.value[s.table]) : undefined;
+  const passing = d
+    ? cutValues(d, t, filters.value[s.table], undefined, undefined, unclusteredHidden(t, !showUnclustered.value))
+    : undefined;
   const min = d ? cutMin(d, passing, cuts.value) : -Infinity;
   const where = s.where ? evaluate(t, s.where) : null;
   const totals = new Map<number, number>(),

@@ -28,6 +28,7 @@ import { Info, popover, togglePopover } from "../common/Info";
 import { Options, Scale } from "./LayerOptions";
 import { Headline, ObjectRows } from "./ObjectRows";
 import { summaryLayers } from "../viewport/TitleBox";
+import { showUnclustered, unclusteredHidden } from "../../model/event/clustered";
 
 /** The tab a layer is listed in: its `domain`, or "Objects" for bundles made before layers had one. */
 export const tabOf = (d: DisplayLayer) => d.domain ?? "Objects";
@@ -279,7 +280,16 @@ function LayerRow({ d, cut, here }: { d: DisplayLayer; cut?: string; here: Displ
             {count} {listed ? "▾" : "▸"}
           </button>
         ) : (
-          <span class="count">{count}</span>
+          <span
+            class="count"
+            title={
+              t && unclusteredHidden(t, !showUnclustered.value)
+                ? "The hits in no cluster are hidden (⚙ menu → Unclustered hits)"
+                : undefined
+            }
+          >
+            {count}
+          </span>
         )}
         <button
           class={open ? "more on" : "more"}

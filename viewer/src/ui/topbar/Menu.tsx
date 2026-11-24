@@ -17,8 +17,6 @@ import {
   setRest,
   stepEvent,
   stepFocusLevel,
-  theme,
-  toggleTheme,
   touring,
   truthColours,
   view,
@@ -27,7 +25,8 @@ import { back, cross, frameFocus, nextDomain, nextObject, showWhole } from "../.
 import { stopTour, toggleTour } from "../../control/tour";
 import { replayEvent } from "../../control/scene";
 import { hasDomainBar, REST_NAMES, VIEWS } from "../viewport/ViewControls";
-import { usePressOutside } from "../common/widgets";
+import { Icon, usePressOutside } from "../common/widgets";
+import { clusterSources, showUnclustered } from "../../model/event/clustered";
 
 /** Whether the menu is open (Esc closes it: App.tsx). */
 export const menuOpen = signal(false);
@@ -40,7 +39,8 @@ export function Menu() {
   usePressOutside(ref, open, () => (menuOpen.value = false));
 
   const parts = hasDomainBar(bundle.value?.header),
-    f = focus.value;
+    f = focus.value,
+    hits = !!bundle.value && clusterSources(bundle.value.header).size > 0; // a hit table that clusters list
   const levels = !!f && focusBar.value.some((l) => !l.always);
   const groups: [string, Item[]][] = [
     [
@@ -57,6 +57,15 @@ export function Menu() {
           run: () => frameFocus(),
         },
         { label: "Labels", keys: "L", on: labelsOn.value, run: () => (labelsOn.value = !labelsOn.value) },
+        ...(hits
+          ? [
+              {
+                label: "Unclustered hits",
+                on: showUnclustered.value,
+                run: () => (showUnclustered.value = !showUnclustered.value),
+              },
+            ]
+          : []),
         { label: "Save picture…", off: !bundle.value, run: () => (dialog.value = "picture") },
       ],
     ],
@@ -124,24 +133,19 @@ export function Menu() {
         { label: "Tour, event after event", keys: "P", on: touring.value, run: toggleTour },
       ],
     ],
-    [
-      "",
-      [
-        { label: theme.value === "dark" ? "Light theme" : "Dark theme", run: toggleTheme },
-        { label: "Help and every key", keys: "?", run: () => (dialog.value = "help") },
-      ],
-    ],
+    ["", [{ label: "Help and every key", keys: "?", run: () => (dialog.value = "help") }]],
   ];
   return (
     <div class="menu" ref={ref}>
       <button
-        class={open ? "menubutton on" : "menubutton"}
+        class={open ? "icon-button menubutton on" : "icon-button menubutton"}
         aria-haspopup="menu"
         aria-expanded={open}
-        title="Every control and its key"
+        aria-label="Menu"
+        title="Menu: every control and its key"
         onClick={() => (menuOpen.value = !open)}
       >
-        Menu <span aria-hidden="true">▾</span>
+        <Icon name="settings" />
       </button>
       {open && (
         <div class="menupanel" role="menu">

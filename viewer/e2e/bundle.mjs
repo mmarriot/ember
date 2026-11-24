@@ -64,6 +64,7 @@ export async function checkBundle(run, file, tag, state) {
   await shot("1_layers");
   await checkHelices(page, fail, tag);
   await checkDomains(page, h, fail, shot, tag);
+  await checkUnclustered(page, h, fail, tag);
   await checkObjectRows(page, h, fail, shot, tag);
 
   const preset = page.locator(".sidebar .presets select");
@@ -106,7 +107,7 @@ export async function checkBundle(run, file, tag, state) {
   if ((h.presets?.length ?? 0) > 1) await preset.selectOption("0", { timeout: 120000 }); // the default filters
   await checkFocusFilters(page, h, fail, tag);
 
-  await page.getByRole("tab", { name: "Event", exact: true }).click();
+  await page.getByRole("tab", { name: "Metadata", exact: true }).click();
   const charts = await page.locator(".bars").count(),
     runInfo = await page.locator(".tabpanel section h3", { hasText: /^Run \d+/, hasNotText: "Lumi" }).count();
   log(
@@ -334,8 +335,8 @@ async function checkHelices(page, fail, tag) {
 
 /** With a domain bar: each domain draws only its layers, those of shared domains and those without a domain, puts
  *  itself in the URL, hides the particle-type colour key if it colours layer by layer (`colourMode`), and opens its
- *  layers' tab (Collections, with its section open and first, where there is one); another tab leaves the view as it
- *  is; All brings every layer back. */
+ *  layers' tab (Reconstruction, with its section open and highlighted in the bar's order, where there is one); another
+ *  tab leaves the view as it is; All brings every layer back. */
 async function checkDomains(page, h, fail, shot, tag) {
   if (!hasDomainBar(h)) return;
   const shared = new Set(h.domains.filter((d) => d.shared).map((d) => d.name));
@@ -359,16 +360,20 @@ async function checkDomains(page, h, fail, shot, tag) {
     const tabs = page.locator(".sidebar .tablist [role=tab]"),
       tabNames = await tabs.allInnerTexts();
     const tab = await page.locator(".sidebar .tablist [aria-selected=true]").innerText();
-    const expected = tabNames.includes("Collections") ? "Collections" : name;
+    const expected = tabNames.includes("Reconstruction") ? "Reconstruction" : name;
     if (tabNames.includes(expected) && tab !== expected)
       fail(`domain ${name} did not open its tab ${expected} (open: ${tab})`);
-    if (expected === "Collections") {
+    if (expected === "Reconstruction") {
       const open = await page.locator(".tabpanel details.part[open] > summary b").allInnerTexts(),
-        first = await page.locator(".tabpanel details.part > summary b").first().innerText();
-      if (open.join() !== name || first !== name)
+        here = await page.locator(".tabpanel details.part.here > summary b").allInnerTexts(),
+        order = await page.locator(".tabpanel details.part > summary b").allInnerTexts(),
+        bar = h.domains.map((d) => d.name).filter((n) => order.includes(n));
+      if (open.join() !== name || here.join() !== name)
         fail(
-          `the Collections tab does not follow the bar to ${name} (open: ${open.join() || "none"}, first: ${first})`,
+          `the Reconstruction tab does not follow the bar to ${name} (open: ${open.join() || "none"}, highlighted: ${here.join() || "none"})`,
         );
+      if (order.join() !== bar.join())
+        fail(`the Reconstruction tab's parts moved: ${order.join()} (bar: ${bar.join()})`);
     }
     await tabs.last().click({ timeout: 120000 });
     if (!new URL(page.url()).hash.includes(`d=${encodeURIComponent(name)}`))
@@ -382,11 +387,111 @@ async function checkDomains(page, h, fail, shot, tag) {
     fail("All did not bring the colour key back");
 }
 
+/** Hits in no cluster: hidden by default where there is a domain bar (collision events), shown elsewhere; the menu's
+ *  "Unclustered hits" shows or hides them. Checked on the drawn hit layers that clusters list (in All, where
+ *  checkDomains leaves the view): no unclustered hit is drawn while they are hidden, but those of a selection (an
+ *  object related to one, e.g. a truth particle that left energy in it); once shown, every one that the layer's cut and
+ *  filter keep is (none in the test-beam bundles, whose clustering takes every hit). */
+async function checkUnclustered(page, h, fail, tag) {
+  const item = page.locator(".menupanel [role^=menuitem]", { hasText: "Unclustered hits" });
+  const count = () =>
+    page.evaluate(async () => {
+      const url = (f) =>
+        performance
+          .getEntriesByType("resource")
+          .map((r) => r.name)
+          .find((n) => n.includes(f));
+      const store = await import(url("/src/model/store/index.ts")),
+        custom = await import(url("/src/model/custom/settings.ts")),
+        clustered = await import(url("/src/model/event/clustered.ts"));
+      const frames = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      const ev = store.event.peek(),
+        h = store.bundle.peek().header,
+        sources = clustered.clusterSources(h),
+        drawn = {},
+        kept = {}, // the unclustered hits that the layer's cut and own filter keep
+        selected = []; // while hidden: a selection's unclustered hit, and whether it is drawn
+      for (const table of sources.keys()) {
+        const l = window.emberEngine.layers.find((x) => x.table === table),
+          t = ev.tables[table],
+          flag = t?.columns[clustered.CLUSTERED],
+          d = h.display.find((x) => x.table === table);
+        if (!l || !flag) continue;
+        const filter = custom.filterMask(t, custom.filters.peek()[table]),
+          col = d.cut && t.columns[d.cut.column],
+          min = d.cut ? (store.cuts.peek()[d.cut.group] ?? 0) : -Infinity,
+          passing = (i) => (!filter || filter[i]) && (!col || col[i] >= min);
+        drawn[table] = kept[table] = 0;
+        for (let i = 0; i < flag.length; i++) {
+          if (flag[i]) continue;
+          if (l.passes(i)) drawn[table]++;
+          if (passing(i)) kept[table]++;
+        }
+        if (clustered.showUnclustered.peek()) continue;
+        // an object that a plain relation (not a cluster's) links to an unclustered hit that the cut and filter keep
+        for (const [name, r] of Object.entries(h.relations)) {
+          const rel = ev.relations[name];
+          if (r.to !== table || r.from === table || sources.get(table).includes(name) || !rel) continue;
+          let from = -1,
+            row = -1;
+          for (let f = 0; f + 1 < rel.offsets.length && from < 0; f++)
+            for (let k = rel.offsets[f]; k < rel.offsets[f + 1]; k++)
+              if (!flag[rel.indices[k]] && passing(rel.indices[k])) {
+                from = f;
+                row = rel.indices[k];
+                break;
+              }
+          if (from < 0) continue;
+          store.selection.value = { table: r.from, row: from };
+          await frames();
+          const now = window.emberEngine.layers.find((x) => x.table === table);
+          selected.push({ sel: `${r.from}:${from}`, hit: `${table}:${row}`, drawn: !!now?.passes(row) });
+          store.selection.value = null;
+          await frames();
+          break;
+        }
+      }
+      return { shown: clustered.showUnclustered.peek(), drawn, kept, selected };
+    });
+  await page.locator(".menubutton").click({ timeout: 120000 });
+  if (!(await item.count())) {
+    await page.keyboard.press("Escape");
+    const hitLayers = h.display.some((d) => d.repr === "cells" && !d.truth && !d.context && !d.onSelection);
+    if (hasDomainBar(h) && hitLayers) fail("the menu has no Unclustered hits in a collision event with hits");
+    return;
+  }
+  const before = await count(),
+    expected = !hasDomainBar(h);
+  await item.click({ timeout: 120000 });
+  await page.waitForTimeout(800);
+  const after = await count();
+  log(
+    `${tag}: unclustered hits ${before.shown ? "shown" : "hidden"} -> ${after.shown ? "shown" : "hidden"}; drawn: ${JSON.stringify(before.drawn)} -> ${JSON.stringify(after.drawn)}`,
+  );
+  if (before.shown !== expected) fail(`unclustered hits are ${before.shown ? "shown" : "hidden"} by default`);
+  if (after.shown === before.shown) fail("the menu's Unclustered hits did not toggle them");
+  const hidden = before.shown ? after : before,
+    shown = before.shown ? before : after;
+  if (Object.values(hidden.drawn).some((n) => n > 0))
+    fail(`unclustered hits drawn while hidden: ${JSON.stringify(hidden.drawn)}`);
+  for (const s of hidden.selected) {
+    log(`${tag}: selection ${s.sel} reaches the unclustered hit ${s.hit}: ${s.drawn ? "drawn" : "not drawn"}`);
+    if (!s.drawn) fail(`the selection ${s.sel} does not draw its unclustered hit ${s.hit}`);
+  }
+  if (JSON.stringify(shown.drawn) !== JSON.stringify(shown.kept))
+    fail(
+      `unclustered hits drawn once shown: ${JSON.stringify(shown.drawn)}, kept by cuts: ${JSON.stringify(shown.kept)}`,
+    );
+  await page.locator(".menubutton").click({ timeout: 120000 });
+  await item.click({ timeout: 120000 }); // back to the default
+  await page.waitForTimeout(800);
+}
+
 /** Layers with object rows (`list`): the ticked ones list their objects; pointing at a row rings its object; a click
  *  selects it (URL, card, the row marked); then H steps through how the rest of the event is drawn. */
 async function checkObjectRows(page, h, fail, shot, tag) {
   // The first ticked layer with object rows that this viewer draws (it leaves out reprs it does not know), in its tab.
-  const tabOf = (d) => (hasDomainBar(h) ? "Collections" : (d.domain ?? "Objects"));
+  const tabOf = (d) => (hasDomainBar(h) ? "Reconstruction" : (d.domain ?? "Objects"));
   let d;
   for (const x of h.display.filter((l) => l.list && l.visible)) {
     await page
@@ -681,7 +786,8 @@ const untickedDrawn = (page) =>
 /** "only" on a kind's heading draws that kind alone, keeps it in the URL, and "show everything" brings the rest back. */
 async function checkOnly(page, h, fail, shot, tag) {
   const tables = async () => (await drawnTables(page)).sort().join();
-  const button = page.locator(".sidebar .tabpanel section.kind:not(.folded) h3 .only").first();
+  // the first heading on screen: a folded part keeps its sections, out of sight (the parts keep the bar's order)
+  const button = page.locator(".sidebar .tabpanel section.kind:not(.folded) h3:visible .only").first();
   if (!(await button.count())) return;
   const before = await tables(),
     heading = button.locator("xpath=.."),
@@ -751,11 +857,9 @@ async function deepChecks(page, h, fail, shot) {
   if (labels === labelsAfter) fail("the menu's Labels item did not toggle the labels");
   if (!closed || !kept) fail("Esc did not close the menu alone");
   await page.keyboard.press("l"); // labels back on
-  await menu.click();
-  await item("Light theme").click();
+  await page.locator(".actions [title='Light theme']").click();
   await shot("5_light");
-  await menu.click();
-  await item("Dark theme").click();
+  await page.locator(".actions [title='Dark theme']").click();
   // A press-drag-release rotates; it is not a click, so the selection stays.
   await page.mouse.move(700, 600);
   await page.mouse.down();

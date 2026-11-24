@@ -1,5 +1,5 @@
 // The top bar: the data set chooser, the event navigation (with the box that finds an event or objects), the domain
-// bar (or the views), the menu, and the actions (show everything, share, help).
+// bar (or the views), the menu (⚙), and the actions (show everything, share, light or dark, help).
 import logo from "../../../logo.svg";
 import { type Domain, kindName } from "../../io/format";
 import {
@@ -16,7 +16,9 @@ import {
   showEvent,
   shownEntry,
   stepEvent,
+  theme,
   toast,
+  toggleTheme,
   touring,
   visible,
 } from "../../model/store";
@@ -104,6 +106,9 @@ export function Header() {
         </button>
         <button class="icon-button share" title="Copy a link to this view" onClick={share}>
           <Icon name="share" />
+        </button>
+        <button class="icon-button" title={theme.value === "dark" ? "Light theme" : "Dark theme"} onClick={toggleTheme}>
+          <Icon name={theme.value === "dark" ? "sun" : "moon"} />
         </button>
         <button class="icon-button" title="Help (?)" onClick={() => (dialog.value = "help")}>
           <Icon name="help" />

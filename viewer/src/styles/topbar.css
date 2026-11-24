@@ -299,10 +299,6 @@
   position: relative;
   flex: none;
 }
-.menubutton {
-  font-size: 12px;
-  padding: 4px 10px;
-}
 .menubutton.on {
   background: var(--accent-soft);
   border-color: var(--accent);

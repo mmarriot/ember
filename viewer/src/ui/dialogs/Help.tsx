@@ -6,7 +6,7 @@ import { SYNTAX } from "../sidebar/ExprForm";
 import { Modal } from "../common/widgets";
 
 export function HelpDialog() {
-  // The tab with the object rows: the shared domain's (e.g. Physics), or Collections where the bar's parts share one.
+  // The tab with the object rows: the shared domain's (e.g. Physics), or Reconstruction where the bar's parts share one.
   const h = bundle.value?.header,
     listed = h?.domains?.find((d) => d.shared && h.display.some((l) => l.list && l.domain === d.name))?.name,
     listTab = h && listed ? tabOfDomain(h, listed) : undefined;
@@ -27,7 +27,7 @@ export function HelpDialog() {
         [["Home"], "the reset button", "Show the whole event"],
         [
           [],
-          "Menu → Save picture…",
+          "⚙ menu → Save picture…",
           "The view as a figure: the CMS label, a caption and the colour key over it, all editable; PNG, SVG or the clipboard",
         ],
       ],
@@ -101,13 +101,19 @@ export function HelpDialog() {
       [
         [
           ["T"],
-          "Colour by: reco type | truth particle, in the colour key or the menu",
+          "Colour by: reco type | truth particle, in the colour key or the ⚙ menu",
           "Colours: what the reconstruction made, or what was really there",
         ],
         [
           ["L"],
           `pointing at an object's row in ${listTab ? `the ${listTab} tab` : "the side panel"} rings it in the view`,
           "Labels on the leading objects and the selection",
+        ],
+        [[], "☀ / ☾ in the top bar", "Light or dark theme"],
+        [
+          [],
+          "⚙ menu → Unclustered hits",
+          "Calorimeter hits in no cluster: hidden in collision events until asked for, shown in test-beam ones",
         ],
       ],
     ],
@@ -149,7 +155,7 @@ export function HelpDialog() {
       [
         [[], "⋯ at the end of its row in the side panel", "Colour, filter or a new column for a collection"],
         [[], "drag its edge; double-click to reset", "Resize the side panel"],
-        [[], "Menu in the top bar", "Every control and its key, in one place"],
+        [[], "⚙ in the top bar", "Every control and its key, in one place"],
       ],
     ],
   ];

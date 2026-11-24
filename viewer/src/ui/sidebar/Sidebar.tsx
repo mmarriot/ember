@@ -1,13 +1,13 @@
 // The side panel: the profile's presets, the tabs, and the colour key under them (Key.tsx). The tabs: with a domain
-// bar (Look at), one Collections tab with a folding section per part, else a tab per part (Layers.tsx); Truth
-// (TruthTab.tsx); Event (EventInfo.tsx). Its width can be dragged; on phones it is a sheet under the view.
+// bar (Look at), one Reconstruction tab with a folding section per part, else a tab per part (Layers.tsx); Truth
+// (TruthTab.tsx); Metadata (EventInfo.tsx). Its width can be dragged; on phones it is a sheet under the view.
 import { signal } from "@preact/signals";
 import type { ComponentChildren } from "preact";
 import { activePreset } from "../../model/custom/settings";
 import { applyPreset, presetFits } from "../../model/custom/presets";
 import { browserStorage } from "../../model/site/library";
 import type { DisplayLayer } from "../../io/format";
-import { bundle, bundleName, COLLECTIONS, domain, openTab, overlay, shared } from "../../model/store";
+import { bundle, bundleName, domain, openTab, overlay, RECONSTRUCTION, shared } from "../../model/store";
 import { chooseDomain } from "../../control/navigate";
 import { EventInfo } from "./EventInfo";
 import { ColourKey } from "./Key";
@@ -59,19 +59,19 @@ export function Sidebar() {
   const order = (b?.header.domains ?? []).map((d) => d.name),
     rank = (name: string) => (order.includes(name) ? order.indexOf(name) : order.length);
   const names = [...new Set(reco.map(tabOf))].sort((x, y) => rank(x) - rank(y)); // a stable sort: ties keep display order
-  // With a domain bar, its parts share one tab, Collections, which follows the bar; layers of no part keep a tab.
+  // With a domain bar, its parts share one tab, Reconstruction, which follows the bar; layers of no part keep a tab.
   const domains = b?.header.domains ?? [],
     parts = domains.length >= 2 ? domains.map((d) => d.name).filter((name) => names.includes(name)) : [];
   const own = names.filter((name) => !parts.includes(name));
   const tabs: [string, () => ComponentChildren][] = [];
-  if (parts.length) tabs.push([COLLECTIONS, () => <Parts names={parts} layers={reco} />]);
+  if (parts.length) tabs.push([RECONSTRUCTION, () => <Parts names={parts} layers={reco} />]);
   for (const name of own)
     tabs.push([
       name,
       () => <Collections key={`${bundleName.value}|${name}`} layers={reco.filter((d) => tabOf(d) === name)} />,
     ]);
   if (truth || treeRelations().length) tabs.push([truth ? "Truth" : "Tree", TruthTab]);
-  tabs.push(["Event", EventInfo]);
+  tabs.push(["Metadata", EventInfo]);
   return (
     <>
       <aside
@@ -130,22 +130,22 @@ export function Sidebar() {
   );
 }
 
-/** The parts of the bar (Look at), one section each, the one looked at open and first. In All, the shared parts (e.g.
- *  Physics) are open and the detector's folded (with no shared part, all open). Each says whether the view draws it:
- *  a shared part is drawn over another part's view with its overlay. */
+/** The parts of the bar (Look at), one section each, in the bar's order; the one looked at is open and highlighted,
+ *  and does not move, so each part keeps its place. In All, the shared parts (e.g. Physics) are open and the
+ *  detector's folded (with no shared part, all open). Each says whether the view draws it: a shared part is drawn over
+ *  another part's view with its overlay. */
 function Parts({ names, layers }: { names: string[]; layers: DisplayLayer[] }) {
-  const current = domain.value,
-    order = [...names.filter((n) => n === current), ...names.filter((n) => n !== current)];
+  const current = domain.value;
   return (
     <>
-      {order.map((name) => {
+      {names.map((name) => {
         const here = name === current,
           over = !here && !!current && shared.value.has(name) && overlay.value,
           drawn = here || !current || over;
         const own = layers.filter((d) => d.domain === name);
         return (
           <details
-            class="part"
+            class={here ? "part here" : "part"}
             open={here || (!current && (shared.value.has(name) || !names.some((n) => shared.value.has(n))))}
             key={`${bundleName.value}|${name}|${current}`}
           >

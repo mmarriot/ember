@@ -5,6 +5,7 @@ import { batch, computed, signal } from "@preact/signals";
 import { around, blobSource, Bundle, httpSource, type Source } from "../../io/bundle";
 import { type DisplayLayer, type EventData, type IndexEntry, REPRS } from "../../io/format";
 import { loadCustom } from "../custom/settings";
+import { defaultShowUnclustered, showUnclustered } from "../event/clustered";
 import { startDomain } from "../event/domains";
 import { findEvent } from "../event/find";
 import {
@@ -164,6 +165,7 @@ export async function openBundle(
       );
       visible.value = Object.fromEntries(b.header.display.map((d) => [layerKey(d), d.visible]));
       showAll.value = {};
+      showUnclustered.value = defaultShowUnclustered(b.header);
       domain.value = first;
       if (first) openTab.value = { name: tabOfDomain(b.header, first) };
       cuts.value = Object.fromEntries([...cutGroups.value].map(([g, info]) => [g, info.default]));

@@ -7,7 +7,7 @@ Object.assign(globalThis, {
   document: { documentElement: { dataset: {} } },
   localStorage: { getItem: (k: string) => stored.get(k) ?? null, setItem: (k: string, v: string) => stored.set(k, v) },
 });
-const { COLLECTIONS, rest, setRest, tabOfDomain } = await import(".");
+const { RECONSTRUCTION, rest, setRest, tabOfDomain } = await import(".");
 
 describe("the rest of the event around a selection", () => {
   it("starts as the user left it, steps dim, faint, hidden and round, and is remembered", () => {
@@ -25,9 +25,9 @@ describe("the rest of the event around a selection", () => {
 describe("the side-panel tab of a domain", () => {
   const domains = (...d: object[]) => ({ domains: d }) as Pick<Header, "domains">,
     bar = domains({ name: "Physics", shared: true }, { name: "Tracker" });
-  it("is Collections for every part of a domain bar, shared or not", () => {
-    expect(tabOfDomain(bar, "Physics")).toBe(COLLECTIONS);
-    expect(tabOfDomain(bar, "Tracker")).toBe(COLLECTIONS);
+  it("is Reconstruction for every part of a domain bar, shared or not", () => {
+    expect(tabOfDomain(bar, "Physics")).toBe(RECONSTRUCTION);
+    expect(tabOfDomain(bar, "Tracker")).toBe(RECONSTRUCTION);
   });
   it("is the domain's own without a bar", () => {
     expect(tabOfDomain(domains({ name: "HGCal" }), "HGCal")).toBe("HGCal");

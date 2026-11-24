@@ -3,7 +3,9 @@
 // focus.
 import { batch, computed, effect, signal } from "@preact/signals";
 import { type DisplayLayer, kindName } from "../io/format";
-import { filterMask, filters } from "../model/custom/settings";
+import { filters } from "../model/custom/settings";
+import { keptMask } from "../model/custom/cuts";
+import { showUnclustered } from "../model/event/clustered";
 import { rowsInDomain, stepDomain, withFocus } from "../model/event/domains";
 import { passes, stepRow, topRows } from "../model/event/objects";
 import {
@@ -254,7 +256,12 @@ export function showWhole(home = false) {
 export function ranked(d: DisplayLayer, max = Infinity): number[] {
   const t = event.peek()?.tables[d.table];
   if (!t) return [];
-  const pass = passes(d, t, d.cut ? (cuts.peek()[d.cut.group] ?? 0) : 0, filterMask(t, filters.peek()[d.table]));
+  const pass = passes(
+    d,
+    t,
+    d.cut ? (cuts.peek()[d.cut.group] ?? 0) : 0,
+    keptMask(t, filters.peek()[d.table], !showUnclustered.peek()),
+  );
   return topRows(t, d.list?.sort ?? sizeColumn(d.table, t), pass, max);
 }
 

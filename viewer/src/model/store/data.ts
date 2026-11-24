@@ -4,6 +4,7 @@ import { computed, signal } from "@preact/signals";
 import type { Bundle } from "../../io/bundle";
 import type { EventData } from "../../io/format";
 import { customColumns, withCustomColumns } from "../custom/settings";
+import { clusterSources, withClustered } from "../event/clustered";
 
 /** The bundle open, or null before the first one opens. */
 export const bundle = signal<Bundle | null>(null);
@@ -21,8 +22,16 @@ export const shownOf = signal<Bundle | null>(null);
 export const shownEntry = computed(() =>
   bundle.value && shownOf.value === bundle.value ? bundle.value.events[eventIndex.value] : undefined,
 );
+/** The event shown, with which of its hits are in a cluster (model/event/clustered.ts): once per event. */
+const clusteredEvent = computed(() => {
+  const ev = rawEvent.value,
+    b = shownOf.value;
+  return ev && b ? withClustered(ev, clusterSources(b.header)) : ev;
+});
 /** The event shown, with the user's custom columns added (model/custom/settings.ts): what the view and the panels use. */
-export const event = computed(() => (rawEvent.value ? withCustomColumns(rawEvent.value, customColumns.value) : null));
+export const event = computed(() =>
+  clusteredEvent.value ? withCustomColumns(clusteredEvent.value, customColumns.value) : null,
+);
 
 /** An event is being read. */
 export const loading = signal(false);

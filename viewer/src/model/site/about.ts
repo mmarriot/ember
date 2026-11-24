@@ -1,4 +1,4 @@
-// What is known about the data set open, in words: for the chooser's header and the Event tab's Source section.
+// What is known about the data set open, in words: for the chooser's header and the Metadata tab's Source section.
 import type { Bundle } from "../../io/bundle";
 import type { Header } from "../../io/format";
 import { expiryText, ownerOf } from "./library";

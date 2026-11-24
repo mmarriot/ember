@@ -225,12 +225,14 @@ export function levelGraph(g: Graph, flags: string, first: string | undefined, m
           levels: lv[r],
           level: level[r],
           made: -1,
-          parents: above[r].map((a) => nodeOf[a]),
+          parents: [],
           children: [],
           ends: [],
           below: 0,
           group: first0(r) ? "pileup" : fromTop[r] ? "hard" : "underlying",
         }) - 1;
+  // Their parents once every node is made: a loop of parents (bad data) visits a particle before its parent.
+  for (const p of particles) p.parents = above[p.top].filter((a) => a !== p.top).map((a) => nodeOf[a]);
   const hiddenUnder = new Int32Array(n).fill(-1);
   for (let r = 0; r < n; r++) {
     const t = top[r];

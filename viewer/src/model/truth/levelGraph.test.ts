@@ -120,6 +120,23 @@ describe("levelGraph", () => {
     expect(node(build(GEN), 10).level).toBe(level("gen"));
     expect(build(GEN).nodeOf[9]).toBe(-1);
   });
+  it("survives a loop of parents (bad data): every parent a node, none its own", () => {
+    // 1 and 2 each the parent of the other, 0 a child of 2; all reconstructable
+    const loop = graphOf(
+      {
+        n: 3,
+        columns: { pdgId: [211, 321, 2212], status: [1, 1, 1], energy: [3, 2, 1], levelFlags: [RECO, RECO, RECO] },
+      },
+      csr([[], [2], [1, 0]]),
+    );
+    const lg = levelGraph(loop, "levelFlags", undefined, DEFAULT_LEVELS);
+    expect(lg.particles.length).toBe(3);
+    lg.particles.forEach((p, i) => {
+      expect(p.parents.every((a) => a >= 0 && a < 3 && a !== i)).toBe(true);
+      expect(p.children.every((c) => c >= 0 && c < 3)).toBe(true);
+    });
+    expect(rows(lg, node(lg, 0).parents)).toEqual([2]);
+  });
 });
 
 describe("drawnRows", () => {

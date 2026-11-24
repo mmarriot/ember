@@ -10,6 +10,7 @@ const {
   focus,
   focusOn,
   highlight,
+  look,
   pickTruth,
   rawEvent,
   selection,
@@ -118,5 +119,13 @@ describe("picking truth particles", () => {
     focusOn(at("Hit", 0));
     selection.value = at("Hit", 0);
     expect(truthPicks.value).toEqual([]);
+  });
+  it("leaves the truth of an object looked at from a card as its own: a particle, a vertex", () => {
+    truthDraw.value = "particle";
+    pickTruth(0);
+    look(at("Part", 1));
+    expect([truthPicks.value, drawn("Part")]).toEqual([[0], [1]]);
+    look(at("Vtx", 2));
+    expect([truthPicks.value, drawn("Vtx")]).toEqual([[0], [2]]);
   });
 });

@@ -22,7 +22,7 @@ import { truthStatement } from "../truth/statement";
 import { isFactTable } from "../truth/facts";
 import { bundle, event } from "./data";
 import { layerKey, layerOf } from "./names";
-import { truthDrawn, truthPicks } from "./truthView";
+import { pickedTops, truthDrawn, truthPicks } from "./truthView";
 import { domain, drawnLayers, shared, visible } from "./view";
 
 // ---- The selection and the focus
@@ -258,14 +258,17 @@ const focusHighlight = computed(() => {
   return b && ev && f && parts ? levelsOf(ev, b.header, f, parts) : null;
 });
 /** What is drawn highlighted, per table: the focus, its levels and what is linked to it; in the pair view, the pair's
- *  objects. Not what contains the focus: big containers would cover it. For a truth particle focus, the truth
- *  particles and vertices are those of the Truth tab's picks (truthView.ts truthDrawn: each alone or with its
- *  descendants); the rest (hits, reco objects) stays the focus's, the last pick. Null without a focus. */
+ *  objects. Not what contains the focus: big containers would cover it. While the focus is one of the Truth tab's
+ *  picks, the truth particles and vertices are the picks' (truthView.ts truthDrawn: each alone or with its
+ *  descendants); the rest (hits, reco objects) stays the focus's, the last pick. Another focus (an object looked at
+ *  from a card, a truth vertex) keeps its own. Null without a focus. */
 export const highlight = computed(() => {
   const hl = focusHighlight.value,
     f = focus.value,
-    drawn = truthDrawn.value;
-  return hl && f && drawn?.has(f.table) ? new Map([...hl, ...drawn]) : hl;
+    drawn = truthDrawn.value,
+    tg = truthGraph.value;
+  const picked = !!f && !!tg && f.table === tg.particles && pickedTops.value.has(tg.graph.top[f.row]);
+  return hl && drawn && picked ? new Map([...hl, ...drawn]) : hl;
 });
 
 /** What framing the focus fits in the view: the highlight less what is only linked to it, which can lie far away (a

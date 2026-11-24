@@ -277,9 +277,9 @@ to the [gap table](truth-graph.md#gap-table).
   side panel's rows of those kinds carry no line of their own); its
   switch reads "Colour by: reco type | truth particle", and its grey reads "no simulated energy, or not cleanly
   matched";
-- **the Truth tab**, which opens on the hard process, with folded under it the event's scorecard of the matched kinds
-  (clean, impure, not matched) and a "Truth coverage" list of every drawn kind ("no CMSSW associator" with its reason, the gap behind its **i**). The
-  side panel's heading of such a kind reads "no associator".
+- **the Truth tab**, whose folded Details hold the event's scorecard of the matched kinds (clean, impure, not
+  matched), and the **Metadata tab**, whose "Truth coverage" lists every drawn kind ("no CMSSW associator" with its
+  reason, the gap behind its **i**). The side panel's heading of such a kind reads "no associator".
 
 In the truth mode, a kind with status none is drawn neutral and faint (cones as outlines; markers made of calorimeter
 cells, such as layer clusters and superclusters, as small dots under the hits, also in the pair view, so the hits'

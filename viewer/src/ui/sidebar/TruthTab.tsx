@@ -248,7 +248,7 @@ function Scorecard() {
               (passing their cuts and filters) are a clean match, an impure one, or have none.
             </p>
             <p>Click a number to list those objects, largest first; click one to select it.</p>
-            <p>Kinds without an associator are under Truth coverage.</p>
+            <p>Kinds without an associator are under Truth coverage, in the Metadata tab.</p>
           </Info>
         </summary>
         <table class="score">

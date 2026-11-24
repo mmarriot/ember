@@ -456,12 +456,19 @@ objects that left hits, and the tree, which folds. With truth, from the top:
   view draws of the particles picked: each one from the vertex it was made at to the one it ended at, or with
   everything below it; + descendants at first, as a truth particle selected anywhere else), a search box (the start of
   a name, `B`, `μ`; a pdgId, `511`; either sign, `|pdg|=11`), and "2 selected · clear" once particles are picked;
-- **the graph**: the event's truth graph at the levels shown. A particle that the generator wrote several times
-  (status 23, 51, 1) is one particle ("s ×2"); particles at no level shown are skipped, so each particle hangs under the
-  nearest ones above it that are shown, at the vertex where it was made ("● decay", "● hadronization"; "⋯" when
-  particles were skipped in between). A hadron made from several partons (a string between the b and the s̄) hangs
-  under the one of highest energy and says "also from" the others. "23 below" counts the particles under it at no
-  level shown. Its groups:
+- **the graph**: the event's truth graph at the levels shown, as a tree that folds (▸ ▾), its lines joining each
+  particle to the ones it made. A particle row has its tick, a dot in its level's colour, its name and its energy. A
+  particle that the generator wrote several times (status 23, 51, 1) is one particle ("s ×2"); particles at no level
+  shown are skipped, so each particle hangs under the nearest ones above it that are shown. With **Vertices show**, the
+  vertex where its daughters were made stands on their line, a grey ◆ with its process in italics ("decay",
+  "hadronization"; "⋯" when particles were skipped in between); pointing at it (or a tap) names the particles in and
+  out. A hadron made from several partons (a string between the b and the s̄) hangs under the one of highest energy
+  and says "also from" the others (a click goes to it). "▸ 23 below" counts the particles under it at no level shown;
+  a click lists them under it, with a hollow dot, each folding its own. A list of more than 50 shows the 50 largest
+  and "show 50 more". A particle selected elsewhere (in the view, `X`) is unfolded to and scrolled into view (one at
+  no level shown under the particle it hides under); so are the particles the search finds, marked, the 20 largest
+  unfolded to. Enter in the search box picks the next one found. In the tree, ↑ ↓ move between the names and → ←
+  unfold and fold. Its groups:
   - **hard process**, open: the outgoing legs of the hard scatter (level HardProcess) under the particles they came
     from, so `t → b W⁺` and `W⁺ → s̄ c`, and everything below them (with the hard process hidden, what came from it
     stays in this group). Without a hard process, the signal process of a truth preset;

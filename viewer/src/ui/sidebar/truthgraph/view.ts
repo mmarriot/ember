@@ -1,5 +1,5 @@
 // What a view of the truth graph in the Truth tab (TruthTab.tsx) is given and may use. A view is a component taking
-// GraphViewProps; TruthTab.tsx renders the one it imports as `GraphView` (Placeholder.tsx: an indented list).
+// GraphViewProps; TruthTab.tsx renders the one it imports as `GraphView` (TreeView.tsx: a tree that folds).
 //
 // The model (model/truth/levelGraph.ts LevelGraph, from store `truthLevelGraph`):
 // - `particles[i]`: a particle at a shown level, its generator copies folded (`top` its identity, `last` the row a

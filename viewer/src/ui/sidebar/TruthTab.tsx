@@ -45,7 +45,7 @@ import { passing } from "./ObjectRows";
 import { Tree, treeRelations } from "./Tree";
 import { levelColour, matchingNodes } from "./truthgraph/view";
 // The view of the graph (truthgraph/view.ts says what it is given and may use).
-import { Placeholder as GraphView } from "./truthgraph/Placeholder";
+import { TreeView as GraphView } from "./truthgraph/TreeView";
 
 /** Which folded sections are open, kept while the tab is closed and between events (a plain <details> would fold
  *  again on every visit). */

@@ -137,6 +137,16 @@ describe("levelGraph", () => {
     });
     expect(rows(lg, node(lg, 0).parents)).toEqual([2]);
   });
+  it("puts no vertex above a particle made at none, or at one outside the vertex table", () => {
+    const columns = { pdgId: [211, 321, 2212], status: [1, 1, 1], energy: [3, 2, 1], levelFlags: [RECO, RECO, RECO] };
+    const lone = graphOf({ n: 3, columns: { ...columns, prodVertexIdx: [0, -1, 7] } }, csr([[], [], []]), {
+      n: 1,
+      columns: { reason: [0] },
+    });
+    const lg = levelGraph(lone, "levelFlags", undefined, DEFAULT_LEVELS);
+    expect([0, 1, 2].map((r) => node(lg, r).made)).toEqual([0, -1, -1]);
+    expect(lg.vertices.map((v) => v.row)).toEqual([0]);
+  });
 });
 
 describe("drawnRows", () => {

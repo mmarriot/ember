@@ -251,7 +251,7 @@ export function levelGraph(g: Graph, flags: string, first: string | undefined, m
   particles.forEach((p, i) => {
     for (const a of p.parents) particles[a].children.push(i);
     const v = g.col("prodVertexIdx", p.top);
-    if (!(v >= 0) || !g.outOf(v).length) return; // no vertex, or none in the vertex table
+    if (!(v >= 0 && v < g.nv)) return; // no vertex, or one outside the vertex table
     let k = vertexOf.get(v);
     if (k === undefined) {
       vertexOf.set(v, (k = vertices.length));

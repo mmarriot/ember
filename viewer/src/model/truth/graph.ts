@@ -9,6 +9,8 @@ export interface Graph {
   n: number;
   nv: number; // vertices (0 without the vertex table)
   col: (name: string, r: number) => number; // a particle's column
+  /** A particle column as stored, for code that reads it for every particle (truth/levelGraph.ts). */
+  column: (name: string) => ArrayLike<number | bigint> | undefined;
   vcol: (name: string, v: number) => number; // a vertex's column (NaN without the vertex table)
   children: (r: number) => number[];
   parents: (r: number) => number[];
@@ -77,6 +79,7 @@ export function graphOf(
     n,
     nv,
     col,
+    column: (name) => particles.columns[name],
     vcol: (name, v) => {
       const c = vertices?.columns[name];
       return c && v >= 0 && v < nv ? Number(c[v]) : NaN;

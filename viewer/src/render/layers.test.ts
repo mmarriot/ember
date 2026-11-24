@@ -431,9 +431,33 @@ describe("the rest of the event around a selection", () => {
   it("keeps markers over everything but the selection: the rest's go behind it, and they test depth", () => {
     const l = build(hint({ repr: "markers" }), crystals()),
       { m } = parts(l);
+    expect(m.vertexShader).toMatch(/\(rest \? 0\.5 : 0\.0\)/);
     expect(m.vertexShader).toMatch(/gone\(selected\(ipsel, isel\)\)/);
-    expect(m.vertexShader).toMatch(/selActive\(\) > 0\.5 && s < 0\.5 \? 0\.0 : -0\.9999/);
+    expect(m.vertexShader).toMatch(/bool rest = selActive\(\) > 0\.5 && s < 0\.5/);
     expect(m.depthTest).toBe(true);
+  });
+  it("orders markers by their distance from the camera, those in no group behind, and smooths their edges", () => {
+    const { m } = parts(build(hint({ repr: "markers" }), crystals()));
+    // in its slice, a marker's depth grows with its distance (view-space z is negative in front of the camera)
+    expect(m.vertexShader).toMatch(/dist = clamp\(\(5000\.0 - v\.z\) \/ 25000\.0/);
+    expect(m.vertexShader).toMatch(/\(emph > 0\.5 \|\| mine \? 0\.0 : 0\.1\)/);
+    // divided by w in the shader, so that equal depths stay exactly equal as the camera moves
+    expect(m.vertexShader).toMatch(
+      /vec4\(gl_Position\.xy \/ gl_Position\.w, 2\.0 \* \(slice \+ 0\.1 \* dist\) - 1\.0, 1\.0\)/,
+    );
+    expect(m.alphaToCoverage).toBe(true); // the edge's alpha becomes a share of the pixel's samples
+  });
+  it("keeps the markers' edge alpha out of the drawing buffer, and gives the alpha back to the next draw", () => {
+    const masks: boolean[][] = [],
+      r = { getContext: () => ({ colorMask: (...m: boolean[]) => masks.push(m) }) } as unknown as THREE.WebGLRenderer,
+      o = build(hint({ repr: "markers" }), crystals()).object,
+      none = undefined as never;
+    o.onBeforeRender(r, none, none, none, none, none);
+    o.onAfterRender(r, none, none, none, none, none);
+    expect(masks).toEqual([
+      [true, true, true, false],
+      [true, true, true, true],
+    ]);
   });
   it("puts the selection's showers in front from the middle of the cross-fade, as the other layers", () => {
     const l = build(hint({ repr: "ellipsoids" }), crystals()),

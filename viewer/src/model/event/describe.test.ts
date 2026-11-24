@@ -170,6 +170,20 @@ describe("numbers", () => {
     expect(cellText(header, d, "Electron", t, "time", 0)).toEqual(["no time", ""]);
     expect(cellText(header, d, "Electron", t, "trackIdx", 0)).toEqual(["none", ""]);
     expect(cellText(header, d, "Electron", t, "width", 0)).toEqual(["not set", ""]);
+    // a value named only by the layer's colour categories (a truth vertex's reason)
+    const v = { n: 1, columns: { reason: new Int32Array([11]) } } as unknown as Table,
+      vertices = { ...ele, colourBy: { category: "reason", names: { "11": "hadronic inelastic" } } };
+    expect(cellText(header, vertices, "Electron", v, "reason", 0)).toEqual(["hadronic inelastic (11)", ""]);
+    expect(
+      cellText(
+        header,
+        { ...vertices, colourBy: { category: "reason", names: [[11, "inelastic"]] } },
+        "Electron",
+        v,
+        "reason",
+        0,
+      ),
+    ).toEqual(["inelastic (11)", ""]);
     expect(
       ["trackIdx", "x", "px", "pt"].map((c) => [isIndex(header, "Electron", c), isCopied(header, "Electron", c)]),
     ).toEqual([

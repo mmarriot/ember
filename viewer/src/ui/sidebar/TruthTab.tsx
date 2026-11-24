@@ -25,6 +25,7 @@ import {
   largestFirst,
   layerOf,
   modes,
+  pickTruth,
   selection,
   short,
   stepName,
@@ -42,7 +43,7 @@ import { Collections } from "./Layers";
 import { jump } from "../../control/navigate";
 import { passing } from "./ObjectRows";
 import { Tree, treeRelations } from "./Tree";
-import { levelColour } from "./truthgraph/view";
+import { levelColour, matchingNodes } from "./truthgraph/view";
 // The view of the graph (truthgraph/view.ts says what it is given and may use).
 import { Placeholder as GraphView } from "./truthgraph/Placeholder";
 
@@ -166,7 +167,8 @@ function Choice<T>({
   );
 }
 
-/** The graph's controls: its vertices, what the view draws of the picked particles, the search, and the picks. */
+/** The graph's controls: its vertices, what the view draws of the picked particles, the search (Enter picks the next
+ *  particle found), and the picks. */
 function Controls() {
   const n = truthPicks.value.length;
   return (
@@ -196,6 +198,7 @@ function Controls() {
         value={graphQuery.value}
         spellcheck={false}
         onInput={(e) => (graphQuery.value = (e.target as HTMLInputElement).value)}
+        onKeyDown={(e) => e.key === "Enter" && pickNextFound()}
       />
       {n > 0 && (
         <span class="picks">
@@ -207,6 +210,18 @@ function Controls() {
       )}
     </div>
   );
+}
+
+/** Picks the particle the search finds after the one selected (the first, largest, at first), so Enter steps
+ *  through them. */
+function pickNextFound() {
+  const tg = truthGraph.peek(),
+    lg = truthLevelGraph.peek(),
+    sel = selection.peek();
+  if (!tg || !lg) return;
+  const found = matchingNodes(lg, tg.graph, layerOf(tg.particles)?.describe?.names?.pdgId ?? {}, graphQuery.peek()),
+    at = sel?.table === tg.particles ? found.findIndex((i) => lg.particles[i].top === tg.graph.top[sel.row]) : -1;
+  if (found.length) pickTruth(lg.particles[found[(at + 1) % found.length]].last);
 }
 
 /** The scorecard's unfolded count: "<table>|<class>". */

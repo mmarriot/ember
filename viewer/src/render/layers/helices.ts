@@ -148,7 +148,7 @@ export function helices(input: LayerInput): Layer {
                              lh * (idir.y * a + idir.x * b) + rest * (idir.x * sn + idir.y * c),
                              l * idir.z);
       }
-      uniform float uWidth;
+      uniform float uWidth, uPx; // CSS px, drawing-buffer px per CSS px
       uniform vec2 uRes; // drawing buffer size (px)
       // The drawn point at px along the piece (0..1 on the arc, 2: the end point), on screen (clip space); its path
       // length in len. Replay: the path grows from its start over 0.5 s once it appears, or until iL if later (a path
@@ -173,7 +173,7 @@ export function helices(input: LayerInput): Layer {
         vec4 nb = placed(back > 0.5 ? min(position.x, 1.0) - step : position.x + step, grow, s * 2.0, ignored);
         vec2 dir = (nb.xy / nb.w - gl_Position.xy / gl_Position.w) * uRes * (back > 0.5 ? -1.0 : 1.0);
         vec2 across = length(dir) > 1e-6 ? normalize(vec2(-dir.y, dir.x)) : vec2(0.0, 1.0);
-        gl_Position.xy += across * position.y * (uWidth * (1.0 + 0.5 * s * selActive() + 2.0 * gPin) + HALO_PX) / uRes * gl_Position.w;
+        gl_Position.xy += across * position.y * (uWidth * uPx * (1.0 + 0.5 * s * selActive() + 2.0 * gPin) + HALO_PX) / uRes * gl_Position.w;
         #endif
         gl_Position = inFront(gl_Position, s);
         // A selected line is lifted towards white: a thin line in a dark colour (a low-pT track) would be hard to see.

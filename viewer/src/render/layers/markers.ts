@@ -11,6 +11,7 @@ import {
   type Layer,
   type LayerInput,
   positions,
+  pxUniform,
   SHADER_COMMON,
   shaderLayer,
 } from "./layer";
@@ -37,7 +38,7 @@ export function markers(input: LayerInput): Layer {
   const material = new THREE.ShaderMaterial({
     uniforms: {
       ...baseUniforms(input.pal, input.d.context),
-      uPx: { value: window.devicePixelRatio },
+      uPx: pxUniform,
       uSized: { value: sizeCol ? 1 : 0 },
       uHollow: { value: d.truth ? 1 : 0 },
     },

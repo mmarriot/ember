@@ -388,10 +388,16 @@ export function setLineEnds(g: THREE.BufferGeometry) {
   g.setAttribute("position", new THREE.Float32BufferAttribute([0, 0, 0, 1, 0, 0], 3));
 }
 
-/** Uniforms of lines `width` CSS pixels wide: the width in drawing-buffer pixels, and the drawing buffer's size
- *  (followDrawingBuffer), which turns it into clip-space units. */
+/** The uniform `uPx`: drawing-buffer pixels per CSS pixel, one object shared by every layer's material. The engine
+ *  sets it to the screen's devicePixelRatio, again when the window moves to a screen of another density, and to the
+ *  scale of a picture while it draws one; lines and markers, sized in CSS pixels, follow at the next frame. */
+export const pxUniform = { value: 1 };
+
+/** Uniforms of lines `width` CSS pixels wide (uWidth * uPx drawing-buffer pixels), and the drawing buffer's size
+ *  (followDrawingBuffer), which turns that into clip-space units. */
 export const lineWidthUniforms = (width: number) => ({
-  uWidth: { value: width * (globalThis.devicePixelRatio ?? 1) },
+  uWidth: { value: width },
+  uPx: pxUniform,
   uRes: { value: new THREE.Vector2(1, 1) },
 });
 

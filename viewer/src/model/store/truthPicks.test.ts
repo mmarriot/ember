@@ -8,8 +8,11 @@ const {
   bundle,
   clearPicks,
   focus,
+  focusBack,
+  focusHistory,
   focusOn,
   highlight,
+  look,
   pickTruth,
   rawEvent,
   selection,
@@ -118,5 +121,23 @@ describe("picking truth particles", () => {
     focusOn(at("Hit", 0));
     selection.value = at("Hit", 0);
     expect(truthPicks.value).toEqual([]);
+  });
+  it("keeps ticks out of the way back: back returns to before the first pick", () => {
+    focusOn(at("Hit", 0));
+    selection.value = at("Hit", 0);
+    pickTruth(0);
+    togglePick(2);
+    togglePick(1);
+    expect(focusHistory.value).toEqual([at("Hit", 0)]);
+    expect(focusBack()).toEqual(at("Hit", 0));
+    expect(truthPicks.value).toEqual([]);
+  });
+  it("leaves the truth of an object looked at from a card as its own: a particle, a vertex", () => {
+    truthDraw.value = "particle";
+    pickTruth(0);
+    look(at("Part", 1));
+    expect([truthPicks.value, drawn("Part")]).toEqual([[0], [1]]);
+    look(at("Vtx", 2));
+    expect([truthPicks.value, drawn("Vtx")]).toEqual([[0], [2]]);
   });
 });

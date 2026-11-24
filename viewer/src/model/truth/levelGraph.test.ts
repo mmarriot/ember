@@ -120,6 +120,55 @@ describe("levelGraph", () => {
     expect(node(build(GEN), 10).level).toBe(level("gen"));
     expect(build(GEN).nodeOf[9]).toBe(-1);
   });
+  it("survives a loop of parents (bad data): every parent a node, none its own", () => {
+    // 1 and 2 each the parent of the other, 0 a child of 2; all reconstructable
+    const loop = graphOf(
+      {
+        n: 3,
+        columns: { pdgId: [211, 321, 2212], status: [1, 1, 1], energy: [3, 2, 1], levelFlags: [RECO, RECO, RECO] },
+      },
+      csr([[], [2], [1, 0]]),
+    );
+    const lg = levelGraph(loop, "levelFlags", undefined, DEFAULT_LEVELS);
+    expect(lg.particles.length).toBe(3);
+    lg.particles.forEach((p, i) => {
+      expect(p.parents.every((a) => a >= 0 && a < 3 && a !== i)).toBe(true);
+      expect(p.children.every((c) => c >= 0 && c < 3)).toBe(true);
+    });
+    expect(rows(lg, node(lg, 0).parents)).toEqual([2]);
+  });
+  it("puts no vertex above a particle made at none, or at one outside the vertex table", () => {
+    const columns = { pdgId: [211, 321, 2212], status: [1, 1, 1], energy: [3, 2, 1], levelFlags: [RECO, RECO, RECO] };
+    const lone = graphOf({ n: 3, columns: { ...columns, prodVertexIdx: [0, -1, 7] } }, csr([[], [], []]), {
+      n: 1,
+      columns: { reason: [0] },
+    });
+    const lg = levelGraph(lone, "levelFlags", undefined, DEFAULT_LEVELS);
+    expect([0, 1, 2].map((r) => node(lg, r).made)).toEqual([0, -1, -1]);
+    expect(lg.vertices.map((v) => v.row)).toEqual([0]);
+  });
+  it("marks a vertex as skipping only for hidden particles between, not a parent from elsewhere", () => {
+    // 1 b (leg) and 0 a beam remnant (no shown ancestor) -> 2 π⁺ at vertex 0; 1 -> 3 a string -> 4 π⁻ at vertex 1
+    const mixed = graphOf(
+      {
+        n: 5,
+        columns: {
+          pdgId: [2101, 5, 211, 92, -211],
+          status: [63, 23, 1, 71, 1],
+          energy: [50, 100, 30, 60, 20],
+          levelFlags: [0, HARD, RECO, 0, RECO],
+          prodVertexIdx: [-1, -1, 0, -1, 1],
+        },
+      },
+      csr([[2], [2, 3], [], [4], []]),
+      { n: 2, columns: { reason: [19, 19] } },
+    );
+    const lg = levelGraph(mixed, "levelFlags", undefined, DEFAULT_LEVELS);
+    expect(lg.vertices.map((v) => [v.row, rows(lg, v.into), v.skips])).toEqual([
+      [0, [1], false],
+      [1, [1], true],
+    ]);
+  });
 });
 
 describe("drawnRows", () => {

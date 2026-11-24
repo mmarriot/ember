@@ -106,7 +106,9 @@ export interface VertexNode {
   into: number[];
   /** The shown particles made at it (particle nodes), largest energy first. */
   out: number[];
-  /** Particles at no shown level lie between `into` and `out` (a b quark's hadronisation, a skipped decay). */
+  /** Particles at no shown level lie between `into` and `out` (a b quark's hadronisation, a skipped decay): a particle
+   *  made here has a parent at no shown level with a shown particle above it. A parent with nothing shown above it (a
+   *  beam remnant in a string) does not count. */
   skips: boolean;
 }
 /** The graph's groups of roots: the hard process and what came from it; the rest of the signal collision (the
@@ -119,7 +121,7 @@ export interface Group {
   roots: number[];
 }
 /** An event's truth graph at the shown levels (levelGraph). Node indices are in the order of the graph (a particle's
- *  parents before it). */
+ *  parents before it). Its lists are read only: empty ones are one shared, frozen array. */
 export interface LevelGraph {
   particles: ParticleNode[];
   vertices: VertexNode[];
@@ -138,7 +140,8 @@ export interface LevelGraph {
  *  levels of `mask`: the index of the first GRAPH_LEVELS entry, -1 for none. */
 const levelOf = (bits: number, mask: number) => GRAPH_LEVELS.findIndex((l) => bits & l.mask & mask);
 
-const NONE: number[] = [];
+/** The empty list every node starts with, shared: frozen, so a change to it fails instead of reaching every node. */
+const NONE: number[] = Object.freeze([]) as unknown as number[];
 
 /** The level graph of truth graph `g` at the levels of `mask` (GRAPH_LEVELS bits). `flags`: the particles' level-flags
  *  column; `first`: the column that is 0 for a pile-up particle (isSignal), if any.
@@ -157,21 +160,30 @@ const NONE: number[] = [];
 export function levelGraph(g: Graph, flags: string, first: string | undefined, mask: number): LevelGraph {
   const n = g.n,
     top = g.top;
+  // The columns read, once each: one typed array per column keeps every read below fast.
+  const column = (name: string | undefined) => {
+    const c = name === undefined ? undefined : g.column(name),
+      out = new Float64Array(n).fill(NaN);
+    if (c) for (let r = 0; r < n; r++) out[r] = Number(c[r]);
+    return out;
+  };
+  const energy = column("energy"),
+    made = column("prodVertexIdx"),
+    signal = column(first),
+    flag = column(flags);
   // A particle's level flags: those of any of its copies, kept at its first copy's row.
   const lv = new Uint32Array(n);
-  for (let r = 0; r < n; r++) lv[top[r]] |= g.col(flags, r) | 0;
+  for (let r = 0; r < n; r++) lv[top[r]] |= flag[r] | 0;
   // The hard process: the legs, and the particles they came from.
   const legs: number[] = [];
   for (let r = 0; r < n; r++) if (top[r] === r && lv[r] & HARD) legs.push(r);
   for (const r of legs) for (const p of g.parents(r)) lv[top[p]] |= HARD;
   const counts = GRAPH_LEVELS.map(() => 0),
-    level = new Int8Array(n).fill(-1),
-    energy = new Float64Array(n);
+    level = new Int8Array(n).fill(-1);
   let hardEvent = false,
     signalEvent = false;
   for (let r = 0; r < n; r++) {
-    energy[r] = g.col("energy", r);
-    if (top[r] !== r) continue;
+    if (top[r] !== r || !lv[r]) continue;
     for (let i = 0; i < GRAPH_LEVELS.length; i++) if (lv[r] & GRAPH_LEVELS[i].mask) counts[i]++;
     level[r] = levelOf(lv[r], mask);
     hardEvent ||= !!(lv[r] & HARD);
@@ -180,16 +192,21 @@ export function levelGraph(g: Graph, flags: string, first: string | undefined, m
   const shown = (t: number) => level[t] >= 0;
 
   // One pass down the graph (Kahn's order over rows): for each particle (at its first copy), its nearest shown
-  // ancestors, primary first, and whether it comes from the hard or signal process.
+  // ancestors, primary first, and whether it comes from the hard or signal process. The arrays are shared between
+  // particles (never changed once made): a shown particle's own, [t], is made once.
   const above: number[][] = new Array(n),
+    own: number[][] = new Array(n),
     fromTop = new Uint8Array(n),
-    order: number[] = [],
+    order: number[] = [], // the first copies, in that order
     waiting = new Int32Array(n);
   /** What a particle passes down to its children: itself if shown, else its own nearest shown ancestors. */
-  const passed = (p: number) => (shown(top[p]) ? [top[p]] : (above[top[p]] ?? NONE));
+  const passed = (p: number) => {
+    const t = top[p];
+    return shown(t) ? (own[t] ??= [t]) : (above[t] ?? NONE);
+  };
   const visit = (r: number) => {
-    order.push(r);
     if (top[r] !== r) return;
+    order.push(r);
     const ps = g.parents(r);
     fromTop[r] = lv[r] & (HARD | SIGNAL) ? 1 : 0;
     for (const p of ps) fromTop[r] |= fromTop[top[p]];
@@ -209,14 +226,13 @@ export function levelGraph(g: Graph, flags: string, first: string | undefined, m
     visit(r);
     for (const c of g.children(r)) if (--waiting[c] === 0) todo.push(c);
   }
-  if (order.length < n) for (let r = 0; r < n; r++) if (waiting[r] > 0) visit(r); // a loop (bad data): as they come
+  if (todo.length < n) for (let r = 0; r < n; r++) if (waiting[r] > 0) visit(r); // a loop (bad data): as they come
 
-  // The nodes, in that order.
+  // The nodes, in that order. Empty lists are the one shared NONE until something is added.
   const nodeOf = new Int32Array(n).fill(-1),
     particles: ParticleNode[] = [];
-  const first0 = (t: number) => first !== undefined && g.col(first, t) === 0;
   for (const r of order)
-    if (top[r] === r && shown(r))
+    if (shown(r))
       nodeOf[r] =
         particles.push({
           top: r,
@@ -225,12 +241,15 @@ export function levelGraph(g: Graph, flags: string, first: string | undefined, m
           levels: lv[r],
           level: level[r],
           made: -1,
-          parents: above[r].map((a) => nodeOf[a]),
-          children: [],
-          ends: [],
+          parents: NONE,
+          children: NONE,
+          ends: NONE,
           below: 0,
-          group: first0(r) ? "pileup" : fromTop[r] ? "hard" : "underlying",
+          group: signal[r] === 0 ? "pileup" : fromTop[r] ? "hard" : "underlying",
         }) - 1;
+  // Their parents once every node is made: a loop of parents (bad data) visits a particle before its parent.
+  for (const p of particles)
+    if (above[p.top].length) p.parents = above[p.top].filter((a) => a !== p.top).map((a) => nodeOf[a]);
   const hiddenUnder = new Int32Array(n).fill(-1);
   for (let r = 0; r < n; r++) {
     const t = top[r];
@@ -246,10 +265,11 @@ export function levelGraph(g: Graph, flags: string, first: string | undefined, m
   // The edges, with the vertex each particle was made at between.
   const vertices: VertexNode[] = [],
     vertexOf = new Map<number, number>();
+  const add = (list: number[], x: number) => (list === NONE ? [x] : (list.push(x), list));
   particles.forEach((p, i) => {
-    for (const a of p.parents) particles[a].children.push(i);
-    const v = g.col("prodVertexIdx", p.top);
-    if (!(v >= 0) || !g.outOf(v).length) return; // no vertex, or none in the vertex table
+    for (const a of p.parents) particles[a].children = add(particles[a].children, i);
+    const v = made[p.top];
+    if (!(v >= 0 && v < g.nv)) return; // no vertex, or one outside the vertex table
     let k = vertexOf.get(v);
     if (k === undefined) {
       vertexOf.set(v, (k = vertices.length));
@@ -260,25 +280,27 @@ export function levelGraph(g: Graph, flags: string, first: string | undefined, m
     vx.out.push(i);
     for (const a of p.parents) {
       if (!vx.into.includes(a)) vx.into.push(a);
-      if (!particles[a].ends.includes(k)) particles[a].ends.push(k);
+      if (!particles[a].ends.includes(k)) particles[a].ends = add(particles[a].ends, k);
     }
-    vx.skips ||= p.parents.length > 0 && g.parents(p.top).some((q) => !shown(top[q]));
+    // a hidden parent with a shown ancestor lies between that ancestor (one of `into`) and this particle
+    vx.skips ||= g.parents(p.top).some((q) => !shown(top[q]) && above[top[q]]?.length > 0);
   });
-  const byEnergy = (a: number, b: number) => energy[particles[b].top] - energy[particles[a].top];
-  for (const p of particles) p.children.sort(byEnergy);
-  for (const v of vertices) v.out.sort(byEnergy);
+  const nodeEnergy = Float64Array.from(particles, (p) => energy[p.top]),
+    byEnergy = (a: number, b: number) => nodeEnergy[b] - nodeEnergy[a];
+  for (const p of particles) if (p.children.length > 1) p.children.sort(byEnergy);
+  for (const v of vertices) if (v.out.length > 1) v.out.sort(byEnergy);
 
   const names: Record<GroupId, string> = {
     hard: hardEvent ? "hard process" : "signal process",
     underlying: hardEvent || signalEvent ? "underlying event" : "signal collision",
     pileup: "pile-up",
   };
+  const roots: Record<GroupId, number[]> = { hard: [], underlying: [], pileup: [] };
+  particles.forEach((p, i) => {
+    if (!p.parents.length) roots[p.group].push(i);
+  });
   const groups = (["hard", "underlying", "pileup"] as const)
-    .map((id) => ({
-      id,
-      name: names[id],
-      roots: particles.flatMap((p, i) => (p.group === id && !p.parents.length ? [i] : [])).sort(byEnergy),
-    }))
-    .filter((grp) => grp.roots.length);
+    .filter((id) => roots[id].length)
+    .map((id) => ({ id, name: names[id], roots: roots[id].sort(byEnergy) }));
   return { particles, vertices, groups, nodeOf, hiddenUnder, counts };
 }

@@ -12,8 +12,8 @@ const SHOWN = 3e38,
 /** Per-object values to compare with cutMin: the cut column with the rows keptRows leaves out hidden, or (`only`)
  *  just those rows shown; undefined when nothing applies. Rows of the `focus` (the selected object and what it is
  *  related to) are not hidden by the filter, only by the cut: a filter chooses what to show, not what a selection may
- *  reach. With `clustered`, the hits in no cluster are hidden too, but those of `own` (the selection's objects in this
- *  table). */
+ *  reach. With `clustered`, the objects no later step uses (model/event/clustered.ts) are hidden too, but those of
+ *  `own` (the selection's objects in this table). */
 export function cutValues(
   d: DisplayLayer,
   t: Table,
@@ -37,7 +37,7 @@ export function cutValues(
 }
 
 /** The rows a layer keeps before its cut (0: left out), or null for all: those its filter keeps (`filter`, from
- *  filterMask) and, with `clustered` (model/event/clustered.ts unclusteredHidden), that a cluster lists. The selection
+ *  filterMask) and, with `clustered` (model/event/clustered.ts unclusteredHidden), that a later step uses. The selection
  *  draws its own rows anyway: those of `own` (its objects in this table) whatever the cluster rule, and those of
  *  `focus` (a subset of `own`: sceneFocus.ts bypassing) whatever the filter too. */
 export function keptRows(
@@ -55,8 +55,8 @@ export function keptRows(
   return out;
 }
 
-/** What the view keeps of `t` before the cut without a selection: its filter `expr`, less its hits in no cluster
- *  while those are hidden (`hide`). */
+/** What the view keeps of `t` before the cut without a selection: its filter `expr`, less the objects no later step
+ *  uses while those are hidden (`hide`). */
 export const keptMask = (t: Table, expr: string | undefined, hide: boolean) =>
   keptRows(t.n, filterMask(t, expr), unclusteredHidden(t, hide));
 

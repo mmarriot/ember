@@ -5,7 +5,7 @@ import { batch, computed, effect, signal } from "@preact/signals";
 import { type DisplayLayer, kindName } from "../io/format";
 import { filters } from "../model/custom/settings";
 import { keptMask } from "../model/custom/cuts";
-import { showUnclustered } from "../model/event/clustered";
+import { hideUnclustered } from "../model/event/clustered";
 import { rowsInDomain, stepDomain, withFocus } from "../model/event/domains";
 import { passes, stepRow, topRows } from "../model/event/objects";
 import {
@@ -260,7 +260,7 @@ export function ranked(d: DisplayLayer, max = Infinity): number[] {
     d,
     t,
     d.cut ? (cuts.peek()[d.cut.group] ?? 0) : 0,
-    keptMask(t, filters.peek()[d.table], !showUnclustered.peek()),
+    keptMask(t, filters.peek()[d.table], !!hideUnclustered.peek()[d.table]),
   );
   return topRows(t, d.list?.sort ?? sizeColumn(d.table, t), pass, max);
 }

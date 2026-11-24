@@ -302,18 +302,24 @@ the barrel's.
 - On a kind that is drawn only for a selection (such as the hits on tracks), **only** also switches it to **all**
   of its objects while it lasts, so the view is not empty.
 
-**Hits in no cluster.** In a collision event (a bundle with the **Look at** bar), the calorimeter hits that no cluster
-lists are hidden: HGCal hits in no layer cluster, ECAL and HCAL hits in no PF cluster. Most of them are noise. Cuts
-still apply to the hits that are left (HGCal hits ≥ 35 MeV, for example). **⚙ menu → Unclustered hits** shows them
-again. Test-beam bundles show them unless asked not to.
+**What no later step uses.** In a collision event (a bundle with the **Look at** bar), the objects that the next step
+of the reconstruction leaves out are hidden: HGCal hits in no layer cluster, ECAL and HCAL hits in no PF cluster, and
+layer clusters in no trackster. Most such hits are noise; at 200 pile-up most layer clusters are in no trackster.
+Cuts still apply to what is left (HGCal hits ≥ 35 MeV, for example). The row of each such collection has a chip,
+**in clusters** (hits) or **in tracksters** (layer clusters), while the others are hidden; click it to draw **all**,
+and again to go back. Its tooltip says how many are left out. A collection gets the chip only when the event has
+something to leave out: in the test-beam bundles the clustering takes every hit, and they start with all drawn.
 
-- A hit counts as clustered when a cluster that the bundle draws (a layer cluster, a PF cluster, a supercluster) lists
-  it. The truth's links to the hits do not count, nor does a muon or a track crossing it. Layers drawn only for a
-  selection (the muon chambers) are left as they are.
-- A selection still draws its own hits, clustered or not: a truth particle shows every hit it left energy in.
+- A hit is used when a cluster that the bundle draws (a layer cluster, a PF cluster, a supercluster) lists it; the
+  truth's links do not count, nor does a muon or a track crossing it. A layer cluster is used when a reconstruction
+  step lists it (CLUE3D tracksters, trackster links, superclustering, the candidates' own tracksters). Tracksters and
+  the collections drawn only for a selection (the muon chambers) have no chip.
+- A selection still draws its own objects, used or not: a truth particle shows every hit it left energy in.
+- Each chip acts on its own collection: the hits of a layer cluster in no trackster stay drawn (they are in a cluster)
+  while that cluster is hidden.
 - The rows' counts say how many are drawn ("4,709 / 51,730").
-- In expressions, the hit tables have a column `clustered`: 1 for a clustered hit, else 0 (for example a filter
-  `clustered == 0` with the unclustered hits shown, to see only them).
+- In expressions, these tables have a column `clustered`: 1 for an object a later step uses, else 0 (for example a
+  filter `clustered == 0` with **all** drawn, to see only the others).
 
 ### Colours
 

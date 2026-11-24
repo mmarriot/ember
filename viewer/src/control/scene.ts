@@ -10,7 +10,7 @@ import { Color, LinearSRGBColorSpace } from "three";
 import type { DisplayLayer, EventData, Header, Table } from "../io/format";
 import { colourBy, filterMask, filters } from "../model/custom/settings";
 import { cutMin, cutValues, rescued } from "../model/custom/cuts";
-import { showUnclustered, unclusteredHidden } from "../model/event/clustered";
+import { hideUnclustered, unclusteredHidden } from "../model/event/clustered";
 import {
   activeMode,
   bundle,
@@ -62,7 +62,7 @@ interface Entry {
   key: string; // layerKey(d)
   cut?: Float32Array; // per row, the value compared with the cut (model/custom/cuts.ts cutValues)
   keep: Float32Array | null; // its filter, per row (null: no filter)
-  clustered?: Uint8Array; // while the hits in no cluster are hidden, which of its hits a cluster lists
+  clustered?: Uint8Array; // while its unused objects are hidden, which ones a later step uses (model/event/clustered.ts)
   rescued: string; // the focus's rows that the filter or the cluster rule hides but that are drawn anyway (cuts.ts rescued)
   rgb: Float32Array; // colour per row
   emphasis?: Uint8Array; // per row, 0 for an object drawn small (outside the truth <-> reco pair)
@@ -252,7 +252,7 @@ export function startScene(canvas: HTMLCanvasElement): () => void {
     pool: Entry[] = [],
   ): Entry[] => {
     const f = filters.peek(),
-      hide = !showUnclustered.peek(),
+      hide = hideUnclustered.peek(),
       hl = highlight.peek(),
       pal = PALETTES[theme.peek()],
       all = replaying.peek();
@@ -261,7 +261,7 @@ export function startScene(canvas: HTMLCanvasElement): () => void {
         d = shownLayer(d0),
         t = ev.tables[d.table],
         keep = filterMask(t, f[d.table]),
-        clustered = unclusteredHidden(t, hide),
+        clustered = unclusteredHidden(t, !!hide[d.table]),
         focusRows = bypassing(d, f, hl),
         own = hl?.get(d.table),
         only = onlyFor(d, key, hl, all);
@@ -318,7 +318,7 @@ export function startScene(canvas: HTMLCanvasElement): () => void {
     colourBy.peek(),
     activeMode.peek(),
     filters.peek(),
-    showUnclustered.peek(),
+    hideUnclustered.peek(),
     replaying.peek(),
     truthLevel.peek(),
   ];
@@ -330,7 +330,7 @@ export function startScene(canvas: HTMLCanvasElement): () => void {
     colourBy.value;
     activeMode.value;
     filters.value;
-    showUnclustered.value; // hides or shows the hits in no cluster, as a filter does
+    hideUnclustered.value; // hides or shows the objects no later step uses, as a filter does
     truthLevel.value; // the truth particles drawn before a selection, and every truth colour
     replaying.value;
     builtWith = settings();

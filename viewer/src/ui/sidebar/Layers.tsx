@@ -28,7 +28,7 @@ import { Info, popover, togglePopover } from "../common/Info";
 import { Options, Scale } from "./LayerOptions";
 import { Headline, ObjectRows } from "./ObjectRows";
 import { summaryLayers } from "../viewport/TitleBox";
-import { showUnclustered, unclusteredHidden } from "../../model/event/clustered";
+import { hideUnclustered, unusedCount, usedBy } from "../../model/event/clustered";
 
 /** The tab a layer is listed in: its `domain`, or "Objects" for bundles made before layers had one. */
 export const tabOf = (d: DisplayLayer) => d.domain ?? "Objects";
@@ -215,6 +215,10 @@ function LayerRow({ d, cut, here }: { d: DisplayLayer; cut?: string; here: Displ
   const t = event.value?.tables[d.table],
     canList = !d.list && !d.context && d.repr !== "cells" && n > 0 && !!t;
   const count = `${on && s !== undefined && s !== n ? `${s.toLocaleString()} / ` : ""}${n.toLocaleString()}`;
+  // objects no later step uses (hits in no cluster, layer clusters in no trackster): the chip that hides them
+  const unused = t ? unusedCount(t) : 0,
+    used = unused ? usedBy(d) : undefined,
+    hidden = !!hideUnclustered.value[d.table];
   return (
     <div
       class={`layer${drawnLayers.value[key] || focusLayers.value.has(key) ? "" : " off"}${activeMode.value === "truth" && noTruth(d.table) ? " faint" : ""}`}
@@ -261,6 +265,20 @@ function LayerRow({ d, cut, here }: { d: DisplayLayer; cut?: string; here: Displ
             {showAll.value[key] ? "all" : "with selection"}
           </button>
         )}
+        {on && used && (
+          <button
+            class={hidden ? "rowchip on" : "rowchip"}
+            aria-pressed={hidden}
+            title={
+              hidden
+                ? `Drawn only those ${used}: ${unused.toLocaleString()} others are hidden. Click to draw all of them`
+                : `All are drawn, ${unused.toLocaleString()} of them ${used === "in clusters" ? "in no cluster" : "in no trackster"}. Click to draw only those ${used}`
+            }
+            onClick={() => (hideUnclustered.value = { ...hideUnclustered.value, [d.table]: !hidden })}
+          >
+            {hidden ? used : "all"}
+          </button>
+        )}
         {!on && focusLayers.value.has(key) && (
           <span
             class="rowchip on"
@@ -280,16 +298,7 @@ function LayerRow({ d, cut, here }: { d: DisplayLayer; cut?: string; here: Displ
             {count} {listed ? "▾" : "▸"}
           </button>
         ) : (
-          <span
-            class="count"
-            title={
-              t && unclusteredHidden(t, !showUnclustered.value)
-                ? "The hits in no cluster are hidden (⚙ menu → Unclustered hits)"
-                : undefined
-            }
-          >
-            {count}
-          </span>
+          <span class="count">{count}</span>
         )}
         <button
           class={open ? "more on" : "more"}

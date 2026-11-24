@@ -1,7 +1,15 @@
 import { describe, expect, it } from "vitest";
 import type { DisplayLayer, EventData, Header, Relation } from "../../io/format";
 import { cutValues, keptMask, keptRows, rescued } from "../custom/cuts";
-import { CLUSTERED, clusterSources, defaultShowUnclustered, unclusteredHidden, withClustered } from "./clustered";
+import {
+  CLUSTERED,
+  clusterSources,
+  defaultHidden,
+  unclusteredHidden,
+  unusedCount,
+  usedBy,
+  withClustered,
+} from "./clustered";
 
 // Five hits; clusters list hits 1 and 2 (and 2 twice, through a supercluster); the truth leaves energy in 0 and 4.
 const layer = (table: string, repr: string, more: Partial<DisplayLayer> = {}) =>
@@ -9,7 +17,10 @@ const layer = (table: string, repr: string, more: Partial<DisplayLayer> = {}) =>
 const header = {
   display: [
     layer("Hits", "cells"),
-    layer("Clusters", "markers"),
+    layer("Clusters", "markers", { group: "Layer clusters" }),
+    layer("Tracksters", "ellipsoids", { stage: 0, group: "Tracksters" }),
+    layer("Candidates", "ellipsoids", { stage: 1 }),
+    layer("PFCandidates", "helix"),
     layer("Super", "markers"),
     layer("Truth", "helix", { truth: true }),
     layer("Muons", "helix"),
@@ -26,6 +37,10 @@ const header = {
     internal: { from: "Helper", to: "Hits", weights: [] }, // a table no layer draws
     readout: { from: "Clusters", to: "Readout", weights: [] },
     chambers: { from: "Clusters", to: "Chambers", weights: [] },
+    tracksterClusters: { from: "Tracksters", to: "Clusters", weights: [] },
+    candidateClusters: { from: "Candidates", to: "Clusters", weights: [] },
+    pfClusters: { from: "PFCandidates", to: "Clusters", weights: [] }, // not a reconstruction step
+    candidateTracksters: { from: "Candidates", to: "Tracksters", weights: [] }, // tracksters are a step: no chip
   },
 } as unknown as Pick<Header, "display" | "relations">;
 const rel = (offsets: number[], indices: number[]): Relation =>
@@ -48,9 +63,19 @@ const hits = () => withClustered(event(both), clusterSources(header)).tables.Hit
 const shown = (v: Float32Array | null | undefined) =>
   v ? [...v].map((x, i) => (x > 0 ? i : -1)).filter((i) => i >= 0) : "all";
 
-describe("hits in no cluster", () => {
-  it("are those no cluster (a reco layer drawn as points) lists: not the truth, a muon, another hit table", () => {
-    expect([...clusterSources(header)]).toEqual([["Hits", ["clusterHits", "superHits"]]]);
+describe("objects no later step uses", () => {
+  it("are hits no cluster (a reco layer drawn as points) lists: not the truth, a muon, another hit table", () => {
+    expect(clusterSources(header).get("Hits")).toEqual(["clusterHits", "superHits"]);
+  });
+  it("are clusters no reconstruction step (a layer with a stage) lists; steps themselves have none", () => {
+    expect([...clusterSources(header).keys()]).toEqual(["Hits", "Clusters"]);
+    expect(clusterSources(header).get("Clusters")).toEqual(["tracksterClusters", "candidateClusters"]);
+  });
+  it("are named on the chip by what uses them, and counted once per event", () => {
+    expect(usedBy({ repr: "cells" })).toBe("in clusters");
+    expect(usedBy({ repr: "markers" })).toBe("in tracksters");
+    expect(unusedCount(hits())).toBe(3);
+    expect(unusedCount({ n: 2, columns: { [CLUSTERED]: Uint8Array.from([0, 0]) } })).toBe(0); // not our flags
   });
   it("are flagged once per event, a hit listed twice still once", () => {
     const raw = event(both),
@@ -93,7 +118,8 @@ describe("hits in no cluster", () => {
     expect(shown(v)).toEqual([1, 2, 4]);
   });
   it("are hidden by default only with a domain bar (collision events)", () => {
-    expect(defaultShowUnclustered({ domains: [{ name: "Physics" }, { name: "HGCal" }] } as Header)).toBe(false);
-    expect(defaultShowUnclustered({})).toBe(true);
+    const bar = { ...header, domains: [{ name: "Physics" }, { name: "HGCal" }] } as Header;
+    expect(defaultHidden(bar)).toEqual({ Hits: true, Clusters: true });
+    expect(defaultHidden(header)).toEqual({});
   });
 });

@@ -1,0 +1,139 @@
+import { describe, expect, it } from "vitest";
+import { drawnRows, graphOf } from "./graph";
+import { DEFAULT_LEVELS, GRAPH_LEVELS, levelGraph } from "./levelGraph";
+
+const csr = (rows: number[][]) => ({
+  offsets: Uint32Array.from(rows.reduce((o, r) => [...o, o[o.length - 1] + r.length], [0])),
+  indices: Uint32Array.from(rows.flat()),
+});
+const HARD = 1 << 1,
+  GEN = 1 << 2,
+  B = 1 << 8,
+  C = 1 << 9,
+  RECO = 1 << 10;
+// A small ttbar-like event. Vertices: 0 the hard scatter, 1 a shower step, 2 the t decay, 3 the W decay, 4 and 5 the
+// hadronisation of a string between the b and the s̄, 6 the B̄⁰ decay, 7 the D⁺ decay, 8 the K⁻'s hadronic interaction,
+// 9 a string of the underlying event, 10 a pile-up collision.
+// Particles:
+//   0 p (beam) -> 1 g (incoming) -> 2 t -> 3 t (its copy) -> 4 W⁺, 5 b (leg); 4 -> 6 c, 7 s̄ (legs)
+//   5, 7 -> 8 a string (two parents) -> 9 B̄⁰ (b hadron), 10 π⁺ (reconstructable); 9 -> 11 D⁺ (c hadron) -> 12 K⁻
+//   (reconstructable) -> 13 π⁻, 14 γ (Geant4, no level)
+//   0 -> 15 g (initial-state radiation) -> 16 π⁻ (reconstructable, underlying event)
+//   17 π⁰ (reconstructable, pile-up)
+const P = {
+  pdgId: [2212, 21, 6, 6, 24, 5, 4, -3, 92, -511, 211, 411, -321, -211, 22, 21, -211, 111],
+  status: [4, 21, 22, 62, 22, 23, 23, 23, 71, 2, 1, 2, 1, 0, 0, 41, 1, 2],
+  energy: [7000, 500, 400, 400, 200, 150, 120, 70, 220, 100, 50, 60, 30, 5, 3, 300, 10, 4],
+  levelFlags: [0, 0, 0, 0, 0, HARD, HARD, HARD, 0, B, RECO | GEN, C, RECO | GEN, 0, 0, 0, RECO | GEN, RECO | GEN],
+  isSignal: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0],
+  prodVertexIdx: [-1, -1, 0, 1, 2, 2, 3, 3, 4, 5, 5, 6, 7, 8, 8, -1, 9, 10],
+  decayVertexIdx: [-1, 0, 1, 2, 3, 4, -1, 4, 5, 6, -1, 7, 8, -1, -1, 9, -1, -1],
+};
+const V = { reason: [17, 18, 2, 2, 19, 19, 2, 2, 11, 19, 0] };
+const kids: number[][] = Array.from({ length: P.pdgId.length }, () => []);
+Object.assign(kids, {
+  0: [1, 15],
+  1: [2],
+  2: [3],
+  3: [4, 5],
+  4: [6, 7],
+  5: [8],
+  7: [8],
+  8: [9, 10],
+  9: [11],
+  11: [12],
+  12: [13, 14],
+  15: [16],
+});
+const g = graphOf({ n: P.pdgId.length, columns: P }, csr(kids), { n: V.reason.length, columns: V });
+const build = (mask = DEFAULT_LEVELS) => levelGraph(g, "levelFlags", "isSignal", mask);
+/** The particle node of row `r`, and the rows of nodes `ids` (their first copies). */
+const node = (lg: ReturnType<typeof build>, r: number) => lg.particles[lg.nodeOf[r]];
+const rows = (lg: ReturnType<typeof build>, ids: number[]) => ids.map((i) => lg.particles[i].top);
+const level = (id: string) => GRAPH_LEVELS.findIndex((l) => l.id === id);
+
+describe("levelGraph", () => {
+  it("folds generator copies into one node", () => {
+    const lg = build(),
+      t = node(lg, 3);
+    expect(lg.nodeOf[2]).toBe(lg.nodeOf[3]);
+    expect([t.top, t.last, t.copies]).toEqual([2, 3, 2]);
+  });
+  it("puts the hard process on top: the legs under the particles they came from, the W beside the b", () => {
+    const lg = build(),
+      [hard] = lg.groups;
+    expect(hard.id).toBe("hard");
+    expect(rows(lg, hard.roots)).toEqual([2]); // t: the parent of the b leg; the incoming gluon is not shown
+    expect(rows(lg, node(lg, 2).children)).toEqual([4, 5]); // t -> W⁺ b, largest first
+    expect(rows(lg, node(lg, 4).children)).toEqual([6, 7]); // W⁺ -> c s̄
+    expect([node(lg, 2).level, node(lg, 4).level, node(lg, 5).level]).toEqual(Array(3).fill(level("hard")));
+    expect(lg.counts[level("hard")]).toBe(5); // t, W⁺, b, c, s̄
+  });
+  it("keeps every parent of a particle made from several, the one of highest energy first", () => {
+    const lg = build();
+    expect(rows(lg, node(lg, 9).parents)).toEqual([5, 7]); // B̄⁰ from the string between the b and the s̄
+    expect(rows(lg, node(lg, 5).children)).toEqual([9, 10]);
+    expect(rows(lg, node(lg, 7).children)).toEqual([9, 10]);
+  });
+  it("skips particles at no shown level, to the nearest shown ancestor", () => {
+    expect(rows(build(), node(build(), 12).parents)).toEqual([11]); // K⁻ under the D⁺
+    const lg = build(DEFAULT_LEVELS & ~(B | C)); // b and c hadrons hidden
+    expect(lg.nodeOf[9]).toBe(-1);
+    expect(rows(lg, node(lg, 12).parents)).toEqual([5, 7]); // K⁻ under the b, also from the s̄
+    expect(lg.hiddenUnder[11]).toBe(lg.nodeOf[5]);
+    // with the hard process hidden, what came from it is still its group
+    const below = build(DEFAULT_LEVELS & ~HARD);
+    expect(below.groups.map((x) => [x.id, rows(below, x.roots)])[0]).toEqual(["hard", [9, 10]]);
+  });
+  it("puts the vertex each particle was made at between, with its reason, and marks skipped particles", () => {
+    const lg = build(),
+      decay = lg.vertices[node(lg, 4).made];
+    expect([decay.row, decay.reason, decay.skips]).toEqual([2, 2, false]);
+    expect(rows(lg, decay.into)).toEqual([2]);
+    expect(rows(lg, decay.out)).toEqual([4, 5]);
+    expect(node(lg, 5).made).toBe(node(lg, 4).made);
+    const string = lg.vertices[node(lg, 9).made];
+    expect([string.row, string.reason, string.skips]).toEqual([5, 19, true]);
+    expect(rows(lg, string.into)).toEqual([5, 7]);
+    expect(node(lg, 5).ends).toEqual([node(lg, 9).made]);
+    const top = lg.vertices[node(lg, 2).made];
+    expect([top.reason, top.into, top.skips]).toEqual([17, [], false]); // the hard scatter, above the t
+  });
+  it("counts the hidden particles below each node that no shown particle covers", () => {
+    const lg = build();
+    expect(node(lg, 12).below).toBe(2); // the K⁻'s interaction products
+    expect([node(lg, 5).below, node(lg, 7).below]).toEqual([1, 1]); // the string, below both
+    expect(node(lg, 2).below).toBe(0);
+    expect(lg.hiddenUnder[13]).toBe(lg.nodeOf[12]);
+    expect([lg.hiddenUnder[0], lg.hiddenUnder[12]]).toEqual([-1, -1]);
+  });
+  it("groups the roots: hard process, underlying event, pile-up", () => {
+    const lg = build();
+    expect(lg.groups.map((x) => [x.id, x.name, rows(lg, x.roots)])).toEqual([
+      ["hard", "hard process", [2]],
+      ["underlying", "underlying event", [16]],
+      ["pileup", "pile-up", [17]],
+    ]);
+  });
+  it("colours a particle by its first shown level", () => {
+    expect(node(build(), 10).level).toBe(level("reco"));
+    expect(node(build(GEN), 10).level).toBe(level("gen"));
+    expect(build(GEN).nodeOf[9]).toBe(-1);
+  });
+});
+
+describe("drawnRows", () => {
+  it("draws a picked particle with its copies, where it was made and where it ended", () => {
+    const t = drawnRows(g, [3], false);
+    expect([[...t.particles].sort((a, b) => a - b), [...t.vertices].sort()]).toEqual([
+      [2, 3],
+      [0, 2],
+    ]);
+  });
+  it("adds everything below it with descendants, for every pick", () => {
+    const d = drawnRows(g, [9, 17], true);
+    expect([...d.particles].sort((a, b) => a - b)).toEqual([9, 11, 12, 13, 14, 17]);
+    expect([...d.vertices].sort((a, b) => a - b)).toEqual([5, 6, 7, 8, 10]);
+    expect([...drawnRows(g, [9], false).particles]).toEqual([9]);
+  });
+});

@@ -7,6 +7,7 @@ import type { EventData, Header } from "../../io/format";
  *  children are those of all of them: what happened where is read from each child's own production vertex. */
 export interface Graph {
   n: number;
+  nv: number; // vertices (0 without the vertex table)
   col: (name: string, r: number) => number; // a particle's column
   vcol: (name: string, v: number) => number; // a vertex's column (NaN without the vertex table)
   children: (r: number) => number[];
@@ -74,6 +75,7 @@ export function graphOf(
   for (let r = 0; r < n; r++) if (top[r] < 0) top[r] = last[r] = r; // a loop of copies (bad data): each on its own
   return {
     n,
+    nv,
     col,
     vcol: (name, v) => {
       const c = vertices?.columns[name];
@@ -115,6 +117,28 @@ export function copiesBelow(g: Graph, r: number): number[] {
 }
 /** The top of `r`'s generator copies (see copiesBelow). */
 export const topCopy = (g: Graph, r: number) => g.top[r];
+/** What the view draws of the truth for picked particles `rows` (the Truth tab's picks): each one's generator copies,
+ *  the vertex it was made at (its first copy's production vertex) and the one it ended at (its last copy's end
+ *  vertex); with `descendants`, the same for every particle below them (the children of all their copies). */
+export function drawnRows(g: Graph, rows: number[], descendants: boolean) {
+  const particles = new Set<number>(),
+    vertices = new Set<number>(),
+    todo = rows.map((r) => g.top[r]);
+  const vertex = (v: number) => {
+    if (v >= 0 && v < g.nv) vertices.add(v);
+  };
+  while (todo.length) {
+    const t = g.top[todo.pop()!];
+    if (particles.has(t)) continue;
+    const copies = copiesBelow(g, t);
+    for (const r of copies) particles.add(r);
+    vertex(g.col("prodVertexIdx", t));
+    vertex(g.col("decayVertexIdx", copies.at(-1)!));
+    if (descendants) for (const r of copies) for (const c of g.children(r)) if (g.top[c] !== t) todo.push(c);
+  }
+  return { particles, vertices };
+}
+
 /** A chain of particles (top first, each the parent of the next) in groups of generator copies. */
 export function foldCopies(g: Graph, chain: number[]): number[][] {
   const out: number[][] = [];

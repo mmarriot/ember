@@ -59,7 +59,7 @@ const DEFAULT: Choices = {
 };
 const STORE = "evd.picture";
 /** The default caption: the event, after the label's word for what the data are ("ttbar · Run 1 · LS 1 · Event 4"). */
-const firstCaption = () => shownTitle().replace(/^(SIMULATION|DATA) · /, "");
+const firstCaption = () => shownTitle().replace(/^(MC|DATA) · /, "");
 function load(): Choices {
   try {
     return { ...DEFAULT, ...JSON.parse(browserStorage.get(STORE) ?? "{}") };

@@ -159,8 +159,10 @@
 .layer {
   padding: 2px 0;
 }
+/* Its chips go to a second line when the row is full, never squeezing the name to a letter per line. */
 .layer .row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 2px;
 }
@@ -169,7 +171,7 @@
   gap: 6px;
   align-items: center;
   cursor: pointer;
-  flex: 1;
+  flex: 1 1 8em;
   min-width: 0;
 }
 /* A long name wraps rather than being cut ("ECA…"). */

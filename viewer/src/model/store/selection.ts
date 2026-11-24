@@ -343,23 +343,20 @@ effect(() => {
 
 // ---- Picking truth particles (the Truth tab's graph)
 
-/** Show picked truth particle `row`: the card describes it and the focus is on it (the last pick is the focus). */
-function showPick(table: string, row: number) {
-  const ref = { table, row };
-  openCard(ref);
-  if (!sameRef(focus.peek(), ref)) focusOn(ref); // selected already, inside another focus
-}
-/** Pick truth particle `row` alone (a click on its name). */
+/** Pick truth particle `row` alone (a click on its name), as any new selection: the card describes it and the focus
+ *  is on it, the earlier focus kept for "back". */
 export function pickTruth(row: number) {
   const t = truthGraph.peek()?.particles;
   if (t === undefined) return;
+  const ref = { table: t, row };
   batch(() => {
     truthPicks.value = [row];
-    showPick(t, row);
+    openCard(ref);
+    if (!sameRef(focus.peek(), ref)) focusOn(ref); // selected already, inside another focus
   });
 }
 /** Add truth particle `row` to the picks, or take it out if it is one (any of its generator copies): the card then
- *  describes the last pick left, or closes. */
+ *  describes the last pick left, or closes. Not a new choice for "back", which returns to before the first pick. */
 export function togglePick(row: number) {
   const tg = truthGraph.peek();
   if (!tg) return;
@@ -370,7 +367,14 @@ export function togglePick(row: number) {
     truthPicks.value = rest.length < picks.length ? rest : [...picks, row];
     const last = truthPicks.peek().at(-1);
     if (last === undefined) selection.value = null;
-    else showPick(tg.particles, last);
+    else {
+      // The last pick is the card's and the focus, with nothing added to "back": the picks are one choice.
+      anchor.value = null;
+      looking = null;
+      anchorFocus = null;
+      focus.value = { table: tg.particles, row: last };
+      selection.value = { table: tg.particles, row: last };
+    }
   });
 }
 /** No truth particle picked, and nothing selected. */

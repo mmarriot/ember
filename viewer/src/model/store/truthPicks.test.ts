@@ -8,6 +8,8 @@ const {
   bundle,
   clearPicks,
   focus,
+  focusBack,
+  focusHistory,
   focusOn,
   highlight,
   look,
@@ -118,6 +120,16 @@ describe("picking truth particles", () => {
     expect(truthPicks.value).toEqual([1]);
     focusOn(at("Hit", 0));
     selection.value = at("Hit", 0);
+    expect(truthPicks.value).toEqual([]);
+  });
+  it("keeps ticks out of the way back: back returns to before the first pick", () => {
+    focusOn(at("Hit", 0));
+    selection.value = at("Hit", 0);
+    pickTruth(0);
+    togglePick(2);
+    togglePick(1);
+    expect(focusHistory.value).toEqual([at("Hit", 0)]);
+    expect(focusBack()).toEqual(at("Hit", 0));
     expect(truthPicks.value).toEqual([]);
   });
   it("leaves the truth of an object looked at from a card as its own: a particle, a vertex", () => {

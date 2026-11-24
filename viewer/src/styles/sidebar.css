@@ -831,15 +831,20 @@ table.inview td > span {
   color: var(--muted);
 }
 /* The levels and the controls stay at the top of the panel's scroller, under its sticky tab list (.tablist: 8px of
-   padding, a 13px tab at line height 1.45 with 8px padding and a 2px edge, its 1px border), while the graph scrolls. */
+   padding, a 13px tab at line height 1.45 with 8px padding and a 2px edge, its 1px border), while the graph scrolls;
+   only where the panel is beside the view and tall enough: elsewhere they would fill it. */
 .graphhead {
-  position: sticky;
   top: 46px;
   z-index: 1;
   margin: -12px -12px 0;
   padding: 12px 12px 2px;
   background: var(--surface-2);
   border-bottom: 1px solid var(--line);
+}
+@media (min-width: 901px) and (min-height: 700px) {
+  .graphhead {
+    position: sticky;
+  }
 }
 /* The graph as a tree (truthgraph/TreeView.tsx). A row is a line of the tree: its guide cells (a rail per ancestor
    level, then its elbow ├ └ or, for a vertex, ◆ on its daughters' line), its fold, and its content. Rows have no

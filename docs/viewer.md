@@ -468,8 +468,8 @@ objects that left hits, and the tree, which folds. With truth, from the top:
   shows the 50 largest and "show 50 more". A particle selected elsewhere (in the view, `X`) is unfolded to and
   scrolled into view (one at no level shown under the particle it hides under). The particles the search finds are
   marked, and the way to the 20 largest is open while the search is typed (clearing it folds them back); the
-  controls say how many it found, and Enter or "next" picks the next one. The levels and the controls stay at the top
-  of the panel while the graph scrolls. In the tree, ↑ ↓ move between the names and → ← unfold and fold (there they
+  controls say how many it found, and Enter or "next" picks the next one. Where the panel is beside the view and tall
+  enough, the levels and the controls stay at its top while the graph scrolls. In the tree, ↑ ↓ move between the names and → ← unfold and fold (there they
   do not step the event or the focus level). Its groups:
   - **hard process**, open: the outgoing legs of the hard scatter (level HardProcess) under the particles they came
     from, so `t → b W⁺` and `W⁺ → s̄ c`, and everything below them (with the hard process hidden, what came from it

@@ -606,6 +606,9 @@ export async function checkSite(run) {
   // Sharp on every screen: the view's drawing buffer covers exactly the device pixels its canvas is shown on (a buffer
   // of any other size is resampled to fit, and the whole view blurs). At 125 % with a side panel of an odd width (the
   // canvas's edge between two device pixels), at 3x, and after the window moves to a screen of another density.
+  // The device pixels expected are worked out with engine.ts devicePixels' rule: under emulated densities (Playwright's
+  // deviceScaleFactor) the browser's own count, devicePixelContentBoxSize, is in CSS pixels. The rule itself is tested
+  // against the browser's count at real densities in engine.test.ts.
   for (const [dpr, side, to] of [
     [1.25, 341, 2],
     [3, 340, 1],

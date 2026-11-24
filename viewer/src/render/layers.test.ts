@@ -451,6 +451,7 @@ describe("the rest of the event around a selection", () => {
 
 describe("sizes on screen", () => {
   it("are CSS pixels, turned into drawing-buffer pixels by one shared uniform", () => {
+    Object.assign(globalThis, { devicePixelRatio: 2 }); // not read when a layer is built
     const met = table({ x: col(0), y: col(0), z: col(0), px: col(30), py: col(40), pz: col(0) });
     const track = table({ x: col(0), y: col(0), z: col(0), px: col(3), py: col(4), pz: col(1), q: col(1) });
     const hits = table({ x: col(10, 20), y: col(0, 0), z: col(1, 2) });
@@ -476,12 +477,13 @@ describe("sizes on screen", () => {
         t: table({ x: col(0) }),
       }),
     ];
-    for (const l of lines) {
+    for (const [i, l] of lines.entries()) {
       const { uniforms, vertexShader } = parts(l).m;
       expect(uniforms.uPx).toBe(pxUniform);
-      expect(uniforms.uWidth.value).toBeGreaterThanOrEqual(3); // the hint's width, as is
-      expect(vertexShader).toMatch(/uWidth \* uPx \*/);
+      expect(uniforms.uWidth.value).toBe([4, 3, 3][i]); // the hint's width, as is
+      expect(vertexShader).toMatch(/\+ HALO_PX\) \* uPx/); // the halo too
     }
     expect(parts(build(hint({ repr: "markers" }), crystals())).m.uniforms.uPx).toBe(pxUniform);
+    delete (globalThis as { devicePixelRatio?: number }).devicePixelRatio;
   });
 });

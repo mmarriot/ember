@@ -136,7 +136,7 @@ function wideSegments(input: LayerInput, start: Vec3s, end: Vec3s): Layer {
         vec4 A = projectionMatrix * modelViewMatrix * vec4(a, 1.0), B = projectionMatrix * modelViewMatrix * vec4(b, 1.0);
         vec2 along = (B.xy / B.w - A.xy / A.w) * uRes, across = length(along) > 1e-6 ? normalize(vec2(-along.y, along.x)) : vec2(0.0, 1.0);
         vec4 P = mix(A, B, position.x);
-        P.xy += across * position.y * (uWidth * uPx * (1.0 + 0.5 * s * selActive() + 2.0 * gPin) + HALO_PX) / uRes * P.w; // half the width each side, in NDC
+        P.xy += across * position.y * (uWidth * (1.0 + 0.5 * s * selActive() + 2.0 * gPin) + HALO_PX) * uPx / uRes * P.w; // half the width each side, in NDC
         gl_Position = inFront(P, s);
         vCol = fade(mix(icol, vec3(1.0), uFlash * pop(iT)), s) * remaining() + uBg * (1.0 - remaining());
       }`,

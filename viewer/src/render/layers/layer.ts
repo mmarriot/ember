@@ -146,7 +146,7 @@ vec4 inFront(vec4 p, float s) {
   if (selActive() > 0.5) p.z = 0.5 * p.z + (s > 0.5 ? -0.5 : 0.5) * p.w;
   return p;
 }
-// The halo pass (see halo): the selected object again, wider by HALO_PX px, behind it.
+// The halo pass (see halo): the selected object again, wider by HALO_PX CSS px, behind it.
 #ifdef HALO
 const float HALO_PX = 6.0;
 #else
@@ -423,7 +423,7 @@ const HALO_FRAGMENT = /* glsl */ `uniform vec3 uHalo;
   }`;
 
 /** A halo around the selected line (a line layer's pinned instances): the same instances drawn again before it as a
- *  strip HALO_PX px wider in the accent colour, so even a 1 px line stands out. It shares the layer's uniforms and
+ *  strip HALO_PX CSS px wider in the accent colour, so even a 1 px line stands out. It shares the layer's uniforms and
  *  shader (with HALO and WIDE defined) and draws copies of the pinned instances' attributes only, so a frame costs a
  *  draw call of a few hundred vertices, not a second pass over the layer. `shape`: the strip's corners (setLineQuad,
  *  or a helix's strip), shared and never freed here; `order`: the layer's renderOrder. */

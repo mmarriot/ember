@@ -26,7 +26,6 @@ import { stopTour, toggleTour } from "../../control/tour";
 import { replayEvent } from "../../control/scene";
 import { hasDomainBar, REST_NAMES, VIEWS } from "../viewport/ViewControls";
 import { Icon, usePressOutside } from "../common/widgets";
-import { clusterSources, showUnclustered } from "../../model/event/clustered";
 
 /** Whether the menu is open (Esc closes it: App.tsx). */
 export const menuOpen = signal(false);
@@ -39,8 +38,7 @@ export function Menu() {
   usePressOutside(ref, open, () => (menuOpen.value = false));
 
   const parts = hasDomainBar(bundle.value?.header),
-    f = focus.value,
-    hits = !!bundle.value && clusterSources(bundle.value.header).size > 0; // a hit table that clusters list
+    f = focus.value;
   const levels = !!f && focusBar.value.some((l) => !l.always);
   const groups: [string, Item[]][] = [
     [
@@ -57,15 +55,6 @@ export function Menu() {
           run: () => frameFocus(),
         },
         { label: "Labels", keys: "L", on: labelsOn.value, run: () => (labelsOn.value = !labelsOn.value) },
-        ...(hits
-          ? [
-              {
-                label: "Unclustered hits",
-                on: showUnclustered.value,
-                run: () => (showUnclustered.value = !showUnclustered.value),
-              },
-            ]
-          : []),
         { label: "Save picture…", off: !bundle.value, run: () => (dialog.value = "picture") },
       ],
     ],

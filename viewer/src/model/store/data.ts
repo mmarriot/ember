@@ -22,7 +22,7 @@ export const shownOf = signal<Bundle | null>(null);
 export const shownEntry = computed(() =>
   bundle.value && shownOf.value === bundle.value ? bundle.value.events[eventIndex.value] : undefined,
 );
-/** The event shown, with which of its hits are in a cluster (model/event/clustered.ts): once per event. */
+/** The event shown, with which of its objects a later step uses (model/event/clustered.ts): once per event. */
 const clusteredEvent = computed(() => {
   const ev = rawEvent.value,
     b = shownOf.value;

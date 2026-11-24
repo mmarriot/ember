@@ -4,7 +4,7 @@ import type { Summary } from "../../io/format";
 import { customColumns, evaluate, filters } from "../../model/custom/settings";
 import { provenance } from "../../model/site/about";
 import { cutMin, cutValues } from "../../model/custom/cuts";
-import { showUnclustered, unclusteredHidden } from "../../model/event/clustered";
+import { hideUnclustered, unclusteredHidden } from "../../model/event/clustered";
 import { bundle, cuts, event, eventIndex, layerOf, loadMs, opened, short } from "../../model/store";
 import { ColumnDef } from "./LayerOptions";
 
@@ -117,7 +117,14 @@ function Chart({ s }: { s: Summary }) {
     value = s.value ? t.columns[s.value] : undefined;
   if (!t?.n || !group || (s.value && !value)) return null;
   const passing = d
-    ? cutValues(d, t, filters.value[s.table], undefined, undefined, unclusteredHidden(t, !showUnclustered.value))
+    ? cutValues(
+        d,
+        t,
+        filters.value[s.table],
+        undefined,
+        undefined,
+        unclusteredHidden(t, !!hideUnclustered.value[s.table]),
+      )
     : undefined;
   const min = d ? cutMin(d, passing, cuts.value) : -Infinity;
   const where = s.where ? evaluate(t, s.where) : null;

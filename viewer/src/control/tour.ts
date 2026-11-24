@@ -26,7 +26,7 @@ import {
 } from "../model/store";
 import { filters } from "../model/custom/settings";
 import { keptMask } from "../model/custom/cuts";
-import { showUnclustered } from "../model/event/clustered";
+import { hideUnclustered } from "../model/event/clustered";
 import { passes } from "../model/event/objects";
 import { related, type Ref } from "../model/event/relations";
 import { isShower, type Caption } from "../render/replay";
@@ -220,7 +220,7 @@ function showsAny(d: DisplayLayer) {
     d,
     t,
     d.cut ? (cuts.value[d.cut.group] ?? 0) : 0,
-    keptMask(t, filters.value[d.table], !showUnclustered.value),
+    keptMask(t, filters.value[d.table], !!hideUnclustered.value[d.table]),
   );
   for (let i = 0; i < t.n; i++) if (ok(i)) return true;
   return false;

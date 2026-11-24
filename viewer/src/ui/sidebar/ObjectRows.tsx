@@ -1,7 +1,9 @@
 // A side-panel tab's objects as rows: the event in one line over the collections (Headline), and a collection's
 // largest objects, one row each with its columns (ObjectRows).
 import { type DisplayLayer, kindName, unitOf } from "../../io/format";
-import { filterMask, filters } from "../../model/custom/settings";
+import { filters } from "../../model/custom/settings";
+import { keptMask } from "../../model/custom/cuts";
+import { hideUnclustered } from "../../model/event/clustered";
 import { columnName, passes, topRows, whyHidden } from "../../model/event/objects";
 import { plain } from "../../model/event/describe";
 import {
@@ -19,12 +21,13 @@ import {
 import { rowHover } from "../viewport/Labels";
 import { jump } from "../../control/navigate";
 
-/** A layer's rows that pass its cut and filter (model/event/objects.ts). */
+/** A layer's rows that pass its cut and filter (model/event/objects.ts), less those no later step uses while they are
+ *  hidden (model/event/clustered.ts). */
 export function passing(d: DisplayLayer) {
   const t = event.value?.tables[d.table];
   if (!t) return null;
   const min = d.cut ? (cuts.value[d.cut.group] ?? 0) : 0,
-    keep = filterMask(t, filters.value[d.table]);
+    keep = keptMask(t, filters.value[d.table], !!hideUnclustered.value[d.table]);
   return { t, min, keep, pass: passes(d, t, min, keep) };
 }
 

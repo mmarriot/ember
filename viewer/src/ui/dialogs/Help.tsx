@@ -112,8 +112,8 @@ export function HelpDialog() {
         [[], "☀ / ☾ in the top bar", "Light or dark theme"],
         [
           [],
-          "⚙ menu → Unclustered hits",
-          "Calorimeter hits in no cluster: hidden in collision events until asked for, shown in test-beam ones",
+          "a collection's in clusters | in tracksters | all chip",
+          "Hits in no cluster, layer clusters in no trackster: hidden in collision events until asked for",
         ],
       ],
     ],

@@ -64,7 +64,7 @@ export async function checkBundle(run, file, tag, state) {
   await shot("1_layers");
   await checkHelices(page, fail, tag);
   await checkDomains(page, h, fail, shot, tag);
-  await checkUnclustered(page, h, fail, tag);
+  await checkUnclustered(page, h, fail, tag, small);
   await checkObjectRows(page, h, fail, shot, tag);
 
   const preset = page.locator(".sidebar .presets select");
@@ -387,15 +387,15 @@ async function checkDomains(page, h, fail, shot, tag) {
     fail("All did not bring the colour key back");
 }
 
-/** Hits in no cluster: hidden by default where there is a domain bar (collision events), shown elsewhere; the menu's
- *  "Unclustered hits" shows or hides them. Checked on the drawn hit layers that clusters list (in All, where
- *  checkDomains leaves the view): no unclustered hit is drawn while they are hidden, but those of a selection (an
- *  object related to one, e.g. a truth particle that left energy in it); once shown, every one that the layer's cut and
- *  filter keep is (none in the test-beam bundles, whose clustering takes every hit). */
-async function checkUnclustered(page, h, fail, tag) {
-  const item = page.locator(".menupanel [role^=menuitem]", { hasText: "Unclustered hits" });
-  const count = () =>
-    page.evaluate(async () => {
+/** Objects no later step uses (hits in no cluster, layer clusters in no trackster): hidden by default where there is a
+ *  domain bar (collision events), shown elsewhere; a chip on the layer's row shows or hides them ("in tracksters" |
+ *  "all"). Checked on the drawn layers that have such a rule (in All, where checkDomains leaves the view): no unused
+ *  object is drawn while hidden, but those of a selection (an object related to one, e.g. a truth particle); shown,
+ *  every one that the layer's cut and filter keep is (none in the test-beam bundles, whose clustering takes every hit).
+ *  Then the chip itself, in the part of the detector of the first such layer. */
+async function checkUnclustered(page, h, fail, tag, small) {
+  const state = (show) =>
+    page.evaluate(async (show) => {
       const url = (f) =>
         performance
           .getEntriesByType("resource")
@@ -405,12 +405,18 @@ async function checkUnclustered(page, h, fail, tag) {
         custom = await import(url("/src/model/custom/settings.ts")),
         clustered = await import(url("/src/model/event/clustered.ts"));
       const frames = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-      const ev = store.event.peek(),
-        h = store.bundle.peek().header,
+      const h = store.bundle.peek().header,
         sources = clustered.clusterSources(h),
+        defaults = clustered.hideUnclustered.peek();
+      if (show) {
+        clustered.hideUnclustered.value = {};
+        await new Promise((r) => setTimeout(r, 1500));
+      }
+      const ev = store.event.peek(),
+        hidden = clustered.hideUnclustered.peek(),
         drawn = {},
-        kept = {}, // the unclustered hits that the layer's cut and own filter keep
-        selected = []; // while hidden: a selection's unclustered hit, and whether it is drawn
+        kept = {}, // the unused objects that the layer's cut and own filter keep
+        selected = []; // while hidden: a selection's unused object, and whether it is drawn
       for (const table of sources.keys()) {
         const l = window.emberEngine.layers.find((x) => x.table === table),
           t = ev.tables[table],
@@ -427,8 +433,8 @@ async function checkUnclustered(page, h, fail, tag) {
           if (l.passes(i)) drawn[table]++;
           if (passing(i)) kept[table]++;
         }
-        if (clustered.showUnclustered.peek()) continue;
-        // an object that a plain relation (not a cluster's) links to an unclustered hit that the cut and filter keep
+        if (!hidden[table]) continue;
+        // an object that a plain relation (not a user's) links to an unused object that the cut and filter keep
         for (const [name, r] of Object.entries(h.relations)) {
           const rel = ev.relations[name];
           if (r.to !== table || r.from === table || sources.get(table).includes(name) || !rel) continue;
@@ -445,46 +451,85 @@ async function checkUnclustered(page, h, fail, tag) {
           store.selection.value = { table: r.from, row: from };
           await frames();
           const now = window.emberEngine.layers.find((x) => x.table === table);
-          selected.push({ sel: `${r.from}:${from}`, hit: `${table}:${row}`, drawn: !!now?.passes(row) });
+          selected.push({ sel: `${r.from}:${from}`, obj: `${table}:${row}`, drawn: !!now?.passes(row) });
           store.selection.value = null;
           await frames();
           break;
         }
       }
-      return { shown: clustered.showUnclustered.peek(), drawn, kept, selected };
-    });
-  await page.locator(".menubutton").click({ timeout: 120000 });
-  if (!(await item.count())) {
-    await page.keyboard.press("Escape");
-    const hitLayers = h.display.some((d) => d.repr === "cells" && !d.truth && !d.context && !d.onSelection);
-    if (hasDomainBar(h) && hitLayers) fail("the menu has no Unclustered hits in a collision event with hits");
-    return;
+      if (show) {
+        clustered.hideUnclustered.value = defaults;
+        await new Promise((r) => setTimeout(r, 1500));
+      }
+      return { tables: [...sources.keys()], hidden, drawn, kept, selected };
+    }, show);
+  const before = await state(false);
+  if (!before.tables.length) return;
+  const expected = hasDomainBar(h);
+  log(`${tag}: unused objects of ${before.tables.join(", ")}: hidden ${JSON.stringify(before.hidden)}`);
+  for (const t of before.tables)
+    if (!!before.hidden[t] !== expected) fail(`${t}: unused objects ${expected ? "shown" : "hidden"} by default`);
+  if (Object.entries(before.drawn).some(([t, n]) => before.hidden[t] && n > 0))
+    fail(`unused objects drawn while hidden: ${JSON.stringify(before.drawn)}`);
+  for (const s of before.selected) {
+    log(`${tag}: selection ${s.sel} reaches the unused ${s.obj}: ${s.drawn ? "drawn" : "not drawn"}`);
+    if (!s.drawn) fail(`the selection ${s.sel} does not draw its unused ${s.obj}`);
   }
-  const before = await count(),
-    expected = !hasDomainBar(h);
-  await item.click({ timeout: 120000 });
-  await page.waitForTimeout(800);
-  const after = await count();
+  const shown = await state(true);
   log(
-    `${tag}: unclustered hits ${before.shown ? "shown" : "hidden"} -> ${after.shown ? "shown" : "hidden"}; drawn: ${JSON.stringify(before.drawn)} -> ${JSON.stringify(after.drawn)}`,
+    `${tag}: unused objects drawn, all shown: ${JSON.stringify(shown.drawn)} (cuts keep ${JSON.stringify(shown.kept)})`,
   );
-  if (before.shown !== expected) fail(`unclustered hits are ${before.shown ? "shown" : "hidden"} by default`);
-  if (after.shown === before.shown) fail("the menu's Unclustered hits did not toggle them");
-  const hidden = before.shown ? after : before,
-    shown = before.shown ? before : after;
-  if (Object.values(hidden.drawn).some((n) => n > 0))
-    fail(`unclustered hits drawn while hidden: ${JSON.stringify(hidden.drawn)}`);
-  for (const s of hidden.selected) {
-    log(`${tag}: selection ${s.sel} reaches the unclustered hit ${s.hit}: ${s.drawn ? "drawn" : "not drawn"}`);
-    if (!s.drawn) fail(`the selection ${s.sel} does not draw its unclustered hit ${s.hit}`);
-  }
   if (JSON.stringify(shown.drawn) !== JSON.stringify(shown.kept))
     fail(
-      `unclustered hits drawn once shown: ${JSON.stringify(shown.drawn)}, kept by cuts: ${JSON.stringify(shown.kept)}`,
+      `unused objects drawn once shown: ${JSON.stringify(shown.drawn)}, kept by cuts: ${JSON.stringify(shown.kept)}`,
     );
-  await page.locator(".menubutton").click({ timeout: 120000 });
-  await item.click({ timeout: 120000 }); // back to the default
-  await page.waitForTimeout(800);
+  // Each ticked such layer's chip, in its part of the detector: a click draws all its objects that the cuts keep,
+  // another hides the unused ones again. Not for big events: each click rebuilds every layer, slow with software WebGL.
+  if (!expected || small) return;
+  const drawnUnused = (table) =>
+    page.evaluate(async (table) => {
+      const url = (f) =>
+        performance
+          .getEntriesByType("resource")
+          .map((r) => r.name)
+          .find((n) => n.includes(f));
+      const store = await import(url("/src/model/store/index.ts")),
+        clustered = await import(url("/src/model/event/clustered.ts"));
+      const flag = store.event.peek().tables[table].columns[clustered.CLUSTERED],
+        l = window.emberEngine.layers.find((x) => x.table === table);
+      let n = 0;
+      for (let i = 0; i < flag.length; i++) if (!flag[i] && l?.passes(i)) n++;
+      return n;
+    }, table);
+  let at = "";
+  for (const d of h.display.filter((x) => before.tables.includes(x.table) && x.visible && x.domain)) {
+    if (!(d.table in shown.drawn)) continue; // not drawn in this event
+    if (d.domain !== at) await chooseDomain(page, (at = d.domain));
+    const chip = page
+      .locator(".tabpanel details.part.here .layer", { hasText: d.label })
+      .locator(".rowchip", { hasText: /^(in |all$)/ })
+      .first();
+    const text = (await chip.count()) ? await chip.innerText() : "";
+    if (!text.startsWith("in ")) {
+      if (shown.kept[d.table]) fail(`${d.label}: no chip that hides its unused objects (${text || "none"})`);
+      continue;
+    }
+    await chip.click({ timeout: 120000 });
+    await page.waitForTimeout(1500);
+    const after = await chip.innerText(),
+      all = await drawnUnused(d.table);
+    await chip.click({ timeout: 120000 });
+    await page.waitForTimeout(1500);
+    const back = await chip.innerText(),
+      none = await drawnUnused(d.table);
+    log(`${tag}: ${d.label}'s chip: ${text} -> ${after} (${all} unused drawn) -> ${back} (${none})`);
+    if (after !== "all" || back !== text) fail(`${d.label}'s chip does not switch: ${text} -> ${after} -> ${back}`);
+    if (all !== shown.kept[d.table] || none !== 0)
+      fail(
+        `${d.label}'s chip: ${all} unused drawn on all (cuts keep ${shown.kept[d.table]}), ${none} once hidden again`,
+      );
+  }
+  await chooseDomain(page, "All");
 }
 
 /** Layers with object rows (`list`): the ticked ones list their objects; pointing at a row rings its object; a click

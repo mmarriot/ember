@@ -93,12 +93,7 @@ export function TreeView({ lg, g, particles, vertices }: GraphViewProps) {
     if (!t) return;
     const row = root.current?.querySelector<HTMLElement>(`[data-top="${t.top}"]`);
     if (row) {
-      // clear of what stays at the top of the panel: the tab list and, where sticky, TruthTab's levels and controls
-      const head = root.current?.parentElement?.querySelector<HTMLElement>(".graphhead"),
-        style = head && getComputedStyle(head);
-      row.style.scrollMarginTop =
-        style?.position === "sticky" ? `${parseFloat(style.top) + head!.offsetHeight + 20}px` : "";
-      row.scrollIntoView({ block: "nearest" });
+      row.scrollIntoView({ block: "nearest" }); // the panel's scroll padding keeps it clear of the sticky controls
       if (t.focus) row.querySelector<HTMLElement>(".tg-name")?.focus();
     }
     if (row || t.waited) target.current = null;

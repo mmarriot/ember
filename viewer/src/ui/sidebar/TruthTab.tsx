@@ -90,7 +90,7 @@ export function TruthTab() {
       {tg && lg ? (
         <>
           {/* stays at the top of the panel while the graph scrolls under it */}
-          <div class="graphhead">
+          <div class="graphhead" ref={trackHead}>
             <Levels counts={lg.counts} />
             <Controls />
           </div>
@@ -140,6 +140,27 @@ function Levels({ counts }: { counts: number[] }) {
       })}
     </div>
   );
+}
+
+/** The panel's scroller and what measures the sticky levels and controls (.graphhead), while the tab shows them. */
+let tracked: { scroller: HTMLElement; observer: ResizeObserver } | null = null;
+/** Keeps the panel from scrolling anything under the sticky levels and controls (a row of the graph, Details, a
+ *  focused control): the scroller's scroll padding (--graphhead) ends where they do, under its tab list. */
+function trackHead(head: HTMLDivElement | null) {
+  tracked?.observer.disconnect();
+  tracked?.scroller.style.removeProperty("--graphhead");
+  tracked = null;
+  const scroller = head?.closest<HTMLElement>(".tabs");
+  if (!head || !scroller) return;
+  const observer = new ResizeObserver(() => {
+    const style = getComputedStyle(head); // static on a phone: it scrolls away
+    scroller.style.setProperty(
+      "--graphhead",
+      `${parseFloat(style.top) + (style.position === "sticky" ? head.offsetHeight : 0)}px`,
+    );
+  });
+  observer.observe(head);
+  tracked = { scroller, observer };
 }
 
 /** One of a few values of `value`, as a row of buttons after a label. */

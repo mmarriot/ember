@@ -37,7 +37,7 @@ export const tabOfDomain = (h: Pick<Header, "domains">, name: string) =>
 
 /** One kind of object looked at alone (its heading's "only"), as `soloKey` names it: only its collections are drawn,
  *  in any domain; null: everything ticked. A view like `domain`: the ticks are kept, and a selection still draws its
- *  own objects of other kinds. */
+ *  own objects of the other ticked kinds. */
 export const solo = signal<string | null>(null);
 /** A side-panel heading: a kind in one part of the detector ("HGCal|Hits" is not "Calo|Hits"). */
 export const soloKey = (d: Pick<DisplayLayer, "domain" | "group">) => `${d.domain ?? ""}|${d.group}`;
@@ -60,7 +60,7 @@ export function lookAlone(key: string | null) {
 }
 
 /** Per display layer key: drawn, when ticked and in the domain's view; with a kind looked at alone, its ticked
- *  collections, or all of them if none is. The focus changes this further (selection.ts focusLayers). */
+ *  collections, or all of them if none is. A focus adds its own rows of the layers left out (selection.ts focusRows). */
 export const drawnLayers = computed(() => {
   const vis = visible.value,
     d = domain.value,

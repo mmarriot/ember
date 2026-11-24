@@ -162,9 +162,17 @@ The selected object stands out in the view:
   and the MET arrow alike. The detector's outlines, and a layer drawn as the detector's context, are dimmed whatever
   the choice. Showers not related to it are not drawn. The choice is remembered in this browser.
 
-The view then shows the object with its smallest parts, one kind per branch. Parts drawn as lines do not hide the
-others. For example, a candidate is shown with its calorimeter hits, its track and the track's hits; a vertex with
-its tracks and their hits. Related objects are highlighted: a track shows its vertex and its truth particle.
+**What is drawn is what is ticked.** The ticks in the side panel are the only on/off switch: a selection never draws a
+collection you unticked, and never hides one you ticked, in the reco view as in the truth ↔ reco pair. It brings
+forward the object's own objects in the ticked collections and fades the rest. For example, a candidate is shown with
+its layer clusters and calorimeter hits, its track and the track's hits (if those are ticked); a vertex with its
+tracks and their hits. Related objects are highlighted: a track shows its vertex and its truth particle. Two things
+are drawn although the view would leave them out:
+
+- the selected object itself, also when its collection is unticked (for example one picked on the card's chain), and
+  the object it was picked in; only those, not the rest of their collection, and the row says **selected**;
+- the selection's objects in a ticked collection of a part of the detector you are not looking at (a candidate's
+  track while you look at HGCal), or of another kind than the one looked at with **only**.
 
 The parts are drawn even where a layer's default filter would hide them. Cuts and filters that you set still apply.
 The selected object itself is always drawn, whatever the cut, but the hits of parts that a cut hides are not.
@@ -242,15 +250,17 @@ bottom of the card describes the object you look at: its truth match and its mai
 **Open an object's card.** Double-click its name, or click **Open →** in the Looking at block. The card moves to that
 object. ← at the top of the card (or `B`) goes back.
 
-**Draw one step of what the object is made of.** Press `↓` / `↑`, or click **show** on a step of the chain. This
-draws one step at a time, from the object down to its smallest parts. `↓` / `↑` go through the object's own parts
-only; what is only built from them (a jet's taus) is drawn with its **show** button. For a TICL candidate, the steps are its
-candidate trackster, linked tracksters, tracksters and layer clusters (in a TICL v6 export, its interpretation in place
-of the candidate trackster). The object itself is drawn as an outline around the step. A caption on the view says
+**Step through what the object is made of.** Each step of the chain is drawn when its collections are ticked. For a
+TICL candidate, the steps are its candidate trackster, linked tracksters, tracksters and layer clusters (in a TICL v6
+export, its interpretation in place of the candidate trackster); by default only the layer clusters are ticked.
+Click **show** on a step to tick its collections, **shown** to untick them. Press `↓` / `↑` to move the tick from
+one step to the next: the step you move to is ticked and the object's other steps in between are unticked, so they
+are drawn one at a time and do not cover each other. `↓` / `↑` go through the object's own parts only; what is only
+built from them (a jet's taus) has its own **show** button. The ticks change in the side panel too, and stay when the
+selection ends. The object itself is drawn as an outline around the first step ticked. A caption on the view says
 for a moment what is drawn, for example "Drawing: Tracksters · 2 · step 3 of 5".
 
-- A step with several layers (for example two linking algorithms) draws the layers ticked in the side panel, or all
-  of them if none is ticked.
+- Ticking a step with several layers (for example two linking algorithms) ticks all of them.
 - In a bundle with parts of the detector, `↓` / `↑` go through the steps of the part you look at (and of the shared
   parts). A step in another part names that part, for example **Tracker ›**. Click it to look at that part, keeping
   the object.
@@ -286,7 +296,7 @@ the barrel's.
 
 - The viewer then draws the kind's ticked collections and nothing else, whatever part of the detector you look at.
   If none is ticked, it draws all the kind's collections.
-- Selecting an object brings back its parts and its truth.
+- Selecting an object brings back its parts in the ticked collections, and its truth.
 - "show everything" on the view ends it. A replay or a tour also ends it. Your ticks are kept.
 - On a kind that is drawn only for a selection (such as the hits on tracks), **only** also switches it to **all**
   of its objects while it lasts, so the view is not empty.
@@ -384,8 +394,7 @@ there is its colour scale, if the colour key does not already explain it. The ch
 |---|---|
 | **filter** | the layer has a filter. Click to see the expression and remove it. |
 | **with selection** / **all** | for an `onSelection` layer: drawn only with the selected object, or all of its objects. Click to switch. |
-| **show** | the layer is hidden while something is selected, because only one of the selection's levels is drawn at a time. Click to draw this one. |
-| **shown** | the layer is not ticked, but it is drawn because it holds objects of the selection |
+| **selected** | the layer is not ticked, but the selected object (or the object it was picked in) is in it: that object alone is drawn |
 
 **⋯** on a row opens:
 
@@ -553,7 +562,8 @@ shower's hits stand for it), then gives one block per detector:
 Simulated energy is never added across detectors. These bars are not the associator's purity and completeness of the
 selected object: those are on its truth card.
 
-The levels drawn on request are those of the matched object the pair comes from, whichever of its parts is selected.
+The levels `↓` / `↑` step through are those of the matched object the pair comes from, whichever of its parts is
+selected.
 
 ### Colour choices
 
@@ -695,7 +705,8 @@ with no change to the viewer.
 
 **The levels in the view.** Sometimes the view is built around an object other than the selection: the pair's
 candidate for a truth particle, or the object in focus for one of its parts. Then a line under the chain
-lists that object's levels, with the one drawn lit. Click another one, or press `↓` `↑`, to draw it.
+lists that object's levels, those drawn (ticked) lit. Click one to tick or untick its collections, or press `↓` `↑`
+to move the tick.
 
 **The match**, in the truth block. For a reco object whose association has a `match` contract, the card shows:
 
@@ -771,7 +782,7 @@ The address keeps what a link needs:
 - the bundle, the event and the view;
 - the part of the detector (`All` when a bundle that opens on one part shows everything);
 - a kind of object shown alone (`only`);
-- the selection, and the level shown (`lv`);
+- the selection, and the first of its steps ticked (`lv`: opening the link ticks that step alone);
 - the truth colours (`c=truth`) and what they group by (`g`, e.g. `g=collision`).
 
 They are in the part after `#` (`#b=…&e=…`). A query (`?b=…&e=…`) is read too.

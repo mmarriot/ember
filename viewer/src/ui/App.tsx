@@ -21,10 +21,11 @@ import {
   event,
   eventIndex,
   focus,
-  focusLevel,
+  chooseLevel,
   labelsOn,
   setRest,
   layerOf,
+  focusBar,
   openBundle,
   opened,
   opening,
@@ -137,7 +138,7 @@ function openFromAddress() {
         if (truth && truthColours.peek()) colourChoice.value = "truth";
         truthLevel.value = COLOUR_LEVELS.find((l) => l.id === group) ?? null; // an unknown level: the profile's
       });
-      if (level && selection.peek()) focusLevel.value = level; // a level the focus does not have is ignored (store/selection.ts shownLevel)
+      if (level && selection.peek() && focusBar.peek().some((l) => l.name === level)) chooseLevel(level); // the link's level alone (one the focus does not have is ignored)
       if (s) requestAnimationFrame(() => frameFocus(0)); // beside its card, once the card is drawn (measured)
     })
     .finally(() => (restoring.value = null));

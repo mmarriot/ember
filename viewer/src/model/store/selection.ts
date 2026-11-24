@@ -1,16 +1,17 @@
 // The selection, the focus and what they show.
 //
 // The selection is the object the card describes. The focus is the object clicked from outside any focus: while it
-// lasts, it is drawn with its smallest parts and, on request, one level in between (`levels`), and only its objects can
-// be picked. Selecting one of them keeps the focus; selecting anything else focuses on it (the old one kept for
-// "back"); clearing the selection ends it.
+// lasts, its objects in the ticked collections stand out and only they can be picked. Which collections are drawn is
+// the user's ticks alone: a focus never draws an unticked one (but for the selected object itself) nor hides a ticked
+// one. Its levels (`levels`) are steps of ticks: ↓ ↑ move the tick from one to the next. Selecting one of its objects
+// keeps the focus; selecting anything else focuses on it (the old one kept for "back"); clearing the selection ends it.
 //
 // Looking at an object from another's card (`look`): the view shows it as any selection, while the card stays on its
 // own object, the `anchor`. Any other selection ends the look, and "back" is the card's object, in its own focus.
 import { batch, computed, effect, signal } from "@preact/signals";
 import type { DisplayLayer } from "../../io/format";
 import { recoLadder, recoOfTruth } from "../event/chain";
-import { focusLevels, levelLayers, mergeAcrossDomains, partsFirst, scopeLevels, stepLevel } from "../event/levels";
+import { focusLevels, type Level, mergeAcrossDomains, partsFirst, scopeLevels, stepLevel } from "../event/levels";
 import { delegatedPart, PAIR, type Pair, pairFor, pairShows } from "../truth/pair";
 import { matchClass, simEnergyByParticle } from "../truth/match";
 import type { SlotRank } from "../colour/identities";
@@ -21,7 +22,7 @@ import { truthStatement } from "../truth/statement";
 import { isFactTable } from "../truth/facts";
 import { bundle, event } from "./data";
 import { layerKey, layerOf } from "./names";
-import { domain, drawnLayers, inDomain, shared, visible } from "./view";
+import { domain, drawnLayers, shared, visible } from "./view";
 
 // ---- The selection and the focus
 
@@ -31,9 +32,6 @@ export const selection = signal<Ref | null>(null);
 export const focus = signal<Ref | null>(null);
 /** Earlier focuses, oldest first: "back" returns to the last one. */
 export const focusHistory = signal<Ref[]>([]);
-/** The level shown between the focus and its bottom level (a candidate's tracksters), by name; null: none. Kept while
- *  the focus moves, forgotten when it ends. */
-export const focusLevel = signal<string | null>(null);
 
 /** The card's own object while another is looked at (see `look`), else null. */
 export const anchor = signal<Ref | null>(null);
@@ -278,12 +276,19 @@ export const framed = computed(() => {
 
 /** What the focus is part of (a muon's jet), per table; null without a focus. */
 const focusParents = computed(() => focusParts.value?.partOf ?? null);
-/** For a layer of a shared domain (Physics: jets) that the domain looked at does not draw: the rows drawn for the
- *  focus alone, its own and, if the layer is ticked, what it is part of (a muon's jet); else undefined. */
-export const parentRows = (d: DisplayLayer) => {
-  if (!d.domain || !shared.value.has(d.domain) || inDomain(d)) return undefined;
-  const parents = visible.value[layerKey(d)] ? (focusParents.value?.get(d.table) ?? []) : [],
-    rows = new Set([...(highlight.value?.get(d.table) ?? []), ...parents]);
+/** For a layer the view does not draw whole, the rows drawn for the focus: of a ticked layer the view leaves out
+ *  (another part of the detector's, or one kind looked at alone), the focus's objects and, in a shared part, what it is
+ *  part of (a muon's jet); of an unticked layer, only the selected object and the focus themselves. Undefined for a
+ *  layer drawn whole, without a focus, or with none of these rows. */
+export const focusRows = (d: DisplayLayer) => {
+  const key = layerKey(d),
+    hl = highlight.value;
+  if (!hl || drawnLayers.value[key]) return undefined;
+  let rows: Set<number>;
+  if (visible.value[key]) {
+    const parents = d.domain && shared.value.has(d.domain) ? (focusParents.value?.get(d.table) ?? []) : [];
+    rows = new Set([...(hl.get(d.table) ?? []), ...parents]);
+  } else rows = new Set([focus.value, selection.value].filter((r) => r?.table === d.table).map((r) => r!.row));
   return rows.size ? rows : undefined;
 };
 
@@ -319,7 +324,6 @@ effect(() => {
   if (sel && !highlight.peek()?.get(sel.table)?.has(sel.row)) focusOn(sel);
   else if (!sel) {
     focus.value = null;
-    focusLevel.value = null;
     if (focusHistory.peek().length) focusHistory.value = [];
   }
 });
@@ -364,51 +368,70 @@ export const levels = computed(() => {
 /** The levels ↓ ↑ step through and the card's chain offers: the current domain's (event/levels.ts scopeLevels). */
 export const focusBar = computed(() => scopeLevels(levels.value, domain.value, shared.value));
 
-/** The chosen level, if the focus has it and it is not drawn anyway; else null. */
-export const shownLevel = computed(() => {
-  const c = focusLevel.value;
-  return levels.value.some((l) => !l.always && l.name === c) ? c : null;
-});
+/** Whether a level is drawn: one of its collections is ticked. */
+export const levelOn = (l: Level, ticks = visible.value) => l.layers.some((d) => ticks[layerKey(d)]);
+/** The first of the focus's own levels in between (not always drawn, not only built from its parts) in the part
+ *  looked at (focusBar) that is ticked, by name; null: none. ↓ ↑ step from it, the focus is drawn as an outline
+ *  around it, and a link names it (lv). */
+export const shownLevel = computed(
+  () => focusBar.value.find((l) => !l.always && !l.beside && levelOn(l))?.name ?? null,
+);
 
-/** Step the shown level down (+1) or up (-1) among focusBar's; false if there is none to step through. */
+/** Tick (`on`) or untick the collections of the focus's level `name` (of the part looked at): the side panel and the
+ *  view follow. */
+export function tickLevel(name: string, on: boolean) {
+  const l = focusBar.peek().find((x) => x.name === name);
+  if (l) visible.value = { ...visible.peek(), ...Object.fromEntries(l.layers.map((d) => [layerKey(d), on])) };
+}
+
+/** Draw the focus's level `name` alone among its levels in between in the part looked at (focusBar): tick its
+ *  collections and untick the others' (null: untick them all). The levels always drawn, those only built from its
+ *  parts and those of other parts of the detector are left as they are. */
+export function chooseLevel(name: string | null) {
+  const ticks = { ...visible.peek() };
+  for (const l of focusBar.peek())
+    if (!l.always && !l.beside) for (const d of l.layers) ticks[layerKey(d)] = l.name === name;
+  visible.value = ticks;
+}
+
+/** Move the tick down (+1) or up (-1) among focusBar's levels: from the first one ticked to the next; false if there
+ *  is none to step through. */
 export function stepFocusLevel(by: number) {
-  const bar = focusBar.peek();
+  const bar = focusBar.peek(),
+    ticks = visible.peek();
   if (!bar.some((l) => !l.always && !l.beside)) return false;
-  focusLevel.value = stepLevel(bar, focusLevel.peek(), by);
+  const from = bar.find((l) => !l.always && !l.beside && levelOn(l, ticks))?.name ?? null;
+  chooseLevel(stepLevel(bar, from, by));
   return true;
 }
 
-// ---- The layers a focus adds or hides
+// ---- The layers a focus adds
 
-// While a focus lasts, its layer, its stage and what is linked to it are drawn even if not ticked; of its levels, only
-// the bottom ones and the chosen one are, even if others are ticked. The layer keys are joined into strings first, so
-// the signals below change (and the layers are rebuilt) only when these sets do, not on every new focus.
-const focusKeys = computed(() => {
-  const b = bundle.value,
-    hl = highlight.value,
-    vis = drawnLayers.value,
-    lv = levels.value,
-    f = focus.value;
-  if (!b || !hl) return { shown: "", hidden: "" };
-  // The focus's own layer is always drawn, also when its kind is a level (a pair view's levels are its candidate's).
-  const ticked = (d: DisplayLayer) => !!vis[layerKey(d)],
-    own = (d: DisplayLayer) => d.table === f?.table;
-  const inLevels = new Set(lv.flatMap((l) => l.layers).filter((d) => !own(d)));
-  const { draw, hide: levelHide } = levelLayers(lv, focusLevel.value, ticked),
-    hide = levelHide.filter((d) => !own(d));
-  const others = b.header.display.filter((d) => !inLevels.has(d) && hl.get(d.table)?.size);
-  // A shared domain's layers the domain does not draw that hold what the focus is part of (its jet).
-  const held = b.header.display.filter((d) => parentRows(d)?.size);
-  const keys = (ds: DisplayLayer[]) => ds.map(layerKey).sort().join("|");
-  return {
-    shown: keys([...others, ...draw, ...held].filter((d) => !ticked(d))),
-    hidden: keys(hide.filter(ticked)),
-  };
+// A focus never hides a ticked layer, and draws an unticked one only for the selected object (focusRows). What it
+// adds is joined into strings first, so the signals below change (and layers are built or rebuilt) only when it does,
+// not on every new focus.
+const added = computed(() => {
+  const b = bundle.value;
+  if (!b || !highlight.value) return [];
+  return b.header.display.flatMap((d) => {
+    const rows = focusRows(d);
+    return rows?.size ? [{ key: layerKey(d), rows, ticked: !!visible.value[layerKey(d)] }] : [];
+  });
 });
-const shownKeys = computed(() => focusKeys.value.shown),
-  hiddenKeys = computed(() => focusKeys.value.hidden);
-const keySet = (keys: string) => new Set(keys ? keys.split("|") : []);
-/** Layer keys of layers not ticked that are drawn for the focus. */
-export const focusLayers = computed(() => keySet(shownKeys.value));
-/** Layer keys of ticked layers not drawn while the focus lasts (levels other than the bottom and the chosen one). */
-export const focusHidden = computed(() => keySet(hiddenKeys.value));
+const shownKeys = computed(() =>
+  added.value
+    .map((a) => a.key)
+    .sort()
+    .join("|"),
+);
+/** Layer keys of layers the view does not draw whole that are drawn for the focus (focusRows). */
+export const focusLayers = computed(() => new Set(shownKeys.value ? shownKeys.value.split("|") : []));
+/** The rows those layers draw where they do not follow the highlight: of the unticked layers (the selected object, which
+ *  moves within one focus), with which layers are ticked. When it changes, the layers drawn for the focus are rebuilt
+ *  (control/scene.ts), as for a new highlight. */
+export const focusRowsKey = computed(() =>
+  added.value
+    .map((a) => `${a.key}${a.ticked ? "" : `=${[...a.rows].sort((x, y) => x - y).join(",")}`}`)
+    .sort()
+    .join("|"),
+);

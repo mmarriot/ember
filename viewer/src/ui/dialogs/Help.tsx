@@ -61,7 +61,7 @@ export function HelpDialog() {
         [
           ["↓", "↑"],
           "show on a step of the chain",
-          "Draw one step of what it is made of in the view (e.g. its tracksters, then their layer clusters); a part of the detector named on a step (e.g. Tracker ›) looks there",
+          "Move the tick to the next step of what it is made of (e.g. its tracksters, then their layer clusters), so one is drawn at a time; show on a step ticks it; a part of the detector named on a step (e.g. Tracker ›) looks there",
         ],
         [
           ["N", "⇧N"],
@@ -92,7 +92,7 @@ export function HelpDialog() {
         [
           [],
           "only on a kind's heading in the side panel",
-          "One kind of object alone (e.g. only the tracks, only the jets); selecting one brings its parts and its truth",
+          "One kind of object alone (e.g. only the tracks, only the jets); selecting one brings its ticked parts and its truth",
         ],
       ],
     ],

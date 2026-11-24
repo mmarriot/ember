@@ -1,15 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { DisplayLayer } from "../../io/format";
-import {
-  chainOrder,
-  focusLevels,
-  type Level,
-  levelLayers,
-  mergeAcrossDomains,
-  partsFirst,
-  scopeLevels,
-  stepLevel,
-} from "./levels";
+import { chainOrder, focusLevels, type Level, mergeAcrossDomains, partsFirst, scopeLevels, stepLevel } from "./levels";
 
 // Display layers as a profile orders them, from the top down (candidates first, hits last), then truth.
 const layer = (table: string, group: string, extra: Partial<DisplayLayer> = {}) =>
@@ -115,8 +106,9 @@ describe("focusLevels with relations", () => {
       "Track hits (leaf) (always)",
     ]);
     expect(
-      levelLayers(lv, null, () => false)
-        .draw.map((d) => d.table)
+      lv
+        .filter((l) => l.always)
+        .flatMap((l) => l.layers.map((d) => d.table))
         .sort(),
     ).toEqual(["Hit", "TH", "Trk"]);
     expect(stepLevel(lv, "Layer clusters", 1)).toBe("Layer clusters"); // the leaves and lines are not stepped to
@@ -142,7 +134,7 @@ describe("focusLevels with relations", () => {
       "Linked tracksters",
       "Hits (always)",
     ]);
-    expect(levelLayers(lv, null, () => false).draw.map((d) => d.table)).toEqual(["Hit"]);
+    expect(lv.filter((l) => l.always).flatMap((l) => l.layers.map((d) => d.table))).toEqual(["Hit"]);
   });
   it("orders levels of one branch that reach the same objects only through tables that are not levels (a hit's pair)", () => {
     const lv = focusLevels(branches, "Hit", rows({ Hit: [0], I: [0], Link: [0], T: [2] }), () => true, relations);
@@ -245,26 +237,6 @@ describe("chainOrder", () => {
       "      Layer clusters",
       "        Hits",
     ]);
-  });
-});
-
-describe("levelLayers", () => {
-  const lv = focusLevels(display, "Cand", candidate, own),
-    ticked = (d: DisplayLayer) => d.visible;
-  const tables = (ds: DisplayLayer[]) => ds.map((d) => d.table).sort();
-  it("draws the bottom level only, and hides the others even if ticked (layer clusters)", () => {
-    const { draw, hide } = levelLayers(lv, null, ticked);
-    expect(tables(draw)).toEqual(["Hit"]);
-    expect(tables(hide)).toEqual(["DNN", "I", "LC", "Link", "T"]);
-  });
-  it("draws the chosen level as well, all its layers when none is ticked", () => {
-    const { draw, hide } = levelLayers(lv, "Linked tracksters", ticked);
-    expect(tables(draw)).toEqual(["DNN", "Hit", "Link"]);
-    expect(tables(hide)).toEqual(["I", "LC", "T"]);
-  });
-  it("draws only the ticked layers of a level when some are", () => {
-    const { draw } = levelLayers(lv, "Linked tracksters", (d) => d.visible || d.table === "DNN");
-    expect(tables(draw)).toEqual(["DNN", "Hit"]);
   });
 });
 

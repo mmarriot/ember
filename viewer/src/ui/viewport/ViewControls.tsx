@@ -32,7 +32,7 @@ export function Views() {
 }
 
 /** In a domain's view, the chip that draws the shared domains' layers (e.g. Physics: jets, MET) over it. A selection
- *  draws its own objects of those whatever the chip (store/selection.ts focusLayers). */
+ *  draws its own objects in those that are ticked whatever the chip (store/selection.ts focusRows). */
 export function OverlayChip() {
   const d = domain.value,
     names = [...shared.value];

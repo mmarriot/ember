@@ -1,12 +1,12 @@
 // The levels of a focus: the kinds of object it is made of, from the top down (a candidate: interpretations, linked
-// tracksters, tracksters, layer clusters, hits). The view draws the bottom levels of each branch and the levels drawn
-// as lines (which hide nothing); the others one at a time, on request, so they do not cover each other.
+// tracksters, tracksters, layer clusters, hits). The view draws those whose collections are ticked; ↓ ↑ move the tick
+// through the levels in between, one at a time, so they need not cover each other (store/selection.ts).
 import { type DisplayLayer, type Header, kindName } from "../../io/format";
 import { ownDomains } from "./domains";
 import type { Related } from "./relations";
 
-/** `count`: the focus's objects in it; `leaf`: it holds no other level; `always`: drawn whenever the focus is (a leaf,
- *  or a level drawn as lines), not one at a time; `holders`: the levels that hold it directly (see focusLevels);
+/** `count`: the focus's objects in it; `leaf`: it holds no other level; `always`: not stepped through by ↓ ↑ (a leaf,
+ *  or a level drawn as lines, which hides nothing); `holders`: the levels that hold it directly (see focusLevels);
  *  `beside`: not the focus's own parts, only built from them (a jet's taus; see partsFirst). */
 export interface Level {
   name: string;
@@ -162,19 +162,6 @@ export const partsFirst = (levels: Level[], part: (table: string) => boolean) =>
   const own = (l: Level) => l.layers.some((d) => part(d.table));
   return [...levels.filter(own), ...levels.filter((l) => !own(l)).map((l) => ({ ...l, beside: true }))];
 };
-
-/** Which layers of the levels are drawn: those of the levels always drawn and of the `chosen` one (their ticked
- *  layers, or all if none is ticked); the others are hidden. */
-export function levelLayers(levels: Level[], chosen: string | null, ticked: (d: DisplayLayer) => boolean) {
-  const draw: DisplayLayer[] = [],
-    hide: DisplayLayer[] = [];
-  levels.forEach((l) => {
-    if (!l.always && l.name !== chosen) return hide.push(...l.layers);
-    const on = l.layers.filter(ticked);
-    draw.push(...(on.length ? on : l.layers));
-  });
-  return { draw, hide };
-}
 
 /** The level shown after stepping `by` down (+1) or up (-1) from `chosen`, among the own parts not always drawn;
  *  null (none) before the first. */

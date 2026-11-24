@@ -97,6 +97,12 @@ with a message while an old one is set without its new name. `deploy.sh` links `
 ### Changed
 
 - **Viewer:**
+  - The side panel's tabs are **Reconstruction · Truth · Metadata** (were Collections, Truth, Event). In
+    Reconstruction, the parts keep the bar's order: the part looked at is open and highlighted instead of moving to
+    the top.
+  - In collision events, calorimeter hits that no cluster lists (HGCal hits in no layer cluster, ECAL and HCAL hits
+    in no PF cluster) are hidden; **⚙ menu → Unclustered hits** shows them. Test-beam bundles show them.
+  - The menu is the **⚙** button, and the theme has its own **☀ / ☾** button in the top bar.
   - The selection owns the view: it is framed in the part the card leaves free (also for links, X and F),
     everything unrelated fades by the same amount (cones, MET and outlines too), a selected line has a halo, and
     labels keep off the card.

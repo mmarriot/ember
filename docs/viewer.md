@@ -67,7 +67,7 @@ The address bar always holds the same link. [The address](#the-address) lists wh
 
 ## Saving a picture
 
-**Menu → Save picture…** saves the view alone, without the side panel, the card, the labels or the axes, with what a
+**⚙ menu → Save picture…** saves the view alone, without the side panel, the card, the labels or the axes, with what a
 figure needs drawn over it: the experiment's label in the CMS style ("**CMS** *Phase-2 Simulation Private Work*" for
 Phase-2 simulation, "*Simulation Private Work*" for other simulation, "*Private Work*" for data), a caption (the
 event), and the colour key: what each colour in the view means, as the side panel's key and each collection's scale
@@ -95,9 +95,10 @@ it is drawn. Drawing the view again holds the page for that moment: seconds for 
 
 ## Controls
 
-Press `?` for the viewer's help. It lists the same controls as this section, grouped, with their keys. The **Menu**
-in the top bar also has every control of the view in one place, grouped as View, Event, Selection, Colours and Play.
-It shows each control's key and whether it is on. The colour theme is there too. Esc closes the menu.
+Press `?` for the viewer's help. It lists the same controls as this section, grouped, with their keys. The menu
+(**⚙** in the top bar) also has every control of the view in one place, grouped as View, Event, Selection, Colours and
+Play. It shows each control's key and whether it is on. Esc closes the menu. **☀ / ☾** in the top bar switches between
+the dark and the light theme.
 
 ### Moving around
 
@@ -125,7 +126,7 @@ drop-down list. Looking at one part:
   for each data set; links do not keep it). A selected
   object still brings what it is part of (a muon's jet), drawn faded with everything else not related to it;
 - frames the part's region, in the part's own view;
-- opens the part's section in the side panel's **Collections** tab. Choosing a tab yourself does not change the view.
+- opens the part's section in the side panel's **Reconstruction** tab. Choosing a tab yourself does not change the view.
 
 The side panel keeps your ticks. A shared part (for example **Physics**) draws only its own layers and the layers of
 no part. A bundle opens on the part named in its `view.domain`. A selected object stays selected when you change
@@ -301,9 +302,22 @@ the barrel's.
 - On a kind that is drawn only for a selection (such as the hits on tracks), **only** also switches it to **all**
   of its objects while it lasts, so the view is not empty.
 
+**Hits in no cluster.** In a collision event (a bundle with the **Look at** bar), the calorimeter hits that no cluster
+lists are hidden: HGCal hits in no layer cluster, ECAL and HCAL hits in no PF cluster. Most of them are noise. Cuts
+still apply to the hits that are left (HGCal hits ≥ 35 MeV, for example). **⚙ menu → Unclustered hits** shows them
+again. Test-beam bundles show them unless asked not to.
+
+- A hit counts as clustered when a cluster that the bundle draws (a layer cluster, a PF cluster, a supercluster) lists
+  it. The truth's links to the hits do not count, nor does a muon or a track crossing it. Layers drawn only for a
+  selection (the muon chambers) are left as they are.
+- A selection still draws its own hits, clustered or not: a truth particle shows every hit it left energy in.
+- The rows' counts say how many are drawn ("4,709 / 51,730").
+- In expressions, the hit tables have a column `clustered`: 1 for a clustered hit, else 0 (for example a filter
+  `clustered == 0` with the unclustered hits shown, to see only them).
+
 ### Colours
 
-Press `T`, or click "Colour by: reco type | truth particle" in the colour key or in the Menu. This switches between the reconstruction
+Press `T`, or click "Colour by: reco type | truth particle" in the colour key or in the ⚙ menu. This switches between the reconstruction
 (candidate types) and the truth (each generator particle in its own colour; a reco object only where it is a clean
 match). See [Colours and the truth ↔ reco pair](#colours-and-the-truth--reco-pair).
 
@@ -347,13 +361,15 @@ From top to bottom, the side panel has:
 The panel shows names, counts and state. What a thing is, and how a number is counted, is behind an **i** next to it
 (a pop-up, `viewer/src/ui/common/Info.tsx`). The selection's card works the same way.
 
-### The Collections tab
+### The Reconstruction tab
+
+The side panel's tabs are **Reconstruction** (what was reconstructed), **Truth** and **Metadata**.
 
 With two or more parts of the detector (a header with `domains`, the **Look at** bar), every part's layers are in one
-tab, **Collections**, which follows the bar:
+tab, **Reconstruction**, which follows the bar:
 
-- it has one section per part, in the bar's order (for example Physics, Tracker, Calo, HGCal, Muons). The part you
-  look at is open and first; the others are folded under it. In All, the shared parts (Physics: the event's objects)
+- it has one section per part, always in the bar's order (for example Physics, Tracker, Calo, HGCal, Muons). The part
+  you look at is open and highlighted, in its place; the others are folded. In All, the shared parts (Physics: the event's objects)
   are open and the parts of the detector folded, so the tab starts as the event's summary over an overview of the
   parts: open the one you want;
 - each section's heading says whether the view draws it: looked at, drawn (in All), drawn over (a shared part such as
@@ -379,7 +395,7 @@ accent colour when the cut differs from the profile's. Click it to open a slider
 A kind with several cuts (one per calorimeter) shows each cut on the first row it cuts, without the row's name
 ("energy ≥ 1 GeV" on the ECAL barrel row). A long name wraps onto a second line instead of being cut short.
 
-A kind with several collections, and each part of the detector in the Collections tab, has a tick of its own on its
+A kind with several collections, and each part of the detector in the Reconstruction tab, has a tick of its own on its
 heading: one click ticks all of its collections, or unticks them all when all are ticked. It is half ticked when
 only some are.
 
@@ -454,9 +470,9 @@ section under it is folded to its heading until you open it. It holds:
   in the event, and by what they did (converted, radiated brem, interacted, decayed: a vertex of that process made some
   of their daughters; each result then gives its radius). They combine.
 
-### Event tab
+### Metadata tab
 
-The **Event** tab shows the run and event information, the bundle's `summaries` charts, and the source with every
+The **Metadata** tab shows the run and event information, the bundle's `summaries` charts, and the source with every
 table of the event.
 
 ## Colours and the truth ↔ reco pair

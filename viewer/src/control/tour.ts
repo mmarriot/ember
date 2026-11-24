@@ -24,7 +24,9 @@ import {
   drawnLayers,
   visible,
 } from "../model/store";
-import { filterMask, filters } from "../model/custom/settings";
+import { filters } from "../model/custom/settings";
+import { keptMask } from "../model/custom/cuts";
+import { showUnclustered } from "../model/event/clustered";
 import { passes } from "../model/event/objects";
 import { related, type Ref } from "../model/event/relations";
 import { isShower, type Caption } from "../render/replay";
@@ -214,7 +216,12 @@ async function startTour() {
 function showsAny(d: DisplayLayer) {
   const t = event.value?.tables[d.table];
   if (!t?.n) return false;
-  const ok = passes(d, t, d.cut ? (cuts.value[d.cut.group] ?? 0) : 0, filterMask(t, filters.value[d.table]));
+  const ok = passes(
+    d,
+    t,
+    d.cut ? (cuts.value[d.cut.group] ?? 0) : 0,
+    keptMask(t, filters.value[d.table], !showUnclustered.value),
+  );
   for (let i = 0; i < t.n; i++) if (ok(i)) return true;
   return false;
 }

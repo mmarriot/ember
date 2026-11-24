@@ -16,6 +16,7 @@ import {
   type Rows,
 } from "./camera";
 import type { Layer } from "./layers";
+import { pxUniform } from "./layers/layer";
 import { outlineObject } from "./outlines";
 import { type Hit, pickAll } from "./picking";
 import { REPLAY_OFF } from "./replay";
@@ -74,8 +75,8 @@ export class Engine {
   onDraw = () => {};
 
   constructor(private readonly canvas: HTMLCanvasElement) {
+    // Pixel ratio 1: resize() sizes the drawing buffer in device pixels itself.
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     const sun = new THREE.DirectionalLight(0xffffff, 1.2);
     sun.position.set(1, 2, 3);
     this.scene.add(new THREE.AmbientLight(0xffffff, 1.6), sun);
@@ -107,6 +108,9 @@ export class Engine {
     const loop = (now: number) => {
       const real = (now - last) / 1000; // s
       last = now;
+      // The window moved to a screen of another density: the canvas keeps its CSS size, so the observer above stays
+      // silent, but it now covers another number of device pixels. One read per frame (~0.2 us).
+      if (devicePixelRatio !== pxUniform.value) this.resize();
       if (this.replayClock) this.tick(now);
       if (this.highlightFade) this.fadeStep(now);
       // Capped, so a backgrounded tab does not jump on return; looser for the tour, so it keeps pace on slow frames.
@@ -125,34 +129,39 @@ export class Engine {
   /** The event, then (`gizmo`) a small axis gizmo in the bottom-right corner showing the camera orientation (3D
    *  views). */
   private draw(gizmo = true) {
-    const r = this.renderer;
-    r.setViewport(0, 0, this.width, this.height);
+    const r = this.renderer,
+      { width: w, height: h } = this.canvas, // the drawing buffer (device pixels, or a picture's)
+      px = pxUniform.value;
+    r.setViewport(0, 0, w, h);
     // The outlines fade near the 3D camera, on the scale of its distance to what it looks at.
     this.outlines?.setReach(this.ctl3d.target, this.cam3d.position.distanceTo(this.ctl3d.target) / this.cam3d.zoom);
     r.render(this.scene, this.camera);
     for (const l of this.retired.splice(0)) l.dispose();
     this.onDraw();
     if (this.rz || !gizmo) return;
-    const size = 110;
+    const size = Math.round(110 * px);
     this.gizmo.camera.position.copy(this.camera.position).sub(this.controls.target).setLength(3);
     this.gizmo.camera.up.copy(this.camera.up);
     this.gizmo.camera.lookAt(0, 0, 0);
     r.autoClear = false;
     r.clearDepth();
-    r.setViewport(this.width - size - 8, 8, size, size);
+    r.setViewport(w - size - Math.round(8 * px), Math.round(8 * px), size, size);
     r.render(this.gizmo.scene, this.gizmo.camera);
-    r.setViewport(0, 0, this.width, this.height);
+    r.setViewport(0, 0, w, h);
     r.autoClear = true;
   }
 
-  /** Follow the size of the canvas's parent: the drawing buffer and both cameras' frustums. */
+  /** Follow the canvas's size and the screen's density: the drawing buffer (devicePixels), the CSS-to-buffer pixel
+   *  scale and both cameras' frustums. */
   private resize() {
-    const p = this.canvas.parentElement!;
-    const w = p.clientWidth,
-      h = p.clientHeight;
+    const b = this.canvas.getBoundingClientRect(),
+      d = devicePixelRatio;
+    const w = b.width,
+      h = b.height;
     this.width = w;
     this.height = h;
-    this.renderer.setSize(w, h, false);
+    pxUniform.value = d;
+    this.renderer.setSize(...devicePixels(b, d), false);
     this.cam3d.aspect = w / h;
     this.cam3d.updateProjectionMatrix();
     const half = Math.max(320, 600 / (w / h));
@@ -595,36 +604,31 @@ export class Engine {
     return pickAll(this.drawn, view, clientX, clientY, accept);
   }
 
-  /** The view drawn `scale` times its size on screen, copied to a canvas of its own; null when the graphics card
-   *  cannot draw that large. Line widths and marker sizes (drawing-buffer pixels) scale with it, so the picture looks
-   *  like the screen, only sharper. WebGL clears its drawing buffer once the browser has shown it, so the buffer is
-   *  resized, drawn and copied in this one task, then put back. Memory: 4 B per pixel for the buffer and the copy
+  /** The view drawn `scale` times its size on screen (CSS pixels), copied to a canvas of its own; null when the
+   *  graphics card cannot draw that large. Line widths and marker sizes (pxUniform) scale with it, so the picture
+   *  looks like the screen, only sharper. WebGL clears its drawing buffer once the browser has shown it, so the buffer
+   *  is resized, drawn and copied in this one task, then put back. Memory: 4 B per pixel for the buffer and the copy
    *  each (4x of a 1260x890 view: ~72 MB), and several times that for the buffer's antialiasing samples on the GPU. */
   picture(scale: number): HTMLCanvasElement | null {
     const r = this.renderer,
-      ratio = r.getPixelRatio(),
-      w = Math.floor(this.width * scale), // as three.js sizes the drawing buffer
-      h = Math.floor(this.height * scale);
-    const f = scale / (globalThis.devicePixelRatio || 1),
-      sized: [{ value: number }, number][] = [];
-    this.scene.traverse((o) => {
-      const u = ((o as THREE.Mesh).material as THREE.ShaderMaterial | undefined)?.uniforms;
-      for (const k of ["uWidth", "uPx"]) if (typeof u?.[k]?.value === "number") sized.push([u[k], u[k].value]);
-    });
+      { width: bw, height: bh } = this.canvas,
+      px = pxUniform.value,
+      w = Math.round(this.width * scale),
+      h = Math.round(this.height * scale);
     let out: HTMLCanvasElement | null = null;
     try {
-      r.setPixelRatio(scale);
+      r.setSize(w, h, false);
       const gl = r.getContext();
       if (gl.drawingBufferWidth === w && gl.drawingBufferHeight === h && !gl.isContextLost()) {
-        for (const [u, v] of sized) u.value = v * f;
+        pxUniform.value = scale;
         this.draw(false); // the view alone, without the axis gizmo
         out = Object.assign(document.createElement("canvas"), { width: w, height: h });
         if (!gl.isContextLost()) out.getContext("2d")!.drawImage(this.canvas, 0, 0);
         else out = null; // the card ran out of memory for it
       }
     } finally {
-      for (const [u, v] of sized) u.value = v;
-      r.setPixelRatio(ratio);
+      pxUniform.value = px;
+      r.setSize(bw, bh, false);
       this.requestRender();
     }
     return out;
@@ -667,4 +671,15 @@ function makeGizmo() {
     scene.add(label(text, colour, dir.clone().multiplyScalar(1.3)));
   }
   return { scene, camera: new THREE.OrthographicCamera(-1.7, 1.7, 1.7, -1.7, 0.1, 10) };
+}
+
+/** The device pixels a box on the page (CSS pixels) is shown on, at `dpr` device pixels per CSS pixel. The browser
+ *  places each edge on the nearest device pixel, so the width is round(right * dpr) - round(left * dpr): it can differ
+ *  by one from floor(width * dpr), three.js's own sizing, when an edge falls between device pixels (e.g. at 125 %). A
+ *  drawing buffer of any other size is resampled to fit the box, and the whole view blurs. */
+export function devicePixels(
+  b: { left: number; top: number; right: number; bottom: number },
+  dpr: number,
+): [number, number] {
+  return [Math.round(b.right * dpr) - Math.round(b.left * dpr), Math.round(b.bottom * dpr) - Math.round(b.top * dpr)];
 }

@@ -602,4 +602,44 @@ export async function checkSite(run) {
     await shot(page, "local_failed");
     await page.context().close();
   }
+
+  // Sharp on every screen: the view's drawing buffer covers exactly the device pixels its canvas is shown on (a buffer
+  // of any other size is resampled to fit, and the whole view blurs). At 125 % with a side panel of an odd width (the
+  // canvas's edge between two device pixels), at 3x, and after the window moves to a screen of another density.
+  // The device pixels expected are worked out with engine.ts devicePixels' rule: under emulated densities (Playwright's
+  // deviceScaleFactor) the browser's own count, devicePixelContentBoxSize, is in CSS pixels. The rule itself is tested
+  // against the browser's count at real densities in engine.test.ts.
+  for (const [dpr, side, to] of [
+    [1.25, 341, 2],
+    [3, 340, 1],
+  ]) {
+    const context = await browser.newContext({ viewport: { width: 1440, height: 860 }, deviceScaleFactor: dpr });
+    await context.addInitScript((w) => localStorage.setItem("evd.sidebar", w), String(side));
+    const page = await context.newPage();
+    failOnErrors(page, base, fail);
+    await page.goto(`${base}#b=${small.file}&e=0`, { timeout: 90000 });
+    await shown(page);
+    const sharp = async (where) => {
+      const [buffer, screen] = await page.evaluate(() => {
+        const c = document.querySelector(".viewport canvas"),
+          b = c.getBoundingClientRect(),
+          d = devicePixelRatio,
+          px = (a, z) => Math.round(z * d) - Math.round(a * d);
+        return [`${c.width}x${c.height}`, `${px(b.left, b.right)}x${px(b.top, b.bottom)}`];
+      });
+      log(`  ${where}: drawing buffer ${buffer}, device pixels ${screen}`);
+      if (buffer !== screen) fail(`${where}, the view is drawn ${buffer} on ${screen} device pixels: blurred`);
+    };
+    await sharp(`at ${dpr}x with a ${side} px side panel`);
+    const cdp = await context.newCDPSession(page);
+    await cdp.send("Emulation.setDeviceMetricsOverride", {
+      width: 1440,
+      height: 860,
+      deviceScaleFactor: to,
+      mobile: false,
+    });
+    await page.waitForTimeout(500);
+    await sharp(`moved from ${dpr}x to ${to}x`);
+    await context.close();
+  }
 }

@@ -61,7 +61,7 @@ export function pointPaths(input: LayerInput): Layer {
     vertexShader: /* glsl */ `
       attribute float isel, ipsel, icut, iT, ipiece, ipieces;
       attribute vec3 icol, ia, ib; // this piece's ends
-      uniform float uWidth;
+      uniform float uWidth, uPx; // CSS px, drawing-buffer px per CSS px
       uniform vec2 uRes;
       varying vec3 vCol;
       ${SHADER_COMMON}
@@ -75,7 +75,7 @@ export function pointPaths(input: LayerInput): Layer {
         gl_Position = mix(A, B, position.x);
         #ifdef WIDE
         vec2 along = (B.xy / B.w - A.xy / A.w) * uRes, across = length(along) > 1e-6 ? normalize(vec2(-along.y, along.x)) : vec2(0.0, 1.0);
-        gl_Position.xy += across * position.y * (uWidth * (1.0 + 0.5 * s * selActive() + 2.0 * gPin) + HALO_PX) / uRes * gl_Position.w;
+        gl_Position.xy += across * position.y * (uWidth * (1.0 + 0.5 * s * selActive() + 2.0 * gPin) + HALO_PX) * uPx / uRes * gl_Position.w;
         #endif
         gl_Position = inFront(gl_Position, s);
         vCol = fade(mix(mix(icol, vec3(1.0), 0.3 * s * selActive()), vec3(1.0), uFlash * pop(iT)), s) * remaining() + uBg * (1.0 - remaining());

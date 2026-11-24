@@ -4,7 +4,7 @@ import type { DisplayLayer, Table } from "../io/format";
 import { PALETTES } from "./colour";
 import { builders, type Layer } from "./layers";
 import { hexPrism } from "./layers/cells";
-import { REST_FADE, restUniform } from "./layers/layer";
+import { pxUniform, REST_FADE, restUniform } from "./layers/layer";
 import { unitCone } from "./layers/cones";
 import { polylinePoints } from "./layers/polylines";
 import { segmentEnds } from "./layers/segments";
@@ -429,7 +429,6 @@ describe("the rest of the event around a selection", () => {
     }
   });
   it("keeps markers over everything but the selection: the rest's go behind it, and they test depth", () => {
-    Object.assign(globalThis, { window: { devicePixelRatio: 1 } }); // markers read it; the tests run without a DOM
     const l = build(hint({ repr: "markers" }), crystals()),
       { m } = parts(l);
     expect(m.vertexShader).toMatch(/gone\(selected\(ipsel, isel\)\)/);
@@ -447,5 +446,44 @@ describe("the rest of the event around a selection", () => {
     expect(front()).toBe(1); // fading out
     l.setHighlightMix(1);
     expect(front()).toBe(0);
+  });
+});
+
+describe("sizes on screen", () => {
+  it("are CSS pixels, turned into drawing-buffer pixels by one shared uniform", () => {
+    Object.assign(globalThis, { devicePixelRatio: 2 }); // not read when a layer is built
+    const met = table({ x: col(0), y: col(0), z: col(0), px: col(30), py: col(40), pz: col(0) });
+    const track = table({ x: col(0), y: col(0), z: col(0), px: col(3), py: col(4), pz: col(1), q: col(1) });
+    const hits = table({ x: col(10, 20), y: col(0, 0), z: col(1, 2) });
+    const relation = () => ({ offsets: Uint32Array.from([0, 2]), indices: Uint32Array.from([0, 1]), to: hits });
+    const field = { bz: 3.8, rMax: 295, zMax: 320 };
+    const common = { key: "k", pal: PALETTES.dark, rgb: new Float32Array(3), field, relation };
+    const lines = [
+      build(hint({ repr: "segments", direction: ["px", "py", "pz"], length: 10, width: 4 }), met),
+      builders.helix({
+        ...common,
+        d: hint({
+          repr: "helix",
+          momentum: ["px", "py", "pz"],
+          charge: "q",
+          length: { to: { r: 129, z: 320 } },
+          width: 3,
+        }),
+        t: track,
+      }),
+      builders.polyline({
+        ...common,
+        d: hint({ repr: "polyline", points: { relation: "r" }, position: ["x", "x", "x"], width: 3 }),
+        t: table({ x: col(0) }),
+      }),
+    ];
+    for (const [i, l] of lines.entries()) {
+      const { uniforms, vertexShader } = parts(l).m;
+      expect(uniforms.uPx).toBe(pxUniform);
+      expect(uniforms.uWidth.value).toBe([4, 3, 3][i]); // the hint's width, as is
+      expect(vertexShader).toMatch(/\+ HALO_PX\) \* uPx/); // the halo too
+    }
+    expect(parts(build(hint({ repr: "markers" }), crystals())).m.uniforms.uPx).toBe(pxUniform);
+    delete (globalThis as { devicePixelRatio?: number }).devicePixelRatio;
   });
 });

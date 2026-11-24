@@ -146,7 +146,7 @@ vec4 inFront(vec4 p, float s) {
   if (selActive() > 0.5) p.z = 0.5 * p.z + (s > 0.5 ? -0.5 : 0.5) * p.w;
   return p;
 }
-// The halo pass (see halo): the selected object again, wider by HALO_PX px, behind it.
+// The halo pass (see halo): the selected object again, wider by HALO_PX CSS px, behind it.
 #ifdef HALO
 const float HALO_PX = 6.0;
 #else
@@ -388,10 +388,16 @@ export function setLineEnds(g: THREE.BufferGeometry) {
   g.setAttribute("position", new THREE.Float32BufferAttribute([0, 0, 0, 1, 0, 0], 3));
 }
 
-/** Uniforms of lines `width` CSS pixels wide: the width in drawing-buffer pixels, and the drawing buffer's size
- *  (followDrawingBuffer), which turns it into clip-space units. */
+/** The uniform `uPx`: drawing-buffer pixels per CSS pixel, one object shared by every layer's material. The engine
+ *  sets it to the screen's devicePixelRatio, again when the window moves to a screen of another density, and to the
+ *  scale of a picture while it draws one; lines and markers, sized in CSS pixels, follow at the next frame. */
+export const pxUniform = { value: 1 };
+
+/** Uniforms of lines `width` CSS pixels wide (uWidth * uPx drawing-buffer pixels), and the drawing buffer's size
+ *  (followDrawingBuffer), which turns that into clip-space units. */
 export const lineWidthUniforms = (width: number) => ({
-  uWidth: { value: width * (globalThis.devicePixelRatio ?? 1) },
+  uWidth: { value: width },
+  uPx: pxUniform,
   uRes: { value: new THREE.Vector2(1, 1) },
 });
 
@@ -417,7 +423,7 @@ const HALO_FRAGMENT = /* glsl */ `uniform vec3 uHalo;
   }`;
 
 /** A halo around the selected line (a line layer's pinned instances): the same instances drawn again before it as a
- *  strip HALO_PX px wider in the accent colour, so even a 1 px line stands out. It shares the layer's uniforms and
+ *  strip HALO_PX CSS px wider in the accent colour, so even a 1 px line stands out. It shares the layer's uniforms and
  *  shader (with HALO and WIDE defined) and draws copies of the pinned instances' attributes only, so a frame costs a
  *  draw call of a few hundred vertices, not a second pass over the layer. `shape`: the strip's corners (setLineQuad,
  *  or a helix's strip), shared and never freed here; `order`: the layer's renderOrder. */

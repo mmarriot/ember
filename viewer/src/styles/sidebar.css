@@ -826,6 +826,20 @@ table.inview td > span {
 .graphcontrols input.expr {
   flex: 1 1 100%;
 }
+.graphcontrols .found {
+  color: var(--muted);
+}
+/* The levels and the controls stay at the top of the panel's scroller, under its sticky tab list (.tablist: 8px of
+   padding, a 13px tab at line height 1.45 with 8px padding and a 2px edge, its 1px border), while the graph scrolls. */
+.graphhead {
+  position: sticky;
+  top: 46px;
+  z-index: 1;
+  margin: -12px -12px 0;
+  padding: 12px 12px 2px;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--line);
+}
 /* The graph as a tree (truthgraph/TreeView.tsx). A row is a line of the tree: its guide cells (a rail per ancestor
    level, then its elbow ├ └ or, for a vertex, ◆ on its daughters' line), its fold, and its content. Rows have no
    margins, so the lines join from row to row. The lines sit 6px into a cell, under the fold's arrow of the row above. */

@@ -88,8 +88,11 @@ export function TruthTab() {
     <div>
       {tg && lg ? (
         <>
-          <Levels counts={lg.counts} />
-          <Controls />
+          {/* stays at the top of the panel while the graph scrolls under it */}
+          <div class="graphhead">
+            <Levels counts={lg.counts} />
+            <Controls />
+          </div>
           <GraphView lg={lg} g={tg.graph} particles={tg.particles} vertices={tg.vertices} />
         </>
       ) : (

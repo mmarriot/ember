@@ -127,4 +127,8 @@
   .menupanel {
     grid-template-columns: 1fr;
   }
+  /* the Truth tab's levels and controls would fill the sheet: they scroll away with the graph */
+  .graphhead {
+    position: static;
+  }
 }

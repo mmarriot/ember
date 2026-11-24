@@ -207,8 +207,9 @@ function writeAddress() {
 }
 
 /** The keyboard shortcuts (Help.tsx lists them). Not while typing in a field or behind a dialog, nor with Ctrl, Cmd
- *  or Alt. */
+ *  or Alt, nor for a key a control already handled. */
 function onKey(e: KeyboardEvent) {
+  if (e.defaultPrevented) return; // handled where it was pressed (the arrows in the Truth tab's tree)
   if (e.key === "Escape" && popover.value) return void (popover.value = null); // also from a control in it (a cut's slider)
   if (dialog.value && e.key !== "?") return void (e.key === "Escape" && (dialog.value = null));
   if (["SELECT", "INPUT", "TEXTAREA"].includes((e.target as HTMLElement).tagName) || e.ctrlKey || e.metaKey || e.altKey)

@@ -147,6 +147,28 @@ describe("levelGraph", () => {
     expect([0, 1, 2].map((r) => node(lg, r).made)).toEqual([0, -1, -1]);
     expect(lg.vertices.map((v) => v.row)).toEqual([0]);
   });
+  it("marks a vertex as skipping only for hidden particles between, not a parent from elsewhere", () => {
+    // 1 b (leg) and 0 a beam remnant (no shown ancestor) -> 2 π⁺ at vertex 0; 1 -> 3 a string -> 4 π⁻ at vertex 1
+    const mixed = graphOf(
+      {
+        n: 5,
+        columns: {
+          pdgId: [2101, 5, 211, 92, -211],
+          status: [63, 23, 1, 71, 1],
+          energy: [50, 100, 30, 60, 20],
+          levelFlags: [0, HARD, RECO, 0, RECO],
+          prodVertexIdx: [-1, -1, 0, -1, 1],
+        },
+      },
+      csr([[2], [2, 3], [], [4], []]),
+      { n: 2, columns: { reason: [19, 19] } },
+    );
+    const lg = levelGraph(mixed, "levelFlags", undefined, DEFAULT_LEVELS);
+    expect(lg.vertices.map((v) => [v.row, rows(lg, v.into), v.skips])).toEqual([
+      [0, [1], false],
+      [1, [1], true],
+    ]);
+  });
 });
 
 describe("drawnRows", () => {

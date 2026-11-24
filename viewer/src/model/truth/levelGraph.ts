@@ -106,7 +106,9 @@ export interface VertexNode {
   into: number[];
   /** The shown particles made at it (particle nodes), largest energy first. */
   out: number[];
-  /** Particles at no shown level lie between `into` and `out` (a b quark's hadronisation, a skipped decay). */
+  /** Particles at no shown level lie between `into` and `out` (a b quark's hadronisation, a skipped decay): a particle
+   *  made here has a parent at no shown level with a shown particle above it. A parent with nothing shown above it (a
+   *  beam remnant in a string) does not count. */
   skips: boolean;
 }
 /** The graph's groups of roots: the hard process and what came from it; the rest of the signal collision (the
@@ -264,7 +266,8 @@ export function levelGraph(g: Graph, flags: string, first: string | undefined, m
       if (!vx.into.includes(a)) vx.into.push(a);
       if (!particles[a].ends.includes(k)) particles[a].ends.push(k);
     }
-    vx.skips ||= p.parents.length > 0 && g.parents(p.top).some((q) => !shown(top[q]));
+    // a hidden parent with a shown ancestor lies between that ancestor (one of `into`) and this particle
+    vx.skips ||= g.parents(p.top).some((q) => !shown(top[q]) && above[top[q]]?.length > 0);
   });
   const byEnergy = (a: number, b: number) => energy[particles[b].top] - energy[particles[a].top];
   for (const p of particles) p.children.sort(byEnergy);

@@ -16,9 +16,10 @@
 //   under (to reveal a particle selected in the view).
 //
 // Signals (model/store) a view reads and writes:
-// - reads `graphVertices` (draw the vertex nodes, or particles straight under particles), `graphQuery` (the search
-//   box: matchingNodes), `pickedTops` (the picked particles, by `top`: show them ticked), `selection` (the particle
-//   the card describes, the last pick: `g.top[selection.row] === node.top`; show it selected), `theme` (colours);
+// - reads `graphVertices` (draw the vertex nodes, or particles straight under particles), `graphFound` (the nodes the
+//   search box finds, largest first: matchingNodes), `pickedTops` (the picked particles, by `top`: show them ticked),
+//   `selection` (the particle the card describes, the last pick: `g.top[selection.row] === node.top`; show it
+//   selected), `theme` (colours);
 // - picks with `pickTruth(node.last)` (a click on a name: that particle alone) and `togglePick(node.last)` (a tick: add
 //   or remove it). They move the selection and the focus; the view draws the picks (alone or with their descendants,
 //   store `truthDraw`), so a view never sets `selection` itself. `clearPicks` is the controls row's.
@@ -26,7 +27,6 @@
 //   tab being closed and reopened (TruthTab renders the tab anew each time).
 import type { Graph } from "../../../model/truth/graph";
 import type { LevelGraph } from "../../../model/truth/levelGraph";
-import { matchesQuery, parseTruthQuery } from "../../../model/truth/particles";
 import type { Pal } from "../../../render/colour";
 
 /** What a view of the truth graph gets: the event's level graph, the truth graph it was built from, and the tables of
@@ -43,14 +43,5 @@ export interface GraphViewProps {
  *  both themes and in the common colour-vision deficiencies (render/colour.ts). */
 export const levelColour = (pal: Pal, level: number) => pal.identity[level % pal.identity.length];
 
-/** The particle nodes the search `query` finds (truth/particles.ts parseTruthQuery: a name's start, a pdgId,
- *  |pdg|=11), largest energy first; empty for no query. `names`: the particle layer's pdgId names. */
-export function matchingNodes(lg: LevelGraph, g: Graph, names: Record<string, string>, query: string): number[] {
-  const q = parseTruthQuery(query);
-  if (!q) return [];
-  const pdg = (i: number) => g.col("pdgId", lg.particles[i].top);
-  return lg.particles
-    .map((_, i) => i)
-    .filter((i) => matchesQuery(q, pdg(i), names[String(pdg(i))] ?? ""))
-    .sort((a, b) => g.col("energy", lg.particles[b].top) - g.col("energy", lg.particles[a].top));
-}
+// The search's matches: model/truth/levelGraph.ts, in store `graphFound` for the search box.
+export { matchingNodes } from "../../../model/truth/levelGraph";

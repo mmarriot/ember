@@ -3,7 +3,7 @@
 import { computed, signal } from "@preact/signals";
 import { cached } from "../event/cache";
 import { drawnRows } from "../truth/graph";
-import { DEFAULT_LEVELS, levelGraph } from "../truth/levelGraph";
+import { DEFAULT_LEVELS, levelGraph, matchingNodes } from "../truth/levelGraph";
 import { truthGraph } from "./colours";
 import { event } from "./data";
 import { layerOf } from "./names";
@@ -36,6 +36,17 @@ export const truthLevelGraph = computed(() => {
   if (!tg || !ev || !p) return null;
   const mask = graphLevels.value;
   return cached(ev, `levelGraph|${mask}`, () => levelGraph(tg.graph, p.flags, p.first, mask));
+});
+
+/** The particle nodes of the level graph that the search box finds (truth/levelGraph.ts matchingNodes), largest
+ *  energy first; empty without a search. */
+export const graphFound = computed(() => {
+  const tg = truthGraph.value,
+    lg = truthLevelGraph.value,
+    query = graphQuery.value;
+  return tg && lg && query.trim()
+    ? matchingNodes(lg, tg.graph, layerOf(tg.particles)?.describe?.names?.pdgId ?? {}, query)
+    : [];
 });
 
 /** The truth particle and vertex rows the view draws for the picks (truth/graph.ts drawnRows), by table; null without

@@ -2,6 +2,7 @@
 // particle at a shown level (its generator copies folded), the vertices where they were made between them, and the
 // particles at no shown level skipped. Built in one pass over the particles per event and choice of levels.
 import type { Graph } from "./graph";
+import { matchesQuery, parseTruthQuery } from "./particles";
 
 /** A level the graph can show: its id, its name, the level-flag bits that put a particle at it (any of them) and what
  *  it means. */
@@ -303,4 +304,16 @@ export function levelGraph(g: Graph, flags: string, first: string | undefined, m
     .filter((id) => roots[id].length)
     .map((id) => ({ id, name: names[id], roots: roots[id].sort(byEnergy) }));
   return { particles, vertices, groups, nodeOf, hiddenUnder, counts };
+}
+
+/** The particle nodes the search `query` finds (truth/particles.ts parseTruthQuery: a name's start, a pdgId,
+ *  |pdg|=11), largest energy first; empty for no query. `names`: the particle layer's pdgId names. */
+export function matchingNodes(lg: LevelGraph, g: Graph, names: Record<string, string>, query: string): number[] {
+  const q = parseTruthQuery(query);
+  if (!q) return [];
+  const pdg = (i: number) => g.col("pdgId", lg.particles[i].top);
+  return lg.particles
+    .map((_, i) => i)
+    .filter((i) => matchesQuery(q, pdg(i), names[String(pdg(i))] ?? ""))
+    .sort((a, b) => g.col("energy", lg.particles[b].top) - g.col("energy", lg.particles[a].top));
 }

@@ -18,6 +18,7 @@ import {
   describe,
   domain,
   event,
+  graphFound,
   graphLevels,
   graphQuery,
   graphVertices,
@@ -43,7 +44,7 @@ import { Collections } from "./Layers";
 import { jump } from "../../control/navigate";
 import { passing } from "./ObjectRows";
 import { Tree, treeRelations } from "./Tree";
-import { levelColour, matchingNodes } from "./truthgraph/view";
+import { levelColour } from "./truthgraph/view";
 // The view of the graph (truthgraph/view.ts says what it is given and may use).
 import { TreeView as GraphView } from "./truthgraph/TreeView";
 
@@ -170,10 +171,11 @@ function Choice<T>({
   );
 }
 
-/** The graph's controls: its vertices, what the view draws of the picked particles, the search (Enter picks the next
- *  particle found), and the picks. */
+/** The graph's controls: its vertices, what the view draws of the picked particles, the search (how many it finds;
+ *  Enter or "next" picks the next one), and the picks. */
 function Controls() {
-  const n = truthPicks.value.length;
+  const n = truthPicks.value.length,
+    found = graphFound.value.length;
   return (
     <div class="graphcontrols">
       <Choice
@@ -203,6 +205,20 @@ function Controls() {
         onInput={(e) => (graphQuery.value = (e.target as HTMLInputElement).value)}
         onKeyDown={(e) => e.key === "Enter" && pickNextFound()}
       />
+      {graphQuery.value.trim() && (
+        <span class="found">
+          {found ? (
+            <>
+              {found.toLocaleString()} found ·{" "}
+              <button class="link" title="Pick the next one found, largest first (Enter)" onClick={pickNextFound}>
+                next
+              </button>
+            </>
+          ) : (
+            "none at the levels shown"
+          )}
+        </span>
+      )}
       {n > 0 && (
         <span class="picks">
           {n} selected ·{" "}
@@ -220,10 +236,10 @@ function Controls() {
 function pickNextFound() {
   const tg = truthGraph.peek(),
     lg = truthLevelGraph.peek(),
-    sel = selection.peek();
+    sel = selection.peek(),
+    found = graphFound.peek();
   if (!tg || !lg) return;
-  const found = matchingNodes(lg, tg.graph, layerOf(tg.particles)?.describe?.names?.pdgId ?? {}, graphQuery.peek()),
-    at = sel?.table === tg.particles ? found.findIndex((i) => lg.particles[i].top === tg.graph.top[sel.row]) : -1;
+  const at = sel?.table === tg.particles ? found.findIndex((i) => lg.particles[i].top === tg.graph.top[sel.row]) : -1;
   if (found.length) pickTruth(lg.particles[found[(at + 1) % found.length]].last);
 }
 

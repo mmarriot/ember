@@ -1,21 +1,26 @@
-// The side panel's Truth tab (docs/viewer.md "Truth tab"): the hard process, open; then, each folded to its heading,
-// the particles in the view, the reco <-> truth scorecard, the truth coverage of each kind, and the truth graph browser
-// (Tree.tsx). A bundle with trees but no truth calls the tab "Tree", and folds nothing.
-import { effect, signal } from "@preact/signals";
+// The side panel's Truth tab (docs/viewer.md "Truth tab"): the truth levels the graph shows (its legend), its controls
+// (vertices, what the view draws of the picks, search, the picks), the graph (truthgraph/view.ts), and a folded
+// Details section: the truth collections, the particles in the view and the reco <-> truth scorecard. A bundle with
+// trees but no truth calls the tab "Tree" and shows them (Tree.tsx), as does a truth bundle without level flags.
+import { signal, type Signal } from "@preact/signals";
 import { filterMask, filters } from "../../model/custom/settings";
 import { factIn, facts } from "../../model/truth/facts";
 import { particlesInView, type ViewRow } from "../../model/truth/particles";
-import { topCopy } from "../../model/truth/graph";
-import { matchTally, percent, TARGETS, type TruthStatus } from "../../model/truth/match";
+import { GRAPH_LEVELS } from "../../model/truth/levelGraph";
+import { matchTally, percent, TARGETS } from "../../model/truth/match";
 import { bestPartners, type Ref } from "../../model/event/relations";
 import { cached } from "../../model/event/cache";
-import type { Match } from "../../io/format";
+import { PALETTES } from "../../render/colour";
 import {
   bundle,
   chipText,
+  clearPicks,
   describe,
   domain,
   event,
+  graphLevels,
+  graphQuery,
+  graphVertices,
   isHitLayer,
   largestFirst,
   layerOf,
@@ -23,17 +28,23 @@ import {
   selection,
   short,
   stepName,
+  theme,
+  truthDraw,
   truthGraph,
-  truthName,
+  truthLevelGraph,
+  truthPicks,
   truthStatuses,
   truthText,
 } from "../../model/store";
 import { Info } from "../common/Info";
-import { GapLink } from "../card/TruthBlock";
+import { counted } from "./Coverage";
 import { Collections } from "./Layers";
 import { jump } from "../../control/navigate";
 import { passing } from "./ObjectRows";
 import { Tree, treeRelations } from "./Tree";
+import { levelColour } from "./truthgraph/view";
+// The view of the graph (truthgraph/view.ts says what it is given and may use).
+import { Placeholder as GraphView } from "./truthgraph/Placeholder";
 
 /** Which folded sections are open, kept while the tab is closed and between events (a plain <details> would fold
  *  again on every visit). */
@@ -44,12 +55,6 @@ const fold = (name: string) => ({
     const open = (e.currentTarget as HTMLDetailsElement).open;
     if (open !== (folds.peek()[name] ?? false)) folds.value = { ...folds.peek(), [name]: open };
   },
-});
-// A truth particle selected anywhere (X, a hard-process chip) opens the browser, whose tree shows its path.
-effect(() => {
-  const sel = selection.value;
-  if (sel && sel.table === modes.peek().roots.truth && !folds.peek().browser)
-    folds.value = { ...folds.peek(), browser: true };
 });
 
 const go = (table: string, row: number) => jump({ table, row });
@@ -62,98 +67,145 @@ const selectChip = (sel: Ref | null, table: string, row: number, text?: string) 
   </button>
 );
 
-/** What a match counts, for "clean from 50% of its energy". */
-const counted = (m: Match) => (m.measure === "hits" ? "hits" : m.measure === "pt2" ? "tracks' pT²" : "energy");
-
 /** The tab's content. The tabs (widgets.tsx) call it as a plain function, not as a component: it must not use hooks. */
 export function TruthTab() {
   const trees = treeRelations(),
-    truth = bundle.value?.header.display.filter((d) => d.truth) ?? [];
+    truth = bundle.value?.header.display.filter((d) => d.truth) ?? [],
+    tg = truthGraph.value,
+    lg = truthLevelGraph.value;
   const browse = trees.map(([name, table]) => <Tree name={name} table={table} />);
+  if (!truth.length)
+    return (
+      <div>
+        {trees.map(([, table]) => (
+          <Outcome table={table} />
+        ))}
+        {browse}
+      </div>
+    );
   return (
     <div>
-      {truth.length > 0 && <HardProcess />}
-      {trees.map(([, table]) => (
-        <Outcome table={table} />
-      ))}
-      {truth.length > 0 && <Scorecard />}
-      {truth.length > 0 && <Coverage />}
-      {truth.length > 0 ? (
-        <section class="fold">
-          <details {...fold("browser")}>
-            <summary>
-              <h3>Truth graph browser</h3>
-            </summary>
-            <Collections layers={truth} />
-            {browse}
-          </details>
-        </section>
+      {tg && lg ? (
+        <>
+          <Levels counts={lg.counts} />
+          <Controls />
+          <GraphView lg={lg} g={tg.graph} particles={tg.particles} vertices={tg.vertices} />
+        </>
       ) : (
         browse
       )}
+      <section class="fold details">
+        <details {...fold("details")}>
+          <summary>
+            <h3>Details</h3>
+          </summary>
+          <Collections layers={truth} />
+          {trees.map(([, table]) => (
+            <Outcome table={table} />
+          ))}
+          <Scorecard />
+        </details>
+      </section>
     </div>
   );
 }
 
-/** The outgoing legs of the hard scatter (truth level HardProcess, bit 1), each once (its generator copies folded),
- *  under the particle they came from (t -> b W⁺; W⁺ -> μ⁺ ν). */
-function HardProcess() {
-  const tg = truthGraph.value,
-    d = tg ? layerOf(tg.particles) : undefined,
-    sel = selection.value;
-  if (!tg || !d?.particle) return null;
-  const g = tg.graph,
-    flag = d.particle.flags,
-    first = d.particle.first,
-    bit = (r: number, b: number) => (g.col(flag, r) >>> b) & 1;
-  const legs: number[] = [];
-  for (let r = 0; r < g.n; r++)
-    if (bit(r, 1) && (!first || g.col(first, r))) {
-      const top = topCopy(g, r);
-      if (!legs.includes(top)) legs.push(top);
-    }
-  if (!legs.length) return null;
-  const from = new Map<number, number[]>(); // a parent's top copy (-1 for none) -> its legs
-  for (const r of legs) {
-    const p = g.parents(r)[0],
-      k = p === undefined ? -1 : topCopy(g, p);
-    from.set(k, [...(from.get(k) ?? []), r]);
-  }
-  const chip = (r: number, note = "") => (
-    <button
-      class={sel?.table === tg.particles && g.top[sel.row] === g.top[r] ? "chip selected" : "chip"}
-      title={note}
-      onClick={() => go(tg.particles, g.last[r])}
-    >
-      {truthText(tg.particles, r).split(" · ")[0]}
-    </button>
-  );
+/** The truth levels the graph shows, one chip each in its colour (the graph's legend), with how many particles of the
+ *  event are at it; a click shows or hides them. A level only a truth preset sets is offered where the event has it. */
+function Levels({ counts }: { counts: number[] }) {
+  const mask = graphLevels.value,
+    pal = PALETTES[theme.value];
   return (
-    <section class="hardprocess">
-      <h3>
-        Hard process{" "}
-        <Info title="Hard process">
-          <p>
-            The outgoing legs of the hard scatter (truth level HardProcess, bit 1), under the particle they came from. A
-            quark or a gluon is the parton itself, not a jet: the truth graph has no jets.
-          </p>
-          <p>Each is one particle, though the generator writes it several times. Click one to select it.</p>
-        </Info>
-      </h3>
-      <ul class="hard">
-        {[...from].map(([p, rs]) => (
-          <li>
-            {p >= 0 ? chip(p) : <span class="muted">collision</span>} →{" "}
-            {rs.map((r, i) => (
-              <>
-                {i > 0 && " "}
-                {chip(r, truthText(tg.particles, r))}
-              </>
-            ))}
-          </li>
-        ))}
-      </ul>
-    </section>
+    <div class="graphlevels" role="group" aria-label="Truth levels the graph shows">
+      {GRAPH_LEVELS.map((l, i) => {
+        const on = !!(mask & l.mask);
+        if (l.optional && !counts[i]) return null;
+        return (
+          <button
+            class={on ? "chip on" : "chip"}
+            aria-pressed={on}
+            title={`${l.what}: ${counts[i]} in this event. Click to ${on ? "hide" : "show"} them in the graph.`}
+            style={{ "--level": levelColour(pal, i) }}
+            onClick={() => (graphLevels.value = on ? mask & ~l.mask : mask | l.mask)}
+          >
+            <i class="swatch" />
+            {l.name} <span class="muted">{counts[i].toLocaleString()}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** One of a few values of `value`, as a row of buttons after a label. */
+function Choice<T>({
+  label,
+  title,
+  value,
+  options,
+}: {
+  label: string;
+  title: string;
+  value: Signal<T>;
+  options: [T, string, string][];
+}) {
+  return (
+    <div class="segmented small" role="group" aria-label={label} title={title}>
+      <span class="label">{label}</span>
+      {options.map(([v, text, what]) => (
+        <button
+          class={value.value === v ? "on" : ""}
+          aria-pressed={value.value === v}
+          title={what}
+          onClick={() => (value.value = v)}
+        >
+          {text}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** The graph's controls: its vertices, what the view draws of the picked particles, the search, and the picks. */
+function Controls() {
+  const n = truthPicks.value.length;
+  return (
+    <div class="graphcontrols">
+      <Choice
+        label="Vertices"
+        title="The vertices between the particles, in the graph"
+        value={graphVertices}
+        options={[
+          [false, "hide", "Particles straight under the particles they came from"],
+          [true, "show", "The vertex each particle was made at, between it and the particles it came from"],
+        ]}
+      />
+      <Choice
+        label="3D"
+        title="What the view draws of the truth for the particles picked"
+        value={truthDraw}
+        options={[
+          ["particle", "particle only", "Each picked particle, from the vertex it was made at to the one it ended at"],
+          ["descendants", "+ descendants", "Each picked particle and everything it made"],
+        ]}
+      />
+      <input
+        class="expr"
+        type="search"
+        placeholder="Find: a name (B, μ), a pdgId (511), |pdg|=11"
+        value={graphQuery.value}
+        spellcheck={false}
+        onInput={(e) => (graphQuery.value = (e.target as HTMLInputElement).value)}
+      />
+      {n > 0 && (
+        <span class="picks">
+          {n} selected ·{" "}
+          <button class="link" title="Pick no particle, and close the card" onClick={clearPicks}>
+            clear
+          </button>
+        </span>
+      )}
+    </div>
   );
 }
 
@@ -255,73 +307,6 @@ function Scorecard() {
             })}
           </tbody>
         </table>
-      </details>
-    </section>
-  );
-}
-
-/** What the truth graph says about each kind drawn from this bundle (docs/truth.md "Where truth stops"). */
-function Coverage() {
-  const b = bundle.value,
-    statuses = truthStatuses.value;
-  if (!b || !modes.value.roots.truth) return null;
-  const seen = new Set<string>(),
-    rows: [string, TruthStatus][] = [];
-  for (const d of b.header.display) {
-    const s = statuses.get(d.table),
-      kind = truthName(d.table);
-    if (!s || d.context || seen.has(kind)) continue;
-    seen.add(kind);
-    rows.push([kind, s]);
-  }
-  const what = (s: TruthStatus) =>
-    s.kind === "match"
-      ? [
-          `matched by CMSSW`,
-          `${s.match.target ? `reconstruct ${TARGETS[s.match.target]}; ` : ""}clean from ${percent(s.match.good)} of its ${counted(s.match)}${s.match.in ? ` (${s.match.in})` : ""}`,
-        ]
-      : s.kind === "fact"
-        ? [
-            "simulation fact",
-            `simulated energy per particle in each hit${s.in ? ` (${s.in})` : ""}${s.unit ? `, recorded per ${typeof s.unit === "string" ? s.unit : Object.values(s.unit.names).join(", ")}` : ""}`,
-          ]
-        : s.kind === "container"
-          ? ["with what contains it", "no truth of its own: drawn in the colour of the object it belongs to"]
-          : ["no CMSSW associator", s.reason];
-  // Folded to one line of counts: "7 matched · 9 no associator".
-  const counts = (["match", "fact", "container", "none"] as const)
-    .map((k) => [k, rows.filter(([, st]) => st.kind === k).length] as const)
-    .filter(([, n]) => n);
-  const SHORT = { match: "matched", fact: "sim", container: "via container", none: "no associator" };
-  return (
-    <section class="coverage fold">
-      <details {...fold("coverage")}>
-        <summary>
-          <h3>Truth coverage</h3> <span class="count">{counts.map(([k, n]) => `${n} ${SHORT[k]}`).join(" · ")}</span>
-        </summary>
-        <p class="hint">
-          What the truth graph says about each kind: matched by CMSSW's associator, or a simulation fact. Where it has
-          no answer, Ember builds none: the reason is listed, and its gap in the truth-graph notes behind the i.
-        </p>
-        <ul class="coverage">
-          {rows.map(([kind, s]) => {
-            const [word, detail] = what(s),
-              why = s.kind === "none";
-            return (
-              <li class={s.kind === "none" ? "none" : undefined} title={detail}>
-                <span class="kindname">{kind}</span> {word}
-                {why && <span class="muted">: {detail}</span>}
-                {s.kind === "none" && s.gap !== undefined && (
-                  <Info title={`${kind}: no associator`}>
-                    <p>
-                      <GapLink gap={s.gap} />
-                    </p>
-                  </Info>
-                )}
-              </li>
-            );
-          })}
-        </ul>
       </details>
     </section>
   );

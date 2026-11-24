@@ -852,8 +852,8 @@ async function checkOnly(page, h, fail, shot, tag) {
   if ((await tables()) !== before) fail(`"show everything" did not bring the other layers back`);
 }
 
-/** With truth matches in the bundle, the Truth tab has the event's scorecard, folded under the hard process: a row
- *  per matched kind, and a count unfolds to its objects. */
+/** With truth matches in the bundle, the Truth tab has the event's scorecard, folded in Details under the truth
+ *  graph: a row per matched kind, and a count unfolds to its objects. */
 async function checkScorecard(page, h, fail, shot, tag) {
   const truth = new Set(h.display.filter((d) => d.truth).map((d) => d.table));
   if (
@@ -863,7 +863,9 @@ async function checkScorecard(page, h, fail, shot, tag) {
   )
     return;
   await page.getByRole("tab", { name: "Truth", exact: true }).click();
-  // unfold it unless open already (the tab keeps its sections' state)
+  // unfold Details and the scorecard unless open already (the tab keeps its sections' state)
+  if (await page.locator("section.details > details:not([open])").count())
+    await page.locator("section.details > details > summary").click();
   if (await page.locator("section.scorecard details:not([open])").count())
     await page.locator("section.scorecard summary").click();
   const rows = await page.locator("table.score tbody tr:not(.list)").count(),

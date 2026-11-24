@@ -718,15 +718,6 @@ table.inview td > span {
 .inview details.indet > summary {
   font-size: 12px;
 }
-ul.hard {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  font-size: 12px;
-}
-ul.hard li {
-  margin: 2px 0;
-}
 .outcome .missed .chip {
   border-color: #e5534b;
 }
@@ -785,6 +776,73 @@ ul.hard li {
   width: 100%;
   margin: 4px 0;
 }
+/* Truth tab: the levels the graph shows (its legend: each chip in its level's colour, --level), its controls, and the
+   graph (truthgraph/: the placeholder reuses the tree's rows). */
+.graphlevels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin: 4px 0 6px;
+}
+.graphlevels .chip {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.graphlevels .chip .swatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--level);
+  opacity: 0.3;
+}
+.graphlevels .chip.on {
+  border-color: var(--level);
+}
+.graphlevels .chip.on .swatch {
+  opacity: 1;
+}
+.graphcontrols {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin: 0 0 6px;
+  font-size: 12px;
+}
+.graphcontrols .segmented {
+  align-items: center;
+}
+.graphcontrols .segmented .label {
+  padding: 0 6px;
+  color: var(--muted);
+  border-right: 1px solid var(--line);
+}
+.graphcontrols .segmented button {
+  padding: 2px 7px;
+  font-size: 12px;
+}
+.graphcontrols input.expr {
+  flex: 1 1 100%;
+}
+.truthgraph details > summary {
+  font-size: 12px;
+  margin: 4px 0 2px;
+}
+.truthgraph .node input[type="checkbox"] {
+  margin: 0;
+  flex: none;
+}
+.truthgraph .node > .muted {
+  font-size: 11px;
+  white-space: nowrap;
+}
+.truthgraph .vertex {
+  font-size: 11px;
+  color: var(--muted);
+}
+
 /* Truth search: level and process chips, on when chosen. */
 .tree .levelchips {
   display: flex;

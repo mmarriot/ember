@@ -197,7 +197,7 @@ never sits under the card: it moves to the left of its object instead. Where lab
 one moves left or hides: the selection's label goes first, then the focus's, the object you point at in the side
 panel, and the leading objects, largest first.
 
-**One name everywhere** (`viewer/src/model/describe.ts`). An object has the same name in its label, its card,
+**One name everywhere** (`viewer/src/model/event/describe.ts`). An object has the same name in its label, its card,
 its chip in a list, the side panel's row and the shared link's description: "Jet 1 · AK4 · pT 99.6 GeV". It
 reads:
 
@@ -309,7 +309,7 @@ match). See [Colours and the truth ↔ reco pair](#colours-and-the-truth--reco-p
 A caption says what is happening.
 
 **Tour** (`P`, or the play button) builds up each event step by step, outwards from the collision point and from the
-detector's hits to the physics objects (`viewer/src/model/tourPlan.ts`). The steps are: collision point, tracks (with
+detector's hits to the physics objects (`viewer/src/control/tourPlan.ts`). The steps are: collision point, tracks (with
 their hits, and the timing layer in Phase 2), calorimeter hits, clusters, HGCal showers, muons, particle flow, jets,
 leptons with photons and missing momentum, b tagging. An event of the whole detector takes under a minute.
 
@@ -335,7 +335,7 @@ From top to bottom, the side panel has:
 3. the colour key.
 
 The panel shows names, counts and state. What a thing is, and how a number is counted, is behind an **i** next to it
-(a pop-up, `viewer/src/ui/Info.tsx`). The selection's card works the same way.
+(a pop-up, `viewer/src/ui/common/Info.tsx`). The selection's card works the same way.
 
 ### The Collections tab
 
@@ -431,7 +431,7 @@ section under it is folded to its heading until you open it. It holds:
   particle is listed in each detector it reached. Physics and All list every detector;
 - **the event's reco ↔ truth scorecard.** For each reco kind that a CMSSW associator matches, it counts how many of
   the objects that pass their cuts and filters are a clean match, an impure match, or are not matched
-  (`matchTally` in `viewer/src/model/chain.ts`). Click a count to unfold its objects, largest first. So the event's
+  (`matchTally` in `viewer/src/model/truth/match.ts`). Click a count to unfold its objects, largest first. So the event's
   merged, split and fake objects are one click away.
 - **the truth coverage**, folded to one line of counts, for example "9 matched · 2 sim · 18 no associator". Unfold it
   to see each kind's answer and, where there is no associator, why (the gap behind its **i**).
@@ -476,7 +476,7 @@ compared with.
   clusters, and hits (their layer cluster's candidate). Objects in no candidate are small and grey. A layer that
   cannot reach a candidate (for example the vertices) is coloured by its colour column, or keeps its own categorical
   colours if it has none. The viewer works out how each layer reaches a candidate or a truth particle from the
-  bundle's relations (`viewer/src/model/modes.ts`), so the profile needs no settings for this.
+  bundle's relations (`viewer/src/model/colour/modes.ts`), so the profile needs no settings for this.
 - **Truth** (key `T`, or "Colour by: reco type | truth particle" in the key; for bundles with truth particles). Everything is coloured by the
   generator particle it comes from (the profile's `particle` level), the same in every part of the detector:
   - a hit takes the colour of the particle that left the most simulated energy in it;
@@ -511,7 +511,7 @@ compared with.
 ### The pair view
 
 With truth in the file, selecting a truth particle, a reco object of a kind with an association (a track, a PF
-cluster, a trackster), or a hit shows its truth ↔ reco pair (`viewer/src/model/pair.ts`), in either mode.
+cluster, a trackster), or a hit shows its truth ↔ reco pair (`viewer/src/model/truth/pair.ts`), in either mode.
 [Truth](truth.md#the-pair-view) has the rules; in short:
 
 - **Truth: one branch.** The selected particle and everything below it. A reco object takes its best match (the
@@ -566,7 +566,7 @@ replay keeps each candidate's colour throughout.
 
 ## The selection's card
 
-The card is the same for every kind of object (`viewer/src/ui/Card.tsx`). It shows names, bars and numbers.
+The card is the same for every kind of object (`viewer/src/ui/card/Card.tsx`). It shows names, bars and numbers.
 More is behind small buttons:
 
 - the table's description is behind the **i** next to its title;
@@ -581,7 +581,7 @@ The card puts the answer first and the evidence below. It holds these parts, in 
 "Jet 1 · pT 46 GeV · η 0.606", and on a small line below it where it comes from: its collection and its CMSSW
 collection, "AK4 PUPPI (raw, no JEC) · ak4PFJetsPuppi".
 
-**The truth block** (`viewer/src/ui/TruthBlock.tsx`, `viewer/src/model/statement.ts`), built only from the
+**The truth block** (`viewer/src/ui/card/TruthBlock.tsx`, `viewer/src/model/truth/statement.ts`), built only from the
 associations in the file:
 
 - one line: the kind's own association, its match (see **The match** below); else, for a kind with no truth of its
@@ -607,7 +607,7 @@ It never gives a verdict for the object from its parts: a pion's track inside a 
 hit, the block lists the simulated energy each particle deposited in it (in MeV or GeV, not calibrated; in HF,
 photoelectrons) and its share of the hit's, with a button for the particle's pair.
 
-**The physics block** (`viewer/src/ui/Physics.tsx`): what the object is made of and its main numbers.
+**The physics block** (`viewer/src/ui/card/Physics.tsx`): what the object is made of and its main numbers.
 
 - its energy fractions (layer hint `fractions`), as one bar in a neutral grey ramp (a reconstruction quantity, not
   one of the view's colours);
@@ -629,7 +629,7 @@ photoelectrons) and its share of the hit's, with a button for the particle's pai
 
 **Names of objects.** Every object name in the card is a button. A click looks at the object; a double click opens
 its card ([Following the chain](#following-the-chain)). For a kind that a CMSSW associator matches, each name has a
-dot for what the associator says about that object (`matchClass` in `viewer/src/model/chain.ts`):
+dot for what the associator says about that object (`matchClass` in `viewer/src/model/truth/match.ts`):
 
 - filled green: a clean match;
 - half amber: an impure match;
@@ -638,7 +638,7 @@ dot for what the associator says about that object (`matchClass` in `viewer/src/
 So an unfolded step shows at a glance which of its objects are which. A kind that is matched without a clean
 threshold gets no dot and no green, because nothing says how good its match is.
 
-**The chain** (`viewer/src/model/chain.ts`). A reco object is shown between:
+**The chain** (`viewer/src/model/event/chain.ts`). A reco object is shown between:
 
 - what it is **part of**: the objects that contain it, outermost first;
 - what it is **made of**: from the largest objects down to the hits, one branch at a time. A jet's PF candidates come
@@ -762,7 +762,7 @@ bar names its energy. The match's purity and completeness are the associator's, 
 
 Filters, custom columns and the `where` of summaries are expressions. They may use column names, numbers, `pi`,
 `+ - * / % ^`, comparisons, `&& || !`, parentheses and a fixed list of Math functions. The viewer parses them; it
-never runs them as JavaScript (`viewer/src/model/expr.ts`).
+never runs them as JavaScript (`viewer/src/model/custom/expr.ts`).
 
 ## The address
 

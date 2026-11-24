@@ -242,13 +242,10 @@ interface Dropped {
   relations: Set<string>;
 }
 
-/** A bundle written before the converter kept one source per kind (see CHANGELOG.md) may hold the same objects
- *  twice, e.g. HGCal hits as SoA and as legacy, with the layers of the less preferred source marked `alternative`.
- *  Those layers are taken out of the header here, with their tables and every relation to or from them, so that the
- *  bundle reads as one written today and nothing else in the viewer needs to know. Their arrays stay in the records
- *  (they are decompressed with the rest) but are never viewed. In the bundles written so far, the copies of the same
- *  objects are the `legacy` ones; the other `alternative` layers (CHS jets, PF MET) are other objects, which the
- *  converter now keeps too, so they stay, hidden as before. */
+/** A bundle written before the converter kept one source per kind (CHANGELOG.md) may hold the same objects twice
+ *  (HGCal hits as SoA and as `legacy`, marked `alternative`). Those layers are taken out of the header with their
+ *  tables and relations, so the bundle reads as one written today; their arrays stay in the records, never viewed. The
+ *  other `alternative` layers (CHS jets, PF MET) are other objects, which the converter now keeps too: they stay. */
 export function oneSourcePerKind(header: Header): Dropped {
   const copy = (d: DisplayLayer) =>
     (d as DisplayLayer & { alternative?: boolean }).alternative && d.source === "legacy";
@@ -306,13 +303,12 @@ function parseRecord(buf: ArrayBuffer, header: Header, dropped: Dropped): EventD
   return { id: meta.event, tables, relations };
 }
 
-/** Check an event (with its run's tables added) against what the reader's users take for granted, as `ember validate`
- *  does (embertools/bundle.py validate): every column has its table's row count, and every relation's offsets and
- *  indices stay inside its tables. A bundle is a file from anyone; without this, an offset of 4e9 would make the first
- *  loop over the relation run for minutes, and an index past the end would select rows that do not exist.
- *  Cost: one sequential pass over the offsets and indices, on the main thread. On a PU200 event (about 6 M entries in
- *  90 relations) it measured 10-15 ms in Node 22, against hundreds of ms to read and draw the event. The loops are
- *  small functions of their own, which the JIT compiles at once (the same loops inline here took 25-40 ms until warm). */
+/** Check an event (with its run's tables) as `ember validate` does (embertools/bundle.py): every column has its
+ *  table's row count, and every relation's offsets and indices stay inside its tables. A bundle is a file from anyone:
+ *  an offset of 4e9 would make the first loop over the relation run for minutes, an index past the end would select
+ *  rows that do not exist. Cost: one sequential pass over offsets and indices, 10-15 ms measured on a PU200 event (6 M
+ *  entries in 90 relations, Node 22). The loops are small functions of their own, which the JIT compiles at once (the
+ *  same loops inline took 25-40 ms until warm). */
 function checkEvent(ev: EventData, header: Header) {
   const bad = (what: string): never => {
     throw new FormatError(`not a complete Ember bundle (event ${ev.id.join(":")}: ${what})`);

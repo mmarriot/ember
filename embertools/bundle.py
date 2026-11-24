@@ -22,18 +22,9 @@ import numpy as np
 # The magic bytes are from the time the project was called evd. They identify format version 1, and every bundle
 # written so far has them, so they keep that name (as does the header's "schema": "evd/1", see converter.py).
 MAGIC, RECORD_MAGIC, VERSION = b"EVDB", b"EVD1", 1
-TYPES = {  # bundle column type -> numpy dtype (little-endian)
-    "f32": "<f4",
-    "f64": "<f8",
-    "i8": "<i1",
-    "u8": "<u1",
-    "i16": "<i2",
-    "u16": "<u2",
-    "i32": "<i4",
-    "u32": "<u4",
-    "i64": "<i8",
-    "u64": "<u8",
-}
+# bundle column type -> numpy dtype (little-endian)
+TYPES = {"f32": "<f4", "f64": "<f8", "i8": "<i1", "u8": "<u1", "i16": "<i2", "u16": "<u2", "i32": "<i4", "u32": "<u4",
+         "i64": "<i8", "u64": "<u8"}  # fmt: skip
 RELATION_TYPES = {"offsets": "<u4", "indices": "<u4", "weights": "<f4"}
 
 

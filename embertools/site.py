@@ -34,9 +34,8 @@ import time
 
 from . import Problem
 
-# Placeholders until the CMS site exists: the EOS project space the site is served from, its address, and the folder
-# beside the site that holds what the cron jobs run and their state. Set EMBER_SITE_DIR, EMBER_SITE_URL and
-# EMBER_SERVICE_DIR to use another site.
+# Placeholders until the CMS site exists: the site's EOS folder, its address, and the folder of the cron jobs' code
+# and state. EMBER_SITE_DIR, EMBER_SITE_URL and EMBER_SERVICE_DIR override them.
 DEFAULT_DIR = "/eos/project/c/cms-ember/www"
 DEFAULT_URL = "https://cms-ember.web.cern.ch"
 DEFAULT_SERVICE = "/eos/project/c/cms-ember/service"
@@ -48,21 +47,20 @@ EOS = {
     "/eos/user/": "root://eosuser.cern.ch/",
     "/eos/cms/": "root://eoscms.cern.ch/",
 }
-# Bundles are written as <name>.ember. Those written before the project was called Ember are <name>.evdb, and they are
-# still bundles: listed, removed, cleaned and replaced like the others.
+# Bundles written before the project was called Ember are <name>.evdb: listed, removed, cleaned and replaced like the
+# others.
 EXTENSION = ".ember"
 EXTENSIONS = (EXTENSION, ".evdb")
 PARTIAL = re.compile(r"\.(ember|evdb|json)\.tmp\w+$")  # a file being copied in (replacing() and _XRootD.put)
 
 
-# The settings read from the environment, by their names without the prefix. Before the project was renamed Ember they
-# were EVD_*; old_settings() stops a command that would silently ignore one.
+# The settings read from the environment (EMBER_<name>). Before the rename they were EVD_<name>: see old_settings().
 SETTINGS = ("SITE_DIR", "SITE_URL", "SERVICE_DIR", "USER", "DEBUG", "BIN_DIR", "CONFIG", "MAX_FILES", "KEEP_DAYS")
 
 
 def old_settings(environ=os.environ):
     """A Problem if a setting is given only under its old name (e.g. EVD_USER without EMBER_USER), which is no longer
-    read: an old EVD_USER would otherwise publish to the area of the login instead, and EVD_SITE_DIR to another site."""
+    read: it would otherwise be silently ignored (EVD_USER would publish to the login's area instead)."""
     old = [f"EVD_{s}" for s in SETTINGS if f"EVD_{s}" in environ and f"EMBER_{s}" not in environ]
     if old:
         raise Problem(
@@ -87,8 +85,8 @@ def service_dir(given=None):
 
 
 def check_login(user):
-    """The login in lower case, as the viewer knows it; a Problem unless it is a letter, then letters, digits, '-' and
-    '_', 2 to 32 characters in all. It names a folder, so anything else (a path, a space) is refused."""
+    """The login in lower case, as the viewer knows it; a Problem unless it is a plain name (a letter, then letters,
+    digits, '-' and '_', 2 to 32 characters): it names a folder."""
     user = user.lower()
     if not re.fullmatch(r"[a-z][a-z0-9_-]{1,31}", user):
         raise Problem(
@@ -99,14 +97,12 @@ def check_login(user):
 
 
 def login(given=None):
-    """Whose area to use: `given`, else $EMBER_USER, else the account name, which on lxplus is the CERN login the site
-    knows the user by."""
+    """Whose area to use: `given`, else $EMBER_USER, else the account name (on lxplus, the CERN login)."""
     return check_login(given or os.environ.get("EMBER_USER") or getpass.getuser())
 
 
 def link(url, file):
-    """The address that opens the bundle `file` (a path relative to the site, as an index entry has it) in the
-    viewer."""
+    """The address that opens the bundle `file` (a path relative to the site) in the viewer."""
     return f"{url}/#b={file}"
 
 
@@ -119,8 +115,8 @@ def without_extension(file):
 
 
 def check_name(name):
-    """The name, if it can be a bundle's name, else a Problem. A name is part of the bundle's address: letters, digits,
-    '.', '_' and '-', starting with a letter or a digit, so that it cannot be a path."""
+    """The name, if it can be a bundle's name (part of its address, so never a path): letters, digits, '.', '_' and
+    '-', starting with a letter or a digit; else a Problem."""
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", name):
         raise Problem(f"'{name}' cannot be a bundle name: use letters, digits, '.', '_' and '-' (see --name)")
     if without_extension(name) != name:  # x.ember would be written as x.ember.ember, which `rm x.ember` cannot find
@@ -138,13 +134,12 @@ def replacing(path, mode="wb", folder=None):
     """Open a new file to write `path` with: it is renamed onto `path` when the block ends, or removed if the block
     fails, so that a reader finds either the old file or the complete new one.
 
-    This is also what keeps a link planted in a folder from being written through, which matters because the service
-    account cleans folders that their users can write in. The new file gets a new random name and is created with
-    O_CREAT|O_EXCL|O_NOFOLLOW, so the open fails on anything already there, a link included, and nothing but this new
-    file is written. The rename then replaces whatever is at `path`, a link included, instead of following it.
+    It also never writes through a link planted in the folder (the service account cleans folders their users can
+    write in): the new file has a random name and is opened with O_CREAT|O_EXCL|O_NOFOLLOW, which fails on anything
+    already there, and the rename replaces whatever is at `path`, a link included, instead of following it.
 
-    With `folder` (an open directory descriptor), `path` is a name in that folder, and every step goes through the
-    descriptor: the file lands in the folder that was opened, whatever its path points to by then."""
+    With `folder` (an open directory descriptor), `path` is a name in that folder and every step goes through the
+    descriptor, so the file lands in the folder that was opened, whatever its path points to by then."""
     own = folder is None
     name = os.path.basename(path) if own else path
     if own:
@@ -170,7 +165,7 @@ def replacing(path, mode="wb", folder=None):
             os.close(folder)
 
 
-# The two ways to reach the site, with the same methods: check, read, put and remove. Paths are relative to the site.
+# The two ways to reach the site, with the same methods: check, read, put and remove; paths are relative to the site
 
 
 class _Mounted:
@@ -180,8 +175,8 @@ class _Mounted:
         self.root = root
 
     def check(self, area=None):
-        """A Problem if the site is not there, or (with `area`) if files cannot be written in <site>/area. A folder that
-        does not exist yet is checked in the nearest folder above it that does, where it will be created."""
+        """A Problem if the site is not there, or (with `area`) if files cannot be written in <site>/area (or, if it
+        does not exist yet, in the nearest folder above it that does)."""
         if not os.path.isdir(self.root):
             raise Problem(
                 f"the site directory {self.root} does not exist (set EMBER_SITE_DIR or --site, or write the "
@@ -201,8 +196,8 @@ class _Mounted:
         )
 
     def read(self, path):
-        """The bytes of <site>/path, or None if there is no such file or it is a link (not followed: the next write
-        replaces the link itself)."""
+        """The bytes of <site>/path, or None if there is no such file or it is a link (never followed: the next write
+        replaces it)."""
         try:
             fd = os.open(os.path.join(self.root, path), os.O_RDONLY | os.O_NOFOLLOW)
         except FileNotFoundError:
@@ -271,7 +266,7 @@ class _XRootD:
 
     def check(self, area=None):
         """A Problem if the site cannot be reached (no xrdfs, no ticket, no such directory). Whether `area` can be
-        written is only known when writing: one round trip tells that the server, the ticket and the site are there."""
+        written is only known when writing."""
         result = self._run("xrdfs", self.host, "stat", self.root)
         if result.returncode and self.MISSING.search(result.stderr):
             raise Problem(
@@ -312,8 +307,8 @@ class _XRootD:
 
 
 def store(site):
-    """The site at `site`, a directory here or root://host/path or an /eos path this machine does not mount, as an
-    object with the methods check, read, put and remove (_Mounted or _XRootD)."""
+    """The site at `site` (a directory here, root://host/path, or an /eos path this machine does not mount) as a
+    _Mounted or an _XRootD."""
     url = re.fullmatch(r"(root://[^/]+)/+(.*?)/*", site)
     if url:
         return _XRootD(url.group(1) + "/", "/" + url.group(2))
@@ -324,8 +319,8 @@ def store(site):
 
 
 def _listing(files, user):
-    """The entries of the user's index that name a file; none if there is no index, or if the file is not one (the
-    next publish writes a new one)."""
+    """The entries of the user's index that name a file; none if there is no index or it is not one (the next publish
+    writes a new one)."""
     data = files.read(f"{USERS}/{check_login(user)}/index.json")
     try:
         entries = json.loads(data)["bundles"] if data else []
@@ -377,13 +372,12 @@ def _entry(bundle, file, title, published, days):
 
 
 def publish_to_user_area(bundle, site, user, name, title=None, days=KEEP_DAYS):
-    """Put the bundle file `bundle` in the user's area as `name` and list it; a bundle of that name is replaced, and
-    so is one of that name with the older extension .evdb. Returns (its index entry, whether it replaced one).
+    """Put the bundle file `bundle` in the user's area as `name` and list it, replacing a bundle of that name (with
+    either extension). Returns (its index entry, whether it replaced one).
 
-    The index is read, changed and written back with no lock (there is none that works both on a mounted directory
-    and through XRootD): two publishes of one user at the same moment can leave one of the two bundles out of the
-    list, until that name is published again or the next `ember clean`, which lists the files present. The bundle
-    itself is there, and its link works."""
+    The index is read, changed and written back with no lock (none works both on a mounted directory and through
+    XRootD): two publishes of one user at the same moment can leave one bundle out of the list until the next publish
+    of that name or `ember clean` (see service/README.md)."""
     file, *older = _files(user, name)
     entry = _entry(bundle, file, title or name, time.time(), days)  # a ValueError before anything is copied
     files = store(site)
@@ -413,8 +407,8 @@ def remove(site, user, name):
 
 
 def _files(user, name):
-    """The paths, relative to the site, that a user's bundle `name` can have: first the one a publish writes, then
-    the older ones (one per extension in EXTENSIONS). A Problem if the login or the name is not a plain name."""
+    """The paths (relative to the site) a user's bundle `name` can have, one per extension, the one a publish writes
+    first. A Problem if the login or the name is not a plain name."""
     user, name = check_login(user), check_name(name)
     return [f"{USERS}/{user}/{name}{extension}" for extension in EXTENSIONS]
 
@@ -423,9 +417,9 @@ def _clean_area(site, area, user, days, dry_run, log, now, removed):
     """clean() for one user's folder `area`: remove what has expired, then rewrite the index if it changed. The files
     removed are added to `removed` as they go, so that the caller hears of them even if a later step fails.
 
-    The folder is opened once, without following a link, and every file in it is looked at, removed and the index
-    written through that descriptor: a user who swaps their folder for a link while this runs cannot point any of it
-    elsewhere. (The bundles are read by path to list them, which cannot harm anything.)"""
+    The folder is opened once, without following a link, and every file in it is looked at and removed, and the index
+    written, through that descriptor: a user who swaps their folder for a link meanwhile cannot redirect any of it.
+    (The bundles are read by path to list them, which cannot harm anything.)"""
     try:
         listed = {e["file"]: e for e in _listing(_Mounted(site), user)}
     except OSError:  # e.g. a folder named index.json
@@ -433,7 +427,7 @@ def _clean_area(site, area, user, days, dry_run, log, now, removed):
 
     folder = os.open(area, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
     try:
-        # What the folder holds: the expired files (with how old they may be), and an index entry for each bundle.
+        # The expired files (with how old they may be), and an index entry for each other bundle
         expired, entries = [], {}
         for item in sorted(os.scandir(folder), key=lambda item: item.name):
             info = item.stat(follow_symlinks=False)
@@ -453,8 +447,7 @@ def _clean_area(site, area, user, days, dry_run, log, now, removed):
                 except (OSError, ValueError) as e:
                     log(f"leaving {file}: not a complete bundle ({e})")
 
-        # Remove the expired files. Each one is looked at again first, as the user may have removed it or published
-        # it anew since the folder was read.
+        # Remove the expired files, each looked at again first: the user may have removed or republished it since
         for name, keep in expired:
             path = os.path.join(area, name)
             if not dry_run:
@@ -489,14 +482,13 @@ def _area_entry(path, file, listed, published, days):
 
 
 def clean(site, days=KEEP_DAYS, dry_run=False, log=print, now=None):
-    """Remove the users' bundles published more than `days` days ago, and the files that a publish left half-copied
-    more than a day ago. Then rewrite the index of each user whose folder changed, so that it lists exactly the
-    bundles present, with when they were published (their modification time) and when they expire. Returns the
-    files removed (with `dry_run`: those that would be). For cron, on a machine that mounts the site.
+    """Remove the users' bundles published more than `days` days ago, and the files a publish left half-copied more
+    than a day ago; then rewrite the index of each user whose folder changed, from the bundles present (published:
+    their modification time). Returns the files removed (with `dry_run`: those that would be). For cron, on a machine
+    that mounts the site.
 
-    It touches only plain files directly in the folders that are directly in <site>/data/u/. A folder there that is a
-    link, or resolves to somewhere else, is left alone and logged, and so are links and folders inside a user's
-    folder. A problem in one user's folder is logged, and the others are still cleaned."""
+    It touches only plain files directly in the folders directly in <site>/data/u/: links, and folders that resolve
+    elsewhere, are left alone and logged. A problem in one user's folder is logged, and the others are still cleaned."""
     if days < 1:
         raise ValueError(f"clean keeps bundles for at least 1 day, not {days}: it would remove every user's bundles")
     now, removed = now or time.time(), []

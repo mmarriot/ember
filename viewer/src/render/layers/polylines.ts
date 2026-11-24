@@ -10,7 +10,9 @@ import {
   halo,
   type Layer,
   type LayerInput,
+  lineWidthUniforms,
   SHADER_COMMON,
+  setLineEnds,
   setLineQuad,
   shaderLayer,
 } from "./layer";
@@ -51,13 +53,9 @@ export function pointPaths(input: LayerInput): Layer {
   const { offsets, xyz, pieces } = polylinePoints(d, n, input.relation);
   const g = new THREE.InstancedBufferGeometry();
   if (wide) setLineQuad(g);
-  else g.setAttribute("position", new THREE.Float32BufferAttribute([0, 0, 0, 1, 0, 0], 3)); // x: 0 at the start, 1 at the end
+  else setLineEnds(g);
   const material = new THREE.ShaderMaterial({
-    uniforms: {
-      ...baseUniforms(input.pal, input.d.context),
-      uWidth: { value: (d.width ?? 1) * (globalThis.devicePixelRatio ?? 1) },
-      uRes: { value: new THREE.Vector2(1, 1) },
-    },
+    uniforms: { ...baseUniforms(input.pal, input.d.context), ...lineWidthUniforms(d.width ?? 1) },
     defines: wide ? { WIDE: 1 } : {},
     side: THREE.DoubleSide,
     vertexShader: /* glsl */ `
@@ -146,18 +144,7 @@ export function pointPaths(input: LayerInput): Layer {
     pickBias: 0.8,
     line: true,
     ...common,
-    setPinned(row) {
-      common.setPinned(row);
-      ring.pin(material.uniforms.uPin0.value, material.uniforms.uPin1.value);
-    },
-    setHighlight(rows) {
-      common.setHighlight(rows);
-      ring.refresh(); // the halo's copy of the selection flags
-    },
-    setTimeline(appear, link) {
-      common.setTimeline(appear, link);
-      ring.refresh(); // and of the replay's times
-    },
+    ...ring.wrap(common),
     dispose() {
       g.dispose();
       quad.dispose();

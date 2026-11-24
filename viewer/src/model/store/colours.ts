@@ -1,21 +1,20 @@
-// What the colours show: the colour mode (particle type, each layer its own, or truth) and, per layer, the display
-// hint as drawn in that mode; and what the truth graph says of each kind of object (docs/truth.md), in the words the
-// colour key and the cards use. The rules are in model/modes.ts and model/match.ts; this file holds the signals.
+// The colour signals: the colour mode and each layer's display hint as drawn in it, the truth level, the truth graph,
+// and each kind's truth status. The rules are in colour/modes.ts and truth/match.ts.
 import { computed, signal } from "@preact/signals";
 import type { DisplayLayer, EventData, Header } from "../../io/format";
 import { colours, describeNoLink, type Legend, type Pal } from "../../render/colour";
-import { colourBy, type ColourMode, withColour } from "../custom";
-import { inText } from "../describe";
-import { facts } from "../facts";
-import { truthStatus, type TruthStatus } from "../match";
-import { type ColourLevel, graphOf } from "../truth";
-import { modeColouring, modeRoots, recoColourOf } from "../modes";
+import { colourBy, type ColourMode, withColour } from "../custom/settings";
+import { inText } from "../event/describe";
+import { facts } from "../truth/facts";
+import { truthStatus, type TruthStatus } from "../truth/match";
+import { graphOf } from "../truth/graph";
+import type { ColourLevel } from "../truth/levelFlags";
+import { modeColouring, modeRoots, recoColourOf } from "../colour/modes";
 import { bundle, event } from "./data";
 import { kindOf, labelOf, layerKey, layerOf } from "./names";
 import { domain } from "./view";
 
-/** The bundle's two colour roots (the truth particles, the candidates) and how each table reaches them
- *  (model/modes.ts). Computed once per bundle. */
+/** The bundle's two colour roots (the truth particles, the candidates) and how each table reaches them. */
 export const modes = computed(() => {
   const h = bundle.value?.header,
     roots = h ? modeRoots(h) : {};
@@ -26,39 +25,32 @@ export const modes = computed(() => {
   return { roots, colouring };
 });
 
-/** What the colours show, as the user chose (key T, or the switch in the colour key): the reconstruction, or the
- *  truth. Not remembered: a bundle opens on the reconstruction. */
+/** What the colours show, as the user chose (key T, or the colour key's switch). Not remembered. */
 export const colourChoice = signal<"reco" | "truth">("reco");
 
-/** The truth level the truth colours group the particles by (model/truth.ts COLOUR_LEVELS), as chosen in the colour
- *  key; null: the profile's (the truth particles' `particle` bit). */
+/** The truth level the truth colours group by, as chosen in the colour key; null: the profile's `particle` bit. */
 export const truthLevel = signal<ColourLevel | null>(null);
 
-/** Whether the bundle can colour by truth: its truth particles say which level is "the particle" (display hint
- *  `particle`). Bundles made before that hint have none, and their truth colours would follow other rules than the
- *  key describes. */
+/** Whether the bundle can colour by truth: its truth particles have the `particle` hint (older bundles do not, and
+ *  their colours would follow other rules than the key describes). */
 export const truthColours = computed(() => {
   const t = modes.value.roots.truth;
   return !!t && !!bundle.value?.header.display.some((d) => d.table === t && d.particle);
 });
 
-/** The colour mode: "truth" when chosen and the bundle has truth particles; otherwise "pid" when the bundle has a
- *  reconstruction root (candidates), else "layers". Also "layers" while a domain that asks for it (its `colourMode`)
- *  is looked at, e.g. the tracker, whose tracks keep their pT colours. */
+/** The colour mode: "truth" when chosen and possible; else "pid" with a reconstruction root (candidates), unless the
+ *  domain looked at asks for "layers" (the tracker, whose tracks keep their pT colours). */
 export const activeMode = computed<ColourMode>(() => {
   if (colourChoice.value === "truth" && truthColours.value) return "truth";
   const d = bundle.value?.header.domains?.find((x) => x.name === domain.value);
   return modes.value.roots.reco && d?.colourMode !== "layers" ? "pid" : "layers";
 });
 
-/** A layer's display hint as drawn in colour mode `mode`, then with the user's colour choice for it (`by`).
- *  - "truth": every reco layer takes the colour of the truth particle its chain leads to, or one neutral colour; a
- *    kind with no truth of its own is also faint.
- *  - "pid": the reconstruction root (candidates) keeps its own colouring (particle type), and every reco layer whose
- *    colouring chain reaches it takes its candidate's colour. A categorical reco layer that cannot reach it is drawn by
- *    its colour column if it has one and no colour of its kind (`fixedColour`), else keeps its own colouring (e.g. one
- *    colour per vertex, a muon's kind colour).
- *  - Truth and background layers keep their own colouring in every mode (a particle is not a candidate). */
+/** A layer's display hint as drawn in colour mode `mode`, with the user's colour choice for it (`by`):
+ *  - "truth": a reco layer takes the colour of the truth particle its chain leads to, or a neutral one;
+ *  - "pid": a reco layer whose chain reaches the candidates takes its candidate's colour; one that cannot is drawn by
+ *    its colour column if it has no colour of its kind, else keeps its own colouring;
+ *  - truth and background layers keep their own colouring in every mode. */
 export function shownLayer(d: DisplayLayer, mode = activeMode.peek(), by = colourBy.peek()): DisplayLayer {
   const { colouring, roots } = modes.peek();
   if (mode === "truth" && !d.context && !d.truth) {
@@ -68,17 +60,14 @@ export function shownLayer(d: DisplayLayer, mode = activeMode.peek(), by = colou
     return withColour({ ...d, colourBy: c ?? "none", fixedColour: undefined, ...faint }, by[layerKey(d)]);
   }
   const pid = mode === "pid" && !d.context && !d.truth;
-  // Only a chain that reaches the candidates: one that ends elsewhere (e.g. calorimeter hits through PF clusters to PF
-  // candidates) would show another table's categories under a key that describes candidate types.
   const h = bundle.peek()?.header,
     c = pid && h && colouring.reco && roots.reco ? recoColourOf(h, colouring.reco, roots.reco, d.table) : undefined;
   const plain = pid && !c && d.table !== roots.reco && d.colourBy && d.colour && !d.fixedColour; // a kind's own colour wins
   return withColour(c ? { ...d, colourBy: c } : plain ? { ...d, colourBy: undefined } : d, by[layerKey(d)]);
 }
 
-/** The domain looked at is a calorimeter's: it records simulated energy in hits drawn as cells (HGCal, Calo; not a
- *  muon system's chamber deposits). Truth particles are then named by their energy, elsewhere by pT and η (names.ts
- *  truthText). */
+/** The domain looked at is a calorimeter's (simulated energy in hits drawn as cells): truth particles are then named
+ *  by their energy, elsewhere by pT and η (names.ts truthText). */
 export const caloView = computed(() => {
   const dom = domain.value,
     h = bundle.value?.header;
@@ -92,8 +81,8 @@ export const caloView = computed(() => {
   );
 });
 
-/** The truth particles as a graph (model/truth.ts): parents, children and vertices, once per event; null without truth
- *  particles. Their vertex table is the other truth table a plain relation from them reaches. */
+/** The truth particles as a graph (truth/graph.ts), once per event; null without them. Their vertex table is the
+ *  other truth table a plain relation from them reaches. */
 export const truthGraph = computed(() => {
   const b = bundle.value,
     ev = event.value,
@@ -115,7 +104,7 @@ export const truthGraph = computed(() => {
 /** How far a kind with no truth is mixed towards the background in the truth mode. */
 export const FAINT = 0.6;
 
-/** Each drawn table's truth status (model/match.ts truthStatus). Computed once per bundle. */
+/** Each drawn table's truth status (truth/match.ts truthStatus), once per bundle. */
 export const truthStatuses = computed(() => {
   const b = bundle.value,
     out = new Map<string, TruthStatus>();
@@ -142,9 +131,8 @@ export function truthName(table: string) {
 /** Whether `table` is a kind with no truth of its own (status "none"). */
 export const noTruth = (table: string) => truthStatuses.peek().get(table)?.kind === "none";
 
-// The words under a layer drawn in one neutral colour. render/colour.ts asks for them through this hook, so that the
-// renderer does not depend on the store. In the truth mode they say why the kind has no truth (docs/truth.md "Where
-// truth stops").
+// The words under a layer drawn in one neutral colour, through a hook so that the renderer does not depend on the
+// store.
 describeNoLink((d) => {
   const s = activeMode.peek() === "truth" ? truthStatuses.peek().get(d.table) : undefined;
   if (s?.kind === "none") return `no CMSSW associator for ${inText(truthName(d.table))}`; // the gap: behind the key's i and in the Truth tab
@@ -152,9 +140,8 @@ describeNoLink((d) => {
   return "one colour: no link to the colour's source";
 });
 
-/** Adds to the legends `drawn` (layer key -> legend) the colour root's (the candidate types the key lists), also when
- *  that layer is not drawn: the PF candidates start unticked, and a preset can untick them again. One pass over its
- *  rows, under a millisecond for 10k PF candidates. */
+/** Adds the colour root's legend (the candidate types the key lists) to `drawn`, also when the root is not drawn (the
+ *  PF candidates start unticked). One pass over its rows. */
 export function withRootLegend(header: Header, ev: EventData, drawn: Record<string, Legend>, pal: Pal) {
   const root = modes.peek().roots.reco,
     d = root === undefined ? undefined : layerOf(root),

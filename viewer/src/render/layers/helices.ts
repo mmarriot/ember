@@ -1,13 +1,14 @@
 // Charged particles' paths in the solenoid field (`helix`, the maths in render/helix.ts). The GPU gets a few numbers
-// per path and the vertex shader puts each point of a line strip on it; picking and framing use a coarser polyline
-// computed on the CPU, per path, when first needed.
+// per path and the vertex shader puts each point of a line strip on it; picking and framing use a coarser CPU
+// polyline, computed per path when first needed.
 import * as THREE from "three";
 import { type Table, toF32 } from "../../io/format";
-import { HIDDEN } from "../../model/cuts";
+import { HIDDEN } from "../../model/custom/cuts";
 import { endsOrCylinder, isToCylinder } from "../geometry";
 import { helixPaths, type Paths, polylines } from "../helix";
 import {
   baseUniforms,
+  columns3,
   commonFields,
   CULL,
   DASHED_LINE_FRAGMENT,
@@ -16,6 +17,8 @@ import {
   interleave,
   type Layer,
   type LayerInput,
+  lineWidthUniforms,
+  newVec3s,
   positions,
   SHADER_COMMON,
   shaderLayer,
@@ -35,14 +38,11 @@ const pathCache = new WeakMap<
   Map<string, { paths: Paths; pieces: Uint16Array; ends: Float32Array[]; pick: NonNullable<Layer["path"]> }>
 >();
 
-/** Charged particles' paths, drawn and picked like segments (cuts, selection, replay, truth dashes). Per object the
- *  GPU gets the start, the unit direction, the curvature, two lengths and the end point, and the vertex shader puts
- *  each point of the strip on the path: 48 bytes per path, not a polyline. */
+/** Charged particles' paths, drawn and picked like segments. Per path the GPU gets the start, the unit direction, the
+ *  curvature, two lengths and the end point (48 bytes, not a polyline). */
 export function helices(input: LayerInput): Layer {
   const { d, t, field } = input;
-  const start = positions(input),
-    cols = (names?: readonly string[]) =>
-      (names ?? []).map((c) => toF32(t.columns[c], t.n)) as [Float32Array, Float32Array, Float32Array];
+  const start = positions(input);
   const key = JSON.stringify([d.position, d.momentum, d.charge, d.end, d.length, field]);
   let byHint = pathCache.get(t);
   if (!byHint) pathCache.set(t, (byHint = new Map()));
@@ -50,13 +50,12 @@ export function helices(input: LayerInput): Layer {
   // A layer with nothing to draw (e.g. truth particles shown for a selection, none yet) skips the paths: computing them
   // for every row (100k truth particles at PU200) costs ~50 ms per event; the first selection computes them.
   if (!cached && input.cut && !input.cut.some((v) => v > HIDDEN)) {
-    const zeros = () =>
-      [new Float32Array(t.n), new Float32Array(t.n), new Float32Array(t.n)] as [
-        Float32Array,
-        Float32Array,
-        Float32Array,
-      ];
-    const paths: Paths = { n: t.n, dir: new Float32Array(3 * t.n), path: new Float32Array(3 * t.n), end: zeros() };
+    const paths: Paths = {
+      n: t.n,
+      dir: new Float32Array(3 * t.n),
+      path: new Float32Array(3 * t.n),
+      end: newVec3s(t.n),
+    };
     const none = new Float32Array(2 * t.n).fill(NaN); // picking: never reached (nothing passes the cut)
     cached = {
       paths,
@@ -65,9 +64,9 @@ export function helices(input: LayerInput): Layer {
       pick: { points: 2, x: none, y: none, z: none, fill() {} },
     };
   } else if (!cached) {
-    const momentum = d.momentum ? cols(d.momentum) : cols(["", "", ""]),
+    const momentum = columns3(t, d.momentum ?? ["", "", ""]),
       charge = toF32(d.charge ? t.columns[d.charge] : undefined, t.n);
-    let end = cols(d.end ?? d.position);
+    let end = columns3(t, d.end ?? d.position);
     if (isToCylinder(d.length)) end = endsOrCylinder(start, momentum, end, t.n, d.length.to); // where `end` is not finite
     const paths = helixPaths(start, momentum, charge, end, t.n, field),
       pieces = new Uint16Array(t.n);
@@ -130,8 +129,7 @@ export function helices(input: LayerInput): Layer {
     uniforms: {
       ...baseUniforms(input.pal, input.d.context),
       uDash: { value: d.truth ? 1 : 0 },
-      uWidth: { value: (d.width ?? 1) * (globalThis.devicePixelRatio ?? 1) },
-      uRes: { value: new THREE.Vector2(1, 1) },
+      ...lineWidthUniforms(d.width ?? 1),
     },
     defines: wide ? { WIDE: 1 } : {},
     side: THREE.DoubleSide,
@@ -209,18 +207,7 @@ export function helices(input: LayerInput): Layer {
     pickBias: 0.8,
     line: true,
     ...common,
-    setPinned(row) {
-      common.setPinned(row);
-      ring.pin(material.uniforms.uPin0.value, material.uniforms.uPin1.value);
-    },
-    setHighlight(rows) {
-      common.setHighlight(rows);
-      ring.refresh(); // the halo's copy of the selection flags
-    },
-    setTimeline(appear, link) {
-      common.setTimeline(appear, link);
-      ring.refresh(); // and of the replay's times
-    },
+    ...ring.wrap(common),
     dispose() {
       g.dispose();
       strip.dispose();

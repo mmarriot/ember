@@ -3,9 +3,9 @@
 // focus.
 import { batch, computed, effect, signal } from "@preact/signals";
 import { type DisplayLayer, kindName } from "../io/format";
-import { filterMask, filters } from "../model/custom";
-import { rowsInDomain, stepDomain, withFocus } from "../model/domains";
-import { passes, stepRow, topRows } from "../model/objects";
+import { filterMask, filters } from "../model/custom/settings";
+import { rowsInDomain, stepDomain, withFocus } from "../model/event/domains";
+import { passes, stepRow, topRows } from "../model/event/objects";
 import {
   anchor,
   bundle,
@@ -36,15 +36,14 @@ import {
   unlook,
   view,
 } from "../model/store";
-import type { Ref } from "../model/relations";
-import { inText } from "../model/describe";
-import { leadChoice, partChoices, type PartChoice } from "../model/statement";
+import type { Ref } from "../model/event/relations";
+import { inText } from "../model/event/describe";
+import { leadChoice, partChoices, type PartChoice } from "../model/truth/statement";
 import { engine } from "./scene";
 
-/** Frame the focus in the part of the view the card leaves free (engine.frame, store `framed`): `F`, a double click,
- *  the card's button, X, back, a link; `ms`: the glide's length (0: at once). In a part of the detector, what it has
- *  there (partFrame), as when the part is chosen: a TICL candidate's shower, not the whole track from the vertex to
- *  it, which would leave the shower a speck at the edge. */
+/** Frame the focus (store `framed`) in the part of the view the card leaves free; `ms`: the glide's length (0: at
+ *  once). In a part of the detector, what it has there (partFrame): a TICL candidate's shower, not the whole track
+ *  from the vertex to it, which would leave the shower a speck at the edge. */
 export function frameFocus(ms = 450) {
   const rows = framed.peek(),
     f = focus.peek(),
@@ -63,9 +62,9 @@ function partFrame(name: string | null, hl: Map<string, Set<number>>) {
   return LINES.has(layerOf(f.table)?.repr ?? "") ? part : withFocus(part, f);
 }
 
-/** For a vertex (profile kind "vertex", "secondaryVertex", ...: made of lines, its tracks), the radius it is framed
- *  at: the smallest `minRadius` of its lines' parts of the detector (the tracker's: about the pixel volume), so the
- *  view shows where its tracks start, not the whole tracker they cross. Undefined for anything else. */
+/** For a vertex (kind "vertex", "secondaryVertex", ...), the radius it is framed at: the smallest `minRadius` of its
+ *  tracks' parts of the detector (the tracker's: about the pixel volume), so the view shows where its tracks start,
+ *  not the whole tracker. Undefined for anything else. */
 function vertexRadius(f: Ref, rows: Map<string, Set<number>>) {
   const d = layerOf(f.table),
     h = bundle.peek()?.header;
@@ -105,7 +104,7 @@ const same = (a: Ref | null | undefined, b: Ref | null | undefined) =>
 
 /** A particle X can go to from an object without a truth link of its own: one of its parts' own matches. */
 export type CrossChoice = PartChoice;
-/** The card object's parts' particles, all of them, largest part first (model/statement.ts partChoices); X's chooser
+/** The card object's parts' particles, all of them, largest part first (model/truth/statement.ts partChoices); X's chooser
  *  lists the first CHOOSER. */
 export const partParticles = computed<CrossChoice[]>(() => {
   const st = statement.value,
@@ -205,10 +204,9 @@ function crossJump(to: Ref) {
   crossed.value = from ? { from: { table: from.table, row: from.row }, to: { ...to } } : null;
 }
 
-/** Look at one domain (header `domains`): only its layers and those without a domain are drawn (those of shared
- *  domains as an overlay, store/view.ts `overlay`), in its view and colour mode (store/colours.ts activeMode), and its
- *  layers' tab opens in the side panel; null: everything, in the bundle's starting view. A selection is kept: the view frames its objects in the domain (e.g. a
- *  jet's calorimeter clusters), else the domain's region (All: the objects). `animate`: glide there. */
+/** Look at one domain (header `domains`; null: everything, in the bundle's starting view): its view, colour mode
+ *  (store activeMode) and side-panel tab. A selection is kept: the view frames its objects in the domain (a jet's
+ *  calorimeter clusters), else the domain's region. `animate`: glide there. */
 export function chooseDomain(name: string | null, animate = true) {
   const h = bundle.peek()?.header,
     d = h?.domains?.find((x) => x.name === name);
@@ -226,7 +224,7 @@ export function chooseDomain(name: string | null, animate = true) {
   else engine?.frame(undefined, animate);
 }
 
-/** The focus's objects (`hl`: of its highlight) that domain `name` draws as its own (model/domains.ts rowsInDomain);
+/** The focus's objects (`hl`: of its highlight) that domain `name` draws as its own (model/event/domains.ts rowsInDomain);
  *  null without a focus. */
 function focusIn(name: string | null, hl = highlight.peek()) {
   const h = bundle.peek()?.header;
@@ -261,9 +259,9 @@ export function ranked(d: DisplayLayer, max = Infinity): number[] {
 }
 
 /** Select the next (`by` 1) or previous (-1) object of the selected one's kind, largest first (keyboard: N, Shift+N);
- *  without a selection, the leading object of the first drawn layer with labels (or object rows). Not for hits, which
- *  lead nowhere (400k HGCal cells at PU200). A press ranks the kind's passing rows: a sort of the table, ~40 ms for the
- *  110k layer clusters of a PU200 event, under 2 ms for its tracks (measured). */
+ *  without a selection, the leading object of the first drawn layer with labels (or object rows). Not for hits (400k
+ *  HGCal cells at PU200). A press sorts the kind's passing rows: measured ~40 ms for the 110k layer clusters of a
+ *  PU200 event, under 2 ms for its tracks. */
 export function nextObject(by = 1) {
   const b = bundle.peek(),
     sel = selection.peek();

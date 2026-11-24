@@ -1,4 +1,4 @@
-"""The whole detector in ember's own NanoAOD: the tables that embertools/cmsrun.py writes (tests/own_tables.json,
+"""The whole detector in ember's own NanoAOD: the tables that embertools/cmsrun/ writes (tests/own_tables.json,
 from the stock Phase-2 ttbar step3) under the phase2 profile: the PF candidates, the colour root, with the rows of
 what they were made from; physics objects linked to their tracks, superclusters and PF candidates; every vertex; the
 muon system; the presets that need them."""

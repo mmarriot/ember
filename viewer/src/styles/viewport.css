@@ -1,8 +1,10 @@
-/* The view (Viewport.tsx): the canvas and what is drawn over it: tooltip, captions, the hint bar, the views'
-   buttons, the note while one kind is drawn alone, and the labels on objects. */
+/* The view (Viewport.tsx) and what is drawn over it: tooltip, captions, hint bar, the views' buttons and chips, the
+   title box and the labels. */
+/* A width container: the caption follows the view's width, not the window's (the @container rule below). */
 .viewport {
   position: absolute;
   inset: 0;
+  container-type: inline-size;
 }
 .viewport canvas {
   display: block;
@@ -31,7 +33,7 @@
   align-items: center;
   gap: 1px;
   padding: 6px 14px;
-  border-radius: 8px;
+  border-radius: var(--radius);
   background: var(--overlay);
   border: 1px solid var(--line);
   box-shadow: var(--shadow);
@@ -73,7 +75,7 @@
   padding: 3px 8px;
   border-radius: 6px;
 }
-/* A first visit's hints (ui/Hint.tsx): readable, with a way to dismiss them. */
+/* A first visit's hints (ui/viewport/Hint.tsx): readable, with a way to dismiss them. */
 .hintbar.first {
   display: flex;
   gap: 10px;
@@ -83,9 +85,6 @@
   border: 1px solid var(--accent);
   pointer-events: auto;
 }
-.hintbar.first button {
-  font-size: 12px;
-}
 .viewport > .views {
   position: absolute;
   left: 12px;
@@ -94,7 +93,7 @@
   z-index: 2;
 }
 .viewport > .views ~ .hintbar {
-  /* the inspector takes the right */
+  /* right of the views' buttons; the card takes the right */
   left: 226px;
   max-width: calc(100% - 240px);
 }
@@ -107,7 +106,7 @@
   background: var(--accent);
 }
 
-/* Above the views: the chips that change what is drawn around the event (Viewport.tsx). */
+/* Above the views: the chips that change what is drawn around the event (ViewControls.tsx). */
 .viewchips {
   position: absolute;
   left: 12px;
@@ -153,18 +152,14 @@
   background: var(--accent);
 }
 
-/* One kind alone: the note on the view while it lasts. */
 /* Where the view is too narrow for the title (top left) and a caption (top centre) side by side, the caption goes
-   under the title. The view is a width container, so this follows its width, not the window's. */
-.viewport {
-  container-type: inline-size;
-}
+   under the title. */
 @container (max-width: 1150px) {
   .caption {
     top: 84px;
   }
 }
-/* The view's title, top left (ui/TitleBox.tsx): the event, the physics objects in one line, and "Only …". */
+/* The view's title, top left (ui/viewport/TitleBox.tsx): the event, the physics objects in one line, and "Only …". */
 .titlebox {
   position: absolute;
   top: 10px;
@@ -221,8 +216,8 @@
   gap: 8px;
   align-items: baseline;
 }
-/* Labels on the leading objects, the focus, and the object under the pointer in the object rows. The element sits
-   at the anchor; its text is offset up and right, with a short leader. */
+/* Labels (Labels.tsx). The element sits at the anchor, with a dot; its text is offset up and right (placement.ts
+   assumes these offsets). */
 .labels {
   position: absolute;
   inset: 0;
@@ -249,7 +244,7 @@
   border-radius: 4px;
   background: var(--overlay);
   border: 1px solid var(--line);
-  color: var(--text, inherit);
+  color: var(--text);
 }
 .labels .label::before {
   content: "";
@@ -306,8 +301,8 @@
 .labels .label.truth span,
 .labels .label.truth.selected span {
   background: var(--overlay);
-  border: 1px dashed #d7a6ff;
-  color: #d7a6ff;
+  border: 1px dashed var(--truth);
+  color: var(--truth);
 }
 .labels .label.truth.selected span {
   border-width: 2px;
@@ -315,15 +310,8 @@
 .labels .label.truth::before,
 .labels .label.truth.selected::before,
 .labels .label.truth.hover::before {
-  border-color: #d7a6ff;
+  border-color: var(--truth);
   border-style: dashed;
-}
-[data-theme="light"] .labels .label.truth span {
-  border-color: #7a3fb0;
-  color: #7a3fb0;
-}
-[data-theme="light"] .labels .label.truth::before {
-  border-color: #7a3fb0;
 }
 
 /* Without the fade for those who ask for less motion: after the rule that sets it, so that it wins. */

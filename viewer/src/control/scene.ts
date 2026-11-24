@@ -1,19 +1,15 @@
-// What the engine draws, kept in step with the store. startScene creates the engine on the view's canvas and a set of
-// effects (each re-runs when a signal it reads changes):
-// - the event, theme, colour mode or choices, or filters change: every layer is rebuilt (stopLayers);
-// - ticking a layer, choosing a domain or a new focus changes which layers are drawn: only those are built or freed
-//   (stopForced);
-// - a cut only sets a uniform per layer (stopCuts), and the focus a byte per object (stopFocus), plus a rebuild of the
-//   layers drawn only for the selection, which upload only the focus's rows.
-// The layers drawn now are `entries`. replayEvent and growTables animate them (the replay, the tour).
-import { effect, signal, untracked } from "@preact/signals";
+// What the engine draws, kept in step with the store. startScene creates the engine and effects that re-run when a
+// signal they read changes:
+// - the event, theme, colour mode or choices, filters or truth level: every layer is rebuilt (stopLayers);
+// - ticks, the domain or the focus change which layers are drawn: only those are built or freed (stopForced);
+// - a cut sets a uniform per layer (stopCuts), the focus a byte per object (stopFocus), and both rebuild the layers
+//   drawn only for the selection, which upload only its rows.
+// The layers drawn now are `entries`; replayEvent and growTables animate them (the replay, the tour).
+import { effect, signal } from "@preact/signals";
 import { Color, LinearSRGBColorSpace } from "three";
 import type { DisplayLayer, EventData, Header, Table } from "../io/format";
-import { colourBy, filterMask, filters } from "../model/custom";
-import { cutMin, cutValues, HIDDEN, rescued } from "../model/cuts";
-import { madeOfSimCells } from "../model/facts";
-import { PAIR, type Pair, pairKey } from "../model/pair";
-import { identities, type SlotRank } from "../model/relations";
+import { colourBy, filterMask, filters } from "../model/custom/settings";
+import { cutMin, cutValues, rescued } from "../model/custom/cuts";
 import {
   activeMode,
   bundle,
@@ -23,7 +19,6 @@ import {
   event,
   focus,
   focusHidden,
-  focusIsTruth,
   focusLayers,
   highlight,
   hover,
@@ -31,12 +26,8 @@ import {
   layerKey,
   layerOf,
   legends,
-  levelTop,
-  noTruth,
-  modes,
-  numberOf,
+  lookAlone,
   pairView,
-  parentRows,
   rawEvent,
   replayCaption,
   rest,
@@ -45,62 +36,62 @@ import {
   shown,
   shownLayer,
   shownLevel,
-  lookAlone,
   theme,
   touring,
   truthLevel,
-  truthPreview,
   truthRank,
   view,
   withRootLegend,
 } from "../model/store";
-import { colours, type LayerFor, type Legend, PALETTES, valueRange, type Pal, type Range } from "../render/colour";
+import { type Legend, type Pal, PALETTES } from "../render/colour";
 import { Engine, MIN_RADIUS } from "../render/engine";
 import { builders, type Layer } from "../render/layers";
 import { REST_FADE, restUniform } from "../render/layers/layer";
 import { growIn, planReplay, type Parts, type Plan } from "../render/replay";
+import { colourEntries, pairKeyOf, slotsKey, underHits } from "./sceneColours";
+import { bypassing, dress, nothingDrawn, onlyFor, outline, relationOf, replayOnly, truthOutline } from "./sceneFocus";
 
 /** The engine, once the view's canvas exists (startScene). */
 export let engine: Engine | null = null;
 
 /** A layer drawn now, with what it was built from. */
 interface Entry {
-  d: DisplayLayer; // its display hints as drawn: with the colour mode's and the user's colours (store/colours.ts shownLayer)
-  t: Table; // its table in the event
+  d: DisplayLayer; // its display hint as drawn, with the colour mode's and the user's colours (shownLayer)
+  t: Table;
   key: string; // layerKey(d)
-  cut?: Float32Array; // per row, the value compared with the cut; filtered-out rows hidden (model/cuts.ts cutValues)
+  cut?: Float32Array; // per row, the value compared with the cut (model/custom/cuts.ts cutValues)
   keep: Float32Array | null; // its filter, per row (null: no filter)
-  rescued: string; // the focus's rows that the filter hides but that are drawn anyway (model/cuts.ts rescued)
+  rescued: string; // the focus's rows that the filter hides but that are drawn anyway (cuts.ts rescued)
   rgb: Float32Array; // colour per row
   emphasis?: Uint8Array; // per row, 0 for an object drawn small (outside the truth <-> reco pair)
-  layer: Layer; // what the engine draws
-  uncoloured?: boolean; // nothing of it is drawn yet (e.g. truth particles before a selection): its colours wait (build)
-  limited?: boolean; // built with only the focus's rows (an onSelection layer): showing them all again rebuilds it
+  layer: Layer;
+  uncoloured?: boolean; // nothing of it is drawn yet (truth particles before a selection): its colours wait
+  limited?: boolean; // built with only the focus's rows: showing them all again rebuilds it
 }
-let entries: Entry[] = []; // what is drawn now
+let entries: Entry[] = [];
 
 let plan: Plan | null = null;
-// While a replay runs, the layers of every reconstruction stage are drawn (the earlier ones start hidden), so the
-// replay can walk through them; afterwards only the visible layers are rebuilt.
+/** A replay runs: the layers of every reconstruction stage are drawn (the earlier ones start hidden), so the replay can
+ *  walk through them; afterwards only the visible layers are rebuilt. */
 const replaying = signal(false);
 
-/** Replay how the shown event built up (see render/replay.ts); returns the plan, with its phase times (s of replay;
+/** Replay how the shown event built up (render/replay.ts); returns the plan, with its phase times (s of replay;
  *  `pace`: real seconds per second of replay). */
 export function replayEvent(pace = 1): Plan | null {
   if (!engine) return null;
   engine.stopReplay(); // a running replay ends first (its end resets `replaying`), so the rebuild below sticks
   lookAlone(null); // the replay builds the whole event up, not one kind
-  replaying.value = true; // rebuilds the layers at once (an effect), including the hidden stages
+  replaying.value = true; // rebuilds the layers at once (stopLayers), with the hidden stages
   if (!entries.length) {
     replaying.value = false; // nothing to replay, so no replay's end will reset it
     return null;
   }
   hover.value = null;
-  // The phases follow the bundle's display hints, not the colours drawn: a colour mode or choice that colours hits
-  // through a relation (e.g. "Particle type") must not make them appear with the clusters.
+  // The phases follow the bundle's display hints, not the colours drawn: a colour mode that colours hits through a
+  // relation (e.g. "Particle type") must not make them appear with the clusters.
   const header = bundle.peek()?.header,
     hints = new Map(header?.display.map((d) => [layerKey(d), d]));
-  const items = entries.filter((e) => !e.d.context).map((e) => ({ ...e, d: hints.get(e.key) ?? e.d })); // background stays as it is
+  const items = entries.filter((e) => !e.d.context).map((e) => ({ ...e, d: hints.get(e.key) ?? e.d }));
   const ev = event.peek(),
     parts: Parts = (name) => {
       const r = header?.relations[name],
@@ -116,16 +107,16 @@ export function replayEvent(pace = 1): Plan | null {
         : undefined;
     };
   plan = planReplay(items, header?.replay, parts);
-  // The parts drawn whole only for the replay shrink away at its end, rather than vanishing when the layers are rebuilt.
-  for (const e of entries) if (replayOnly(e.d, e.key, highlight.peek())) e.layer.setRetire(plan.linkEnd);
+  // The parts drawn whole only for the replay shrink away at its end, rather than vanishing at the rebuild.
+  for (const e of entries)
+    if (replayOnly(e.d, e.key, highlight.peek(), /* replaying: set above */ true)) e.layer.setRetire(plan.linkEnd);
   engine.replay(plan.seconds, undefined, pace);
   if (import.meta.env.DEV) Object.assign(window, { emberPlan: plan }); // for the e2e tests
   return plan;
 }
 
 /** The tour: grow in the drawn layers of these tables over `seconds` (render/replay.ts growIn; times `pace` in real
- *  seconds), the others staying as they are. Unlike replayEvent, nothing is rebuilt: the tour has drawn the layers it
- *  shows. */
+ *  seconds), the others staying as they are. Nothing is rebuilt: the tour has drawn the layers it shows. */
 export function growTables(tables: Set<string>, seconds: number, pace = 1) {
   if (!engine) return;
   engine.stopReplay(); // the previous step's objects in their final state
@@ -150,8 +141,8 @@ export function startScene(canvas: HTMLCanvasElement): () => void {
   };
   let lastEvent: unknown = null;
 
-  // Cuts hide objects (one uniform per layer) and reset the value scales to what passes them; categorical colours
-  // do not depend on the cuts.
+  // Cuts hide objects (one uniform per layer) and, with `recolour`, reset the value scales to what passes them;
+  // categorical colours do not depend on the cuts.
   const applyCuts = (recolour: boolean) => {
     const b = bundle.peek(),
       ev = event.peek(),
@@ -159,32 +150,28 @@ export function startScene(canvas: HTMLCanvasElement): () => void {
       counts: Record<string, number> = {};
     for (const e of entries) counts[e.key] = e.layer.setCut(cutMin(e.d, e.cut, c));
     shown.value = counts;
-    if (recolour && b && ev) {
-      const ramps = entries.filter((e) => !e.d.colourBy),
-        drawn = { ...legends.peek() };
-      colourEntries(ramps, ev, b.header, c, PALETTES[theme.peek()]).forEach(({ rgb, legend }, i) => {
-        ramps[i].layer.setColours(rgb);
-        ramps[i].rgb = rgb;
-        drawn[ramps[i].key] = legend;
-      });
-      legends.value = drawn;
-    }
+    if (recolour && b && ev)
+      recolourInPlace(
+        entries.filter((e) => !e.d.colourBy),
+        ev,
+        b.header,
+        PALETTES[theme.peek()],
+      );
     eng.requestRender();
   };
-  // The layers whose rows depend on the focus: those that show only its objects (e.g. track hits), rebuilt on every
-  // focus (they are small) and, with `cutsOnly`, on a cut (they leave out the objects of what the cut hides); and
-  // the filtered layers whose rows hidden by the default filter but in the focus changed.
+  // Rebuilds the layers whose rows depend on the focus: those drawn only for its objects (on every focus, as they are
+  // small, and with `cutsOnly` on a cut, which hides some of their objects' parents), those going back to all their
+  // rows ("only for the selection" unticked), and the filtered ones whose rescued focus rows changed.
   const rebuildForFocus = (cutsOnly: boolean) => {
     const hl = highlight.peek(),
       f = filters.peek(),
       pal = PALETTES[theme.peek()],
-      b = bundle.peek();
+      b = bundle.peek(),
+      all = replaying.peek();
     for (const e of entries) {
-      const only = onlyFor(e.d, e.key, hl),
+      const only = onlyFor(e.d, e.key, hl, all),
         focusRows = bypassing(e.d, f, hl),
         again = rescued(e.keep, focusRows);
-      // Rebuilt: a layer of the focus's rows (on a new focus, or a cut), one that goes back to all its rows ("only for
-      // the selection" unticked), and a filtered one whose rescued focus rows changed.
       if (cutsOnly ? !only : !only && !e.limited && again === e.rescued) continue;
       const cut = cutValues(e.d, e.t, f[e.d.table], only, focusRows),
         ev = event.peek();
@@ -264,14 +251,15 @@ export function startScene(canvas: HTMLCanvasElement): () => void {
   ): Entry[] => {
     const f = filters.peek(),
       hl = highlight.peek(),
-      pal = PALETTES[theme.peek()];
+      pal = PALETTES[theme.peek()],
+      all = replaying.peek();
     const items = layers.map((d0) => {
       const key = layerKey(d0),
         d = shownLayer(d0),
         t = ev.tables[d.table],
         keep = filterMask(t, f[d.table]),
-        focusRows = bypassing(d, f, hl);
-      const only = onlyFor(d, key, hl);
+        focusRows = bypassing(d, f, hl),
+        only = onlyFor(d, key, hl, all);
       return {
         d,
         t,
@@ -313,10 +301,10 @@ export function startScene(canvas: HTMLCanvasElement): () => void {
 
   let builtFor: EventData | null = null; // the event the layers were built for
   let outlinesFor: unknown[] = []; // the bundle and palette the detector outlines were drawn for
-  let lastPair = pairKeyOf(pairView.peek()); // the pair whose colours the layers have (recoloured when it changes)
-  let lastRank = ""; // the truth colours' slots the layers have (slotsKey; recoloured when it changes)
-  // What every layer was built with: a change rebuilds them all. Which layers are drawn (ticks, domain, focus) is not
-  // in it: those changes only build or free the layers concerned (stopForced).
+  let lastPair = pairKeyOf(pairView.peek()); // the pair whose colours the layers have
+  let lastRank = ""; // the truth colours' slots the layers have (slotsKey)
+  // What every layer was built with: a change rebuilds them all. Which layers are drawn is not in it: those changes
+  // only build or free the layers concerned (stopForced).
   const settings = () => [
     bundle.peek(),
     event.peek(),
@@ -336,12 +324,11 @@ export function startScene(canvas: HTMLCanvasElement): () => void {
     activeMode.value;
     filters.value;
     truthLevel.value; // the truth particles drawn before a selection, and every truth colour
-    replaying.value; // any change rebuilds every layer
+    replaying.value;
     builtWith = settings();
     if (!b || !ev) return;
     eng.setBackground(pal.background);
     if (outlinesFor[0] !== b || outlinesFor[1] !== pal) {
-      // their geometry: once per bundle and theme
       eng.setOutlines(
         b.header.outlines ?? [],
         new Color().setStyle(pal.unassigned, LinearSRGBColorSpace),
@@ -353,7 +340,7 @@ export function startScene(canvas: HTMLCanvasElement): () => void {
     entries = build(wanted(b.header, ev), b.header, ev, drawn);
     withRootLegend(b.header, ev, drawn, pal);
     builtFor = ev;
-    lastPair = pairKeyOf(pairView.peek()); // built with its colours
+    lastPair = pairKeyOf(pairView.peek());
     lastRank = slotsKey(b.header, ev, truthRank.peek());
     legends.value = drawn;
     eng.setLayers(entries.map((e) => e.layer));
@@ -361,14 +348,13 @@ export function startScene(canvas: HTMLCanvasElement): () => void {
     const raw = rawEvent.peek(); // not `ev`: adding a custom column makes a new event object for the same event
     if (raw !== lastEvent && !touring.peek()) eng.frame(); // the tour flies there itself
     lastEvent = raw;
-    pinSelection(); // the new layers know the selected object: drawn whatever the cut, and standing out
+    pinSelection();
     showFocus(0);
   });
 
-  // Ticks, the domain and the focus change which layers are drawn: a focus draws some hidden layers (e.g. a
-  // candidate's tracksters, when that level is chosen) and hides some ticked ones (e.g. its layer clusters, until
-  // chosen); a domain hides the others' layers. Only those are built or freed; the others keep their buffers (going
-  // from the Tracker view back to All builds the calorimeter layers, not the tracker's again).
+  // Ticks, the domain and the focus change which layers are drawn: a focus draws some hidden layers (a candidate's
+  // tracksters, when that level is chosen) and hides some ticked ones (its layer clusters, until chosen); a domain
+  // hides the others' layers. Only those are built or freed; the others keep their buffers.
   const stopForced = effect(() => {
     focusLayers.value;
     focusHidden.value;
@@ -377,10 +363,10 @@ export function startScene(canvas: HTMLCanvasElement): () => void {
       ev = event.peek();
     // Something every layer depends on changed too (e.g. a domain with its own colour mode): stopLayers rebuilds them.
     if (!b || !ev || ev !== builtFor || settings().some((v, i) => v !== builtWith[i])) return;
-    // A layer drawn only for the focus's rows that now draws all of them, or the reverse (a shared part's layer when
+    // A layer drawn for the focus's rows only that now draws all of them, or the reverse (a shared part's layer when
     // the overlay is turned on or off): rebuilt.
     const hl = highlight.peek();
-    if (entries.some((e) => e.limited !== !!onlyFor(e.d, e.key, hl))) rebuildForFocus(false);
+    if (entries.some((e) => e.limited !== !!onlyFor(e.d, e.key, hl, replaying.peek()))) rebuildForFocus(false);
     const keep = new Set(wanted(b.header, ev).map(layerKey)),
       have = new Set(entries.map((e) => e.key));
     const gone = entries.filter((e) => !keep.has(e.key)),
@@ -406,40 +392,29 @@ export function startScene(canvas: HTMLCanvasElement): () => void {
     applyCuts(false);
   });
 
-  // A new focus: the layers that show only its objects (e.g. truth particles, track hits) are rebuilt, which is cheap
-  // as they are small, and so are the filtered layers whose rows hidden by the filter but in the focus changed (a
-  // candidate's track from another vertex); the other layers keep their buffers. Then every layer fades to the new
-  // highlight.
+  // A new focus: the layers drawn only for its objects are rebuilt (they are small), and so are the filtered layers
+  // whose rescued focus rows changed; the others keep their buffers. Then every layer fades to the new highlight.
   const stopFocus = effect(() => {
-    const pal = PALETTES[theme.peek()],
-      b = bundle.peek(),
+    const b = bundle.peek(),
       ev = event.peek();
     highlight.value;
     showAll.value;
     pairView.value;
-    // A new truth <-> reco pair (or none any more): every layer is recoloured in place (a buffer upload each, no
-    // rebuild).
-    const pair = pairView.peek(),
-      key = pairKeyOf(pair),
+    // A new truth <-> reco pair (or none any more): every layer is recoloured in place.
+    const key = pairKeyOf(pairView.peek()),
       changed = key !== lastPair;
     lastPair = key;
     if (changed && b && ev && ev === builtFor) {
-      const recolour = entries.filter((e) => !e.d.context),
-        drawn = { ...legends.peek() };
-      colourEntries(recolour, ev, b.header, cuts.peek(), pal).forEach(({ rgb, legend }, i) => {
-        recolour[i].layer.setColours(rgb);
-        recolour[i].rgb = rgb;
-        recolour[i].uncoloured = false;
-        drawn[recolour[i].key] = legend;
-      });
-      legends.value = drawn;
+      const list = entries.filter((e) => !e.d.context);
+      recolourInPlace(list, ev, b.header, PALETTES[theme.peek()]);
+      for (const e of list) e.uncoloured = false;
     }
     rebuildForFocus(false);
     applyCuts(false);
     showFocus(touring.peek() ? 900 : 250);
   });
-  // The truth colours' slots follow the domain and the selection (model/store truthRank): when they change, every layer
-  // is recoloured in place, as for a new pair.
+  // The truth colours' slots follow the domain and the selection (store truthRank): when they change, every layer is
+  // recoloured in place, as for a new pair.
   const stopRank = effect(() => {
     const rank = truthRank.value,
       b = bundle.peek(),
@@ -448,17 +423,15 @@ export function startScene(canvas: HTMLCanvasElement): () => void {
     const key = slotsKey(b.header, ev, rank);
     if (key === lastRank) return; // e.g. a new selection whose particles hold no other slots
     lastRank = key;
-    const recolour = entries.filter((e) => !e.d.context && !e.uncoloured),
-      drawn = { ...legends.peek() };
-    colourEntries(recolour, ev, b.header, cuts.peek(), PALETTES[theme.peek()]).forEach(({ rgb, legend }, i) => {
-      recolour[i].layer.setColours(rgb);
-      recolour[i].rgb = rgb;
-      drawn[recolour[i].key] = legend;
-    });
-    legends.value = drawn;
+    recolourInPlace(
+      entries.filter((e) => !e.d.context && !e.uncoloured),
+      ev,
+      b.header,
+      PALETTES[theme.peek()],
+    );
     eng.requestRender();
   });
-  // A level shown inside the focus turns the focus into an outline around it (see isEnvelope).
+  // A level shown inside the focus turns the focus into an outline around it.
   const stopEnvelope = effect(() => {
     shownLevel.value;
     domain.value;
@@ -467,8 +440,7 @@ export function startScene(canvas: HTMLCanvasElement): () => void {
     eng.requestRender();
   });
   const stopView = effect(() => eng.setView(view.value, highlight.peek() ?? undefined));
-  // How the rest of the event is drawn around a selection: one uniform shared by every layer, so a new frame is all
-  // it takes.
+  // How the rest of the event is drawn around a selection: one uniform shared by every layer.
   const stopRest = effect(() => {
     restUniform.value = REST_FADE[rest.value];
     eng.requestRender();
@@ -488,73 +460,16 @@ export function startScene(canvas: HTMLCanvasElement): () => void {
   };
 }
 
-/** The focus's rows that the layer's filter does not hide: all of them while the filter is the profile's default (a
- *  candidate's track from another vertex); none once the user set or changed it (a filter they chose applies to the
- *  focus too, and a click never rebuilds a big layer they filtered). */
-const bypassing = (d: DisplayLayer, f: Record<string, string>, hl: Map<string, Set<number>> | null) =>
-  d.filter && f[d.table] === d.filter ? hl?.get(d.table) : undefined;
-
-/** Whether a layer that shows only the focus's objects is drawn whole only because a replay of the whole event builds
- *  paths from its objects (display hint `grow` on a drawn layer), so the building can be seen. */
-const replayOnly = (d: DisplayLayer, key: string, hl: Map<string, Set<number>> | null) => {
-  const h = bundle.peek()?.header,
-    drawn = drawnLayers.peek();
-  return (
-    !!d.onSelection &&
-    !showAll.peek()[key] &&
-    replaying.peek() &&
-    !hl &&
-    !!h?.display.some((p) => p.grow && drawn[layerKey(p)] && inDomain(p) && h.relations[p.grow.parts]?.to === d.table)
-  );
-};
-
-/** For a layer that shows only the focus's objects: the rows to keep (none without a focus), less those reached only
- *  from objects a cut hides (the hits and truth of a vertex's tracks below the pT cut); else undefined. */
-const onlyFor = (d: DisplayLayer, key: string, hl: Map<string, Set<number>> | null) => {
-  const parents = untracked(() => parentRows(d));
-  if (parents) return parents; // a shared part's layer drawn only for what the focus is part of
-  if (!d.onSelection || showAll.peek()[key] || replayOnly(d, key, hl)) return undefined;
-  const rows = hl?.get(d.table);
-  if (!rows) return (!hl && truthPreview(d)) || new Set<number>(); // before a selection, the truth colours' particles
-  const cut = belowCut(d.table, hl!);
-  return cut.size ? new Set([...rows].filter((r) => !cut.has(r))) : rows;
-};
-
-/** The focus's objects of `table` reached only from focus objects of a layer with a cut that they fail (not the
- *  selected one): across every relation into `table` from such a layer. */
-function belowCut(table: string, hl: Map<string, Set<number>>) {
-  const h = bundle.peek()?.header,
-    ev = event.peek(),
-    c = cuts.peek(),
-    sel = selection.peek(),
-    hidden = new Set<number>(),
-    kept = new Set<number>();
-  for (const [name, r] of Object.entries(h?.relations ?? {})) {
-    const p = layerOf(r.from),
-      rel = ev?.relations[name],
-      from = hl.get(r.from),
-      col = p?.cut && ev?.tables[r.from]?.columns[p.cut.column];
-    if (r.to !== table || r.from === table || !p?.cut || !rel || !from || !col) continue;
-    const min = c[p.cut.group] ?? 0;
-    for (const f of from) {
-      const into = Number(col[f]) >= min || (sel?.table === r.from && sel.row === f) ? kept : hidden;
-      for (let k = rel.offsets[f]; k < rel.offsets[f + 1]; k++) into.add(rel.indices[k]);
-    }
-  }
-  for (const r of kept) hidden.delete(r);
-  return hidden;
+/** Recolour these entries in place (a buffer upload each, no rebuild), with their legends. */
+function recolourInPlace(list: Entry[], ev: EventData, header: Header, pal: Pal) {
+  const drawn = { ...legends.peek() };
+  colourEntries(list, ev, header, cuts.peek(), pal).forEach(({ rgb, legend }, i) => {
+    list[i].layer.setColours(rgb);
+    list[i].rgb = rgb;
+    drawn[list[i].key] = legend;
+  });
+  legends.value = drawn;
 }
-
-/** A layer's cut values hide every row (a layer drawn only for a selection, without one). */
-const nothingDrawn = (cut?: Float32Array) => !!cut && !cut.some((v) => v > HIDDEN);
-
-/** An event's relation with its `to` table, for layers drawn through one (e.g. a polyline's points). */
-const relationOf = (header: Header | undefined, ev: EventData | null) => (name: string) => {
-  const info = header?.relations[name],
-    rel = ev?.relations[name],
-    to = info && ev?.tables[info.to];
-  return rel && to ? { offsets: rel.offsets, indices: rel.indices, to } : undefined;
-};
 
 /** Pin the selected object in its layer (drawn whatever the cut); unpin elsewhere. */
 function pinSelection() {
@@ -563,138 +478,8 @@ function pinSelection() {
   engine?.requestRender();
 }
 
-type Item = Pick<Entry, "d" | "t" | "key" | "cut">;
-/** Each table's colouring as drawn: the colour mode's, then the user's (or the preset's) choice for its layer. */
-const chosenColours =
-  (header: Header): LayerFor =>
-  (table) => {
-    const d = header.display.find((l) => l.table === table);
-    return d && shownLayer(d);
-  };
-/** By truth, markers of a kind with no truth of its own made of calorimeter cells with simulated energy (layer
- *  clusters, superclusters) are drawn small, rimless and under the hits (markers are otherwise drawn over everything):
- *  as grey rings over the hits, they hid the hits' truth colours. Muon and track hits, themselves the hits, are not.
- *  Also in the pair view, whatever the order the pair and the colour mode came in (the pair only recolours). */
-const underHits = (d: DisplayLayer) => {
-  const h = bundle.peek()?.header;
-  return activeMode.peek() === "truth" && d.repr === "markers" && noTruth(d.table) && !!h && madeOfSimCells(h, d.table);
-};
-
-/** Colours for the given layers, mixed towards the background by their `dim`. Layers that share a cut group and
- *  colour column (e.g. SoA and legacy rechit energies) share one colour scale, computed from the objects of the
- *  layers in `pool` that pass the cuts and filters, so equal values get equal colours in every layer. */
-function colourEntries(
-  items: Item[],
-  ev: EventData,
-  header: Header,
-  c: Record<string, number>,
-  pal: Pal,
-  pool: Item[] = items,
-) {
-  const scale = (e: Pick<Entry, "d" | "key">) => `${e.d.cut?.group ?? e.key}|${e.d.colour}`;
-  const pools = new Map<string, number[]>();
-  for (const e of pool) {
-    const { d, t, cut } = e,
-      col = d.colour ? t.columns[d.colour] : undefined;
-    if (!col || d.colourBy) continue; // categorical layers keep their own colours
-    const min = cutMin(d, cut, c),
-      step = Math.max(1, Math.floor(t.n / 20000)); // a sample is enough for the range
-    const pool = pools.get(scale(e)) ?? [];
-    for (let i = 0; i < t.n; i += step) if (!cut || cut[i] >= min) pool.push(Number(col[i]));
-    pools.set(scale(e), pool);
-  }
-  const ranges = new Map<string, Range>([...pools].map(([k, pool]) => [k, valueRange(pool)]));
-  const layerFor = chosenColours(header),
-    pair = pairView.peek(),
-    classRgb = pal.pair.map(hexRgb),
-    chosen = colourBy.peek();
-  const bg = [(pal.background >> 16) & 255, (pal.background >> 8) & 255, pal.background & 255].map((v) => v / 255);
-  return items.map((e) => {
-    const cls = e.d.context || chosen[e.key] ? undefined : pair?.classes.get(e.d.table); // a layer's own choice wins
-    const out = cls
-        ? pairColours(cls, classRgb)
-        : colours(e.d, e.t, ev, header, pal, {
-            range: ranges.get(scale(e)),
-            layerFor,
-            rank: truthRank.peek(),
-            numberOf: (t, r) => untracked(() => numberOf(t, r)),
-          }),
-      dim = e.d.dim;
-    if (dim) for (let i = 0; i < out.rgb.length; i++) out.rgb[i] += (bg[i % 3] - out.rgb[i]) * dim;
-    if (underHits(e.d)) out.emphasis = new Uint8Array(e.t.n); // small and rimless
-    return out;
-  });
-}
-
-const pairKeyOf = (p: Pair | null) => (p ? pairKey(p) : null);
-
-/** The truth colours' slots under `rank`, as a string: the truth particles' top keys, how many of them the selection
- *  holds, and the rule the key names ("" without identity colours on the truth particles). The layers' colours change
- *  only when it does. */
-function slotsKey(header: Header, ev: EventData, rank: SlotRank) {
-  const root = modes.peek().roots.truth,
-    d0 = root ? layerOf(root) : undefined,
-    t = root ? ev.tables[root] : undefined;
-  if (!d0 || !t || rank.classes) return ""; // a class level has no slots: a selection never recolours
-  const d = shownLayer(d0);
-  if (d.colourBy !== "identity") return "";
-  const r = identities(d, t, ev, header, PALETTES[theme.peek()].identity.length, rank);
-  return `${r.top.join(",")}|${r.preferred}|${JSON.stringify(r.rule)}`;
-}
-
-/** The pair view's colours: one per class (model/pair.ts); objects outside the pair drawn small. */
-function pairColours(cls: Uint8Array, classRgb: number[][]) {
-  const rgb = new Float32Array(3 * cls.length),
-    emphasis = new Uint8Array(cls.length);
-  for (let i = 0; i < cls.length; i++) {
-    rgb.set(classRgb[cls[i]], 3 * i);
-    emphasis[i] = cls[i] === PAIR.other ? 0 : 1;
-  }
-  return { rgb, emphasis, legend: { kind: "category" as const, text: "truth ↔ reco pair (colour key)" } };
-}
-const hexRgb = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
-
-/** Reco objects drawn as outlines: when the focus is a truth particle, except in the pair view, which looks the same
- *  from either side. */
-const truthOutline = () => focusIsTruth.peek() && !pairView.peek();
-
-/** A layer of a shared domain (header `domains[i].shared`, e.g. physics objects) seen from another domain's view (a
- *  detector's) is drawn as an outline (cones: their rim), so it does not cover that detector's objects. */
-const sharedOutline = (layer: Layer) => {
-  const d = layerOf(layer.table),
-    current = domain.peek(),
-    domains = bundle.peek()?.header.domains;
-  return !!d?.domain && !!current && d.domain !== current && !!domains?.find((x) => x.name === d.domain && x.shared);
-};
-/** By truth, a kind with no truth of its own drawn as cones (jets) is an outline, so it never looks like a matched
- *  object (docs/truth.md "Where truth stops"). */
-const faintOutline = (layer: Layer) =>
-  activeMode.peek() === "truth" && layerOf(layer.table)?.repr === "cones" && noTruth(layer.table);
-
-/** While a level is shown inside the focus (e.g. a candidate's tracksters), the focus's layer draws it as a
- *  full-size outline around them: the largest object, without covering what is inside. */
-const isEnvelope = (layer: Layer) => !!shownLevel.peek() && layer.table === levelTop.peek()?.table;
-
-/** Draw a layer as the focus asks: the focus's objects highlighted (`hl`; null: no focus, nothing fades), and its
- *  outline style. `truth`: truthOutline(), worked out once by callers that dress many layers. */
-function dress(layer: Layer, hl: Map<string, Set<number>> | null, truth = truthOutline()) {
-  layer.setHighlight(hl ? (hl.get(layer.table) ?? new Set()) : null);
-  outline(layer, truth);
-  if (layer.setPairStyle) {
-    // The pair view: a shower holding only a split-off part of the particle is a faint rim, its match stands out.
-    const cls = pairView.peek()?.classes.get(layer.table);
-    layer.setPairStyle(cls ? cls.map((c) => (c === PAIR.split ? 1 : c === PAIR.matched ? 2 : 0)) : null);
-  }
-}
-
-/** Whether a layer is drawn as outlines (truthOutline, sharedOutline, faintOutline), and whether its focus object is an
- *  envelope around the level shown (isEnvelope). */
-function outline(layer: Layer, truth = truthOutline()) {
-  layer.setOutline?.(truth || sharedOutline(layer) || faintOutline(layer), isEnvelope(layer));
-}
-
-/** Highlight the focus and what belongs to it on every layer (outlines: see truthOutline and isEnvelope), faded in
- *  over `ms` (0: at once, e.g. for freshly built layers). */
+/** Highlight the focus and what belongs to it on every layer, faded in over `ms` (0: at once, e.g. for freshly built
+ *  layers). */
 function showFocus(ms: number) {
   const hl = highlight.peek(),
     truth = truthOutline();

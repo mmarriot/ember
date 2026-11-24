@@ -1,15 +1,13 @@
 // Browser checks of the viewer: headless Chromium with software WebGL, against a development server (whose builds
-// expose the engine to the checks as window.emberEngine).
+// expose the engine as window.emberEngine).
 //
 //   node e2e/smoke.mjs <dev server URL> <screenshot dir> [--site] [--deep <bundle>] [bundle ...]
 //
 // - The site around the bundles (site.mjs), unless bundles are named; `--site` checks only that.
 // - Every bundle of the site's index.json, or those named (bundle.mjs).
-// - One bundle (`--deep`, by default the smallest with reconstruction stages) also gets the interaction checks: the
-//   menu, the themes, help, a rotate drag, a custom column, the replay and the tour.
+// - One bundle (`--deep`, by default the smallest with reconstruction stages) also gets the interaction checks.
 //
-// Any console error fails the run. So does a bundle not checked within BUNDLE_TIMEOUT, or three times that for big
-// files or events (software WebGL takes seconds per frame on their scenes, and clicks wait for frames); the run then
+// Any console error fails the run, and so does a bundle not checked in time (common.mjs BUNDLE_TIMEOUT); the run then
 // goes on with the next bundle. Screenshots go to <dir>/site_*.png and <dir>/<bundle>_*.png; progress is one
 // timestamped line per step.
 import { chromium } from "playwright";
@@ -39,14 +37,21 @@ const browser = await chromium.launch({
 const run = { browser, base, out, problems: [], listed, headers, deep };
 const { problems } = run;
 
-if (siteOnly || !names.length) {
-  const t0 = Date.now();
-  const result = await checkSite(run).then(
+/** "checked", or the check's error in one line. */
+const outcome = (check) =>
+  check.then(
     () => "checked",
     (e) => `error: ${e.message.split("\n")[0]}`,
   );
-  if (result !== "checked") problems.push(`site: ${result}`);
-  log(`site: ${result} (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
+/** Note a result that is not "checked", and log it with the time taken. */
+const report = (tag, result, t0) => {
+  if (result !== "checked") problems.push(`${tag}: ${result}`);
+  log(`${tag}: ${result} (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
+};
+
+if (siteOnly || !names.length) {
+  const t0 = Date.now();
+  report("site", await outcome(checkSite(run)), t0);
 }
 for (const file of files) {
   const tag = file.replace(/\.(ember|evdb)$/, ""),
@@ -54,10 +59,7 @@ for (const file of files) {
     state = { page: null };
   let timer;
   const result = await Promise.race([
-    checkBundle(run, file, tag, state).then(
-      () => "checked",
-      (e) => `error: ${e.message.split("\n")[0]}`,
-    ),
+    outcome(checkBundle(run, file, tag, state)),
     new Promise((done) => {
       const ms = (bigEvents(headers[file]) ? 3 : 1) * BUNDLE_TIMEOUT;
       timer = setTimeout(() => done(`not finished after ${ms / 1000} s`), ms);
@@ -65,8 +67,7 @@ for (const file of files) {
   ]);
   clearTimeout(timer);
   await state.page?.close().catch(() => {}); // also ends a check that timed out
-  if (result !== "checked") problems.push(`${tag}: ${result}`);
-  log(`${tag}: ${result} (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
+  report(tag, result, t0);
 }
 await browser.close();
 console.log(problems.length ? `FAILED\n  ${problems.join("\n  ")}` : "ok");

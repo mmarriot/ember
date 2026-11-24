@@ -1,0 +1,424 @@
+// The truth <-> reco pair: a truth particle's branch and, detector by detector, the reco objects CMSSW's associator
+// gives as its best matches there. What each side stands for is in docs/truth.md "The pair view".
+import type { EventData, Header, RelationInfo } from "../../io/format";
+import { facts } from "./facts";
+import { truthStatus } from "./match";
+import { type ColourBy, modeColouring } from "../colour/modes";
+import { identities } from "../colour/identities";
+import { cached } from "../event/cache";
+import { backPointers, bestPartners, contentPartners, type Ref, type Related, reversed } from "../event/relations";
+
+/** What an object is in the pair view (the classes of docs/truth.md "The pair view"; `other`: not in the pair). */
+export const PAIR = {
+  other: 0,
+  matched: 1,
+  contamination: 2,
+  split: 3,
+  missed: 4,
+  reco: 5,
+  branch: 6,
+  uncompared: 7,
+} as const;
+export type PairClass = (typeof PAIR)[keyof typeof PAIR];
+
+/** Per object of `table`, the row of the root it takes its colour from at the end of `colouring`'s chain
+ *  (model/colour/modes.ts), -1 for none; null if the chain does not reach the table. Once per event. */
+export function rootRows(
+  ev: EventData,
+  header: Header,
+  colouring: Record<string, ColourBy>,
+  table: string,
+  seen = new Set<string>(),
+): Int32Array | null {
+  const c = colouring[table],
+    n = ev.tables[table]?.n ?? 0,
+    root = Object.keys(colouring).find((t) => colouring[t] === "identity");
+  if (!c || !root || seen.has(table)) return null;
+  return cached(ev, `rootRows|${root}|${table}`, () => {
+    if (c === "identity") return Int32Array.from({ length: n }, (_, i) => i);
+    if (typeof c === "object" && "content" in c) return contentPartners(table, c.content, n, ev, header).partner;
+    if (typeof c !== "object" || !("relation" in c)) return null;
+    const info = header.relations[c.relation],
+      rel = ev.relations[c.relation];
+    if (!info || !rel) return null;
+    const forward = info.from === table && info.to !== table,
+      other = forward ? info.to : info.from;
+    const partner = bestPartners(rel, info, forward, n).partner,
+      up = rootRows(ev, header, colouring, other, new Set(seen).add(table));
+    if (!up) return null;
+    const out = new Int32Array(n);
+    for (let i = 0; i < n; i++) out[i] = partner[i] < 0 ? -1 : up[partner[i]];
+    return out;
+  });
+}
+
+/** One detector of the pair. */
+export interface PairDetector {
+  in: string; // as the `match` and `fact` hints name it (HGCal, ECAL, HCAL, HF, HO, tracker)
+  /** The reco table compared with; undefined: none has an association in this detector. */
+  kind?: string;
+  /** Without a kind: the tables made of this detector's hits, and their `truthGap`. */
+  gaps: { table: string; reason?: string; gap?: number }[];
+  /** The kind's objects the association rates best for the branch's particles (TruthToReco), largest first. */
+  matches: number[];
+  /** The branch's simulated energy here (deposited, not calibrated; each hit counted once): `own` by `hitsOf`,
+   *  `descendants` by the branch's other hit owners; with a kind, where it went. Undefined for the tracker (the file
+   *  has no simulated energy per tracker hit). */
+  sim?: { own: number; descendants: number; inMatch: number; inOthers: number; inNone: number };
+  /** The matches' rechit energy, each hit split by its simulated-energy shares: from the branch, from other particles,
+   *  and of hits with no simulated energy from any exported particle. */
+  reco?: { branch: number; other: number; noTruth: number };
+}
+
+export interface Pair {
+  truth: string; // the truth particles' table
+  particle: number; // the top of the branch, -1 for none (a matched kind's object whose association names none)
+  /** The particle whose exported hits stand for the branch: the particle itself, or (its own not exported on their
+   *  own) its ancestor that entered the calorimeter; -1 when the branch left no hits. */
+  hitsOf: number;
+  /** The branch's other particles that left hits (e.g. an interaction's products), largest first. */
+  owners: number[];
+  /** The selected reco object, when the pair comes from one. */
+  from?: Ref;
+  /** The selected object the pair stands in for (delegatedPart): the pair is titled as its part's. */
+  via?: Ref;
+  detectors: PairDetector[];
+  classes: Map<string, Uint8Array>; // per table, a PairClass per object
+}
+
+/** The reco -> truth relations with a `match` contract into the truth particles, by reco table. */
+function matchRelations(header: Header, truth: string) {
+  return cached(header, `match|${truth}`, () => {
+    const out = new Map<string, [string, RelationInfo]>();
+    for (const [name, r] of Object.entries(header.relations))
+      if ((r.match?.shared ?? r.match?.purity) && r.to === truth && r.from !== truth && !out.has(r.from))
+        out.set(r.from, [name, r]);
+    return out;
+  });
+}
+/** The reco kind a truth particle is compared with in detector `where` (a `match.in`): of the kinds with an
+ *  association there, the last reconstruction stage (HGCal: the candidates' tracksters, not CLUE3D's), else the first
+ *  drawn; undefined where none has one (HF, HO). */
+export function comparedKind(header: Header, truth: string, where: string): string | undefined {
+  const stageOf = (t: string) => header.display.find((d) => d.table === t)?.stage ?? -1,
+    order = (t: string) => header.display.findIndex((d) => d.table === t);
+  return [...matchRelations(header, truth)]
+    .filter(([, [, r]]) => r.match?.in === where)
+    .map(([t]) => t)
+    .sort((a, b) => stageOf(b) - stageOf(a) || order(a) - order(b))[0];
+}
+/** The truth -> reco association into `table` with a `best` hint (TruthToReco: each particle's best object). */
+export function truthToReco(header: Header, truth: string, table: string) {
+  return Object.entries(header.relations).find(
+    ([, r]) => r.association && r.from === truth && r.to === table && r.best,
+  );
+}
+/** The colouring that leads every table to `root` through the reconstruction (model/colour/modes.ts). */
+const towards = (header: Header, root: string) => cached(header, `towards|${root}`, () => modeColouring(header, root));
+
+/** The rows of `table` reached from `rows` through plain relations, themselves included. A table reached with nothing
+ *  new still gets an (empty) entry. */
+function madeOf(ev: EventData, header: Header, table: string, rows: number[]): Related {
+  const back = backPointers(ev, header),
+    out: Related = new Map([[table, new Set(rows)]]);
+  let frontier: Related = new Map(out);
+  while (frontier.size) {
+    const next: Related = new Map();
+    for (const [name, info] of Object.entries(header.relations)) {
+      const rel = ev.relations[name],
+        from = frontier.get(info.from);
+      if (!rel || !from || info.association || back.has(name) || info.from === info.to) continue;
+      const seen = out.get(info.to) ?? new Set<number>();
+      out.set(info.to, seen);
+      for (const r of from)
+        for (let k = rel.offsets[r]; k < rel.offsets[r + 1]; k++) {
+          const p = rel.indices[k];
+          if (seen.has(p)) continue;
+          seen.add(p);
+          if (!next.has(info.to)) next.set(info.to, new Set());
+          next.get(info.to)!.add(p);
+        }
+    }
+    frontier = next;
+  }
+  return out;
+}
+
+/** The energy column of a hit table: its cut's, when in GeV, else `energy`. */
+function energyOf(header: Header, ev: EventData, table: string) {
+  const d = header.display.find((l) => l.table === table),
+    cols = ev.tables[table]?.columns;
+  return (d?.cut?.unit === "GeV" ? cols?.[d.cut.column] : undefined) ?? cols?.energy;
+}
+
+/** The pair of `focus`, or null when it has none: a reco kind without an association of its own (a jet, a PF
+ *  candidate, a TICL candidate), and anything in a bundle without truth particles (`truth`: their table). */
+export function pairFor(ev: EventData, header: Header, focus: Ref, truth: string): Pair | null {
+  const tTruth = ev.tables[truth],
+    truthLayer = header.display.find((d) => d.table === truth);
+  if (!tTruth || !truthLayer) return null;
+  const nTruth = tTruth.n,
+    allFacts = facts(header).filter((f) => f.from === truth && ev.relations[f.name]),
+    matches = matchRelations(header, truth);
+
+  // 1. The particle the focus points at.
+  let particle = -1,
+    from: Ref | undefined;
+  const fact = allFacts.find((f) => f.to === focus.table);
+  if (focus.table === truth) particle = focus.row;
+  else if (fact) {
+    const info = header.relations[fact.name];
+    particle = bestPartners(ev.relations[fact.name], info, false, ev.tables[focus.table]?.n ?? 0).partner[focus.row];
+  } else {
+    // A matched kind's object, or a part drawn with its container (a track's hits: the track; not a vertex, which
+    // only points at its tracks: match.ts truthStatus).
+    let ref: Ref | undefined = matches.has(focus.table) ? focus : undefined;
+    const status = ref ? undefined : truthStatus(header, focus.table);
+    if (status?.kind === "container") {
+      const info = header.relations[status.relation],
+        rel = ev.relations[status.relation],
+        up = info?.from === focus.table ? info.to : info?.from;
+      if (rel && up && matches.has(up)) {
+        const row = bestPartners(rel, info, info.from === focus.table, ev.tables[focus.table]?.n ?? 0).partner[
+          focus.row
+        ];
+        if (row >= 0) ref = { table: up, row };
+      }
+    }
+    const [name, info] = (ref && matches.get(ref.table)) || [];
+    if (!ref || !name || !info || !ev.relations[name]) return null;
+    from = ref;
+    particle = bestPartners(ev.relations[name], info, true, ev.tables[ref.table]?.n ?? 0).partner[ref.row];
+  }
+  const classes = new Map<string, Uint8Array>();
+  const classOf = (t: string) => {
+    let c = classes.get(t);
+    if (!c) classes.set(t, (c = new Uint8Array(ev.tables[t]?.n ?? 0)));
+    return c;
+  };
+  if (particle < 0) {
+    // A matched kind's object with no particle (a fake, or noise): itself and its parts, nothing confirmed.
+    if (!from) return null;
+    for (const [t, rows] of madeOf(ev, header, from.table, [from.row])) {
+      const c = classOf(t);
+      for (const r of rows) c[r] = PAIR.reco;
+    }
+    return { truth, particle, hitsOf: -1, owners: [], from, detectors: [], classes };
+  }
+
+  // 2. The branch: the particle and everything below it.
+  const kids = Object.entries(header.relations).find(
+    ([name, r]) => !r.association && r.from === truth && r.to === truth && ev.relations[name],
+  );
+  const subtree = (top: number) => {
+    const inside = new Uint8Array(nTruth),
+      todo = [top];
+    inside[top] = 1;
+    const rel = kids && ev.relations[kids[0]];
+    while (rel && todo.length) {
+      const p = todo.pop()!;
+      for (let k = rel.offsets[p]; k < rel.offsets[p + 1]; k++) {
+        const c = rel.indices[k];
+        if (!inside[c]) {
+          inside[c] = 1;
+          todo.push(c);
+        }
+      }
+    }
+    return inside;
+  };
+  const inBranch = subtree(particle);
+  // The particles that own hits: those that entered the calorimeter (their hits include their descendants').
+  const owns = cached(ev, `owns|${truth}`, () => {
+    const o = new Uint8Array(nTruth);
+    for (const f of allFacts) {
+      const off = ev.relations[f.name].offsets;
+      for (let p = 0; p + 1 < off.length && p < nTruth; p++) if (off[p + 1] > off[p]) o[p] = 1;
+    }
+    return o;
+  });
+  const { parent } = identities(truthLayer, tTruth, ev, header, 0);
+  let hitsOf = -1,
+    inHits = inBranch;
+  for (let p = 0; p < nTruth && hitsOf < 0; p++) if (inBranch[p] && owns[p]) hitsOf = particle;
+  if (hitsOf < 0)
+    for (let a = parent[particle], steps = 0; a >= 0 && steps < nTruth; a = parent[a], steps++)
+      if (owns[a]) {
+        hitsOf = a;
+        inHits = subtree(a);
+        break;
+      }
+  // Each hit counted once: only the highest owners of the branch.
+  const top: number[] = [],
+    isTop = new Uint8Array(nTruth);
+  for (let p = 0; p < nTruth; p++) {
+    if (!inHits[p] || !owns[p]) continue;
+    let nested = false;
+    for (let a = parent[p], steps = 0; a >= 0 && steps < nTruth && !nested; a = parent[a], steps++)
+      nested = inHits[a] === 1 && owns[a] === 1;
+    if (!nested) {
+      top.push(p);
+      isTop[p] = 1;
+    }
+  }
+
+  // 3. Per detector: the kind compared with, its matches, and where the branch's simulated energy went.
+  const kindIn = (where: string) =>
+    from && matches.get(from.table)?.[1].match?.in === where ? from.table : comparedKind(header, truth, where);
+  const bestOf = (kind: string, particles: number[]) => {
+    const t2r = truthToReco(header, truth, kind);
+    if (!t2r || !ev.relations[t2r[0]]) return [];
+    const best = bestPartners(ev.relations[t2r[0]], t2r[1], true, nTruth).partner,
+      out = new Set<number>();
+    for (const p of particles) if (best[p] >= 0) out.add(best[p]);
+    return [...out];
+  };
+  const detectors: PairDetector[] = [];
+  const truthClasses = classOf(truth);
+  const byDetector = new Map<string, typeof allFacts>();
+  for (const f of allFacts) byDetector.set(f.in, [...(byDetector.get(f.in) ?? []), f]);
+  for (const [where, fs] of byDetector) {
+    const kind = kindIn(where),
+      det: PairDetector = { in: where, kind, gaps: [], matches: [] };
+    const sim = { own: 0, descendants: 0, inMatch: 0, inOthers: 0, inNone: 0 };
+    // Its matches: the particle's own best (also below the calorimeter boundary, e.g. a brem photon's ECAL cluster),
+    // then those of the branch's hit owners.
+    const inMatch = kind ? madeOf(ev, header, kind, (det.matches = bestOf(kind, [particle, ...top]))) : new Map();
+    for (const f of fs) {
+      const info = header.relations[f.name],
+        rel = ev.relations[f.name],
+        w = rel.weights[info.best?.weight ?? info.weights[0]],
+        nHits = ev.tables[f.to]?.n ?? 0,
+        dominant = bestPartners(rel, info, false, nHits).partner,
+        obj = kind ? rootRows(ev, header, towards(header, kind), f.to) : null,
+        hits = inMatch.get(f.to),
+        c = classOf(f.to);
+      for (const p of top)
+        for (let k = rel.offsets[p]; k < rel.offsets[p + 1]; k++) {
+          const h = rel.indices[k],
+            e = w ? w[k] : 0;
+          if (p === hitsOf) sim.own += e;
+          else sim.descendants += e;
+          if (hits?.has(h)) sim.inMatch += e;
+          else if (obj && obj[h] >= 0) sim.inOthers += e;
+          else sim.inNone += e;
+        }
+      for (let h = 0; h < nHits; h++) {
+        const mine = dominant[h] >= 0 && inHits[dominant[h]] === 1;
+        if (!kind) c[h] = mine ? PAIR.uncompared : c[h];
+        else if (hits?.has(h)) c[h] = mine ? PAIR.matched : PAIR.contamination;
+        else if (mine) c[h] = obj && obj[h] >= 0 ? PAIR.split : PAIR.missed;
+      }
+      if (!kind)
+        // why nothing here is compared: the tables made of these hits, and their truth gaps
+        for (const [, r] of Object.entries(header.relations)) {
+          const d = header.display.find((l) => l.table === r.from);
+          if (r.association || r.to !== f.to || !d || det.gaps.some((g) => g.table === r.from)) continue;
+          det.gaps.push({ table: r.from, reason: d.truthGap?.reason, gap: d.truthGap?.gap });
+        }
+      const energy = energyOf(header, ev, f.to);
+      if (hits && energy) {
+        const reco = (det.reco ??= { branch: 0, other: 0, noTruth: 0 }),
+          { offsets, from: who, entry } = reversed(ev, f.name, nHits);
+        for (const h of hits) {
+          let mine = 0,
+            all = 0;
+          for (let j = offsets[h]; j < offsets[h + 1]; j++) {
+            const e = w ? w[entry[j]] : 0;
+            all += e;
+            if (isTop[who[j]]) mine += e;
+          }
+          const E = Number(energy[h]);
+          if (all > 0) {
+            reco.branch += (E * mine) / all;
+            reco.other += (E * (all - mine)) / all;
+          } else reco.noTruth += E;
+        }
+      }
+    }
+    if (sim.own + sim.descendants <= 0 && !det.matches.length) continue;
+    det.sim = sim;
+    if (kind) markKind(kind, det.matches, inMatch);
+    detectors.push(det);
+  }
+  // The tracker: the tracks matched to the branch's particles.
+  const trackKind = kindIn("tracker");
+  if (trackKind) {
+    const branch: number[] = [];
+    for (let p = 0; p < nTruth; p++) if (inBranch[p]) branch.push(p);
+    const m = bestOf(trackKind, branch);
+    if (m.length || from?.table === trackKind) {
+      detectors.unshift({ in: "tracker", kind: trackKind, gaps: [], matches: m });
+      markKind(trackKind, m, madeOf(ev, header, trackKind, m));
+    }
+  }
+  // The kind's own objects, and the parts of its matches (no truth of their own: layer clusters, track hits).
+  function markKind(kind: string, m: number[], parts: Related) {
+    const c = classOf(kind),
+      [name, info] = matches.get(kind)!,
+      rel = ev.relations[name],
+      best = rel ? bestPartners(rel, info, true, ev.tables[kind]?.n ?? 0).partner : new Int32Array(0),
+      holder = (t: string) => header.display.some((d) => d.table === t && d.truth);
+    // matched to a particle of the branch (not of the shower standing in for it: an ancestor's other matches are not
+    // the branch's)
+    for (let i = 0; i < best.length; i++) if (best[i] >= 0 && inBranch[best[i]]) c[i] = PAIR.split;
+    for (const [t, rows] of parts) {
+      if (t === kind || holder(t) || allFacts.some((f) => f.to === t)) continue;
+      const pc = classOf(t);
+      for (const r of rows) if (!pc[r]) pc[r] = PAIR.reco;
+    }
+    for (const r of m) c[r] = PAIR.matched;
+  }
+  // Objects of a compared kind that hold the branch's hits but are not its matches: split.
+  for (const det of detectors) {
+    if (!det.kind || det.in === "tracker") continue;
+    const c = classOf(det.kind);
+    for (const f of byDetector.get(det.in) ?? []) {
+      const obj = rootRows(ev, header, towards(header, det.kind), f.to),
+        hc = classes.get(f.to);
+      if (!obj || !hc) continue;
+      for (let h = 0; h < hc.length; h++) if (hc[h] === PAIR.split && obj[h] >= 0 && !c[obj[h]]) c[obj[h]] = PAIR.split;
+    }
+  }
+  // 4. The truth: the particle, and the branch's particles whose hits are drawn.
+  truthClasses[particle] = PAIR.matched;
+  const owners = top.filter((p) => p !== hitsOf && p !== particle);
+  for (const p of owners) truthClasses[p] = PAIR.branch;
+  if (hitsOf >= 0 && hitsOf !== particle) truthClasses[hitsOf] = PAIR.branch;
+  const size = truthLayer.colour ? tTruth.columns[truthLayer.colour] : undefined;
+  if (size) owners.sort((a, b) => Number(size[b]) - Number(size[a]));
+  // The tracker first, then the detectors with a match, then the others (amounts are never compared across
+  // detectors: a barrel electron's few MeV in HGCal come after its ECAL clusters).
+  const rank = (d: PairDetector) => (d.in === "tracker" ? 0 : d.matches.length ? 1 : d.kind ? 2 : 3);
+  detectors.sort((a, b) => rank(a) - rank(b));
+  return { truth, particle, hitsOf, owners, from, detectors, classes };
+}
+
+/** The part whose pair stands in for `focus`'s (owner decision D4, a trial): for a reconstruction stage with no truth
+ *  of its own (a TICL candidate), its first part of an earlier stage with a match of its own (the candidate
+ *  trackster; in TICL v6, the linked trackster). Null unless every matched part it has through a one-part relation
+ *  (its track too) is matched to the same particle, so the choice says nothing the parts do not. */
+export function delegatedPart(ev: EventData, header: Header, focus: Ref, truth: string): Ref | null {
+  const stage = (t: string) => header.display.find((d) => d.table === t)?.stage;
+  if (stage(focus.table) === undefined || truthStatus(header, focus.table)?.kind !== "none") return null;
+  const matches = matchRelations(header, truth),
+    found: { part: Ref; particle: number; stage: boolean }[] = [];
+  for (const [name, info] of Object.entries(header.relations)) {
+    const rel = ev.relations[name],
+      m = matches.get(info.to);
+    if (!rel || !m || info.association || info.inverseOf || info.from !== focus.table || !ev.relations[m[0]]) continue;
+    if (rel.offsets[focus.row + 1] - rel.offsets[focus.row] !== 1) continue;
+    const part = rel.indices[rel.offsets[focus.row]],
+      p = bestPartners(ev.relations[m[0]], m[1], true, ev.tables[info.to]?.n ?? 0).partner[part];
+    if (p >= 0) found.push({ part: { table: info.to, row: part }, particle: p, stage: stage(info.to) !== undefined });
+  }
+  if (!found.every((f) => f.particle === found[0]?.particle)) return null; // its parts disagree
+  return found.find((f) => f.stage)?.part ?? null;
+}
+
+/** Whether the pair has anything to show: a particle with hits or matches, or a matched kind's object alone. */
+export const pairShows = (p: Pair) => p.particle < 0 || p.hitsOf >= 0 || p.detectors.some((d) => d.matches.length);
+
+/** What the pair's colours depend on: two pairs with the same key colour every object alike. */
+export const pairKey = (p: Pair) =>
+  `${p.particle}|${p.from ? `${p.from.table}#${p.from.row}` : ""}|${p.detectors.map((d) => `${d.kind}:${d.matches}`).join(";")}`;

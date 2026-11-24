@@ -1,10 +1,9 @@
-/* Narrower windows. Below 1300 px a top bar with the parts of the detector tightens; below 1100 px the parts become
-   a drop-down list; below 900 px the top bar wraps and the side panel goes under the view; below 700 px (phones)
-   the side panel is a sheet at the bottom. Last, so that these rules win over the ones they change. */
-/* A bar with the domain buttons too (.parts): tighter before it wraps. */
+/* Narrower windows: below 1300 px a top bar with a domain bar (.parts) tightens; below 1100 px the domain bar becomes
+   a drop-down list; below 900 px the top bar wraps and the side panel goes under the view; below 700 px (phones) the
+   side panel is a sheet at the bottom. Imported last, so these rules win over the ones they change. */
 @media (max-width: 1300px) {
   .topbar.parts .chooser {
-    /* no jump box, the logo alone */
+    /* no event box, the logo alone */
     flex-basis: clamp(120px, calc(100vw - 960px), 340px);
   }
   .topbar.parts {
@@ -42,10 +41,10 @@
 }
 
 @media (max-width: 900px) {
-  /* the top bar wraps, so the chooser's button may be anywhere on it: its panel takes the top of the window */
+  /* The top bar wraps, so the chooser's button may be anywhere on it: its panel takes the top of the window, and the
+     menu opens as a sheet at the bottom. */
   .chooser,
   .topbar.parts .chooser {
-    /* a bar that wraps: its own row's share */
     flex: 0 1 340px;
   }
   .chooserpanel {
@@ -56,7 +55,6 @@
     width: auto;
     max-height: calc(100vh - 16px);
   }
-  /* and the menu button too: the menu opens as a sheet at the bottom */
   .menupanel {
     position: fixed;
     left: 8px;
@@ -127,13 +125,6 @@
     display: none;
   }
   .menupanel {
-    /* a sheet */
-    position: fixed;
-    left: 8px;
-    right: 8px;
-    top: auto;
-    bottom: 8px;
     grid-template-columns: 1fr;
-    max-height: 75vh;
   }
 }

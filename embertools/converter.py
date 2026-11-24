@@ -1,15 +1,13 @@
 """The Converter: a display profile resolved against the tables of one file, which turns events into bundle records.
 
-Resolving a profile drops its entries for tables the file lacks, so that one profile serves legacy-only, SoA-only and
-mixed files; of a mixed file it writes one source per kind (profile `prefer`). Tables of the Runs tree are per-run
-tables: read once per run, available to lookups, and written once per run. A NanoAOD singleton table (one row per
-event, no counter, e.g. MET) is kept only if the profile uses it, and with `"keepUnused": false` every table the
-profile does not use is left out (a standard NanoAOD has a hundred tables of which a profile draws a few).
+Resolving drops the profile's entries for tables the file lacks, so that one profile serves legacy-only, SoA-only and
+mixed files (of a mixed file it writes one source per kind: profile `prefer`). Tables of the Runs tree are per-run:
+read and written once per run, and available to lookups. A NanoAOD singleton table (one row per event, e.g. MET) is
+kept only if the profile uses it; with `"keepUnused": false`, so is every table (a standard NanoAOD has a hundred).
 
-Each event then goes through these steps (Converter.event):
-  read its tables -> derive columns (and split tables) -> build the relations (CSR) -> gather columns through them ->
-  row cuts -> event selection -> renumber index columns and cut the relations (links to removed rows dropped) ->
-  leave out the internal and per-run tables.
+Converter.event() takes each event through: read its tables -> derive columns (and split tables) -> build the
+relations (CSR) -> gather columns through them -> row cuts -> event selection -> renumber index columns and cut the
+relations -> leave out the internal and per-run tables.
 
 Tables are held as {name: (rows, {column: numpy array})}; relations as in relations.py.
 """
@@ -23,44 +21,27 @@ import numpy as np
 
 from . import __version__
 from .bundle import type_code
-from .derive import OPS, apply_derive, derived_columns, gather, inputs
-
-# The names that viewer filter expressions read as constants, not columns (viewer/src/model/expr.ts CONSTANTS).
-CONSTANTS = {"pi"}
+from .derive import OPS, apply_derive, derived_columns, gather, gathered_columns, inputs
 from .display import display_layers, less_preferred, named_columns
 from .profile import table_column
 from .relations import build_relation, compose_relations, cut_relation, owner_rows
 
+# The names that viewer filter expressions read as constants, not columns (viewer/src/model/custom/expr.ts CONSTANTS).
+CONSTANTS = {"pi"}
 # Profile keys the converter acts on; every other top-level key is a viewer setting, copied to the header as it is.
-PROFILE_KEYS = {
-    "name",
-    "note",
-    "include",
-    "exclude",
-    "internal",
-    "sameRows",
-    "derive",
-    "relations",
-    "cuts",
-    "select",
-    "display",
-    "kinds",
-    "order",
-    "prefer",
-    "stages",
-    "keepUnused",
-    "omit",
-}
+PROFILE_KEYS = {"name", "note", "include", "exclude", "internal", "sameRows", "derive", "relations", "cuts", "select",
+                "display", "kinds", "order", "prefer", "stages", "keepUnused", "omit"}  # fmt: skip
 HEADER_KEYS = {"schema", "source", "profile", "tables"}  # written by the converter, never taken from the profile
+# The keys of a profile relation that name a "Table.column"
+RELATION_COLUMNS = ("offsets", "counts", "indices", "index", "via", "fromIndex", "toIndex", "fromKey", "toKey")
 
 
 class Converter:
     """A profile resolved against a file's tables. Built once per conversion; event() converts one event."""
 
     def __init__(self, tables, profile, run_tables=None):
-        """`tables`: the per-event tables of the file, `run_tables` the per-run ones (Runs tree), as discover() gives
-        them (see nano.discover). The metadata of derived and copied columns is added to these dictionaries."""
-
+        """`tables`: the per-event tables of the file, `run_tables` the per-run ones (Runs tree), as nano.discover()
+        gives them. The metadata of derived and copied columns is added to these dictionaries."""
         used = used_tables(profile)
         keep_unused = profile.get("keepUnused", True)
 
@@ -82,7 +63,6 @@ class Converter:
         # every event and not written; relations to or from it are redirected to the kept table.
         self.same = [s for s in profile.get("sameRows", []) if s["keep"] in self.tables and s["drop"] in self.tables]
         self.internal = (set(profile.get("internal", [])) & set(self.tables)) | {s["drop"] for s in self.same}
-        # One source per kind (profile `prefer`): the tables of the less preferred sources are not written.
         self.internal |= less_preferred(profile, set(self.tables) - self.internal)
         self.derived = set()  # (table, column) of the columns that are made here, not read from the file
         self._take_over_copied_columns()
@@ -99,7 +79,7 @@ class Converter:
         self.display = self._resolve_display(profile)
         self.viewer_hints = self._viewer_hints(profile)
 
-    # Resolving the profile against the file's tables, in the order __init__ calls them.
+    # Resolving the profile against the file's tables, in the order __init__ calls them
 
     def _take_over_copied_columns(self):
         """sameRows `copy`: columns of the dropped table that the kept table takes over."""
@@ -143,12 +123,12 @@ class Converter:
 
     def _drop_unreachable_gathers(self):
         """Leave out the gathers none of whose relations the file serves, with the columns they would add (all NaN):
-        a standard NanoAOD's muons, which have no track row, keep only their own dxy, not empty dxybs columns. A gather
+        e.g. a standard NanoAOD's muons, which have no track row, keep their own dxy and get no empty dxybs. A gather
         with a `fill` of its own still gives every row that value."""
         for d in [d for d in self.derive if "gather" in d and "fill" not in d]:
             if not any(src["relation"] in self.relations for src in d["gather"]):
                 self.derive.remove(d)
-                for c in _gathered_names(d):
+                for c in gathered_columns(d):
                     if (d["table"], c) in self.derived:
                         self.derived.discard((d["table"], c))
                         del self.tables[d["table"]]["columns"][c]
@@ -203,12 +183,10 @@ class Converter:
         return relations
 
     def _available(self, rel):
-        """Whether the file can serve a relation: all its tables are present and none of its `unless` tables is. A
-        relation that can be served must name existing columns, but an `optional` one, which is then not built (an
-        index column that one export writes and another does not: ember's own Electron table has the row of its GSF
-        track, a standard NanoAOD's has none)."""
-        keys = ("offsets", "counts", "indices", "index", "via", "fromIndex", "toIndex", "fromKey", "toKey")
-        specs = [s for s in [rel.get(k) for k in keys] + rel.get("weights", []) if s]
+        """Whether the file can serve a relation: all its tables are present and none of its `unless` tables is. It
+        must then name existing columns, unless it is `optional` (e.g. an index column that ember's own NanoAOD has and
+        a standard one lacks): it is then not built."""
+        specs = [s for s in [rel.get(k) for k in RELATION_COLUMNS] + rel.get("weights", []) if s]
         tables = {rel["from"], rel["to"], rel.get("table")} | {table_column(s)[0] for s in specs}
         if not all(t is None or t in self.tables for t in tables):
             return False
@@ -226,8 +204,8 @@ class Converter:
 
     def _resolve_cuts(self, profile):
         """{table: conditions} of the row cuts of the tables present. A reachedBy condition keeps the relations that
-        are present, and is dropped if none is; a table left with no condition is not cut. A cut table's description
-        says its cut."""
+        are present, and is dropped if none is; a table left with no condition is not cut. A cut table's doc says its
+        cut."""
 
         def usable(cond):
             if not (isinstance(cond, dict) and "reachedBy" in cond):
@@ -305,26 +283,27 @@ class Converter:
         return hints
 
     def _presets(self, presets):
-        """The presets, each with only the colours and filters of the tables written, a colour "rel:<relation>" only
-        if that relation is, and a filter only if its table has the columns it names (one profile serves files with and
-        without, e.g., the vertices' tracks or the PUPPI weights). A preset that this leaves with nothing is dropped;
-        one with nothing to begin with (the bundle's defaults, e.g. "Energy") is kept."""
+        """The presets, each with only the colours, filters and shown tables that the bundle has: a colour
+        "rel:<relation>" only if that relation is written, and a filter only if its table has the columns it names. A
+        preset that this leaves with nothing is dropped; one with nothing to begin with (e.g. "Energy") is kept."""
         written = self.written()
-        colour = lambda t, c: (
-            t in written and (c[4:] in self.relations if c.startswith("rel:") else c in self.tables[t]["columns"])
-        )
+
+        def colour_written(table, colour):
+            if table not in written:
+                return False
+            if colour.startswith("rel:"):
+                return colour[4:] in self.relations
+            return colour in self.tables[table]["columns"]
+
         out = []
         for p in presets:
-            kept = {
-                **p,
-                **({"colour": {t: c for t, c in p["colour"].items() if colour(t, c)}} if "colour" in p else {}),
-                **(
-                    {"filters": {t: f for t, f in p["filters"].items() if self._filterable(t, f)}}
-                    if "filters" in p
-                    else {}
-                ),
-                **({"show": [t for t in p["show"] if t in written]} if "show" in p else {}),
-            }
+            kept = dict(p)
+            if "colour" in p:
+                kept["colour"] = {t: c for t, c in p["colour"].items() if colour_written(t, c)}
+            if "filters" in p:
+                kept["filters"] = {t: f for t, f in p["filters"].items() if self._filterable(t, f)}
+            if "show" in p:
+                kept["show"] = [t for t in p["show"] if t in written]
             if kept.get("colour") or kept.get("filters") or not (p.get("colour") or p.get("filters")):
                 out.append(
                     {k: v for k, v in kept.items() if v not in ({}, []) or k not in ("colour", "filters", "show")}
@@ -337,22 +316,21 @@ class Converter:
         names = set(re.findall(r"\b[A-Za-z_]\w*\b(?!\s*\()", expr)) - CONSTANTS
         return table in self.written() and names <= set(self.tables[table]["columns"])
 
-    # What the bundle and the reader need to know.
+    # What the bundle and the reader need to know
 
     def written(self):
-        """The tables written to the bundle: all but the internal ones (read only to build relations or cuts)."""
+        """The tables written to the bundle: all but the internal ones (read only for relations or cuts)."""
         return {t: m for t, m in self.tables.items() if t not in self.internal}
 
     def _writes(self, name):
-        """Whether a relation is written: not if one of its tables is internal, or if the profile says
-        `"written": false` (a relation needed only to gather columns or to cut, e.g. jets -> the primary vertex they
-        are drawn from)."""
+        """Whether a relation is written: not if one of its tables is internal, nor if the profile says
+        `"written": false` (a relation only to gather columns or to cut through)."""
         rel = self.relations[name]
         return rel.get("written", True) and not {rel["from"], rel["to"]} & self.internal
 
     def header(self, files, profile_name, cmssw=None):
-        """The bundle header (docs/format.md). `cmssw`: the release that wrote the input, if the file says (see
-        nano.written_by)."""
+        """The bundle header (docs/format.md). `cmssw`: the release that wrote the input, if known
+        (nano.written_by)."""
         written = self.written()
         relations = {
             n: r for n, r in self.relations.items() if self._writes(n) and r["from"] in written and r["to"] in written
@@ -413,7 +391,7 @@ class Converter:
             return None
         return sorted(f"n{t}" for t in tables) + sorted(f"{t}_{c}" for t, c in cols)
 
-    # Converting: `arrays` is a chunk of a tree as uproot reads it (library="np"), `i` an entry of that chunk.
+    # Converting: `arrays` is a chunk of a tree as uproot reads it (library="np"), `i` an entry of that chunk
 
     def passes(self, arrays, i):
         """Whether entry i passes the event selection, read from the branches of selection_branches() only."""
@@ -532,9 +510,8 @@ class Converter:
         return True
 
     def _renumber_index_columns(self, tables, masks):
-        """Keep the index columns that `index` relations read (e.g. a candidate's track row, or a hit's cluster)
-        pointing at the same object once the table they point into is cut: rows are renumbered, removed ones become
-        -1."""
+        """Renumber the index columns that `index` relations read (e.g. a candidate's track row) to the rows left in
+        the cut table they point into; a removed row becomes -1."""
         for rel in self.relations.values():
             if rel["kind"] != "index" or "via" in rel:
                 continue
@@ -568,10 +545,7 @@ def used_tables(profile):
     used |= {layer["table"] for layer in profile.get("display", [])}
     for r in profile.get("relations", []):
         used |= {r.get("from"), r.get("to"), r.get("table"), *r.get("unless", [])}
-        specs = [
-            r.get(k)
-            for k in ("offsets", "counts", "indices", "index", "via", "fromIndex", "toIndex", "fromKey", "toKey")
-        ]
+        specs = [r.get(k) for k in RELATION_COLUMNS]
         used |= {table_column(s)[0] for s in [*specs, *r.get("weights", [])] if isinstance(s, str)}
     for d in profile.get("derive", []):
         used |= {d["table"], _other_table(d)}
@@ -581,11 +555,6 @@ def used_tables(profile):
     for preset in profile.get("presets", []):
         used |= set(preset.get("filters", {})) | set(preset.get("colour", {})) | set(preset.get("show", []))
     return used - {None}
-
-
-def _gathered_names(d):
-    """The columns a gather derive writes."""
-    return list(dict.fromkeys(c for src in d["gather"] for c in src["columns"]))
 
 
 def _other_table(d):

@@ -1,24 +1,11 @@
-// Paths of charged particles in a uniform solenoid field along z (header `field`), for the `helix` representation.
-// Each path is a helix from its start along its momentum while inside the field cylinder (r < rMax, |z| < zMax),
-// then a straight line along its last direction; a neutral particle, or any particle without a field, goes straight
-// from its start to its end (as `segments`). The path is parametrised by its 3D length l (cm):
+// Paths of charged particles in a uniform solenoid field along z (header `field`), for the `helix` representation:
+// a helix from the start along the momentum while inside the field cylinder, then straight along its last direction;
+// where a path stops is in docs/format.md "Helices". The path is parametrised by its 3D length l (cm):
 //   x(l) = x0 + l (dx S - dy C),  y(l) = y0 + l (dy S + dx C),  z(l) = z0 + l dz,
 // with d the unit direction at the start, theta = k l the turn about z so far, S = sin(theta) / theta and
 // C = (1 - cos(theta)) / theta. Written with half angles (S = s(h) cos h, C = s(h) sin h, h = theta / 2,
 // s(h) = sin h / h), this has no cancellation for a nearly straight track (huge radius), so it is exact in float32 too:
 // the vertex shader of the helix layer (render/layers/helices.ts) evaluates the same formula.
-//
-// Where a path stops: when the start and the end point are both inside the field, the path is the helix tangent to
-// the momentum at the start that passes through the end point, if its curvature is within 50% of the momentum's
-// (a measured track to its outermost state, a particle to its decay): it ends exactly there, smoothly. Otherwise z is
-// linear in l along the whole path (the field turns only the transverse direction), so a path that moves mostly along
-// the beam stops where it reaches the end point's z; one that moves mostly outwards stops where its transverse distance
-// from the start reaches the end point's; either way level with the end point, never past it, and a straight piece
-// joins it to the end point, unless that piece would be a hook (longer than 0.5 cm and turning by more than 45
-// degrees: e.g. a looper stopped elsewhere on its turn), when the path ends where the arc does. A helix that cannot get
-// level with the end point (a looper that never gets as far out), or ends far from it (more than 2 cm + 5% of its
-// length: e.g. an electron that lost energy on the way, a particle that scattered, an end point extrapolated without
-// the field), is drawn straight from start to end instead.
 
 /** Uniform field along z (T) inside the cylinder r < rMax, |z| < zMax (cm); none outside. */
 export interface Field {
@@ -47,7 +34,7 @@ export interface Paths {
 }
 type Columns3 = readonly [ArrayLike<number>, ArrayLike<number>, ArrayLike<number>];
 
-/** The paths from `start` with momentum `p` and `charge`, stopping level with `end` (see above). */
+/** The paths from `start` with momentum `p` and `charge`, stopping level with `end` (docs/format.md "Helices"). */
 export function helixPaths(
   start: Columns3,
   p: Columns3,
@@ -232,7 +219,8 @@ function fieldLength(f: Field, x0: number, y0: number, z0: number, dx: number, d
 
 const mod2pi = (a: number) => ((a % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
 
-/** Path length at which the path is level with the end point (see the top of the file). */
+/** Path length at which the path is level with the end point: its z if it moves mostly along the beam, else its
+ *  transverse distance from the start. */
 function endLength(
   x0: number,
   y0: number,
@@ -281,10 +269,9 @@ function transverseLength(x0: number, y0: number, dx: number, dy: number, k: num
   return t >= 0 ? lField + t : NaN;
 }
 
-/** `points` points per path: `points - 1` evenly spaced in length along the arc, then the end point (interleaved per
- *  path: path i is [i * points, (i + 1) * points)), for picking and framing on the CPU. Filled per path on first use (`fill(i)`):
- *  most paths of a big layer (e.g. 100k truth particles at PU200, drawn only for a selection) are never picked, and
- *  the pages of the arrays they would use are then never touched. */
+/** `points` points per path, for picking and framing on the CPU: `points - 1` evenly spaced along the arc, then the
+ *  end point (path i at [i * points, (i + 1) * points)). Filled per path on first use (`fill(i)`): most paths of a big
+ *  layer (100k truth particles at PU200) are never picked, and the pages they would use are never touched. */
 export function polylines(paths: Paths, start: Columns3, points: number) {
   const { n, dir, path } = paths,
     x = new Float32Array(n * points),

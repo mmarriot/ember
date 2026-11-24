@@ -1,23 +1,23 @@
-// The checks of one bundle (checkBundle), each step logged and a failure noted, not thrown:
-// - messages are readable; the event box goes to run:lumi:event;
-// - its layers draw (helix paths end at finite points); a bundle that names a start domain opens on it;
-// - each domain draws only its own layers and the shared ones, and opens its tab; labels show on the leading objects
-//   (L hides them) and N selects one; pointing at an object row rings its object, and a click selects it;
-// - presets apply; a bundle with candidates has a colour key; T colours by generator particle where there is truth;
-//   summary charts show where the profile defines them;
-// - a selection draws its objects that a layer's filter hides, and its levels drawn as lines (a vertex's tracks);
-// - a selected object's card shows its chain, and the view only its bottom level (↓ ↑ step through the others); D and
-//   the chips of other parts of the detector keep the selection; a link reopens the data set, event, domain and
-//   selection, as a hash or as a query;
-// - a click on an object of the chain looks at it and keeps the card; Open goes into its card and back returns; a
-//   description opens on request; X crosses to the truth match and B comes back; Esc leaves the selection;
-// - "only" draws one kind alone; the Truth tab has the event's scorecard (folded);
-// - for one bundle, the interaction checks (deepChecks); for a bundle whose paths are built from their parts (`grow`),
-//   the replay (checkReplay).
+// The checks of one bundle (checkBundle), each step logged and a failure noted, not thrown: messages, the event box,
+// the start domain and labels, layers and helices, domains, object rows, presets, colour keys and truth colours,
+// summary charts, what a selection draws, its card's chain and levels, links, looking at and opening chain objects, X
+// and B, "only", the scorecard; for one bundle the interaction checks (deepChecks), and for one whose paths are built
+// from their parts (`grow`) the replay (checkReplay). Each check's doc comment says what it expects.
 import { readFileSync } from "node:fs";
-import { BIG, bigEvents, eventRead, expected404, log } from "./common.mjs";
+import {
+  BIG,
+  bigEvents,
+  drawnTables,
+  eventRead,
+  failOnErrors,
+  hasDomainBar,
+  hashParam,
+  log,
+  screenshot,
+  succeeds,
+} from "./common.mjs";
 
-/** In an older bundle's header, as stored: a layer the viewer leaves out (io/bundle.ts oneSourcePerKind). */
+/** In an older bundle's header: a layer the viewer leaves out (io/bundle.ts oneSourcePerKind). */
 const legacyCopy = (d) => d.alternative && d.source === "legacy";
 
 /** Check bundle `file` (`tag`: its name in the progress lines and screenshots). `state.page`: the page open now, which
@@ -29,12 +29,9 @@ export async function checkBundle(run, file, tag, state) {
   let page,
     small = false;
   const shot = async (name) => {
-    // a record, not a check
     if (small && name !== "1_layers") return;
     await page.waitForTimeout(500);
-    await page
-      .screenshot({ path: `${out}/${tag}_${name}.png`, timeout: 60000 })
-      .catch(() => log(`${tag}: screenshot ${name} timed out`));
+    await screenshot(page, out, tag, name);
   };
   const open = async (hash, query = false) => {
     // a fresh page each time: software WebGL is slow to let go of a big scene
@@ -42,8 +39,7 @@ export async function checkBundle(run, file, tag, state) {
     page = state.page = await browser.newPage({
       viewport: small ? { width: 720, height: 450 } : { width: 1440, height: 860 },
     });
-    page.on("console", (m) => m.type() === "error" && !expected404(m, base) && fail(m.text()));
-    page.on("pageerror", (e) => fail(e.message));
+    failOnErrors(page, base, fail);
     await page.goto(`${base}${query ? "?" : "#"}${hash}`, { timeout: 90000 });
     await eventRead(page);
     await page.waitForTimeout(1200);
@@ -62,8 +58,8 @@ export async function checkBundle(run, file, tag, state) {
   );
   log(`${tag}: ${drawn} layers, ${objects} objects drawn: ${rows.join(" | ")}`);
   if (!drawn) fail("no layer drawn");
-  // A big scene (or a big file, whose start view may be light, e.g. only the physics objects): software WebGL is too
-  // slow for the replay and full-size screenshots.
+  // A big scene, or big events (whose start view may be light: only the physics objects): software WebGL is too slow
+  // for the replay and full-size screenshots.
   if ((small = objects > BIG || bigEvents(h))) await page.setViewportSize({ width: 720, height: 450 });
   await shot("1_layers");
   await checkHelices(page, fail, tag);
@@ -119,17 +115,17 @@ export async function checkBundle(run, file, tag, state) {
   if (h.summaries?.length && !charts) fail("no summary charts");
   await shot("2_event");
 
-  // Select an object that is made of others: from a relation into a drawn table, preferring later stages.
+  // Select an object made of others: from a relation into a drawn table, preferring later stages, with rows in the
+  // event opened (e=1, the second: an electron is linked to its tracks, but an event may have none).
   const drawnTables = new Set(h.display.filter((d) => !legacyCopy(d)).map((d) => d.table));
   const score = (d) =>
     Object.values(h.relations)
       .filter((r) => !r.association && r.from === d.table)
       .reduce((s, r) => Math.max(s, (drawnTables.has(r.to) ? 100 : 1) + (d.stage ?? 0)), 0);
-  // ... with rows in the event opened (e=1, the second): an electron is linked to its tracks, but an event may have none
   const inEvent = (d) => (h.counts[Math.min(1, h.counts.length - 1)]?.[d.table] ?? 0) > 0;
   const target = h.display.filter((d) => d.visible && !d.context && inEvent(d)).sort((a, c) => score(c) - score(a))[0];
   if (!target || !score(target)) return log(`${tag}: nothing made of other objects to select`);
-  const all = (h.domains?.length ?? 0) >= 2 ? "&d=All" : ""; // every level in the focus bar, as without domains
+  const all = hasDomainBar(h) ? "&d=All" : ""; // every level in the focus bar, as without domains
   await open(`b=${file}&e=1${all}&s=${target.table}:0`);
   // The selection's card shows its chain: itself and at least one step above or below it.
   const steps = await page.locator(".inspector .ladder .rung").count();
@@ -140,9 +136,9 @@ export async function checkBundle(run, file, tag, state) {
       .locator(".inspector .pairline")
       .innerText()
       .catch(() => "");
-    // A bundle without truth opens no pair (src/model/store/selection.ts pairView), and neither does a kind with no
-    // truth of its own (src/model/pair.ts pairFor): a truthGap and neither a match to a truth layer nor a fact into it
-    // (e.g. a stock release's TICL candidates). Ember derives none (docs/truth.md).
+    // No pair without truth (store/selection.ts pairView), nor for a kind with no truth of its own (truth/pair.ts
+    // pairFor): a truthGap and neither a match to a truth layer nor a fact into it (e.g. a stock release's TICL
+    // candidates). Ember derives none (docs/truth.md).
     const rels = Object.values(h.relations),
       truthTables = new Set(h.display.filter((d) => d.truth).map((d) => d.table));
     const truthRoot = [...truthTables].some((t) => rels.some((r) => r.association && (r.from === t || r.to === t)));
@@ -170,8 +166,7 @@ export async function checkBundle(run, file, tag, state) {
   if (row && !(await pills())) await open(`b=${file}&e=1${all}&s=${target.table}:${(row = 0)}`);
   await checkLevels(page, h, target, fail, shot, tag);
   await checkDomainFocus(page, h, fail, shot, tag);
-  // A shared link reopens its state: data set, event (its place in the file), domain and selection, also written as a
-  // query (?b=…) rather than the hash.
+  // A link reopens its data set, event (its place in the file), domain and selection, also as a query (?b=…).
   const names = (h.domains ?? []).map((d) => d.name),
     part = names.find((n) => !h.domains.find((d) => d.name === n).shared);
   for (const query of [false, true]) {
@@ -190,19 +185,17 @@ export async function checkBundle(run, file, tag, state) {
       fail(`a ${query ? "query" : "hash"} link did not reopen its state: ${bad.join(", ") || at}`);
   }
   // The card's object (its kind and name: a cluster and a hit can both be "#0") and the URL's selection.
-  const focused = async () =>
-    `${(
-      await page
-        .locator(".inspector > header .kind, .inspector h2")
-        .allInnerTexts()
-        .catch(() => [])
-    )
-      .join(" ")
-      .replace(/\s+/g, " ")} (${decodeURIComponent(new URL(page.url()).hash.match(/s=([^&]+)/)?.[1] ?? "")})`;
+  const focused = async () => {
+    const names = await page
+      .locator(".inspector > header .kind, .inspector h2")
+      .allInnerTexts()
+      .catch(() => []);
+    return `${names.join(" ").replace(/\s+/g, " ")} (${hashParam(page, "s")})`;
+  };
   const first = await focused(),
     card = (x) => x.slice(0, x.lastIndexOf(" (")); // without the URL's selection (a kind's name may hold brackets)
-  // A step of the chain names its objects when few; a longer one unfolds to them. A click looks at one: the view (and
-  // the URL's selection) moves to it and the card stays; "Open" goes into its card; back returns to the first.
+  // A chain step names its objects when few; a longer one unfolds to them. A click looks at one (the view and the URL's
+  // selection move to it, the card stays); "Open" goes into its card; back returns to the first.
   if (!(await page.locator(".inspector .ladder .rhead .chip").count()))
     await page.locator(".inspector .ladder .rhead .count").first().click();
   await page
@@ -250,8 +243,8 @@ export async function checkBundle(run, file, tag, state) {
   } else if (h.display.some((d) => d.grow) && !small) await checkReplay(page, h, fail); // the path building, also when not deep
 }
 
-/** A message is readable: wider than a word (it once took the ⓘ button's 15 px). The event box's answer to text that
- *  names nothing is one. */
+/** A message is readable: wider than a word (it once took the "i" button's 15 px). The event box's answer to text
+ *  that names nothing is one. */
 async function checkMessage(page, fail, tag) {
   await page.fill("input.jump", "no such thing");
   await page.press("input.jump", "Enter");
@@ -261,8 +254,8 @@ async function checkMessage(page, fail, tag) {
   if (width < 200) fail(`a message is ${Math.round(width)} px wide`);
 }
 
-/** The top bar names the run, lumi section and event, and the event box goes back to the event by its
- *  run:lumi:event, from another event when the bundle has more than one. */
+/** The top bar names the run, lumi section and event; the event box goes back to it by its run:lumi:event (from
+ *  another event when the bundle has more than one). */
 async function checkEventBox(page, fail, tag) {
   const shown = () => page.locator(".eventid strong").innerText(),
     first = await shown(),
@@ -286,21 +279,19 @@ async function checkEventBox(page, fail, tag) {
 }
 
 /** A bundle that names a start domain (`view.domain`) opens on it: in the URL, drawing only its layers and those of
- *  shared domains or none. */
+ *  shared domains or none. Then labels on the leading objects (display hint `labels`): L hides them; N selects one. */
 async function checkStart(page, h, fail, tag) {
-  const start = h.view?.domain,
-    names = (h.domains ?? []).map((d) => d.name);
-  if (!start || names.length < 2 || !names.includes(start)) return;
+  const start = h.view?.domain;
+  if (!start || !hasDomainBar(h) || !h.domains.some((d) => d.name === start)) return;
   const shared = new Set(h.domains.filter((d) => d.shared).map((d) => d.name));
-  const url = decodeURIComponent(new URL(page.url()).hash.match(/[#&]d=([^&]+)/)?.[1] ?? "");
-  const tables = await page.evaluate(() => window.emberEngine.layers.map((l) => l.table));
+  const url = hashParam(page, "d");
+  const tables = await drawnTables(page);
   const other = tables.filter((t) =>
     h.display.some((d) => d.table === t && d.domain && d.domain !== start && !shared.has(d.domain)),
   );
   log(`${tag}: opens on ${url || "All"} (start domain ${start}), drawing ${tables.join(", ")}`);
   if (url !== start) fail(`did not open on its start domain ${start} (URL d=${url})`);
   if (other.length) fail(`the start domain ${start} draws layers of other domains: ${other.join(", ")}`);
-  // Labels on the leading objects (layer hint labels) of the layers drawn; L hides them; N selects the leading one.
   const labelled = h.display.filter((d) => d.labels && tables.includes(d.table));
   if (!labelled.length) return;
   const shown = () =>
@@ -316,7 +307,7 @@ async function checkStart(page, h, fail, tag) {
   await page.keyboard.press("l");
   await page.keyboard.press("n");
   await page.waitForTimeout(900);
-  const s = decodeURIComponent(new URL(page.url()).hash.match(/s=([^&]+)/)?.[1] ?? "");
+  const s = hashParam(page, "s");
   log(`${tag}: N selected ${s}`);
   if (!labelled.some((d) => s.startsWith(`${d.table}:`))) fail(`N did not select a leading labelled object (s=${s})`);
   await page.keyboard.press("Escape");
@@ -341,26 +332,24 @@ async function checkHelices(page, fail, tag) {
   }
 }
 
-/** With two or more domains: each one draws only its layers, those of shared domains and those without a domain,
- *  puts itself in the URL, hides the particle-type colour key if it colours layer by layer (`colourMode`), and opens
- *  its layers' tab (with a bar, Collections, with its section open and first);
- *  another tab leaves the view as it is; All brings every layer back. */
+/** With a domain bar: each domain draws only its layers, those of shared domains and those without a domain, puts
+ *  itself in the URL, hides the particle-type colour key if it colours layer by layer (`colourMode`), and opens its
+ *  layers' tab (Collections, with its section open and first, where there is one); another tab leaves the view as it
+ *  is; All brings every layer back. */
 async function checkDomains(page, h, fail, shot, tag) {
-  const names = (h.domains ?? []).map((d) => d.name);
-  if (names.length < 2) return;
+  if (!hasDomainBar(h)) return;
   const shared = new Set(h.domains.filter((d) => d.shared).map((d) => d.name));
-  const tables = () => page.evaluate(() => window.emberEngine.layers.map((l) => l.table));
-  const before = await chooseDomain(page, "All").then(tables);
-  for (const name of names) {
+  const before = await chooseDomain(page, "All").then(() => drawnTables(page));
+  for (const { name, colourMode } of h.domains) {
     await chooseDomain(page, name);
     await page.waitForTimeout(800);
-    const drawn = await tables(),
-      url = decodeURIComponent(new URL(page.url()).hash.match(/[#&]d=([^&]+)/)?.[1] ?? "");
+    const drawn = await drawnTables(page),
+      url = hashParam(page, "d");
     const other = drawn.filter((t) =>
       h.display.some((d) => d.table === t && d.domain && d.domain !== name && !shared.has(d.domain)),
     );
     const key = await page.locator(".colourkey .key li").count(),
-      own = h.domains.find((d) => d.name === name).colourMode === "layers";
+      own = colourMode === "layers";
     log(
       `${tag}: domain ${name}: ${drawn.length} layers drawn (${before.length} in All), URL d=${url}, colour key ${key ? "shown" : "none"}`,
     );
@@ -388,16 +377,16 @@ async function checkDomains(page, h, fail, shot, tag) {
     await shot(`1_domain_${name}`);
   }
   await chooseDomain(page, "All");
-  if ((await tables()).length !== before.length) fail("All did not bring every layer back");
+  if ((await drawnTables(page)).length !== before.length) fail("All did not bring every layer back");
   if (h.display.some((d) => d.stage !== undefined) && !(await page.locator(".colourkey").count()))
     fail("All did not bring the colour key back");
 }
 
-/** Layers with object rows (`list`): the ticked ones list their objects; a click on a row selects that object (URL,
- *  inspector, the row marked). */
+/** Layers with object rows (`list`): the ticked ones list their objects; pointing at a row rings its object; a click
+ *  selects it (URL, card, the row marked); then H steps through how the rest of the event is drawn. */
 async function checkObjectRows(page, h, fail, shot, tag) {
   // The first ticked layer with object rows that this viewer draws (it leaves out reprs it does not know), in its tab.
-  const tabOf = (d) => ((h.domains?.length ?? 0) >= 2 ? "Collections" : (d.domain ?? "Objects"));
+  const tabOf = (d) => (hasDomainBar(h) ? "Collections" : (d.domain ?? "Objects"));
   let d;
   for (const x of h.display.filter((l) => l.list && l.visible)) {
     await page
@@ -427,14 +416,13 @@ async function checkObjectRows(page, h, fail, shot, tag) {
   if (!ring) fail("pointing at an object row does not ring its object in the view");
   await rows.first().click({ timeout: 120000 }); // software WebGL: a PU200 scene keeps the page busy
   await page.waitForTimeout(900);
-  const s = decodeURIComponent(new URL(page.url()).hash.match(/s=([^&]+)/)?.[1] ?? "");
+  const s = hashParam(page, "s");
   const marked = await rows.first().getAttribute("class");
   log(`${tag}: a click on the first ${d.label} row selected ${s}`);
   if (!s.startsWith(`${d.table}:`) || !(await page.locator(".inspector").count()))
     fail(`a click on a ${d.label} row did not select it (s=${s})`);
   if (!marked?.includes("selected")) fail("the selected object's row is not marked");
   await shot("1_rows");
-  // With a selection, the view offers how the rest of the event is drawn; H steps through dim, faint and hidden.
   const others = () =>
     page
       .locator(".viewchips .rest button.on")
@@ -454,9 +442,8 @@ async function checkObjectRows(page, h, fail, shot, tag) {
 }
 
 /** A selection draws its objects that a layer's filter hides (cuts still apply), and its levels drawn as lines (e.g. a
- *  vertex's tracks) with its smallest parts. Looks, in the page, for an object related through a plain relation to a
- *  row that a non-onSelection layer's filter hides but that passes the layer's cut; selects it and checks that row is
- *  drawn. Uses the app's own modules (dev server). */
+ *  vertex's tracks). Finds, in the page (with the app's own modules), an object related through a plain relation to a
+ *  row that a non-onSelection layer's filter hides but its cut keeps; selects it and checks that row is drawn. */
 async function checkFocusFilters(page, h, fail, tag) {
   if (!h.display.some((d) => d.filter && !d.onSelection)) return;
   const found = await page.evaluate(async () => {
@@ -464,9 +451,9 @@ async function checkFocusFilters(page, h, fail, tag) {
       performance
         .getEntriesByType("resource")
         .map((r) => r.name)
-        .find((n) => n.includes(f)); // ?t= after hot updates
+        .find((n) => n.includes(f)); // the module's URL as loaded: ?t= after hot updates
     const store = await import(url("/src/model/store/index.ts")),
-      custom = await import(url("/src/model/custom.ts"));
+      custom = await import(url("/src/model/custom/settings.ts"));
     const frames = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
     const b = store.bundle.peek(),
       ev = store.event.peek(),
@@ -520,18 +507,12 @@ async function checkFocusFilters(page, h, fail, tag) {
 
 /** The focus is drawn with its bottom level (e.g. hits) only: no layer of an earlier reconstruction stage. ↓ adds one
  *  level in between (one more layer kind drawn, its pill lit) and turns a shower focus into an outline around it; ↑
- *  goes back. */
+ *  goes back. Then the pair's particle opens its own pair. */
 async function checkLevels(page, h, target, fail, shot, tag) {
-  const drawn = () =>
-    page.evaluate(() =>
-      window.emberEngine.layers
-        .map((l) => l.table)
-        .sort()
-        .join(),
-    );
+  const drawn = async () => (await drawnTables(page)).sort().join();
   const style = () =>
     page.evaluate((t) => {
-      // shower layers: surface style and transparency of the focus's layer
+      // shower layers: the surface style and transparency of the focus's layer
       const m = window.emberEngine.layers.find((l) => l.table === t)?.object.children?.[0]?.material;
       return m?.uniforms?.uStyle ? `${m.uniforms.uStyle.value}/${m.transparent}` : "";
     }, target.table);
@@ -558,9 +539,9 @@ async function checkLevels(page, h, target, fail, shot, tag) {
   await page.waitForTimeout(600);
   if ((await drawn()) !== before) fail("↑ did not go back to the focus's default layers");
   if ((await style()) !== style0) fail("↑ did not give the focus its own surface back");
-  // In the truth <-> reco pair view, the pair's particle opens its own pair (its branch, per detector): the card names
-  // it on the pair's truth line.
-  const particle = page.locator(".inspector .truthline:not(.answer) .chip").first(); // not the one-line answer, named by energy next to a calorimeter part
+  // In the truth <-> reco pair view, the pair's particle opens its own pair, which names it on its truth line. (Not
+  // the chip of the one-line answer, named by energy next to a calorimeter part.)
+  const particle = page.locator(".inspector .truthline:not(.answer) .chip").first();
   if (!(await page.locator(".pairline").count()) || !(await particle.count())) return;
   const name = (await particle.innerText()).replace(/\s+/g, " ");
   await particle.click();
@@ -582,7 +563,7 @@ async function checkLevels(page, h, target, fail, shot, tag) {
 /** With a domain bar: D keeps the selection and moves to the next domain it has objects in; a chip of the focus bar
  *  looks at its part of the detector, keeping the focus. */
 async function checkDomainFocus(page, h, fail, shot, tag) {
-  if ((h.domains?.length ?? 0) < 2 || !(await page.locator(".inspector").count())) return;
+  if (!hasDomainBar(h) || !(await page.locator(".inspector").count())) return;
   const state = () => {
     const p = new URLSearchParams(new URL(page.url()).hash.slice(1));
     return [p.get("d"), p.get("s")];
@@ -594,7 +575,7 @@ async function checkDomainFocus(page, h, fail, shot, tag) {
   log(`${tag}: D with ${s0} selected: ${d0} -> ${d1}, selection ${s1}`);
   if (d1 === d0) fail("D did not change the domain with a selection");
   if (s1 !== s0) fail(`D did not keep the selection (${s0} -> ${s1})`);
-  const chip = page.locator(".inspector .rung .rtools .link").first(); // a step in another part of the detector
+  const chip = page.locator(".inspector .rung .rtools .link").first(); // a step in another domain
   if (await chip.count()) {
     const name = (await chip.innerText()).split(/\s/)[0];
     await chip.click({ timeout: 120000 }); // software WebGL: a PU200 scene keeps the page busy
@@ -626,7 +607,7 @@ async function checkReducedMotion(page, fail) {
 
 /** X crosses the reco <-> truth link from a selected object that has a match, and B comes back. */
 async function checkCross(page, h, fail, tag) {
-  const sel = () => decodeURIComponent(new URL(page.url()).hash.match(/s=([^&]+)/)?.[1] ?? "");
+  const sel = () => hashParam(page, "s");
   const truth = new Set(h.display.filter((d) => d.truth).map((d) => d.table)),
     s0 = sel();
   if (!(await page.locator(".inspector .rung.self .rlink.match .chip").count())) return;
@@ -645,13 +626,7 @@ async function checkCross(page, h, fail, tag) {
 
 /** "only" on a kind's heading draws that kind alone, keeps it in the URL, and "show everything" brings the rest back. */
 async function checkOnly(page, h, fail, shot, tag) {
-  const tables = () =>
-    page.evaluate(() =>
-      window.emberEngine.layers
-        .map((l) => l.table)
-        .sort()
-        .join(),
-    );
+  const tables = async () => (await drawnTables(page)).sort().join();
   const button = page.locator(".sidebar .tabpanel section.kind:not(.folded) h3 .only").first();
   if (!(await button.count())) return;
   const before = await tables(),
@@ -683,7 +658,7 @@ async function checkScorecard(page, h, fail, shot, tag) {
   )
     return;
   await page.getByRole("tab", { name: "Truth", exact: true }).click();
-  // unfold it, unless it is open already (the tab keeps its sections' state)
+  // unfold it unless open already (the tab keeps its sections' state)
   if (await page.locator("section.scorecard details:not([open])").count())
     await page.locator("section.scorecard summary").click();
   const rows = await page.locator("table.score tbody tr:not(.list)").count(),
@@ -789,8 +764,8 @@ async function deepChecks(page, h, fail, shot) {
   await page.keyboard.press("Escape"); // the replay and tour start from the whole event
   await checkReplay(page, h, fail);
 
-  // The tour builds the event up step by step (control/tour.ts: its captions in the order of the plan, window.emberTourPlan),
-  // or for a bundle without the kinds the steps name, replays it and selects its main showers; any key stops it.
+  // The tour builds the event up step by step (control/tour.ts: its captions in the order of window.emberTourPlan), or
+  // for a bundle without the kinds the steps name, replays it and selects its main showers; any key stops it.
   const cam = () => page.evaluate(() => window.emberEngine.cam3d.position.toArray().map(Math.round).join());
   const c0 = await cam();
   await page.evaluate(() => {
@@ -801,18 +776,8 @@ async function deepChecks(page, h, fail, shot) {
     }).observe(document.querySelector(".viewport"), { subtree: true, childList: true, characterData: true });
   });
   await page.keyboard.press("p");
-  const staged = await page
-    .waitForFunction(() => window.tourCaptions.length >= 3, null, { timeout: 90000 })
-    .then(
-      () => true,
-      () => false,
-    );
-  const toured =
-    staged ||
-    (await page.waitForSelector(".inspector", { timeout: 60000 }).then(
-      () => true,
-      () => false,
-    ));
+  const staged = await succeeds(page.waitForFunction(() => window.tourCaptions.length >= 3, null, { timeout: 90000 }));
+  const toured = staged || (await succeeds(page.waitForSelector(".inspector", { timeout: 60000 })));
   const c1 = await cam();
   await shot("8_tour");
   const [shown, plan] = await page.evaluate(() => [window.tourCaptions, window.emberTourPlan ?? []]);
@@ -833,8 +798,8 @@ async function deepChecks(page, h, fail, shot) {
  *  the seeding, building and fitting captions come in order before any later step, and every path is complete by the
  *  fit. */
 async function checkReplay(page, h, fail) {
-  // Captions shown, recorded as they change (a MutationObserver on the view, installed before R), with the replay
-  // clock: a poller missed short ones whenever software-WebGL frames were slow.
+  // Captions shown, recorded as they change by a MutationObserver installed before R, with the replay clock (a poller
+  // missed short ones whenever software-WebGL frames were slow).
   await page.evaluate(() => {
     window.captions = [];
     const root = document.querySelector(".viewport");
@@ -848,8 +813,8 @@ async function checkReplay(page, h, fail) {
   });
   await page.keyboard.press("r");
   if (!(await page.evaluate(() => window.emberEngine.replaying))) fail("R did not start a replay");
-  // Each hit layer arrives in the physics phase (its first 3 s, render/replay.ts TRAVEL) in any colour mode, not with
-  // the clusters: half of its hits are shown by then. A layer has instances only for the rows the filter can show.
+  // Each hit layer arrives in the physics phase (the first 3 s, render/replay.ts TRAVEL) in any colour mode, not with
+  // the clusters: half of its hits by then. A layer has instances only for the rows the filter can show.
   const hitsAt = await page.evaluate(() =>
     window.emberEngine.layers
       .filter((l) => l.key.endsWith(":cells") && !l.context && l.object.geometry.getAttribute("iT").array.length)
@@ -874,7 +839,7 @@ async function checkReplay(page, h, fail) {
         const appear = g?.getAttribute("iT").array ?? [],
           ends = g?.getAttribute("iL").array ?? [];
         const lit = layers.find((l) => l.table === parts)?.object.geometry.getAttribute("iL").array ?? [];
-        // every drawn path grows from the building's start (not the 0.5 s of an appearing line) and is whole by the fit
+        // every path grows from the building's start (not the 0.5 s of an appearing line) and is whole by the fit
         const late = growth
           ? [...ends].filter(
               (t, i) => !(appear[i] < t && Math.abs(appear[i] - growth.build) < 1e-4 && t <= growth.complete + 1e-4),
@@ -898,8 +863,8 @@ async function checkReplay(page, h, fail) {
     window.captionObserver.disconnect();
     return window.captions;
   });
-  // The plan's captions, every 10 ms of the replay clock: what a frame at that time shows. A frame slower than a short
-  // step (the fit) skips it on screen; the plan still has it, and what was shown must follow the plan's order.
+  // The plan's captions, sampled every 10 ms of the replay clock. A frame slower than a short step (the fit) skips it
+  // on screen, so what was shown must follow the plan's order, maybe with gaps.
   const captions = await page.evaluate(() => {
     const p = window.emberPlan,
       out = [];
@@ -910,7 +875,7 @@ async function checkReplay(page, h, fail) {
     return out;
   });
   log(`  replay captions: ${captions.map(([c]) => c).join(" | ")}; shown: ${shown.map(([c]) => c).join(" | ")}`);
-  let k = 0; // what was shown is the plan's captions in order, maybe with some skipped
+  let k = 0;
   for (const [c] of shown) {
     while (k < captions.length && captions[k][0] !== c) k++;
     if (k++ >= captions.length) {

@@ -20,7 +20,7 @@ dev = ["ruff==0.17.5"]                  # formatting and lint: ruff format, ruff
 ember = "embertools.__main__:main"
 
 [tool.setuptools]
-packages = ["embertools"]
+packages = ["embertools", "embertools.cmsrun"]
 
 [tool.setuptools.package-data]
 embertools = ["profiles/*.json"]

@@ -1,24 +1,13 @@
 """Keep an Ember site in sync with campaigns of NanoAOD files (run from cron, e.g. every 15 minutes).
 
 Each input file becomes one bundle, <site>/data/<campaign>/<file stem>.ember, written once and skipped afterwards
-(a <file stem>.evdb, written before the project was called Ember, counts as written);
-then <site>/index.json is rebuilt from the bundles present, newest data first. Safe to repeat and to overlap: bundles
-and the index are replaced by atomic renames, and a lock directory keeps two runs from converting the same file.
-Inputs still being written (modified in the last `settle` seconds) wait for the next run; a file that fails
-`max_failures` times is skipped until its entry is removed from <state>/failures.json.
+(a <file stem>.evdb, from before the project was called Ember, counts as written); then <site>/index.json is rebuilt
+from the bundles present, newest data first. Safe to repeat and to overlap: bundles and the index are replaced by
+atomic renames, and a lock directory keeps two runs from converting the same file. Inputs still being written
+(modified in the last `settle` seconds) wait for the next run; a file that fails `max_failures` times is skipped
+until its entry is removed from <state>/failures.json.
 
-Config (JSON; service/campaigns.example.json shows every key):
-  {"campaigns": [{"name": "mct_22000077", "title": "MCT run 22000077", "profile": "mct", "max_events": 1000,
-                  "inputs": "/eos/cms/store/.../Run22000077/*/NANO_22000077_*.root",
-                  "xrootd": "root://eoscms.cern.ch/"}]}
-  "site" and "state" default to the site of embertools/site.py (EMBER_SITE_DIR) and <EMBER_SERVICE_DIR>/state.
-  Optional per campaign: "stem": "wildcards" names bundles after the wildcard parts of the input path, and with
-  "stem_parts": [0, 2] after those wildcards only, so that inputs differing in the others share a name and only the
-  first of them is converted (one bundle per RelVal sample, whatever its files are called);
-  "runInfo": where to find information about the runs (see embertools/runinfo.py), e.g. "registry:RunRegistryP5.RunTable";
-  "export": {"cmssw": area, "geometry": "D110", ...}: the inputs are CMSSW reconstruction files (e.g. RelVals), and
-  the NanoAOD of their first `max_events` events is made first, by ember's own cmsRun configuration run in that CMSSW
-  area (embertools/export.py; optional "era", "conditions", "threads").
+The configuration (JSON) is described in service/README.md ("Campaigns"); service/campaigns.example.json has every key.
 """
 
 import contextlib
@@ -38,9 +27,8 @@ from .bundle import Bundle, summary
 from .site import EXTENSION, EXTENSIONS, USERS, replacing, service_dir, site_dir
 
 LOCK_STALE = 3 * 3600  # s: a lock untouched for this long was left by a pass that died (see _take_lock)
-PARTIAL_QUIET = (
-    1800  # s: a partial bundle unwritten for this long is not being written (a writer adds a record every few s)
-)
+# s: a partial bundle unwritten for this long is not being written (a writer adds a record every few s)
+PARTIAL_QUIET = 1800
 
 
 def now():
@@ -205,8 +193,8 @@ def build_index(site):
 
 def sync(config, max_files=None, dry_run=False, convert=None, export=None):
     """One pass: convert up to `max_files` new inputs, then rewrite the index. Returns the number converted.
-    `config` is the campaigns configuration (see the top of this file); `convert` and `export` stand in for
-    nano.convert and export.export in tests."""
+    `config` is the campaigns configuration; `convert` and `export` stand in for nano.convert and export.export in
+    tests."""
     site = config.get("site") or site_dir()
     state = config.get("state") or os.path.join(service_dir(), "state")
     if any(c["name"] == "u" for c in config["campaigns"]):

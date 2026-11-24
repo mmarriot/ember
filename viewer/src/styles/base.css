@@ -1,8 +1,8 @@
-/* What every part of the page shares: the colour tokens of the two themes, the page's elements, the layout grid,
-   the controls (buttons, links, fields, chips), tables of names and values, tags and badges, and the marks that say
-   what the associator found for an object. */
+/* What every part of the page shares: the theme tokens, page elements, the layout grid, controls, tags and badges,
+   tables of names and values, and the associator's marks. */
 
-/* Colour tokens: light by default, dark when the root has data-theme="dark" (model/store/view.ts sets it). */
+/* Tokens: light by default, dark with <html data-theme="dark"> (model/store/view.ts always sets data-theme). The
+   associator's classes (clean, impure, no match) also differ in shape, for those who cannot tell the colours apart. */
 :root {
   --bg: #ffffff;
   --surface: #ffffff;
@@ -25,6 +25,11 @@
     Roboto,
     sans-serif;
   --overlay: rgba(255, 255, 255, 0.88);
+  --truth: #7a3fb0; /* the simulation's violet (docs/truth.md "One look for truth") */
+  --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  --clean: #1a7f37;
+  --impure: #9a6700;
+  --nomatch: #6e7781;
   color-scheme: light;
 }
 :root[data-theme="dark"] {
@@ -40,20 +45,11 @@
   --error: #f85149;
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 6px 20px rgba(0, 0, 0, 0.45);
   --overlay: rgba(15, 20, 25, 0.85);
-  color-scheme: dark;
-}
-
-/* What the associator says of an object (clean, impure or no match): a colour per class, for the dots, counts and
-   bars further down. Shape differs too, for those who cannot tell the colours apart. */
-:root {
-  --clean: #1a7f37;
-  --impure: #9a6700;
-  --nomatch: #6e7781;
-}
-[data-theme="dark"] {
+  --truth: #d7a6ff;
   --clean: #3fb950;
   --impure: #d29922;
   --nomatch: #8d96a0;
+  color-scheme: dark;
 }
 
 /* Page elements and text helpers. */
@@ -213,17 +209,10 @@ input[type="number"],
   filter: none;
 }
 code {
-  font:
-    11.5px ui-monospace,
-    SFMono-Regular,
-    Menlo,
-    monospace;
+  font: 11.5px var(--mono);
 }
 a.link {
-  text-decoration: none;
-}
-a.link:hover {
-  text-decoration: underline;
+  text-decoration: none; /* .link:hover underlines it */
 }
 .segmented {
   flex: none;
@@ -258,8 +247,7 @@ a.link:hover {
   white-space: nowrap;
 }
 
-/* Tags and badges: a collection's reconstruction path; truth (simulation, dashed) and reco (solid); a particle's
-   truth level. */
+/* Tags and badges: a collection's reconstruction path; truth (dashed) and reco (solid); a particle's truth level. */
 .tag {
   font-size: 11px;
   color: var(--muted);
@@ -268,21 +256,7 @@ a.link:hover {
   padding: 0 4px;
   margin-left: 6px;
 }
-.badge.truth {
-  display: inline-block;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-  padding: 0 5px;
-  margin: 0 6px 0 0;
-  border-radius: 3px;
-  border: 1px dashed currentColor;
-  color: #d7a6ff;
-}
-[data-theme="light"] .badge.truth {
-  color: #7a3fb0;
-}
+.badge.truth,
 .badge.reco {
   display: inline-block;
   font-size: 11px;
@@ -295,6 +269,10 @@ a.link:hover {
   border: 1px solid currentColor;
   color: var(--muted);
 }
+.badge.truth {
+  border-style: dashed;
+  color: var(--truth);
+}
 .badge.level {
   display: inline-block;
   font-size: 11px;
@@ -304,9 +282,8 @@ a.link:hover {
   color: var(--muted);
 }
 
-/* Tables of names and values (class kv): the object card's columns, the Event tab, the data set's details. A stats
-   table shrinks its names with an ellipsis (full text on hover) and never wraps its numbers; a prov table keeps
-   its names short and lets its values (paths, file lists) wrap. */
+/* Tables of names and values (kv). A stats table cuts its names with an ellipsis and never wraps its numbers; a prov
+   table keeps its names on one line and lets its values (paths, file lists) wrap. */
 table.kv {
   width: 100%;
   border-collapse: collapse;
@@ -347,7 +324,7 @@ table.kv.stats td:nth-child(2) {
   padding-left: 12px;
 }
 table.kv.mono td:first-child {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--mono);
   font-size: 11px;
 }
 table.kv.prov td:first-child {
@@ -356,8 +333,8 @@ table.kv.prov td:first-child {
   padding-right: 12px;
 }
 
-/* The associator's answer for an object: a dot before its name, and the colour of a count. The chip that names the
-   object looked at from the card is filled. */
+/* The associator's answer for an object: a dot before its name, and the colour of a count. The chip of the object
+   looked at from the card is filled. */
 .qdot {
   display: inline-block;
   width: 8px;

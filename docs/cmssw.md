@@ -13,7 +13,7 @@ output is plain NanoAOD, which you can read with uproot or ROOT like any other. 
 add generic table producers for what the release cannot write: the hits of each cluster, and the truth graph
 ([below](#the-cmssw-branches)). `ember` uses them when your release has them.
 
-The code is `embertools/cmsrun.py` (the configuration) and `embertools/export.py` (the settings and the job). This
+The code is `embertools/cmsrun/` (the configuration, one module per producer family) and `embertools/export.py` (the settings and the job). This
 page describes them as tested with the integration build CMSSW_20_1_X_2026-11-17-2300.
 
 ## How `ember` writes the configuration

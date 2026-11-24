@@ -1,8 +1,8 @@
-// What a saved picture adds over the view (ui/Picture.tsx): the experiment's label with lines of caption under it, and
-// the colour key (model/key.ts). Laid out once as plain shapes and text in two blocks, then drawn onto the picture's
+// What a saved picture adds over the view (ui/dialogs/Picture.tsx): the experiment's label with lines of caption under it, and
+// the colour key (model/colour/key.ts). Laid out once as plain shapes and text in two blocks, then drawn onto the picture's
 // canvas (PNG) or written as SVG elements over the view's image, so that both formats look the same and the SVG's text
 // stays text. Sizes are in units of the text size, so a picture at 4x is the one at 1x, only sharper.
-import type { KeyGroup } from "../model/key";
+import type { KeyGroup } from "../model/colour/key";
 
 /** What to draw over the view. `at`: each block's top left as a fraction of the picture's size; none: its corner
  *  (the label top left, the key top right). `text`: the text size of the caption and the key in CSS pixels (the label

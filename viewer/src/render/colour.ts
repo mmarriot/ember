@@ -1,13 +1,12 @@
-// Colours per theme. Sequential scales fade towards the background at low values and stand out at high values
-// (log10 for positive quantities such as energies, linear otherwise); categorical colours tell objects apart
-// (one per trackster; its layer clusters share it). Identity colours (the colour modes) give the largest objects of
-// one table a colour each, and the objects linked to them the same colour. Computed once per event on the CPU, so
-// shaders and legend agree.
+// Colours per theme, and each object's colour with its legend. Sequential scales fade towards the background at low
+// values (log10 for positive quantities such as energies, linear otherwise); categorical colours tell objects apart;
+// identity colours (the colour modes) give the largest objects of one table a colour each, and the objects linked to
+// them the same. Computed once per event on the CPU, so shaders and legend agree.
 import { type DisplayLayer, type EventData, type Header, kindName, type Table, toF32, unitOf } from "../io/format";
-import { kindLabel } from "../model/describe";
-import { bestPurities, percent } from "../model/match";
-import { bestPartners, contentPartners, identities, type SlotRank, truthClasses } from "../model/relations";
-import { ruleText } from "../model/truth";
+import { kindLabel } from "../model/event/describe";
+import { bestPurities, percent } from "../model/truth/match";
+import { bestPartners, contentPartners } from "../model/event/relations";
+import { identities, ruleText, type SlotRank, truthClasses } from "../model/colour/identities";
 
 export const PALETTES = {
   light: {
@@ -60,7 +59,7 @@ export const PALETTES = {
     // Violet is the truth's (the TRUTH badge, truth labels): no category here or above is violet (CIELAB hue 260-350
     // with chroma above 8 was replaced; the replacement is at least 19 CIEDE2000 from both themes' truth violet).
     others: ["#001100", "#CC7788", "#884400", "#555500", "#005544", "#776677", "#889955", "#333344"],
-    // The pair view (model/pair.ts), by class: other, matched, contamination, split, missed, reco (part of a match,
+    // The pair view (model/truth/pair.ts), by class: other, matched, contamination, split, missed, reco (part of a match,
     // no truth statement of its own: neutral), branch (the branch's other particles), uncompared (the branch's hits
     // where no reco kind has an association).
     pair: ["#cdd2d8", "#117733", "#AA4499", "#B8860B", "#D55E00", "#4d5560", "#44AA99", "#6a7fa0"],
@@ -123,9 +122,9 @@ export type Legend =
       items?: { label: string; colour: string; ref?: { table: string; row: number } }[];
     };
 
-// Parsed once per colour: colouring runs per object (about 500k hits at PU200) and must not allocate per object.
 const parsed = new Map<string, readonly number[]>();
-const rgb = (hex: string) => {
+/** "#rrggbb" as RGB in 0..1, parsed once per colour: colouring runs per object (~500k hits at PU200). */
+export const hexRgb = (hex: string) => {
   let c = parsed.get(hex);
   if (!c) parsed.set(hex, (c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)));
   return c;
@@ -141,8 +140,8 @@ function rampTable(stops: readonly string[]) {
       const x = (k / (LEVELS - 1)) * (stops.length - 1),
         i = Math.min(Math.floor(x), stops.length - 2),
         f = x - i;
-      const a = rgb(stops[i]),
-        b = rgb(stops[i + 1]);
+      const a = hexRgb(stops[i]),
+        b = hexRgb(stops[i + 1]);
       for (let c = 0; c < 3; c++) lut[3 * k + c] = a[c] + (b[c] - a[c]) * f;
     }
     tables.set(stops, lut);
@@ -198,9 +197,8 @@ export function relatedColourText(header: Header, table: string, relation?: stri
   return `colour of its ${info?.association ? "matched " : ""}${tableName(header, table)}${info?.association && info.best ? `, best by ${info.best.weight}` : ""}`;
 }
 
-/** The words under a layer drawn in one neutral colour (`colourBy: "none"`: nothing to take a colour from in this
- *  mode). A hook: the truth mode words it from the layer's truth status (e.g. "no truth for jets: no associator in
- *  CMSSW") with `describeNoLink`. */
+/** The words under a layer drawn in one neutral colour (`colourBy: "none"`). A hook: the truth mode words it from
+ *  the layer's truth status (e.g. "no truth for jets: no associator in CMSSW") with `describeNoLink`. */
 let noLinkText = (_d: DisplayLayer) => "one colour: no link to the colour's source";
 export const describeNoLink = (text: (d: DisplayLayer) => string) => {
   noLinkText = text;
@@ -216,10 +214,10 @@ interface Coloured {
   emphasis?: Uint8Array;
 }
 
-/** Options of `colours`. `range` shares one value scale between layers; without it the layer's own values set the
- *  scale. `layerFor` gives the colouring of related tables (default: their display hints), so colours follow chains:
- *  a hit takes its layer cluster's colour, which is its candidate's. `rank`: how identity colours give their slots
- *  (model/relations.ts identities: the domain, the selection, the truth level). */
+/** Options of `colours`. `range`: a value scale shared between layers (default: the layer's own). `layerFor`: the
+ *  colouring of related tables (default: their display hints), so colours follow chains: a hit takes its layer
+ *  cluster's colour, which is its candidate's. `rank`: how identity colours give their slots (model/colour/identities.ts
+ *  identities). */
 interface ColourOptions {
   range?: Range;
   layerFor?: LayerFor;
@@ -247,7 +245,7 @@ export function colours(
     numberOf = (_: string, row: number) => row + 1,
   } = opts;
   const out = new Float32Array(3 * t.n),
-    cats = pal.categories.map(rgb);
+    cats = pal.categories.map(hexRgb);
   // Named categories other than particle types (e.g. a hit's subdetector) take colours apart from the types first.
   const named = [...pal.others, ...pal.categories];
   const set = (i: number, c: ArrayLike<number>, at = 0) => {
@@ -262,14 +260,14 @@ export function colours(
     return { rgb: out, legend: { kind: "category", text: "one colour per object" } };
   }
   // A kind's own colour (display hint `fixedColour`), also over "none", which bundles give as old viewers' fallback; the
-  // truth mode and a user's colour choice drop the hint (store/colours.ts shownLayer, custom.ts withColour). A kind
+  // truth mode and a user's colour choice drop the hint (store/colours.ts shownLayer, custom/settings.ts withColour). A kind
   // named after a particle type (electrons, muons, photons; jets) takes that type's colour in this theme, and so does
   // a layer that the profile gives the same colour (a global muon track: the muon's).
   if (d.fixedColour && (d.colourBy === undefined || d.colourBy === "none")) {
     const kin = header.display.find((l) => l.fixedColour === d.fixedColour && typeColour(pal, l.kind));
     const colour =
         typeColour(pal, d.kind) ?? typeColour(pal, kin?.kind) ?? RETIRED[d.fixedColour.toLowerCase()] ?? d.fixedColour,
-      c = rgb(colour);
+      c = hexRgb(colour);
     for (let i = 0; i < t.n; i++) set(i, c);
     return {
       rgb: out,
@@ -278,7 +276,7 @@ export function colours(
   }
   if (d.colourBy === "none") {
     // a layer with nothing to take a colour from in this mode (e.g. vertices, by truth)
-    const c = rgb(pal.unassigned);
+    const c = hexRgb(pal.unassigned);
     for (let i = 0; i < t.n; i++) set(i, c);
     return { rgb: out, legend: { kind: "category", text: noLinkText(d) } };
   }
@@ -289,7 +287,7 @@ export function colours(
       { anchor } = identities(d, t, ev, header, 0),
       names = [...rank.classes.map((c) => c.name), "rest of the signal collision", "pile-up"],
       hexes = [...rank.classes.map((_, k) => pal.identity[k ? k + 1 : 0]), pal.other, pal.identity[1]],
-      rgbs = hexes.map(rgb),
+      rgbs = hexes.map(hexRgb),
       present = new Uint8Array(names.length);
     for (let i = 0; i < t.n; i++) {
       set(i, rgbs[cls[i]]);
@@ -308,11 +306,11 @@ export function colours(
   if (d.colourBy === "identity") {
     const { key, used, top, others, rule, preferred } = identities(d, t, ev, header, pal.identity.length, rank);
     const slot = new Map(top.map((k, j) => [k, j])),
-      ids = pal.identity.map(rgb),
-      other = rgb(pal.other),
-      none = rgb(pal.unassigned);
+      ids = pal.identity.map(hexRgb),
+      other = hexRgb(pal.other),
+      none = hexRgb(pal.unassigned);
     const first = d.particle?.first ? t.columns[d.particle.first] : undefined,
-      pileup = rgb(pal.pileup);
+      pileup = hexRgb(pal.pileup);
     // A level whose particles alone take colours (b / c hadron, parton jet, τ): the rest is drawn small, so its chains
     // stand out.
     const levelFlags = rank?.only && d.particle ? t.columns[d.particle.flags] : undefined;
@@ -365,7 +363,7 @@ export function colours(
       if (u === undefined) {
         const k = order.includes(String(v)) ? order.indexOf(String(v)) : order.length + used.size,
           colour = typeColour(pal, names[String(v)]) ?? named[k % named.length];
-        used.set(v, (u = { k, colour, rgb: rgb(colour) }));
+        used.set(v, (u = { k, colour, rgb: hexRgb(colour) }));
       }
       set(i, u.rgb);
     }
@@ -393,7 +391,7 @@ export function colours(
       od && ot && od.colourBy && !next.has(otherTable)
         ? colours(od, ot, ev, header, pal, { layerFor, rank }, next)
         : null;
-    const grey = rgb(pal.unassigned),
+    const grey = hexRgb(pal.unassigned),
       emphasis = new Uint8Array(t.n);
     for (let i = 0; i < t.n; i++) {
       // A partner drawn small passes that on with its colour (grey for one linked to nothing, pile-up's own grey).

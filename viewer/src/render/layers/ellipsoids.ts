@@ -4,7 +4,7 @@
 import * as THREE from "three";
 import { toF32 } from "../../io/format";
 import { REPLAY_OFF } from "../replay";
-import { commonFields, cutter, type Layer, type LayerInput, positions } from "./layer";
+import { commonFields, cutter, type Layer, type LayerInput, newVec3s, positions } from "./layer";
 
 const SHOWER_STYLES = { solid: 0, shell: 1, cage: 2, core: 3 } as const;
 // Instanced unit spheres scaled and rotated per shower; normals use the inverse transpose, so the shading and the
@@ -62,10 +62,9 @@ const SHOWER_FRAGMENT = /* glsl */ `
     gl_FragColor = vec4(col, a);
   }`;
 
-/** Showers: translucent ellipsoids (2 sigma along each PCA axis, sigma clamped to sane sizes) plus a +-2 sigma
- *  principal-axis line; each `shape` has its own surface (SHOWER_FRAGMENT), so reconstruction stages are told apart
- *  at a glance. While something is selected, unrelated showers shrink away so they cannot cover it; in a replay each
- *  grows in over GROW seconds. Both are CPU updates per frame while they run (buffers rewritten in place). */
+/** Showers: translucent ellipsoids (2 sigma along each PCA axis, sigma clamped) plus a +-2 sigma principal-axis
+ *  line; each `shape` has its own surface, so reconstruction stages are told apart. While something is selected,
+ *  unrelated showers shrink away so they cannot cover it; in a replay each grows in over GROW s. */
 export function ellipsoids(input: LayerInput): Layer {
   const { d, t } = input;
   let rgb = input.rgb;
@@ -100,8 +99,8 @@ export function ellipsoids(input: LayerInput): Layer {
   lines.frustumCulled = false;
   const group = new THREE.Group().add(mesh, lines);
   const drawAxis = shape === "solid" || shape === "core"; // shells and cages stay uncluttered
-  const pickA = [new Float32Array(t.n), new Float32Array(t.n), new Float32Array(t.n)] as const;
-  const pickB = [new Float32Array(t.n), new Float32Array(t.n), new Float32Array(t.n)] as const;
+  const pickA = newVec3s(t.n),
+    pickB = newVec3s(t.n);
   let rz = false,
     highlighted: Set<number> | null = null,
     previous: Set<number> | null = null,

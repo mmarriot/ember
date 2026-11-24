@@ -15,12 +15,11 @@ import {
   shaderLayer,
 } from "./layer";
 
-/** Objects as discs of constant pixel size with a dark rim, drawn on top of cells. Objects without emphasis
- *  (e.g. layer clusters in no trackster) are small, rimless and faded, so they stay in the background. With a `size`
- *  column, larger values give larger discs (5 to 14 px over the bulk of the values, as the colour scale), e.g. the
- *  primary vertex (largest sum of pT^2) stands out among the pile-up vertices. Truth markers (truth vertices) are hollow
- *  dashed rings: the simulation's look (docs/truth.md "One look for truth"), never a filled reco vertex. `behind`:
- *  drawn first, under the hits, e.g. layer clusters by truth (control/scene.ts underHits). */
+/** Discs of constant pixel size with a rim, drawn over cells. Objects without emphasis (layer clusters in no
+ *  trackster) are small, rimless and faded. With a `size` column, larger values give larger discs (5 to 14 px over
+ *  the bulk of the values), so the primary vertex stands out among pile-up vertices. Truth markers are hollow dashed
+ *  rings (docs/truth.md "One look for truth"). `behind`: drawn first, under the hits (control/sceneColours.ts
+ *  underHits). */
 export function markers(input: LayerInput): Layer {
   const { d, t } = input;
   const [x, y, z] = positions(input);

@@ -1,8 +1,6 @@
-"""NanoAOD -> .ember: read the tables of NanoAOD files and write their events to a bundle.
-
-convert() is the whole conversion. It loads the profile (profile.py), builds a Converter (converter.py) from the
-tables the file describes, then reads the events chunk by chunk (or one by one), converts each and hands the records
-to a BundleWriter (bundle.py).
+"""NanoAOD -> .ember: convert() loads the profile (profile.py), builds a Converter (converter.py) from the tables the
+file describes, then reads the events chunk by chunk (or one by one), converts each and hands the records to a
+BundleWriter (bundle.py).
 """
 
 import contextlib
@@ -71,10 +69,9 @@ def convert(
             file=log,
         )
         if not conv.display:  # e.g. a physics NanoAOD: nothing of it would be drawn
-            has = ", ".join(sorted(conv.tables)[:12]) + (", ..." if len(conv.tables) > 12 else "")
             raise Problem(
                 f"{files[0]} has none of the tables that the profile {profile.get('name', profile_name)} "
-                f"draws (it has: {has or 'no table'}); another kind of file needs its own --profile"
+                f"draws (it has: {_first_names(conv.tables)}); another kind of file needs its own --profile"
             )
 
         header = conv.header(files, profile.get("name", profile_name), written_by(first))
@@ -121,13 +118,18 @@ def choose_profile(tables, run_tables, path):
         if drawn and (best is None or rank > best[0]):
             best = (rank, name, profile)
     if best is None:
-        has = ", ".join(sorted(tables)[:12]) + (", ..." if len(tables) > 12 else "")
         raise Problem(
-            f"{path}: none of the profiles {', '.join(AUTO)} draws its tables (it has: {has or 'no table'}). Ember "
+            f"{path}: none of the profiles {', '.join(AUTO)} draws its tables (it has: {_first_names(tables)}). Ember "
             "reads standard NanoAOD, NANO:@HGCAL and its own NanoAOD of reconstruction files; give --profile for "
             "another kind"
         )
     return best[1], best[2]
+
+
+def _first_names(tables):
+    """The first table names, for a message: "a, b, ..." or "no table"."""
+    names = ", ".join(sorted(tables)[:12]) + (", ..." if len(tables) > 12 else "")
+    return names or "no table"
 
 
 def _check_nanoaod(f, path):

@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { blobSource, Bundle, HttpError, type Source } from "../../io/bundle";
 import { gatedSource, testBundle } from "../../io/testing";
-import { type Listed, recent } from "../library";
+import { type Listed, recent } from "../site/library";
 // The store sets the page's theme as it loads: a stand-in page (the tests run without a DOM).
 Object.assign(globalThis, { document: { documentElement: { dataset: {} } } });
 const {
@@ -246,7 +246,7 @@ describe("openBundle", () => {
     });
     try {
       await openBundle("https://elsewhere.example/data/u/alice/x.ember", golden);
-      const { filters } = await import("../custom");
+      const { filters } = await import("../custom/settings");
       filters.value = { ...filters.value, Anything: "0" };
       const settings = () => [...saved.keys()].filter((k) => k.startsWith("evd.custom."));
       expect(settings()).toEqual([]);

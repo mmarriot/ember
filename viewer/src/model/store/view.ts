@@ -1,31 +1,15 @@
-// What the view draws and how, as the user sets it (the side panel's ticks, the domain, the cuts, the view preset),
-// and the state of the page around the view (pointer, pop-ups, messages, theme). openBundle (open.ts) resets most of
-// it for each bundle; the components change it as the user acts.
+// What the view draws and how, as the user sets it (ticks, domain, cuts, view preset), and the page around the view
+// (pointer, dialogs, messages, theme). openBundle resets most of it for each bundle. Remembered choices keep their
+// "evd." storage keys (see site/library.ts).
 import { batch, computed, effect, signal } from "@preact/signals";
 import type { DisplayLayer, Header, ViewName } from "../../io/format";
 import type { Legend, ThemeName } from "../../render/colour";
 import type { Hit } from "../../render/picking";
 import type { Caption } from "../../render/replay";
-import { drawsLayer, sharedDomains } from "../domains";
+import { drawsLayer, sharedDomains } from "../event/domains";
+import { browserStorage } from "../site/library";
 import { bundle } from "./data";
 import { layerKey } from "./names";
-
-// The user's choices remembered in this browser when storage is available (not always, e.g. in a private window),
-// under keys that keep their "evd." prefix: see model/library.ts.
-function remembered(key: string) {
-  try {
-    return localStorage.getItem(key);
-  } catch {
-    return null;
-  }
-}
-function remember(key: string, value: string) {
-  try {
-    localStorage.setItem(key, value);
-  } catch {
-    /* not remembered */
-  }
-}
 
 // ---- What is drawn
 
@@ -43,8 +27,7 @@ export const overlay = signal(false);
 export const inDomain = (d: DisplayLayer, current = domain.value) =>
   drawsLayer(d, current, shared.value, overlay.value);
 
-/** The side-panel tab to open: a domain's, when it is chosen. A new object each time, so that choosing the same domain
- *  again reopens its tab. */
+/** The side-panel tab to open: a domain's, when it is chosen. A new object each time, so the same domain reopens it. */
 export const openTab = signal<{ name: string } | null>(null);
 /** The side-panel tab that lists the layers of the domain bar's parts, one section per part (it follows the bar). */
 export const COLLECTIONS = "Collections";
@@ -52,15 +35,15 @@ export const COLLECTIONS = "Collections";
 export const tabOfDomain = (h: Pick<Header, "domains">, name: string) =>
   (h.domains?.length ?? 0) >= 2 && h.domains!.some((d) => d.name === name) ? COLLECTIONS : name;
 
-/** One kind of object looked at alone (its heading's "only", e.g. the tracks, the jets), as `soloKey` names it: only
- *  its collections are drawn, whatever part of the detector is looked at; null: everything ticked. A view, like
- *  `domain`: the ticks are kept, and a selection still draws its own objects of other kinds (its parts, its truth). */
+/** One kind of object looked at alone (its heading's "only"), as `soloKey` names it: only its collections are drawn,
+ *  in any domain; null: everything ticked. A view like `domain`: the ticks are kept, and a selection still draws its
+ *  own objects of other kinds. */
 export const solo = signal<string | null>(null);
 /** A side-panel heading: a kind in one part of the detector ("HGCal|Hits" is not "Calo|Hits"). */
 export const soloKey = (d: Pick<DisplayLayer, "domain" | "group">) => `${d.domain ?? ""}|${d.group}`;
 let switched: string[] = []; // the layers lookAlone switched to all of their rows, until "only" ends
 /** Look at the kind `key` alone (null: everything ticked again). Its collections drawn only for a selection (track
- *  hits) are switched to all of their rows while it lasts, or the view would be empty until something is selected. */
+ *  hits) show all their rows meanwhile, or the view would be empty. */
 export function lookAlone(key: string | null) {
   const all = { ...showAll.peek() };
   for (const k of switched) delete all[k];
@@ -76,9 +59,8 @@ export function lookAlone(key: string | null) {
   });
 }
 
-/** Per display layer key: drawn. A layer is drawn when it is ticked and in the domain's view; with a kind looked at
- *  alone (`solo`), when it is one of that kind's ticked collections, or, with none of them ticked, all of its
- *  collections. The focus changes this further (selection.ts focusLayers). */
+/** Per display layer key: drawn, when ticked and in the domain's view; with a kind looked at alone, its ticked
+ *  collections, or all of them if none is. The focus changes this further (selection.ts focusLayers). */
 export const drawnLayers = computed(() => {
   const vis = visible.value,
     d = domain.value,
@@ -115,17 +97,16 @@ export const legends = signal<Record<string, Legend>>({});
 /** Per display layer key: how many objects pass the cuts (written by control/scene.ts). */
 export const shown = signal<Record<string, number>>({});
 
-/** How the rest of the event is drawn while something is selected: dimmed (readable around it), faint (a trace of
- *  it) or hidden (only the selection, its parts and its truth). The user's choice, remembered in this browser like the
- *  theme; render/layers/layer.ts REST_FADE says how far each fades. */
+/** How the rest of the event is drawn while something is selected: dimmed, faint, or hidden (only the selection, its
+ *  parts and its truth). Remembered; render/layers/layer.ts REST_FADE says how far each fades. */
 export type Rest = "dim" | "faint" | "hidden";
 export const RESTS: Rest[] = ["dim", "faint", "hidden"];
-const savedRest = remembered("evd.rest");
+const savedRest = browserStorage.get("evd.rest");
 export const rest = signal<Rest>(RESTS.includes(savedRest as Rest) ? (savedRest as Rest) : "faint");
 /** Choose how the rest is drawn (`to`), or the next way after the current one (key H). */
 export function setRest(to?: Rest) {
   rest.value = to ?? RESTS[(RESTS.indexOf(rest.value) + 1) % RESTS.length];
-  remember("evd.rest", rest.value);
+  browserStorage.set("evd.rest", rest.value);
 }
 
 /** The camera preset. */
@@ -154,13 +135,13 @@ export function toast(text: string, kind: "info" | "error" = "info") {
   setTimeout(() => (toasts.value = toasts.value.filter((t) => t.id !== id)), kind === "error" ? 8000 : 2500);
 }
 
-// The colour theme: dark unless the user picked light before.
-export const theme = signal<ThemeName>(remembered("evd.theme") === "light" ? "light" : "dark");
+/** The colour theme: dark unless the user picked light before. */
+export const theme = signal<ThemeName>(browserStorage.get("evd.theme") === "light" ? "light" : "dark");
 // The page's CSS follows the theme through <html data-theme>.
 effect(() => {
   document.documentElement.dataset.theme = theme.value;
 });
 export function toggleTheme() {
   theme.value = theme.value === "dark" ? "light" : "dark";
-  remember("evd.theme", theme.value);
+  browserStorage.set("evd.theme", theme.value);
 }

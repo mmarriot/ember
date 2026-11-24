@@ -1,0 +1,316 @@
+// The data sets a person can open beyond the site's shared list: their own (data/u/<login>/index.json, written by
+// `ember file.root`) and those opened lately from links; and the names of site files. Who they are comes from the
+// site (`whoami`, behind the single sign-on) or else from the login they type once.
+import { signal } from "@preact/signals";
+
+/** The documentation site: every "how do I get data in" link points here. */
+export const DOCS_URL = "https://mmarriot.github.io/ember/";
+/** The command that converts a file: to file.ember, or, with a site set up (EMBER_SITE_DIR), published in the
+ *  user's area of it. */
+export const PUBLISH_COMMAND = "ember file.root";
+/** The extensions of bundle files: .ember, and .evdb from before the project was called Ember. */
+export const BUNDLE_EXTENSIONS = [".ember", ".evdb"];
+/** Asked relative to the page: {"login": "..."} for the signed-in person. */
+export const WHOAMI_URL = "whoami";
+// The browser-storage keys (these two, and evd.theme, evd.sidebar and evd.custom.* elsewhere) keep the "evd." prefix
+// from before the project was called Ember: new names would reset everyone's saved settings and Recent list.
+const LOGIN_KEY = "evd.login",
+  RECENT_KEY = "evd.recent";
+const RECENT_MAX = 12;
+const WHOAMI_WAIT = 4000; // ms: a site whose whoami hangs is a site without one
+
+/** One entry of an index.json, the site's (`ember sync`; hand-written ones need only file and title) or a person's.
+ *  `file` is relative to the site's root; times are ISO: `published` on the site, `created` (converted), `expires`. */
+export interface Listed {
+  file: string;
+  title: string;
+  campaign?: string;
+  campaign_title?: string;
+  events?: number;
+  data_time?: string;
+  created?: string;
+  published?: string;
+  expires?: string;
+}
+/** A data set opened from a link (or a local file dropped on the page, which cannot be opened again from here). */
+export interface Recent {
+  file: string;
+  title: string;
+  time: string;
+  local?: boolean;
+}
+/** Who the page is for: `sso` when the site said so, `typed` when the person did. */
+export interface Login {
+  name: string;
+  from: "sso" | "typed";
+}
+
+export const login = signal<Login | null>(null);
+/** The person's own data sets, newest first; empty until the login is known and their index is read. */
+export const mine = signal<Listed[]>([]);
+/** My index could not be read the last time (offline, or not an index): what is listed may be out of date, or missing. */
+export const mineUnread = signal(false);
+export const recent = signal<Recent[]>([]);
+
+type Fetch = (url: string, init?: RequestInit) => Promise<Response>;
+/** The browser's storage, which can be missing or refuse (private windows, tests): then nothing is remembered. */
+export interface Storage {
+  get(key: string): string | null;
+  set(key: string, value: string): void;
+  remove(key: string): void;
+}
+export const browserStorage: Storage = {
+  get: (key) => {
+    try {
+      return localStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  },
+  set: (key, value) => {
+    try {
+      localStorage.setItem(key, value);
+    } catch {
+      /* not remembered */
+    }
+  },
+  remove: (key) => {
+    try {
+      localStorage.removeItem(key);
+    } catch {
+      /* nothing to forget */
+    }
+  },
+};
+
+/** A login as typed, tidied: lower case, no spaces, no "@cern.ch"; null if it cannot be a CERN login. */
+export function cleanLogin(text: string): string | null {
+  const name = text
+    .trim()
+    .toLowerCase()
+    .replace(/@cern\.ch$/, "");
+  return /^[a-z][a-z0-9_-]{1,31}$/.test(name) ? name : null;
+}
+
+/** The name, if it is plainly a file of this site ("data/u/alice/x.ember"): a relative path of ordinary segments.
+ *  Not anything the browser would resolve elsewhere ("..", a backslash, an encoded dot, a leading "/", a scheme), nor
+ *  another name for the same file ("?x=1", "#"). Else null. */
+export function siteFile(name: string): string | null {
+  if (!name || /[\\?#%\u0000-\u001f\u007f]/.test(name) || /^[a-z][a-z0-9+.-]*:/i.test(name)) return null;
+  return name.split("/").every((part) => part && part !== "." && part !== "..") ? name : null;
+}
+/** Where a name leads: a file of this site (also as an address under `base`, the page's), a web address elsewhere
+ *  (it still opens, marked as such), or nowhere the viewer goes. */
+export type Place = { kind: "site"; file: string } | { kind: "external"; url: string } | { kind: "bad" };
+export function locate(
+  name: string,
+  base: string | undefined = typeof document === "undefined" ? undefined : document.baseURI,
+): Place {
+  const file = siteFile(name);
+  if (file) return { kind: "site", file };
+  if (!/^https?:\/\//i.test(name)) return { kind: "bad" };
+  try {
+    const url = new URL(name),
+      here = base ? new URL(".", base) : null;
+    if (url.username || url.password) return { kind: "bad" };
+    if (here && url.origin === here.origin && url.pathname.startsWith(here.pathname) && !url.search && !url.hash) {
+      const inside = siteFile(decodeURIComponent(url.pathname.slice(here.pathname.length)));
+      if (inside) return { kind: "site", file: inside };
+    }
+    return { kind: "external", url: url.href };
+  } catch {
+    return { kind: "bad" };
+  }
+}
+/** A name that leads nowhere the viewer goes. */
+export class NameError extends Error {
+  constructor(readonly given: string) {
+    super(`not a data set's name: ${given.slice(0, 120)}`);
+  }
+}
+
+/** The login whose area a file is in ("data/u/alice/x.ember" -> "alice"); null for anything that is not exactly a
+ *  file in a person's area, so nothing is said to be "published by" from a name's look. */
+export function ownerOf(file: string): string | null {
+  const owner = siteFile(file)?.match(/^data\/u\/([^/]+)\/[^/]+$/)?.[1];
+  return owner && cleanLogin(owner) === owner ? owner : null;
+}
+export const userIndex = (name: string) => `data/u/${name}/index.json`;
+/** A name for a data set no index lists: its file name, and whose area (or which other site) it is in. */
+export function titleOf(file: string): string {
+  const stem =
+      file
+        .split(/[?#]/)[0]
+        .split("/")
+        .filter(Boolean)
+        .pop()
+        ?.replace(/\.(ember|evdb)$/, "") ?? file, // BUNDLE_EXTENSIONS
+    owner = ownerOf(file);
+  const host = /^https?:\/\//i.test(file) ? file.split("/")[2] : null;
+  return owner ? `${stem} · ${owner}` : host ? `${stem} · ${host}` : stem;
+}
+
+const text = (x: unknown) => (typeof x === "string" ? x : undefined);
+/** An index entry as the viewer uses it, or null: `file` a file of this site (of `owner`'s area, for a person's
+ *  index), `title` text; the rest kept only if of the right type. */
+function cleanEntry(x: unknown, owner?: string): Listed | null {
+  const e = (x ?? {}) as Record<string, unknown>,
+    file = text(e.file),
+    title = text(e.title);
+  if (!file || !title || siteFile(file) !== file || (owner !== undefined && ownerOf(file) !== owner)) return null;
+  return {
+    file,
+    title,
+    campaign: text(e.campaign),
+    campaign_title: text(e.campaign_title),
+    data_time: text(e.data_time),
+    created: text(e.created),
+    published: text(e.published),
+    expires: text(e.expires),
+    events: typeof e.events === "number" && Number.isFinite(e.events) ? e.events : undefined,
+  };
+}
+/** The entries of an index's `bundles` that are entries (see cleanEntry); null if it is not a list. */
+export const cleanList = (bundles: unknown, owner?: string): Listed[] | null =>
+  Array.isArray(bundles) ? bundles.map((x) => cleanEntry(x, owner)).filter((x): x is Listed => !!x) : null;
+
+/** Who the page is for: the login typed before (at once), then the site's answer, which wins. A site without
+ *  `whoami` (any failure or other answer: a development server answers with the page) changes nothing. */
+export async function loadIdentity(fetcher: Fetch = fetch, storage: Storage = browserStorage) {
+  const typed = cleanLogin(storage.get(LOGIN_KEY) ?? "");
+  if (typed && !login.peek()) login.value = { name: typed, from: "typed" };
+  try {
+    const r = await fetcher(WHOAMI_URL, { cache: "no-store", signal: AbortSignal.timeout(WHOAMI_WAIT) });
+    const answer = r.ok ? (await r.json())?.login : null,
+      name = typeof answer === "string" ? cleanLogin(answer) : null;
+    if (name) login.value = { name, from: "sso" };
+  } catch {
+    /* no whoami here (or none in time): the typed login, or none */
+  }
+}
+
+/** Remember the login the person typed (false: not a login). The site's own answer is not overridden. */
+export function typeLogin(text: string, storage: Storage = browserStorage): boolean {
+  const name = cleanLogin(text);
+  if (!name || login.peek()?.from === "sso") return false;
+  storage.set(LOGIN_KEY, name);
+  login.value = { name, from: "typed" };
+  mine.value = [];
+  mineUnread.value = false;
+  return true;
+}
+export function forgetLogin(storage: Storage = browserStorage) {
+  if (login.peek()?.from === "sso") return;
+  storage.remove(LOGIN_KEY);
+  login.value = null;
+  mine.value = [];
+  mineUnread.value = false;
+}
+
+/** When a data set came to the site: its publication, or for an index without it the conversion. */
+export const publishedAt = (x: Listed) => x.published ?? x.created ?? x.data_time;
+const newestFirst = (a: Listed, b: Listed) => (publishedAt(b) ?? "").localeCompare(publishedAt(a) ?? "");
+/** Read a person's index: their data sets, newest first; [] without an index yet; null if it could not be read. */
+export async function readIndex(name: string, fetcher: Fetch = fetch): Promise<Listed[] | null> {
+  try {
+    const r = await fetcher(userIndex(name), { cache: "no-store" });
+    if (r.status === 404) return [];
+    return (r.ok ? cleanList((await r.json())?.bundles, name) : null)?.sort(newestFirst) ?? null;
+  } catch {
+    return null;
+  }
+}
+/** Re-read my index; what is shown stays while it cannot be read. */
+export async function refreshMine(fetcher: Fetch = fetch) {
+  const who = login.peek();
+  if (!who) return;
+  const list = await readIndex(who.name, fetcher);
+  if (login.peek()?.name !== who.name) return; // another login was typed meanwhile
+  mineUnread.value = !list;
+  if (list && JSON.stringify(list) !== JSON.stringify(mine.peek())) mine.value = list; // the same list: nothing re-runs
+}
+
+/** The recent data sets as stored, keeping only entries that name a file of this site or a local file. */
+function storedRecent(storage: Storage): Recent[] {
+  try {
+    const saved = JSON.parse(storage.get(RECENT_KEY) ?? "[]");
+    const entry = (r: Recent) =>
+      typeof r?.file === "string" &&
+      typeof r?.title === "string" &&
+      typeof r?.time === "string" &&
+      (r.local === true || siteFile(r.file) === r.file);
+    return Array.isArray(saved) ? saved.filter(entry).slice(0, RECENT_MAX) : [];
+  } catch {
+    return [];
+  }
+}
+export function loadRecent(storage: Storage = browserStorage) {
+  recent.value = storedRecent(storage);
+}
+/** The list to change: the stored one (another tab may have added to it), or this tab's without storage. */
+const latestRecent = (storage: Storage) => (storage.get(RECENT_KEY) === null ? recent.peek() : storedRecent(storage));
+const saveRecent = (list: Recent[], storage: Storage) => {
+  recent.value = list;
+  storage.set(RECENT_KEY, JSON.stringify(list));
+};
+/** Put a data set at the top of the recent ones (once; at most RECENT_MAX). An address elsewhere is not remembered. */
+export function noteRecent(entry: Omit<Recent, "time">, now = new Date(), storage: Storage = browserStorage) {
+  if (!entry.local && siteFile(entry.file) !== entry.file) return;
+  const same = (r: Recent) => r.file === entry.file && !!r.local === !!entry.local;
+  saveRecent(
+    [{ ...entry, time: now.toISOString() }, ...latestRecent(storage).filter((r) => !same(r))].slice(0, RECENT_MAX),
+    storage,
+  );
+}
+export function forgetRecent(file: string, storage: Storage = browserStorage) {
+  const list = latestRecent(storage);
+  if (list.some((r) => r.file === file))
+    saveRecent(
+      list.filter((r) => r.file !== file),
+      storage,
+    );
+}
+/** Drop the recent data sets that a list now has (a link's data set opens before the lists are read). */
+export function pruneRecent(listed: Iterable<string>, storage: Storage = browserStorage) {
+  const list = latestRecent(storage),
+    kept = recentShown(list, listed);
+  if (kept.length !== list.length) saveRecent(kept, storage);
+}
+/** The recent data sets to list: those no other section lists (my own and the shared ones have their place). */
+export function recentShown(list: Recent[], listed: Iterable<string>): Recent[] {
+  const known = new Set(listed);
+  return list.filter((r) => r.local || !known.has(r.file));
+}
+
+const DAY = 86_400_000;
+const msUntil = (iso: string | undefined, now: Date) => (iso ? Date.parse(iso) : NaN) - now.getTime(); // NaN: not a time
+/** "expires in 12 days", "expires tomorrow", "expires today" (within 24 h), "expired"; "" without an expiry. Days are
+ *  rounded: a file just published for 30 days expires "in 30 days", not 29. */
+export function expiryText(expires: string | undefined, now = new Date()): string {
+  const ms = msUntil(expires, now),
+    days = Math.round(ms / DAY);
+  if (Number.isNaN(ms)) return "";
+  return ms < 0 ? "expired" : ms < DAY ? "expires today" : days === 1 ? "expires tomorrow" : `expires in ${days} days`;
+}
+/** "today" (within 24 h), "yesterday", "5 days ago", then the date; "" if `iso` is not a time. */
+export function agoText(iso: string | undefined, now = new Date()): string {
+  const ms = -msUntil(iso, now),
+    days = Math.floor(ms / DAY);
+  if (Number.isNaN(ms)) return "";
+  return days <= 0
+    ? "today"
+    : days === 1
+      ? "yesterday"
+      : days < 30
+        ? `${days} days ago`
+        : new Date(iso!).toISOString().slice(0, 10);
+}
+
+/** Whether every word of the filter is in the entry's title or file name, whatever the case. */
+export function matches(filter: string, entry: { title: string; file: string }): boolean {
+  const text = `${entry.title} ${entry.file}`.toLowerCase();
+  return filter
+    .toLowerCase()
+    .split(/\s+/)
+    .every((word) => text.includes(word));
+}

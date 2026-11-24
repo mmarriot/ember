@@ -68,8 +68,9 @@ export function hiddenChildren(g: Graph, lg: LevelGraph, top: number): number[] 
 }
 
 /** The way down the tree to a particle: the particles (by top) from its root, the shown ones first (`tops[0 ..
- *  hidden - 1]`), then for a particle at no shown level, those at no shown level from below the node it hides under
- *  (each through its parent of highest energy, as the level graph places it). */
+ *  hidden - 1]`), then for a particle at no shown level, those at no shown level from below the node it hides under.
+ *  As the level graph places it, each climbs through its parent of highest energy that is shown or has a shown
+ *  particle above it (not a dead end such as a beam remnant's string). */
 export interface Path {
   group: GroupId;
   tops: number[];
@@ -82,7 +83,7 @@ export function pathTo(g: Graph, lg: LevelGraph, row: number): Path | null {
   let t = g.top[row];
   for (let steps = 0; lg.nodeOf[t] < 0; steps++) {
     chain.unshift(t);
-    const ps = g.parents(t);
+    const ps = g.parents(t).filter((q) => lg.nodeOf[g.top[q]] >= 0 || lg.hiddenUnder[g.top[q]] >= 0);
     if (!ps.length || steps > g.n) return null;
     t = g.top[ps.reduce((a, b) => (g.col("energy", b) > g.col("energy", a) ? b : a))];
   }

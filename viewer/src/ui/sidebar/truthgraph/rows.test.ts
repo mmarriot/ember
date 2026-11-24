@@ -133,6 +133,36 @@ describe("treeRows", () => {
     expect(reveal(emptyState(), pathTo(g, lg, 16)!).groups).toEqual({ underlying: true });
     expect(pathTo(g, lg, 15)).toBeNull(); // no shown particle above it
   });
+  it("climbs to a hidden particle through a parent with a shown particle above it, not a dead end", () => {
+    // 0 p (beam) -> 1 a remnant string (no level, 5 TeV); 1 and 2 b (leg) -> 3 B̄*⁰ (no level) -> 4 B̄⁰ (b hadron)
+    const d = graphOf(
+      {
+        n: 5,
+        columns: {
+          pdgId: [2212, 92, 5, -513, -511],
+          status: [4, 71, 23, 2, 2],
+          energy: [7000, 5000, 150, 100, 99],
+          levelFlags: [0, 0, HARD, 0, B],
+          isSignal: [1, 1, 1, 1, 1],
+        },
+      },
+      csr([[1], [3], [3], [4], []]),
+    );
+    const dlg = levelGraph(d, "levelFlags", "isSignal", DEFAULT_LEVELS);
+    expect(pathTo(d, dlg, 3)).toEqual({ group: "hard", tops: [2, 3], hidden: 1 });
+    // the B̄*⁰ listed under the b, beside the B̄⁰ (by pdgId, indented by depth)
+    const r = treeRows(dlg, d, reveal(emptyState(), pathTo(d, dlg, 3)!), false, new Set());
+    const pdg = (x: Row) =>
+      x.kind === "group"
+        ? ""
+        : "  ".repeat(x.depth) +
+          (x.kind === "hidden"
+            ? `~${d.col("pdgId", x.top)}`
+            : x.kind === "particle"
+              ? d.col("pdgId", dlg.particles[x.node].top)
+              : x.kind);
+    expect(r.map(pdg)).toEqual(["", "5", "  -511", "  ~-513"]);
+  });
 });
 
 describe("treeRows of a large group", () => {

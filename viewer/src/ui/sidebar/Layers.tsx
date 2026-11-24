@@ -10,12 +10,9 @@ import {
   bundle,
   drawnLayers,
   event,
-  focusHidden,
   focusLayers,
-  focusLevel,
   layerKey,
   legends,
-  levels,
   noTruth,
   showAll,
   shown,
@@ -94,7 +91,7 @@ export function Collections({ layers }: { layers: DisplayLayer[] }) {
                 title={
                   alone
                     ? "Back to everything ticked"
-                    : `Look at only the ${group.toLowerCase()}: nothing else is drawn until you select one, which brings its parts and its truth`
+                    : `Look at only the ${group.toLowerCase()}: nothing else is drawn until you select one, which brings its ticked parts and its truth`
                 }
                 onClick={() => lookAlone(alone ? null : key)}
               >
@@ -217,9 +214,6 @@ function LayerRow({ d, cut, here }: { d: DisplayLayer; cut?: string; here: Displ
   const t = event.value?.tables[d.table],
     canList = !d.list && !d.context && d.repr !== "cells" && n > 0 && !!t;
   const count = `${on && s !== undefined && s !== n ? `${s.toLocaleString()} / ` : ""}${n.toLocaleString()}`;
-  // A layer of one of the focus's levels: ticking it (or its "show") draws that level.
-  const level = levels.value.find((l) => l.layers.includes(d))?.name,
-    showLevel = () => level && (focusLevel.value = level);
   return (
     <div
       class={`layer${drawnLayers.value[key] || focusLayers.value.has(key) ? "" : " off"}${activeMode.value === "truth" && noTruth(d.table) ? " faint" : ""}`}
@@ -230,10 +224,7 @@ function LayerRow({ d, cut, here }: { d: DisplayLayer; cut?: string; here: Displ
             type="checkbox"
             checked={on}
             disabled={!n}
-            onChange={() => {
-              visible.value = { ...visible.value, [key]: !on };
-              if (!on) showLevel();
-            }}
+            onChange={() => (visible.value = { ...visible.value, [key]: !on })}
           />
           <span class="glyph" aria-hidden="true">
             {glyph(d)}
@@ -270,18 +261,12 @@ function LayerRow({ d, cut, here }: { d: DisplayLayer; cut?: string; here: Displ
           </button>
         )}
         {!on && focusLayers.value.has(key) && (
-          <span class="rowchip on" title="Not ticked, but drawn now: it holds objects of the selection">
-            shown
-          </span>
-        )}
-        {on && focusHidden.value.has(key) && (
-          <button
-            class="rowchip"
-            title="Hidden while an object is selected: one of its levels is drawn at a time. Click to draw this one"
-            onClick={showLevel}
+          <span
+            class="rowchip on"
+            title="Not ticked: only the selected object (and the one it was picked in) is drawn, none of the others"
           >
-            show
-          </button>
+            selected
+          </span>
         )}
         {cut && <CutChip name={cut} here={here} row={d.label} />}
         {canList ? (

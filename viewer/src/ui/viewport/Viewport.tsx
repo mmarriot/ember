@@ -13,7 +13,6 @@ import {
   event,
   focus,
   focusBar,
-  focusLevel,
   focusLinked,
   hover,
   inFocus,
@@ -38,17 +37,18 @@ import { cardBox, Labels } from "./Labels";
 import { TitleBox } from "./TitleBox";
 import { hasDomainBar, OverlayChip, RestChoice, Views } from "./ViewControls";
 
-/** What ↓ / ↑ (or a chain step's "show") just drew, shown for a moment (stepCaptions). */
+/** The level ↓ / ↑ (or a chain step's "show", or a tick) just drew, shown for a moment (stepCaptions). */
 const stepCaption = signal<Caption | null>(null);
 
-/** Caption each level stepped to within the same focus: its name, count and place among the focus's steps. Not for a
- *  level set with its focus (a link sets both at once); a new focus clears it. Returns the function that stops it. */
+/** Caption each level the tick moves to within the same focus: its name, count and place among the focus's steps. Not
+ *  for the level a new focus starts with (a link sets both at once), which clears it. Returns the function that stops
+ *  it. */
 function stepCaptions() {
   let last = focus.peek(),
     since = 0, // when the focus last changed (ms)
     timer = 0;
   const stop = effect(() => {
-    const chosen = focusLevel.value,
+    const chosen = shownLevel.value,
       f = focus.value;
     if (!sameRef(f, last)) {
       last = f;
@@ -57,14 +57,17 @@ function stepCaptions() {
       return;
     }
     if (!f || touring.peek() || performance.now() - since < 100) return;
-    if (chosen === null) return void (stepCaption.value = null); // back to the focus's default level
     const steps = untracked(() => focusBar.value).filter((l) => !l.always),
-      i = steps.findIndex((l) => l.name === untracked(() => shownLevel.value));
-    if (i < 0) return;
-    stepCaption.value = {
-      title: `Drawing: ${steps[i].name} · ${steps[i].count}`,
-      detail: `step ${i + 1} of ${steps.length} · ↓ ↑ to step`,
-    };
+      i = steps.findIndex((l) => l.name === chosen);
+    if (!steps.length || (chosen !== null && i < 0)) return; // no step to move through (a jet seen in the tracker)
+    // none ticked (↑ above the first step): said too, as the ticks stay so after the selection
+    stepCaption.value =
+      chosen === null
+        ? { title: "Drawing: no step in between", detail: "their collections are unticked · ↓ to tick the first" }
+        : {
+            title: `Drawing: ${steps[i].name} · ${steps[i].count}`,
+            detail: `step ${i + 1} of ${steps.length} · ↓ ↑ to step`,
+          };
     clearTimeout(timer);
     timer = window.setTimeout(() => (stepCaption.value = null), 2500);
   });

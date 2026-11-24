@@ -14,12 +14,12 @@ import {
   domain,
   event,
   focusBar,
-  focusLevel,
   ladder,
   largestFirst,
   layerOf,
   shared,
-  shownLevel,
+  levelOn,
+  tickLevel,
 } from "../../model/store";
 import { chip, truthChip } from "./chips";
 import { Info, togglePopover } from "../common/Info";
@@ -138,7 +138,9 @@ function RungRow({ rung, role }: { rung: Rung; role: "above" | "self" | "below" 
     !anchor.value && (role === "below" || role === "beside")
       ? focusBar.value.find((lv) => lv.layers.some((x) => tables.has(x.table)))
       : undefined;
-  const on = !!level && shownLevel.value === level.name;
+  // Its collections ticked; the chain lights the steps ↓ ↑ move through (not those always drawn, e.g. the hits).
+  const ticked = !!level && levelOn(level),
+    on = ticked && !level.always;
   // A step in a part of the detector the view is not looking at: a click looks there, keeping the selection.
   const cur = domain.value,
     parts = [
@@ -182,14 +184,18 @@ function RungRow({ rung, role }: { rung: Rung; role: "above" | "self" | "below" 
               {elsewhere} ›
             </button>
           )}
-          {level && !level.always && !elsewhere && (
+          {level && !elsewhere && (
             <button
-              class={on ? "level on" : "level"}
-              aria-pressed={on}
-              title="Draw this step in the view (↓ ↑ step through them)"
-              onClick={() => (focusLevel.value = on ? null : level.name)}
+              class={`level${ticked ? " on" : ""}${level.always ? " always" : ""}`}
+              aria-pressed={ticked}
+              title={
+                ticked
+                  ? "Drawn: its collections are ticked in the side panel. Click to untick them, for the whole event (↓ ↑ move the tick)"
+                  : "Tick its collections in the side panel, to draw this step, for the whole event (↓ ↑ move the tick)"
+              }
+              onClick={() => tickLevel(level.name, !ticked)}
             >
-              {on ? "shown" : "show"}
+              {ticked ? "shown" : "show"}
             </button>
           )}
         </span>

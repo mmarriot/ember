@@ -18,8 +18,8 @@ import {
   drawnLayers,
   event,
   focus,
-  focusHidden,
   focusLayers,
+  focusRowsKey,
   highlight,
   hover,
   inDomain,
@@ -230,15 +230,14 @@ export function startScene(canvas: HTMLCanvasElement): () => void {
     applyCuts(false);
   });
 
-  // The layers to draw: the visible ones but the levels a focus hides, the hidden ones it shows, and in a replay
-  // every visible layer and reconstruction stage.
+  // The layers to draw: the visible ones, those drawn for the focus's rows (store/selection.ts focusRows), and in a
+  // replay every reconstruction stage.
   const wanted = (header: Header, ev: EventData) => {
     const vis = drawnLayers.peek(),
       forced = focusLayers.peek(),
-      hidden = focusHidden.peek(),
       all = replaying.peek();
     const draw = (k: string, d: DisplayLayer) =>
-      (vis[k] && (all || !hidden.has(k))) || forced.has(k) || (all && d.stage !== undefined && inDomain(d));
+      vis[k] || forced.has(k) || (all && d.stage !== undefined && inDomain(d));
     return header.display.filter((d) => draw(layerKey(d), d) && ev.tables[d.table]?.n);
   };
   // Builds the given layers, adding their legends to `drawn`; colour scales are shared with the layers in `pool`.
@@ -352,12 +351,11 @@ export function startScene(canvas: HTMLCanvasElement): () => void {
     showFocus(0);
   });
 
-  // Ticks, the domain and the focus change which layers are drawn: a focus draws some hidden layers (a candidate's
-  // tracksters, when that level is chosen) and hides some ticked ones (its layer clusters, until chosen); a domain
-  // hides the others' layers. Only those are built or freed; the others keep their buffers.
+  // Ticks, the domain and the focus change which layers are drawn: a domain hides the others' layers, and a focus
+  // draws its rows of the layers the view leaves out (store/selection.ts focusRows). Only those are built or freed;
+  // the others keep their buffers.
   const stopForced = effect(() => {
     focusLayers.value;
-    focusHidden.value;
     drawnLayers.value;
     const b = bundle.peek(),
       ev = event.peek();
@@ -400,6 +398,7 @@ export function startScene(canvas: HTMLCanvasElement): () => void {
     highlight.value;
     showAll.value;
     pairView.value;
+    focusRowsKey.value; // the selected object moving within an unticked layer, or such a layer ticked or unticked
     // A new truth <-> reco pair (or none any more): every layer is recoloured in place.
     const key = pairKeyOf(pairView.peek()),
       changed = key !== lastPair;

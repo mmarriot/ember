@@ -18,7 +18,7 @@ import {
   levelTop,
   noTruth,
   pairView,
-  parentRows,
+  focusRows,
   selection,
   showAll,
   shownLevel,
@@ -49,15 +49,18 @@ export const replayOnly = (d: DisplayLayer, key: string, hl: Highlight, replayin
 };
 
 /** For a layer drawn only for the focus: the rows to keep (none without a focus), less those reached only from objects
- *  a cut hides (the hits and truth of a vertex's tracks below the pT cut); else undefined. */
+ *  a cut hides (the hits and truth of a vertex's tracks below the pT cut), but the selected object; else undefined.
+ *  Drawn only for the focus: a layer the view leaves out (another part's, or unticked: store/selection.ts focusRows),
+ *  and an `onSelection` layer. */
 export const onlyFor = (d: DisplayLayer, key: string, hl: Highlight, replaying: boolean) => {
-  const parents = untracked(() => parentRows(d));
-  if (parents) return parents; // a shared part's layer drawn only for what the focus is part of
-  if (!d.onSelection || showAll.peek()[key] || replayOnly(d, key, hl, replaying)) return undefined;
-  const rows = hl?.get(d.table);
+  // a replay draws every reconstruction stage of the view whole, also one holding the selection
+  const forFocus = replaying && d.stage !== undefined && inDomain(d) ? undefined : untracked(() => focusRows(d));
+  if (!forFocus && (!d.onSelection || showAll.peek()[key] || replayOnly(d, key, hl, replaying))) return undefined;
+  const rows = forFocus ?? hl?.get(d.table);
   if (!rows) return (!hl && truthPreview(d)) || new Set<number>(); // before a selection, the truth colours' particles
-  const cut = belowCut(d.table, hl!);
-  return cut.size ? new Set([...rows].filter((r) => !cut.has(r))) : rows;
+  const cut = belowCut(d.table, hl!),
+    sel = selection.peek();
+  return cut.size ? new Set([...rows].filter((r) => !cut.has(r) || (sel?.table === d.table && sel.row === r))) : rows;
 };
 
 /** The focus's objects of `table` reached only from focus objects (not the selected one) that fail their layer's cut,

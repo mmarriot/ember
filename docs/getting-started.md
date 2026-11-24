@@ -139,8 +139,9 @@ You see the first event of the bundle. Press `?` at any time for the viewer's ow
    (`392294:21:11805516`), `run:event`, or the event number. Press `P` for a tour: the viewer builds up the event
    step by step, from the collision point outwards and from hits to physics objects, with a caption for each step.
 3. **Click an object**, for example a jet, a track, a cluster or a hit. Its card opens on the right. The card shows
-   what the object is part of, and what it is made of, down to the hits. Press `↓` and `↑` to draw one step of this
-   chain at a time. Click a name in the card to look at that object. Press `Esc` to go back.
+   what the object is part of, and what it is made of, down to the hits. What is drawn is what is ticked in the side
+   panel. Press `↓` and `↑` to move the tick through the steps of this chain, so one is drawn at a time (**show** on a
+   step ticks it, for the whole event). Click a name in the card to look at that object. Press `Esc` to go back.
 4. **Compare with the simulation**, when the bundle has truth. Press `T` to colour everything by the simulated
    particle it comes from. Select an object and press `X` to jump to its truth match, and `X` again to come back. The
    card says how good the match is, as purity and completeness. Select a particle to see, detector by detector, where

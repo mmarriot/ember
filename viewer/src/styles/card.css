@@ -346,9 +346,6 @@ ul.matches li {
   flex-wrap: wrap;
   gap: 3px 4px;
 }
-.level:disabled {
-  cursor: default;
-}
 .level.on .count {
   color: inherit;
   opacity: 0.85;

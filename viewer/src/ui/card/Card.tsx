@@ -14,7 +14,6 @@ import {
   event,
   focusBar,
   focusHistory,
-  focusLevel,
   labelOf,
   layerOf,
   levelTop,
@@ -22,8 +21,9 @@ import {
   nameOf,
   openCard,
   selection,
-  shownLevel,
+  levelOn,
   subject,
+  tickLevel,
 } from "../../model/store";
 import { Chain } from "./Chain";
 import { chip } from "./chips";
@@ -139,30 +139,33 @@ function Looking() {
   );
 }
 
-/** The levels drawn on request (↓ ↑) when they are not the card's own steps: those of the object the view is built
- *  around (the object looked at, the pair's candidate, or the focus). */
+/** The levels to tick (↓ ↑) when they are not the card's own steps: those of the object the view is built around
+ *  (the object looked at, the pair's candidate, or the focus). */
 function ViewLevels() {
   const top = levelTop.value,
-    bar = focusBar.value,
-    chosen = shownLevel.value;
+    bar = focusBar.value;
   if (!top || sameRef(top, subject.value) || !bar.some((l) => !l.always)) return null;
   return (
     <section class="viewlevels" aria-label="Levels in the view">
-      <h4 title="The view is built around this object: its smallest parts are always drawn, one of the other levels on request (↓ ↑)">
+      <h4 title="The view is built around this object: each level is drawn when its collections are ticked (click, or ↓ ↑ to move the tick)">
         In the view <span class="lanes">{nameOf(top)}</span>
       </h4>
       <div class="levelrow">
         {bar.map((l, i) => {
-          const on = l.always || l.name === chosen;
+          const on = levelOn(l);
           return (
             <>
               {/* objects only built from its parts: ↓ ↑ skip them, a click draws them */}
               {l.beside && !bar[i - 1]?.beside && <span class="muted">built from its parts:</span>}
               <button
                 class={on ? "level on" : "level"}
-                disabled={l.always}
                 aria-pressed={on}
-                onClick={() => (focusLevel.value = l.name === chosen ? null : l.name)}
+                title={
+                  on
+                    ? "Drawn: its collections are ticked. Click to untick them, for the whole event"
+                    : "Click to tick its collections, for the whole event"
+                }
+                onClick={() => tickLevel(l.name, !on)}
               >
                 {l.name} <span class="count">{l.count.toLocaleString()}</span>
               </button>

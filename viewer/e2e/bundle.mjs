@@ -158,8 +158,8 @@ export async function checkBundle(run, file, tag, state) {
   }
   await shot("3_selected");
   await checkReducedMotion(page, fail);
-  // The levels need an object with a step that is drawn on request ("show"): row 0 may be e.g. a track-only candidate.
-  const pills = () => page.locator(".inspector .rung .level").count();
+  // The levels need an object with a step to move the tick to (↓ ↑): row 0 may be e.g. a track-only candidate.
+  const pills = () => page.locator(".inspector .rung .level:not(.always)").count();
   let row = 0;
   if (target.stage !== undefined)
     for (let r = 1; r < 6 && !(await pills()); r++) await open(`b=${file}&e=1${all}&s=${target.table}:${(row = r)}`);
@@ -441,9 +441,10 @@ async function checkObjectRows(page, h, fail, shot, tag) {
   if (await page.locator(".viewchips .rest").count()) fail("the rest's choice stays without a selection");
 }
 
-/** A selection draws its objects that a layer's filter hides (cuts still apply), and its levels drawn as lines (e.g. a
- *  vertex's tracks). Finds, in the page (with the app's own modules), an object related through a plain relation to a
- *  row that a non-onSelection layer's filter hides but its cut keeps; selects it and checks that row is drawn. */
+/** A selection draws its objects that a ticked layer's filter hides (cuts still apply), and its levels drawn as lines
+ *  that are ticked (e.g. a vertex's tracks): unticked ones it never draws. Finds, in the page (with the app's own
+ *  modules), an object related through a plain relation to a row that a ticked non-onSelection layer's filter hides
+ *  but its cut keeps; selects it and checks that row is drawn. */
 async function checkFocusFilters(page, h, fail, tag) {
   if (!h.display.some((d) => d.filter && !d.onSelection)) return;
   const found = await page.evaluate(async () => {
@@ -458,8 +459,9 @@ async function checkFocusFilters(page, h, fail, tag) {
     const b = store.bundle.peek(),
       ev = store.event.peek(),
       cuts = store.cuts.peek(),
-      out = [];
-    for (const d of b.header.display.filter((x) => x.filter && !x.onSelection)) {
+      out = [],
+      ticked = (x) => !!store.visible.peek()[store.layerKey(x)];
+    for (const d of b.header.display.filter((x) => x.filter && !x.onSelection && ticked(x))) {
       const t = ev.tables[d.table],
         keep = t && custom.filterMask(t, custom.filters.peek()[d.table]);
       if (!keep) continue;
@@ -485,7 +487,7 @@ async function checkFocusFilters(page, h, fail, tag) {
           .filter((l) => l.layers.every((x) => x.repr === "helix" || x.repr === "segments"));
         const undrawn = lines
           .flatMap((l) => l.layers)
-          .filter((x) => !window.emberEngine.layers.some((l) => l.table === x.table))
+          .filter((x) => ticked(x) && !window.emberEngine.layers.some((l) => l.table === x.table))
           .map((x) => x.table);
         out.push({ sel: `${r.from}:${from}`, table: d.table, row, drawn: !!layer?.passes(row), undrawn });
         store.selection.value = null;
@@ -505,9 +507,10 @@ async function checkFocusFilters(page, h, fail, tag) {
   }
 }
 
-/** The focus is drawn with its bottom level (e.g. hits) only: no layer of an earlier reconstruction stage. ↓ adds one
- *  level in between (one more layer kind drawn, its pill lit) and turns a shower focus into an outline around it; ↑
- *  goes back. Then the pair's particle opens its own pair. */
+/** The focus draws the ticked collections only: by default no layer of an earlier reconstruction stage. ↓ (or ↑ when a
+ *  level in between is ticked already) moves the tick to another level (its pill lit, the layers drawn change, a shower
+ *  focus with none ticked before becomes an outline around it); the other key moves it back. Then the pair's particle
+ *  opens its own pair. */
 async function checkLevels(page, h, target, fail, shot, tag) {
   const drawn = async () => (await drawnTables(page)).sort().join();
   const style = () =>
@@ -524,21 +527,28 @@ async function checkLevels(page, h, target, fail, shot, tag) {
     .map((d) => d.table);
   const early = before.split(",").filter((t) => earlier.includes(t));
   if (early.length) fail(`focus on ${target.table} draws earlier stages by default: ${early.join(", ")}`);
-  if (!(await page.locator(".inspector .rung .level").count()))
-    return log(`${tag}: levels: ${pills.join(" › ") || "none"} (none drawn on request)`);
-  await page.keyboard.press("ArrowDown");
+  if (!(await page.locator(".inspector .rung .level:not(.always)").count()))
+    return log(`${tag}: levels: ${pills.join(" › ") || "none"} (none to step through)`);
+  const lit0 = await page.locator(".inspector .rung.shown .rkind").allInnerTexts(),
+    [there, back] = lit0.length ? ["ArrowUp", "ArrowDown"] : ["ArrowDown", "ArrowUp"];
+  await page.keyboard.press(there);
   await page.waitForTimeout(600);
   const lit = await page.locator(".inspector .rung.shown .rkind").allInnerTexts(),
-    down = await drawn();
-  log(`${tag}: levels: ${pills.join(" › ").replace(/\s+/g, " ")}; ↓ shows ${lit.join() || "nothing"}`);
-  if (lit.length !== 1 || down === before) fail(`↓ did not show the first level (lit: ${lit.join() || "none"})`);
-  if (!new URL(page.url()).hash.includes("lv=")) fail("the level shown is not in the URL (lv)");
-  if (style0 && (await style()) === style0) fail("↓ did not draw the focus as an outline around the level");
+    moved = await drawn(),
+    key = there === "ArrowUp" ? "↑" : "↓";
+  log(
+    `${tag}: levels: ${pills.join(" › ").replace(/\s+/g, " ")}; ticked ${lit0.join() || "none"}, ${key} ticks ${lit.join() || "nothing"}`,
+  );
+  if (lit.length !== 1 || lit[0] === lit0[0] || moved === before)
+    fail(`${key} did not move the tick to another level (lit: ${lit.join() || "none"})`);
+  if (!new URL(page.url()).hash.includes("lv=")) fail("the level ticked is not in the URL (lv)");
+  if (style0 && !lit0.length && (await style()) === style0)
+    fail("↓ did not draw the focus as an outline around the level");
   await shot("3b_level");
-  await page.keyboard.press("ArrowUp");
+  await page.keyboard.press(back);
   await page.waitForTimeout(600);
-  if ((await drawn()) !== before) fail("↑ did not go back to the focus's default layers");
-  if ((await style()) !== style0) fail("↑ did not give the focus its own surface back");
+  if ((await drawn()) !== before) fail("the other key did not move the tick back to the focus's first layers");
+  if ((await style()) !== style0) fail("the other key did not give the focus its first surface back");
   // In the truth <-> reco pair view, the pair's particle opens its own pair, which names it on its truth line. (Not
   // the chip of the one-line answer, named by energy next to a calorimeter part.)
   const particle = page.locator(".inspector .truthline:not(.answer) .chip").first();
@@ -556,7 +566,6 @@ async function checkLevels(page, h, target, fail, shot, tag) {
   log(`${tag}: the pair from its particle: ${truthLine || "none"}`);
   if (!truthLine.includes(name)) fail(`the particle ${name} does not open its own pair`);
   await page.locator(".inspector .looking .lookhead .link").click({ timeout: 120000 }); // stop looking at the particle
-  await page.keyboard.press("ArrowUp");
   await page.waitForTimeout(600);
 }
 
@@ -610,12 +619,39 @@ async function checkCross(page, h, fail, tag) {
   const sel = () => hashParam(page, "s");
   const truth = new Set(h.display.filter((d) => d.truth).map((d) => d.table)),
     s0 = sel();
-  if (!(await page.locator(".inspector .rung.self .rlink.match .chip").count())) return;
+  const unticked = async (what) => {
+    const u = await untickedDrawn(page);
+    if (u.length) fail(`${what} draws collections that are not ticked: ${u.join(", ")}`);
+    return u;
+  };
+  await unticked(`the selection ${s0}`);
+  if (!(await page.locator(".inspector .rung.self .rlink.match .chip").count())) {
+    // No match of its own (a TICL candidate): X goes to its part's particle, in the truth <-> reco pair view, where
+    // unticked collections (its layer clusters, its candidate tracksters) used to come back.
+    if (!(await page.getByRole("button", { name: "Go to truth (X)" }).count())) return;
+    await page.keyboard.press("x");
+    await page.waitForTimeout(900);
+    if (await page.locator(".inspector .chooser").count()) {
+      await page.keyboard.press("x"); // X again: the first part's particle
+      await page.waitForTimeout(900);
+    }
+    const s1 = sel();
+    if (s1 === s0) return log(`${tag}: X from ${s0} goes nowhere`);
+    const u = await unticked(`X from ${s0} to ${s1}`);
+    log(
+      `${tag}: X from ${s0} -> ${s1}: ${u.length ? `draws unticked ${u.join(", ")}` : "draws only ticked collections"}`,
+    );
+    await page.keyboard.press("b");
+    await page.waitForTimeout(900);
+    if (sel() !== s0) fail(`B did not come back from ${s1} to ${s0}`);
+    return;
+  }
   await page.keyboard.press("x");
   await page.waitForTimeout(900);
   const s1 = sel(),
     across = truth.has(s1.split(":")[0]) !== truth.has(s0.split(":")[0]);
   const lanes = await page.locator(".inspector .ladder .rung").count();
+  await unticked(`X from ${s0} to ${sel()}`);
   await page.keyboard.press("b");
   await page.waitForTimeout(900);
   log(`${tag}: X from ${s0} -> ${s1} (${lanes} steps on that side), B -> ${sel()}`);
@@ -623,6 +659,24 @@ async function checkCross(page, h, fail, tag) {
   if (!lanes) fail(`the other side of the link shows no steps (${s1})`);
   if (sel() !== s0) fail(`B did not come back from ${s1} to ${s0}`);
 }
+
+/** The tables of drawn layers that are not ticked, other than the selected object's and the focus's own (the only ones
+ *  a selection may draw unticked: store/selection.ts focusRows). */
+const untickedDrawn = (page) =>
+  page.evaluate(async () => {
+    const url = performance
+      .getEntriesByType("resource")
+      .map((r) => r.name)
+      .find((n) => n.includes("/src/model/store/index.ts"));
+    const store = await import(url),
+      own = new Set([store.selection.peek()?.table, store.focus.peek()?.table]),
+      ticks = store.visible.peek(),
+      display = store.bundle.peek().header.display;
+    return window.emberEngine.layers
+      .map((l) => display.find((d) => d.table === l.table && store.layerKey(d) === l.key))
+      .filter((d) => d && !ticks[store.layerKey(d)] && !own.has(d.table))
+      .map((d) => d.table);
+  });
 
 /** "only" on a kind's heading draws that kind alone, keeps it in the URL, and "show everything" brings the rest back. */
 async function checkOnly(page, h, fail, shot, tag) {

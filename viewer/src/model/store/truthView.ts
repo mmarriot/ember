@@ -2,10 +2,11 @@
 // and the truth rows the view draws for them. Picking is in selection.ts (it moves the selection and the focus).
 import { computed, signal } from "@preact/signals";
 import { cached } from "../event/cache";
-import { drawnRows } from "../truth/graph";
+import { linkedTo } from "../event/relations";
+import { copiesBelow, drawnRows } from "../truth/graph";
 import { DEFAULT_LEVELS, levelGraph, matchingNodes } from "../truth/levelGraph";
 import { truthGraph } from "./colours";
-import { event } from "./data";
+import { bundle, event } from "./data";
 import { layerOf } from "./names";
 
 /** The truth levels the graph shows: GRAPH_LEVELS bits (truth/levelGraph.ts). Kept between events and bundles. */
@@ -25,6 +26,13 @@ export const truthPicks = signal<number[]>([]);
 export const pickedTops = computed(() => {
   const g = truthGraph.value?.graph;
   return new Set(g ? truthPicks.value.map((r) => g.top[r]) : []);
+});
+
+/** The picks' own rows: every generator copy of each (graph.ts copiesBelow). The view draws them whatever the cut
+ *  (control/sceneFocus.ts onlyFor). Empty without picks. */
+export const pickedRows = computed(() => {
+  const g = truthGraph.value?.graph;
+  return new Set(g ? [...pickedTops.value].flatMap((t) => copiesBelow(g, t)) : []);
 });
 
 /** The event's truth graph at the levels shown (truth/levelGraph.ts), once per event and choice of levels; null
@@ -59,4 +67,15 @@ export const truthDrawn = computed(() => {
   const out = new Map([[tg.particles, particles]]);
   if (tg.vertices) out.set(tg.vertices, vertices);
   return out;
+});
+
+/** What is linked through an association to the truth drawn for the picks (truthDrawn): their hits, the reco objects
+ *  matched to the particles and to their vertices, by table; null without picks. selection.ts puts them in the
+ *  highlight of a truth focus, so they follow the choice (each pick alone, or with its descendants) and are those of
+ *  every pick. */
+export const truthLinked = computed(() => {
+  const drawn = truthDrawn.value,
+    b = bundle.value,
+    ev = event.value;
+  return drawn && b && ev ? linkedTo(ev, b.header, drawn) : null;
 });

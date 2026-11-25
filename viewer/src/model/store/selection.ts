@@ -22,7 +22,7 @@ import { truthStatement } from "../truth/statement";
 import { isFactTable } from "../truth/facts";
 import { bundle, event } from "./data";
 import { layerKey, layerOf } from "./names";
-import { pickedTops, truthDrawn, truthPicks } from "./truthView";
+import { pickedTops, truthDrawn, truthLinked, truthPicks } from "./truthView";
 import { domain, drawnLayers, shared, visible } from "./view";
 
 // ---- The selection and the focus
@@ -49,7 +49,19 @@ const partsOf = (ref: Ref | null) => {
     ev = event.value;
   return b && ev && ref && ref.row < (ev.tables[ref.table]?.n ?? 0) ? relatedParts(ev, b.header, ref) : null;
 };
-const focusParts = computed(() => partsOf(focus.value));
+/** The focus is one of the Truth tab's picks (any of its generator copies). */
+export const focusPicked = computed(() => {
+  const f = focus.value,
+    tg = truthGraph.value;
+  return !!f && !!tg && f.table === tg.particles && pickedTops.value.has(tg.graph.top[f.row]);
+});
+/** The focus's relatives. While it is one of the picks, what is linked to it is what is linked to the truth drawn for
+ *  all of them (truthView.ts truthLinked): with "particle only", not its descendants' hits and matches. */
+const focusParts = computed(() => {
+  const parts = partsOf(focus.value),
+    linked = focusPicked.value ? truthLinked.value : null;
+  return parts && linked ? { ...parts, linked } : parts;
+});
 /** The selection's relatives: what it is made of, part of and linked to (its truth particle). */
 export const relatives = computed(() =>
   sameRef(selection.value, focus.value) ? focusParts.value : partsOf(selection.value),
@@ -260,15 +272,13 @@ const focusHighlight = computed(() => {
 /** What is drawn highlighted, per table: the focus, its levels and what is linked to it; in the pair view, the pair's
  *  objects. Not what contains the focus: big containers would cover it. While the focus is one of the Truth tab's
  *  picks, the truth particles and vertices are the picks' (truthView.ts truthDrawn: each alone or with its
- *  descendants); the rest (hits, reco objects) stays the focus's, the last pick. Another focus (an object looked at
- *  from a card, a truth vertex) keeps its own. Null without a focus. */
+ *  descendants), and so are the hits and reco objects linked to them (focusParts); in the pair view those stay the
+ *  pair's, the last pick's. Another focus (an object looked at from a card, a truth vertex) keeps its own. Null
+ *  without a focus. */
 export const highlight = computed(() => {
   const hl = focusHighlight.value,
-    f = focus.value,
-    drawn = truthDrawn.value,
-    tg = truthGraph.value;
-  const picked = !!f && !!tg && f.table === tg.particles && pickedTops.value.has(tg.graph.top[f.row]);
-  return hl && drawn && picked ? new Map([...hl, ...drawn]) : hl;
+    drawn = truthDrawn.value;
+  return hl && drawn && focusPicked.value ? new Map([...hl, ...drawn]) : hl;
 });
 
 /** What framing the focus fits in the view: the highlight less what is only linked to it, which can lie far away (a
@@ -291,8 +301,9 @@ export const framed = computed(() => {
 const focusParents = computed(() => focusParts.value?.partOf ?? null);
 /** For a layer the view does not draw whole, the rows drawn for the focus: of a ticked layer the view leaves out
  *  (another part of the detector's, or one kind looked at alone), the focus's objects and, in a shared part, what it is
- *  part of (a muon's jet); of an unticked layer, only the selected object and the focus themselves. Undefined for a
- *  layer drawn whole, without a focus, or with none of these rows. */
+ *  part of (a muon's jet); of an unticked layer, only the selected object and the focus themselves, and while the focus
+ *  is one of the Truth tab's picks, the truth particles and vertices drawn for them. Undefined for a layer drawn whole,
+ *  without a focus, or with none of these rows. */
 export const focusRows = (d: DisplayLayer) => {
   const key = layerKey(d),
     hl = highlight.value;
@@ -301,7 +312,11 @@ export const focusRows = (d: DisplayLayer) => {
   if (visible.value[key]) {
     const parents = d.domain && shared.value.has(d.domain) ? (focusParents.value?.get(d.table) ?? []) : [];
     rows = new Set([...(hl.get(d.table) ?? []), ...parents]);
-  } else rows = new Set([focus.value, selection.value].filter((r) => r?.table === d.table).map((r) => r!.row));
+  } else {
+    rows = new Set([focus.value, selection.value].filter((r) => r?.table === d.table).map((r) => r!.row));
+    // The picks' truth (with their vertices) is drawn whatever the ticks.
+    if (focusPicked.value) for (const r of truthDrawn.value?.get(d.table) ?? []) rows.add(r);
+  }
   return rows.size ? rows : undefined;
 };
 

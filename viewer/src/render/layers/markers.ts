@@ -18,8 +18,9 @@ import {
 
 /** Discs of constant pixel size with a rim, drawn over cells. Objects without emphasis (layer clusters in no
  *  trackster) are small, rimless and faded. With a `size` column, larger values give larger discs (5 to 14 px over
- *  the bulk of the values), so the primary vertex stands out among pile-up vertices. Truth markers are hollow dashed
- *  rings (docs/truth.md "One look for truth"). `behind`: drawn first, under the hits (control/sceneColours.ts
+ *  the bulk of the values), so the primary vertex stands out among pile-up vertices. Truth markers are hollow rings
+ *  with edges of the background's colour (docs/truth.md "One look for truth"), larger for the selection's: they read
+ *  over the lines that meet at them, and rings that overlap stay apart. `behind`: drawn first, under the hits (control/sceneColours.ts
  *  underHits). */
 export function markers(input: LayerInput): Layer {
   const { d, t } = input;
@@ -40,12 +41,12 @@ export function markers(input: LayerInput): Layer {
       ...baseUniforms(input.pal, input.d.context),
       uPx: pxUniform,
       uSized: { value: sizeCol ? 1 : 0 },
-      uHollow: { value: d.truth ? 1 : 0 },
+      uHollow: { value: d.truth ? (input.picks ? 2 : 1) : 0 },
     },
     vertexShader: /* glsl */ `
       attribute float ix, iy, iz, isel, ipsel, iemph, icut, iT, iL, isize;
       attribute vec3 icol;
-      uniform float uPx, uSized;
+      uniform float uPx, uSized, uHollow;
       varying vec3 vCol;
       varying float vRim, vSize;
       ${SHADER_COMMON}
@@ -72,16 +73,19 @@ export function markers(input: LayerInput): Layer {
         if (gl_Position.w <= 0.0) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; } // behind the camera
         gl_Position = vec4(gl_Position.xy / gl_Position.w, 2.0 * (slice + 0.1 * dist) - 1.0, 1.0);
         float big = uSized > 0.5 ? mix(5.0, 14.0, isize) : 7.0;
-        float size = mix(emph > 0.5 ? big : 4.0, max(10.0, big), chosen) * (1.0 + 1.2 * p) * (1.0 + 0.6 * gPin) * uPx * remaining();
+        float size = mix(emph > 0.5 ? big : 4.0, max(uHollow > 0.5 ? 12.0 : 10.0, big), chosen) * (1.0 + 1.2 * p) * (1.0 + 0.6 * gPin) * uPx * remaining();
         gl_PointSize = size + 1.0; // a pixel more: the edge's smoothing reaches half a pixel beyond the disc
-        vec3 col = linked ? icol : uGrey;
+        // The picks' vertices: one neutral colour between the background and the rim (light grey on the dark theme,
+        // dark grey on the light one), so a colour always means a particle and a ring a vertex; the card names the
+        // vertex's process.
+        vec3 col = linked ? (uHollow > 1.5 ? mix(uRim, uBg, 0.3) : icol) : uGrey;
         col = mix(col, uBg, 0.45 * (1.0 - chosen) * (1.0 - emph)); // objects in no group are background
         vCol = fade(mix(col, vec3(1.0), uFlash * p), s);
         vRim = max(chosen, (1.0 - selActive()) * emph);
         vSize = size;
       }`,
     fragmentShader: /* glsl */ `
-      uniform vec3 uRim;
+      uniform vec3 uRim, uBg;
       uniform float uHollow;
       varying vec3 vCol;
       varying float vRim, vSize;
@@ -94,9 +98,14 @@ export function markers(input: LayerInput): Layer {
         // multisampled drawing buffer turns into that share of its samples (alphaToCoverage). A hard edge would take
         // or leave whole pixels, and a small disc moving by a fraction of a pixel would change shape: the dots shimmer.
         float a = inside(r, 1.0);
-        // truth: a ring of 8 dashes
-        if (uHollow > 0.5) a *= (1.0 - inside(r, 0.63)) * step(fract(4.0 * atan(d.y, d.x) / 3.14159265), 0.6);
-        if (!(a > 0.0)) discard; // also NaN: atan(0, 0) at a ring's very centre is undefined
+        if (uHollow > 0.5) {
+          // truth: a ring (0.5 to 0.8 of the radius) between edges of the background's colour, hollow inside 0.36
+          a *= 1.0 - inside(r, 0.36);
+          if (!(a > 0.0)) discard;
+          gl_FragColor = vec4(mix(uBg, vCol, inside(r, 0.8) * (1.0 - inside(r, 0.5))), a);
+          return;
+        }
+        if (!(a > 0.0)) discard;
         gl_FragColor = vec4(mix(vCol, uRim, 0.55 * vRim * (1.0 - inside(r, 0.71))), a);
       }`,
     alphaToCoverage: true,

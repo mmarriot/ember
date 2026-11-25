@@ -153,6 +153,34 @@ export function levelsOf(
   return union(madeOf, extra, linked);
 }
 
+/** The objects linked to `rows` (per table) through an association, crossed once: those the associations of `rows`
+ *  point to, and those whose associations point to them (a set of truth particles' hits and matched reco objects).
+ *  Unlike relatedParts, nothing is followed through a plain relation first. One pass over the entries of `rows`, and
+ *  one over each association into their tables. */
+export function linkedTo(ev: EventData, header: Header, rows: Related): Related {
+  const out: Related = new Map();
+  const add = (table: string, row: number) => {
+    if (!out.has(table)) out.set(table, new Set());
+    out.get(table)!.add(row);
+  };
+  for (const [name, info] of Object.entries(header.relations)) {
+    const rel = ev.relations[name];
+    if (!info.association || !rel) continue;
+    const from = rows.get(info.from),
+      to = rows.get(info.to);
+    if (from)
+      for (const f of from) for (let k = rel.offsets[f]; k < rel.offsets[f + 1]; k++) add(info.to, rel.indices[k]);
+    if (to)
+      for (let i = 0; i + 1 < rel.offsets.length; i++)
+        for (let k = rel.offsets[i]; k < rel.offsets[i + 1]; k++)
+          if (to.has(rel.indices[k])) {
+            add(info.from, i);
+            break;
+          }
+  }
+  return out;
+}
+
 /** Everything related to `sel`, of all three kinds (see relatedParts). */
 export function related(ev: EventData, header: Header, sel: Ref): Related {
   const { madeOf, partOf, linked } = relatedParts(ev, header, sel);

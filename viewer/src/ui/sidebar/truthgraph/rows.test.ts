@@ -176,6 +176,28 @@ describe("treeRows", () => {
     ]);
     expect(pathTo(gun, glg, 0)).toMatchObject({ collision: glg.signal, hard: false, tops: [0] });
   });
+  it("opens a particle gun's particles as it opens the hard scatter's", () => {
+    // a τ gun: the τ (τ visible, bit 11) and the π it decays to
+    const gun = graphOf(
+      {
+        n: 2,
+        columns: {
+          pdgId: [15, -211],
+          status: [2, 1],
+          energy: [50, 30],
+          levelFlags: [1 << 11, RECO],
+          isSignal: [1, 1],
+          prodVertexIdx: [0, 1],
+        },
+      },
+      csr([[1], []]),
+      { n: 2, columns: { reason: [0, 2] } },
+    );
+    const glg = levelGraph(gun, "levelFlags", "isSignal", DEFAULT_LEVELS);
+    const r = treeRows(glg, gun, emptyState(), true, new Set());
+    expect(r.find((x) => x.kind === "particle" && glg.particles[x.node].top === 0)).toMatchObject({ open: true });
+    expect(r.some((x) => x.kind === "particle" && glg.particles[x.node].top === 1)).toBe(true);
+  });
   it("lists the particles at no shown level under a node when asked, each folding its own", () => {
     expect(hiddenChildren(g, lg, 12)).toEqual([13, 14]);
     expect(hiddenChildren(g, lg, 5)).toEqual([8]); // the string

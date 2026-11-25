@@ -56,9 +56,12 @@ type Entry =
   | { kind: "more"; list: string; left: number };
 
 const RECO = GRAPH_LEVELS.findIndex((l) => l.id === "reco");
-/** A particle is unfolded by default under the hard scatter (`hard`), down to its b / c hadrons and τ (the levels
- *  above "reconstructable"); the rest is folded. */
+/** A particle is unfolded by default under the hard scatter, or straight under a signal collision without one (a
+ *  particle gun: its particles are the signal) (`hard`), down to its b / c hadrons and τ (the levels above
+ *  "reconstructable"); the rest is folded. */
 export const defaultOpen = (p: ParticleNode, hard: boolean) => hard && p.level < RECO;
+/** The signal collision of a particle gun (no hard scatter): its particles open as the hard scatter's do. */
+const gunOf = (h: Head) => h.kind === "collision" && h.c.signal && !h.c.scatter;
 
 /** The particles a tree lists under node `i`: those whose primary parent it is, largest energy first. */
 export const treeChildren = (lg: LevelGraph, i: number) =>
@@ -239,7 +242,7 @@ export function treeRows(
     entries.forEach((e, k) => {
       const last = k === entries.length - 1,
         key = `${parent}/${keyOf(e)}`,
-        under = hard || (e.kind === "head" && e.head.kind === "scatter"),
+        under = hard || (e.kind === "head" && (e.head.kind === "scatter" || gunOf(e.head))),
         kids = add(e, { key, depth, rails, last }, hard);
       if (kids.length) walk(kids, depth + 1, depth ? [...rails, !last] : [], key, under);
     });

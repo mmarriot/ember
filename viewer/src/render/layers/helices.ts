@@ -33,11 +33,12 @@ const HELIX_POINTS = 48,
 const PICK_POINTS = 17; // points per path of the CPU polyline used for picking and framing
 /** Truth lines drawn for a selection (defines WIDE and TRUTH): dashed as all truth (layer.ts DASHED_LINE_FRAGMENT),
  *  the selection's at their full colour and the rest dimmed, and the ribbon's sides (beyond vCore of its half-width)
- *  in the background's colour. */
+ *  in the background's colour, blended over one pixel (fwidth) so the edge does not alias. */
 const TRUTH_FRAGMENT = /* glsl */ `uniform vec3 uBg; varying vec3 vCol; varying float vS, vHi, vAcross, vCore;
   void main() {
     if (mod(vS, 7.0) > 4.0) discard;
-    gl_FragColor = vec4(abs(vAcross) > vCore ? uBg : mix(vCol, uBg, 0.35 * (1.0 - vHi)), 1.0);
+    float a = abs(vAcross), edge = vCore < 1.0 ? smoothstep(vCore - fwidth(vAcross), vCore, a) : 0.0;
+    gl_FragColor = vec4(mix(mix(vCol, uBg, 0.35 * (1.0 - vHi)), uBg, edge), 1.0);
   }`;
 /** Paths per table and display hint, kept as long as the event's table lives (a WeakMap entry goes with its key): a
  *  layer that shows only the selection's objects is rebuilt on every click, and its paths do not change. */

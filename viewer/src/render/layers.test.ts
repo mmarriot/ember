@@ -473,6 +473,35 @@ describe("the rest of the event around a selection", () => {
   });
 });
 
+describe("truth lines", () => {
+  it("are thin edged ribbons when drawn for a selection, and one-pixel lines when drawn whole", () => {
+    const t = table({
+        x: col(0, 0),
+        y: col(0, 0),
+        z: col(0, 0),
+        px: col(3, 1),
+        py: col(4, 1),
+        pz: col(1, 1),
+        q: col(1, -1),
+      }),
+      d = hint({ repr: "helix", momentum: ["px", "py", "pz"], charge: "q", truth: true }),
+      input = { key: "k", d, t, pal: PALETTES.dark, rgb: new Float32Array(6) };
+    const forFocus = parts(builders.helix({ ...input, limited: true })),
+      whole = parts(builders.helix(input));
+    expect([forFocus.o instanceof THREE.Mesh, forFocus.m.defines]).toEqual([true, { WIDE: 1, TRUTH: 1 }]);
+    expect([whole.o instanceof THREE.Line, whole.m.defines]).toEqual([true, {}]);
+  });
+});
+
+describe("truth vertices", () => {
+  it("are rings in their own colours, and in one neutral colour for the Truth tab's picks", () => {
+    const t = table({ x: col(0, 1), y: col(0, 0), z: col(0, 0) }),
+      input = { key: "k", d: hint({ repr: "markers", truth: true }), t, pal: PALETTES.dark, rgb: new Float32Array(6) };
+    expect(parts(builders.markers(input)).m.uniforms.uHollow.value).toBe(1);
+    expect(parts(builders.markers({ ...input, limited: true, picks: true })).m.uniforms.uHollow.value).toBe(2);
+  });
+});
+
 describe("sizes on screen", () => {
   it("are CSS pixels, turned into drawing-buffer pixels by one shared uniform", () => {
     Object.assign(globalThis, { devicePixelRatio: 2 }); // not read when a layer is built
@@ -505,7 +534,7 @@ describe("sizes on screen", () => {
       const { uniforms, vertexShader } = parts(l).m;
       expect(uniforms.uPx).toBe(pxUniform);
       expect(uniforms.uWidth.value).toBe([4, 3, 3][i]); // the hint's width, as is
-      expect(vertexShader).toMatch(/\+ HALO_PX\) \* uPx/); // the halo too
+      expect(vertexShader).toMatch(/\+ HALO_PX\) \* uPx|\+ HALO_PX;[^]*width \* uPx/); // the halo too
     }
     expect(parts(build(hint({ repr: "markers" }), crystals())).m.uniforms.uPx).toBe(pxUniform);
     delete (globalThis as { devicePixelRatio?: number }).devicePixelRatio;

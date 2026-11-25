@@ -471,9 +471,26 @@ objects that left hits, and the tree, which folds. With truth, from the top:
   - **pile-up**: the particles of the other collisions (20,000 or more at 200 pile-up), largest first.
 
   A click on a particle's name picks it alone: the card describes it, and the view draws it. Its tick adds it to the
-  particles drawn (or takes it out); the card describes the last one picked. The hits and reco objects drawn, and
-  **Others** around them, are those of the last one picked. **clear** picks none and closes the card. A truth
-  particle selected elsewhere (in the view, from a card, `X`) is the one picked;
+  particles drawn (or takes it out); the card describes the last one picked. **clear** picks none and closes the card.
+  A truth particle selected elsewhere (in the view, from a card, `X`) is the one picked. What the view draws for the
+  picks:
+  - **particle only**: each pick as one line (all its generator copies), from the vertex where it was made to the one
+    where it ended, and both vertices. A parton of the hard process (t, W, the quarks) is made and ends at the
+    collision: it is two rings at one point and no line, and its card says "decays where it was made (0 cm)". The hits
+    and reco objects drawn are those linked to the picks themselves through an association, not to their
+    descendants. The reco associators match a particle's whole branch (it and everything below it), so a top quark
+    alone still shows the tracks and showers matched to it, but no hits: hits belong to the particle that left them;
+  - **+ descendants**: every particle below each pick drawn as its line, every vertex of them as a ring, and the hits
+    and reco objects linked to any of them;
+  - with several picks, the hits and reco objects of all of them (and **Others** around them). In the truth ↔ reco
+    pair view (the pid and truth colours), they stay the pair's, that of the last one picked;
+  - the lines are thin (2 px, the selected one 2.5 px) and dashed, with an edge of the background's colour on each
+    side so they read over hits and over each other, and the selected one has a one-pixel halo in the accent colour.
+    The vertices are rings of constant size on top of the lines, coloured by their reason (decay, hadronization,
+    hadronic inelastic, …), hollow so that the lines through them and rings that overlap stay readable. They are
+    drawn whether or not the Vertices collection is ticked, and so are the particles if Particles is unticked;
+  - the truth particle energy cut (Details) hides the descendants below it, and the vertices that only those reach;
+    the picks themselves, and their two vertices, are drawn whatever the cut, as any selected object is;
 - **Details**, folded: the truth collections (Particles, Vertices) with their cuts, the particles in this view and the
   event's reco ↔ truth scorecard:
   - **Particles in this view**: for the part of the detector looked at, detector by detector, the particles that left

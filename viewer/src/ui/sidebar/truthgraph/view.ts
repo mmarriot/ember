@@ -10,14 +10,18 @@
 // - `vertices[k]`: a vertex where shown particles were made: `row` in the vertex table, `reason` (named by
 //   ui/card/chips.tsx categoryNames(vertices)), `into` and `out` particle nodes, `skips` when particles at no shown
 //   level lie between;
-// - the collisions, which the whole event hangs from (each is a vertex: where its particles came out of). `signal`, the
-//   signal collision, named by collisionName ("p p, 14 TeV"): its `hard` roots hang from the hard scatter, its `rest`
-//   are its underlying event (with no hard process, a particle gun: its particles, straight under the collision).
-//   `pileup`: the pile-up collisions, hardest (summed pT of the roots, `pt`) first, each with its roots in `rest` (no
-//   generator history: about 180 at 200 pile-up, up to 650 roots each). Show the underlying event and each pile-up
-//   collision folded at first, and build nothing of a folded one (no rows, no layout); key a fold by the collision's
-//   `id`, stable between the levels shown. To reveal a node, follow its primary parents (`parents[0]`) up to a root:
-//   it is in the `hard` or `rest` of the node's `collision`;
+// - the collisions, which the whole event hangs from (each is a vertex: where its particles came out of; `vertex`, its
+//   row in the vertex table). `signal`, the signal collision, named by collisionName ("p p, 14 TeV"; where it
+//   happened, without beams): with a hard process (`scatter`), its `hard` roots hang from the hard scatter and its
+//   `rest` are its underlying event; without (a particle gun), its `rest` hang straight under it. `pileup`: the
+//   pile-up collisions, hardest first (`pt`, the summed pT of the roots: the order can change with the levels shown),
+//   each with its roots in `rest` (no generator history: about 180 at 200 pile-up, up to 650 roots each). Show the
+//   underlying event and each pile-up collision folded at first, and build nothing of a folded one (no rows, no
+//   layout); key a fold by the collision's `id`, stable between the levels shown (and the same number in the next
+//   event, which is another collision). To reveal a node, follow its primary parents (`parents[0]`) up to a root: it
+//   is in the `hard` or `rest` of the node's `collision`; open the folds above it (pile-up, the collision, the
+//   underlying event). A particle at no shown level with no shown particle above it (`hiddenUnder` -1) has nothing to
+//   reveal;
 // - `nodeOf[row]`, `hiddenUnder[row]`: the node of any particle row; for one at no shown level, the node it hides
 //   under (to reveal a particle selected in the view).
 //
@@ -51,7 +55,7 @@ export interface GraphViewProps {
 export const levelColour = (pal: Pal, level: number) => pal.identity[level % pal.identity.length];
 
 /** A collision's name: its beams and their energy for a generator's signal collision ("p p, 14 TeV"), else where it
- *  happened ("z -6.8 mm"); empty without either. `particles`: the particle table (for the beams' names). */
+ *  happened ("z -6.75 mm"); empty without either. `particles`: the particle table (for the beams' names). */
 export function collisionName(c: Collision, g: Graph, particles: string): string {
   if (c.beams.length) {
     const e = c.beams.reduce((sum, r) => sum + g.col("energy", r), 0);

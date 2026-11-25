@@ -170,9 +170,9 @@ export function Placeholder({ lg, g, particles, vertices }: GraphViewProps) {
               ◆ signal collision <span class="muted">{collisionName(sig, g, particles)}</span>
             </>,
             () =>
-              sig.hard.length ? (
+              sig.scatter ? (
                 <ul>
-                  {fold("hard", true, "◆ hard scatter", () => roots(sig.hard, true))}
+                  {sig.hard.length > 0 && fold("hard", true, "◆ hard scatter", () => roots(sig.hard, true))}
                   {sig.rest.length > 0 &&
                     fold("underlying", false, <>underlying event {count(sig.rest.length, "particle")}</>, () =>
                       roots(sig.rest, false),

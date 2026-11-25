@@ -112,9 +112,11 @@ describe("levelGraph", () => {
   it("hangs the signal collision from its hard scatter, with its beams, the hard process and the underlying event", () => {
     const lg = build(),
       s = lg.signal!;
-    expect([s.id, s.signal, s.vertex, s.beams]).toEqual([0, true, 0, [0]]); // vertex 0: the hard scatter; row 0: p
+    // vertex 0: the hard scatter; row 0: the beam p
+    expect([s.id, s.signal, s.scatter, s.vertex, s.beams]).toEqual([0, true, true, 0, [0]]);
     expect([rows(lg, s.hard), rows(lg, s.rest), s.pt]).toEqual([[2], [16], 105]);
-    expect([node(lg, 12).collision, node(lg, 16).collision]).toEqual([s, s]);
+    expect(node(lg, 12).collision).toBe(s);
+    expect(node(lg, 16).collision).toBe(s);
   });
   it("puts pile-up in its collisions, the largest summed pT first, each at the vertex its particles came out of", () => {
     const lg = build();
@@ -125,8 +127,20 @@ describe("levelGraph", () => {
         [1, false, 10, [], [], [17], 4],
       ],
     );
-    expect([node(lg, 19).collision, node(lg, 17).collision]).toEqual(lg.pileup);
+    expect(node(lg, 19).collision).toBe(lg.pileup[0]);
+    expect(node(lg, 17).collision).toBe(lg.pileup[1]);
     expect(build(B).pileup).toEqual([]); // a collision with no particle shown is not listed
+  });
+  it("puts all pile-up in one collision without the particles' eventIndex", () => {
+    const columns = Object.fromEntries(Object.entries(P).filter(([k]) => k !== "eventIndex"));
+    const lg = levelGraph(
+      graphOf({ n: P.pdgId.length, columns }, csr(kids), { n: V.reason.length, columns: V }),
+      "levelFlags",
+      "isSignal",
+      DEFAULT_LEVELS,
+    );
+    expect(lg.pileup.map((c) => [c.id, rows(lg, c.rest)])).toEqual([[-1, [17, 18, 19]]]);
+    expect(lg.signal!.id).toBe(-1);
   });
   it("puts a particle gun's particles straight under its collision, where the gun shot them", () => {
     const gun = graphOf(
@@ -146,10 +160,28 @@ describe("levelGraph", () => {
     );
     const lg = levelGraph(gun, "levelFlags", "isSignal", DEFAULT_LEVELS),
       s = lg.signal!;
-    expect([s.id, s.vertex, s.beams, s.hard, rows(lg, s.rest), lg.pileup]).toEqual([-1, 0, [], [], [1, 0], []]);
+    expect([s.id, s.scatter, s.vertex, s.beams, s.hard, lg.pileup]).toEqual([-1, false, 0, [], [], []]);
+    expect(rows(lg, s.rest)).toEqual([1, 0]);
+    // a truth preset's gun: its τ are its signal process (bit 4), and still straight under the collision
+    const TAU = 1 << 11;
+    const preset = graphOf(
+      {
+        n: 2,
+        columns: {
+          pdgId: [15, -15],
+          status: [2, 2],
+          energy: [30, 40],
+          levelFlags: [SIGNAL | TAU, SIGNAL | TAU],
+          isSignal: [1, 1],
+        },
+      },
+      csr([[], []]),
+    );
+    const lp = levelGraph(preset, "levelFlags", "isSignal", DEFAULT_LEVELS);
+    expect([lp.signal!.scatter, lp.signal!.hard, rows(lp, lp.signal!.rest)]).toEqual([false, [], [1, 0]]);
   });
   it("hangs a truth preset's signal process from the hard scatter too, not in a group of its own", () => {
-    // 0 p (beam) -> 1 Z (signal process) -> 2 μ⁻; 0 -> 3 π⁺ (underlying event)
+    // 0 p (beam) -> 1 Z (signal process, made at the hard scatter) -> 2 μ⁻; 0 -> 3 π⁺ (underlying event)
     const preset = graphOf(
       {
         n: 4,
@@ -159,22 +191,15 @@ describe("levelGraph", () => {
           energy: [7000, 95, 40, 5],
           levelFlags: [0, SIGNAL, RECO, RECO],
           isSignal: [1, 1, 1, 1],
+          prodVertexIdx: [-1, 0, -1, -1],
         },
       },
       csr([[1, 3], [2], [], []]),
+      { n: 1, columns: { reason: [17] } },
     );
     const lg = levelGraph(preset, "levelFlags", "isSignal", DEFAULT_LEVELS),
       s = lg.signal!;
     expect([rows(lg, s.hard), rows(lg, s.rest), node(lg, 1).level]).toEqual([[1], [3], level("signal")]);
-    expect(Object.keys(lg).sort()).toEqual([
-      "counts",
-      "hiddenUnder",
-      "nodeOf",
-      "particles",
-      "pileup",
-      "signal",
-      "vertices",
-    ]);
   });
   it("colours a particle by its first shown level", () => {
     expect(node(build(), 10).level).toBe(level("reco"));

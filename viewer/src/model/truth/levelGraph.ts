@@ -115,26 +115,33 @@ export interface VertexNode {
 }
 /** A collision of the bunch crossing, the vertex the event's particles hang from: the signal collision or a pile-up
  *  one. Its roots are its particle nodes with no shown particle above them, largest energy first; a tree shows each
- *  under its primary parent, so every node is below one root of its collision. */
+ *  under its primary parent, so every node is below one root of its collision (in a graph without loops of parents). */
 export interface Collision {
   /** Its index in the bunch crossing (the particles' eventIndex: 0 the signal collision), stable between levels shown;
    *  -1 without the column. */
   id: number;
+  /** It is the signal collision (else pile-up). */
   signal: boolean;
+  /** It has a hard process (a particle at it, or a hard scatter vertex): its roots are split into `hard` and `rest`, the
+   *  underlying event, even where the levels shown leave one empty. False for pile-up and a particle gun. */
+  scatter: boolean;
   /** Where it happened (a row of the vertex table, -1 for none): the signal collision's hard scatter (reason 17), else
-   *  the vertex its first particles came out of (a pile-up collision's share one; a particle gun's). */
+   *  the vertex its first particles came out of (a pile-up collision's share one; a particle gun's). A row, not a
+   *  vertex node: its node, if a shown particle was made there, is the one of `vertices` with this `row` (the hard
+   *  scatter's roots are made there; at the default levels so are a pile-up collision's, not at all levels). */
   vertex: number;
   /** Its incoming beam particles (rows, generator status 4: "p p"); empty for pile-up, which has no generator history,
-   *  and for a particle gun. */
+   *  for a particle gun, and where the file left them out (a truth preset's bundle). */
   beams: number[];
   /** The roots that are the hard process (or a truth preset's signal process) or came from it, with the hard process
-   *  hidden: what hangs from the hard scatter. Empty for pile-up and a particle gun. */
+   *  hidden: what hangs from the hard scatter. Empty unless `scatter`. */
   hard: number[];
-  /** Its other roots: the underlying event of a collision with a hard process; else all its roots (a pile-up
-   *  collision's, a particle gun's). */
+  /** Its other roots: the underlying event of a collision with `scatter`; else all its roots (a pile-up collision's, a
+   *  particle gun's, even a preset's signal process in one). */
   rest: number[];
-  /** The summed pT of its roots (GeV): the transverse activity shown, by which the pile-up collisions are ordered. A
-   *  root is below no other, so no particle counts twice. */
+  /** The summed pT of its roots (GeV): the transverse activity shown, by which the pile-up collisions are ordered (so
+   *  the order can change with the levels shown; `id` does not). A root is below no other, so no particle counts
+   *  twice. */
   pt: number;
 }
 /** An event's truth graph at the shown levels (levelGraph). Node indices are in the order of the graph (a particle's
@@ -172,12 +179,13 @@ const NONE: number[] = Object.freeze([]) as unknown as number[];
  *  - Each shown particle hangs from its nearest shown ancestors (every parent path, so a hadron of a string between
  *    a b and an s̄ has both), at the vertex where it was made.
  *  - Each particle belongs to a collision: the signal one, or the pile-up collision of its eventIndex where `first`
- *    is 0. A signal collision's roots are split, from the truth graph alone, into `hard` (the hard process, the signal
- *    process (bit 4) and what came from either) and `rest` (the underlying event, which the generator does not split
+ *    is 0. The roots of a signal collision with a hard process are split, from the truth graph alone, into `hard` (the
+ *    hard process, the signal process (bit 4) and what came from either) and `rest` (the underlying event, which the
+ *    generator does not split
  *    further: its strings mix initial-state radiation, multiple interactions and the beam remnants, so a hadron at η
  *    8 and one at η 1 can come from the same string). Bit 6, set by a truth preset, marks the same particles as
  *    stable legs of the underlying event; it is not read. Pile-up has no generator history: all its roots are
- *    `rest`, as are a particle gun's. */
+ *    `rest`, as are a particle gun's (a truth preset's gun too, whose particles are its signal process). */
 export function levelGraph(g: Graph, flags: string, first: string | undefined, mask: number): LevelGraph {
   const n = g.n,
     top = g.top;
@@ -203,10 +211,12 @@ export function levelGraph(g: Graph, flags: string, first: string | undefined, m
   for (const r of legs) for (const p of g.parents(r)) lv[top[p]] |= HARD;
   const counts = GRAPH_LEVELS.map(() => 0),
     level = new Int8Array(n).fill(-1);
+  let hardEvent = false;
   for (let r = 0; r < n; r++) {
     if (top[r] !== r || !lv[r]) continue;
     for (let i = 0; i < GRAPH_LEVELS.length; i++) if (lv[r] & GRAPH_LEVELS[i].mask) counts[i]++;
     level[r] = levelOf(lv[r], mask);
+    hardEvent ||= !!(lv[r] & HARD);
   }
   const shown = (t: number) => level[t] >= 0;
 
@@ -254,6 +264,7 @@ export function levelGraph(g: Graph, flags: string, first: string | undefined, m
   const collision = (r: number, isSignal: boolean): Collision => ({
     id: Number.isNaN(index[r]) ? -1 : index[r],
     signal: isSignal,
+    scatter: false,
     vertex: -1,
     beams: [],
     hard: [],
@@ -329,25 +340,28 @@ export function levelGraph(g: Graph, flags: string, first: string | undefined, m
   for (const p of particles) if (p.children.length > 1) p.children.sort(byEnergy);
   for (const v of vertices) if (v.out.length > 1) v.out.sort(byEnergy);
 
-  // The collisions' roots; where each collision happened and the signal collision's beams, from the particles
-  // without parents.
-  particles.forEach((p, i) => {
-    if (p.parents.length) return;
-    (fromTop[p.top] ? p.collision.hard : p.collision.rest).push(i);
-    p.collision.pt += pt[p.top] || 0;
-  });
+  // Where each collision happened and the signal collision's beams, from the particles without parents; whether the
+  // signal collision has a hard process; the collisions' roots.
   for (let k = 0; k < parentless; k++) {
     const r = todo[k],
       c = signal[r] !== 0 ? sig : pileupOf.get(index[r]);
     if (c?.signal && g.col("status", r) === BEAM) c.beams.push(r);
     else if (c && c.vertex < 0 && made[r] >= 0 && made[r] < g.nv) c.vertex = made[r];
   }
-  if (sig)
+  if (sig) {
+    sig.scatter = hardEvent;
     for (let v = 0; v < g.nv; v++)
       if (g.vcol("reason", v) === HARD_SCATTER && g.vcol("isSignal", v) !== 0) {
         sig.vertex = v;
+        sig.scatter = true;
         break;
       }
+  }
+  particles.forEach((p, i) => {
+    if (p.parents.length) return;
+    (p.collision.scatter && fromTop[p.top] ? p.collision.hard : p.collision.rest).push(i);
+    p.collision.pt += pt[p.top] || 0;
+  });
   const pileup = [...pileupOf.values()].sort((a, b) => b.pt - a.pt || a.id - b.id);
   for (const c of sig ? [sig, ...pileup] : pileup) {
     c.hard.sort(byEnergy);

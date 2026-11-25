@@ -826,10 +826,6 @@ table.inview td > span {
 .graphcontrols input.expr {
   flex: 1 1 100%;
 }
-.truthgraph details > summary {
-  font-size: 12px;
-  margin: 4px 0 2px;
-}
 .truthgraph .node input[type="checkbox"] {
   margin: 0;
   flex: none;

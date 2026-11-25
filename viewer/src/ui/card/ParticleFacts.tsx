@@ -10,6 +10,8 @@ import {
   flightOf,
   type Graph,
   length,
+  lineLength,
+  REASON,
   tauDecayOf,
   topCopy,
   vertexText,
@@ -37,7 +39,9 @@ export function ParticleFacts({ row }: { row: number }) {
     tg.vertices ? <ObjChip table={tg.vertices} row={v} text={vertexText(g, v, pname, reasons)} /> : null;
   const where = (v: number) => `R ${length(Math.hypot(g.vcol("x", v), g.vcol("y", v)))}, z ${length(g.vcol("z", v))}`;
   const prod = g.col("prodVertexIdx", top),
-    end = g.col("decayVertexIdx", last);
+    end = g.col("decayVertexIdx", last),
+    line = lineLength(g, row),
+    ends = g.vcol("reason", end) === REASON.decay ? "decays" : "ends";
   const flags = d.particle ? g.col(d.particle.flags, row) : NaN,
     levels = Number.isFinite(flags) ? LEVELS.filter(({ bit }) => (flags >>> bit) & 1) : [];
   const num = (v: number, digits = 3) => (Number.isFinite(v) ? short(Number(v.toPrecision(digits))) : "?");
@@ -74,6 +78,15 @@ export function ParticleFacts({ row }: { row: number }) {
             last vertex with daughters
           </span>{" "}
           {where(end)} · {vchip(end)}
+          {Number.isFinite(line) && (
+            <>
+              {" "}
+              ·{" "}
+              <span title="The length of its line in the view, from the vertex it was made at to this one">
+                {line === 0 ? `${ends} where it was made (0 cm)` : `${ends} ${length(line)} from where it was made`}
+              </span>
+            </>
+          )}
         </p>
       )}
       {levels.length > 0 && (

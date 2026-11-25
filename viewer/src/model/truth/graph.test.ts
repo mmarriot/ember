@@ -8,6 +8,7 @@ import {
   foldCopies,
   graphOf,
   length,
+  lineLength,
   tauDecayOf,
   topCopy,
   vertexText,
@@ -147,6 +148,15 @@ describe("the truth graph", () => {
     expect(t.last).toBe(12);
     expect(t.products).toEqual([14, 15, 16]);
     expect(t.visibleE).toBe(60);
+  });
+  it("measures a particle's line from where its first copy was made to where its last one ended", () => {
+    expect(lineLength(g, 11)).toBeCloseTo(Math.hypot(0.07, 0.1)); // the τ's copies: made at 0, decayed at vertex 4
+    expect(lineLength(g, 0)).toBeNaN(); // no end vertex
+    const quark = graphOf({ n: 1, columns: { pdgId: [5], prodVertexIdx: [0], decayVertexIdx: [1] } }, csr([[]]), {
+      n: 2,
+      columns: { x: [0.1, 0.1], y: [0, 0], z: [3, 3] },
+    });
+    expect(lineLength(quark, 0)).toBe(0); // a hard-process parton: made and ended at the same point
   });
   it("measures a hadron's flight from its production to its decay vertex", () => {
     const f = flightOf(g, 17)!;

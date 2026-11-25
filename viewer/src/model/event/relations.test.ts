@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { EventData, Header } from "../../io/format";
-import { bestPartners, contentPartners, levelsOf, related, relatedParts } from "./relations";
+import { bestPartners, contentPartners, levelsOf, linkedTo, related, relatedParts } from "./relations";
 
 // candidate 0 -> trackster 1 -> clusters 0, 2 -> hits; candidate 0 -> track 1; trackster 0 -> cluster 1 (no candidate)
 const csr = (rows: number[][]) => ({
@@ -216,5 +216,25 @@ describe("content partners", () => {
     const c = contentPartners("T", "Cand", 1, vev, vh);
     expect([...c.partner]).toEqual([1]);
     expect(c.derived).toBe(false);
+  });
+});
+
+describe("linkedTo", () => {
+  it("crosses the associations of a set of objects once, both ways, and no plain relation", () => {
+    const tev = {
+      id: [1, 1, 1],
+      tables: {},
+      relations: { truthHits: csr([[0], [1], [2]]), trackTruth: csr([[2], [0, 1]]), kids: csr([[1], [], []]) },
+    } as unknown as EventData;
+    const th = {
+      relations: {
+        truthHits: { from: "P", to: "Hit", weights: [], association: true },
+        trackTruth: { from: "Track", to: "P", weights: [], association: true },
+        kids: { from: "P", to: "P", weights: [] },
+      },
+    } as unknown as Header;
+    // particle 0 only: its hit and the track pointing at it, not its child's hit
+    expect(rows(linkedTo(tev, th, new Map([["P", new Set([0])]])))).toEqual({ Hit: [0], Track: [1] });
+    expect(rows(linkedTo(tev, th, new Map([["P", new Set([1, 2])]])))).toEqual({ Hit: [1, 2], Track: [0, 1] });
   });
 });

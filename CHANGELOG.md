@@ -108,8 +108,8 @@ with a message while an old one is set without its new name. `deploy.sh` links `
     hits and reco of all of them (was the last one's). The vertices are drawn even with the Vertices collection
     unticked, as rings over the lines; the lines are thin with an edge of the background's colour, and the selected
     one's halo is one pixel (was a wide band that hid the lines beside it). The truth particle energy cut now hides
-    the descendants below it (they were drawn whatever the cut); the picks stay drawn. A truth particle's card says
-    how far it ended from where it was made ("decays where it was made (0 cm)" for a top quark).
+    the descendants below it (they were drawn whatever the cut); the picks stay drawn. A truth particle's card gives
+    the distance from where it was made to its last vertex ("decays where it was made (0 cm)" for a top quark).
   - A simulated event's title starts "MC" (was "SIMULATION"); a truth particle's card is headed "truth", its lineage
     no longer repeats the particle, and a truth vertex's card names its reason ("hadronic inelastic", not 11).
   - The side panel's tabs are **Reconstruction · Truth · Metadata** (were Collections, Truth, Event). In

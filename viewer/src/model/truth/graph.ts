@@ -142,10 +142,10 @@ export function drawnRows(g: Graph, rows: number[], descendants: boolean) {
   return { particles, vertices };
 }
 
-/** How far particle `r` ended from where it was made (cm): from its first copy's production vertex to its last copy's
- *  end vertex, the line the view draws for it (drawnRows). 0 for a parton of the hard process, made and ended at the
- *  collision; NaN without both vertices. */
-export function lineLength(g: Graph, r: number) {
+/** The straight-line distance (cm) from particle `r`'s first copy's production vertex to its last copy's
+ *  decayVertexIdx, the last vertex with daughters (not necessarily where it stopped). 0 for a parton of the hard
+ *  process, made and ended at the collision; NaN without both vertices. */
+export function vertexDistance(g: Graph, r: number) {
   const p = g.col("prodVertexIdx", g.top[r]),
     e = g.col("decayVertexIdx", g.last[r]);
   if (!(p >= 0 && e >= 0)) return NaN;

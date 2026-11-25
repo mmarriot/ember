@@ -12,6 +12,7 @@ import {
   drawnLayers,
   event,
   focusIsTruth,
+  focusPicked,
   inDomain,
   layerKey,
   layerOf,
@@ -19,9 +20,11 @@ import {
   noTruth,
   pairView,
   focusRows,
+  pickedRows,
   selection,
   showAll,
   shownLevel,
+  truthGraph,
   truthPreview,
 } from "../model/store";
 import type { Layer } from "../render/layers";
@@ -51,25 +54,40 @@ export const replayOnly = (d: DisplayLayer, key: string, hl: Highlight, replayin
 /** For a layer drawn only for the focus: the rows to keep (none without a focus), less those reached only from objects
  *  a cut hides (the hits and truth of a vertex's tracks below the pT cut), but the selected object; else undefined.
  *  Drawn only for the focus: a layer the view leaves out (another part's, or unticked: store/selection.ts focusRows),
- *  and an `onSelection` layer. */
+ *  and an `onSelection` layer. While the focus is one of the Truth tab's picks, the truth layers' rows are cut too (the
+ *  descendants below the truth particle energy cut, and the vertices only they reach), but the picks themselves and
+ *  their vertices. */
 export const onlyFor = (d: DisplayLayer, key: string, hl: Highlight, replaying: boolean) => {
   // a replay draws every reconstruction stage of the view whole, also one holding the selection
   const forFocus = replaying && d.stage !== undefined && inDomain(d) ? undefined : untracked(() => focusRows(d));
   if (!forFocus && (!d.onSelection || showAll.peek()[key] || replayOnly(d, key, hl, replaying))) return undefined;
   const rows = forFocus ?? hl?.get(d.table);
   if (!rows) return (!hl && truthPreview(d)) || new Set<number>(); // before a selection, the truth colours' particles
-  const cut = belowCut(d.table, hl!),
-    sel = selection.peek();
-  return cut.size ? new Set([...rows].filter((r) => !cut.has(r) || (sel?.table === d.table && sel.row === r))) : rows;
+  const cut = belowCut(d.table, hl!);
+  if (d.truth && d.cut && focusPicked.peek()) {
+    const col = event.peek()?.tables[d.table]?.columns[d.cut.column],
+      min = cuts.peek()[d.cut.group] ?? 0;
+    if (col) for (const r of rows) if (Number(col[r]) < min) cut.add(r);
+  }
+  return cut.size ? new Set([...rows].filter((r) => !cut.has(r) || pinned(d.table, r))) : rows;
 };
 
-/** The focus's objects of `table` reached only from focus objects (not the selected one) that fail their layer's cut,
+/** Drawn whatever the cut: the selected object and, while the focus is one of the Truth tab's picks, the picks (every
+ *  generator copy). */
+function pinned(table: string, row: number) {
+  const sel = selection.peek();
+  return (
+    (sel?.table === table && sel.row === row) ||
+    (focusPicked.peek() && table === truthGraph.peek()?.particles && pickedRows.peek().has(row))
+  );
+}
+
+/** The focus's objects of `table` reached only from focus objects (not pinned ones) that fail their layer's cut,
  *  across every relation into `table`. */
 function belowCut(table: string, hl: Map<string, Set<number>>) {
   const h = bundle.peek()?.header,
     ev = event.peek(),
     c = cuts.peek(),
-    sel = selection.peek(),
     hidden = new Set<number>(),
     kept = new Set<number>();
   for (const [name, r] of Object.entries(h?.relations ?? {})) {
@@ -80,7 +98,7 @@ function belowCut(table: string, hl: Map<string, Set<number>>) {
     if (r.to !== table || r.from === table || !p?.cut || !rel || !from || !col) continue;
     const min = c[p.cut.group] ?? 0;
     for (const f of from) {
-      const into = Number(col[f]) >= min || (sel?.table === r.from && sel.row === f) ? kept : hidden;
+      const into = Number(col[f]) >= min || pinned(r.from, f) ? kept : hidden;
       for (let k = rel.offsets[f]; k < rel.offsets[f + 1]; k++) into.add(rel.indices[k]);
     }
   }

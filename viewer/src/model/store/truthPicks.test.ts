@@ -7,10 +7,12 @@ Object.assign(globalThis, { document: { documentElement: { dataset: {} } } });
 const {
   bundle,
   clearPicks,
+  cuts,
   focus,
   focusBack,
   focusHistory,
   focusOn,
+  focusRows,
   highlight,
   look,
   pickTruth,
@@ -19,7 +21,9 @@ const {
   togglePick,
   truthDraw,
   truthPicks,
+  visible,
 } = await import(".");
+const { onlyFor } = await import("../../control/sceneFocus");
 
 const layer = (table: string, extra: Partial<DisplayLayer> = {}) =>
   ({
@@ -36,11 +40,16 @@ const csr = (rows: number[][]) => ({
   indices: Uint32Array.from(rows.flat()),
   weights: {},
 });
-// Truth particles 0 (made at vertex 0, ends at vertex 1) -> 1 (made at vertex 1), and 2 on its own (vertex 2); each
-// left energy in hit 0, 1, 2.
+// Truth particles 0 (made at vertex 0, ends at vertex 1) -> 1 (made at vertex 1, ends at vertex 3), and 2 on its own
+// (vertex 2); each left energy in hit 0, 1, 2. Energies 5, 0.5 and 0.2 GeV, against a cut of 1 GeV.
 const header = {
   display: [
-    layer("Part", { truth: true, onSelection: true, particle: { flags: "flags", bit: 2 } }),
+    layer("Part", {
+      truth: true,
+      onSelection: true,
+      particle: { flags: "flags", bit: 2 },
+      cut: { group: "Truth E", unit: "GeV", default: 1, column: "energy" },
+    }),
     layer("Vtx", { truth: true, onSelection: true }),
     layer("Hit", { repr: "cells" }),
   ],
@@ -48,6 +57,7 @@ const header = {
   relations: {
     kids: { from: "Part", to: "Part", weights: [] },
     prod: { from: "Part", to: "Vtx", weights: [] },
+    decay: { from: "Part", to: "Vtx", weights: [] },
     hits: { from: "Part", to: "Hit", weights: [], association: true },
   },
 } as unknown as Header;
@@ -63,13 +73,19 @@ const ev = {
         status: ints([1, 0, 1]),
         flags: ints([4, 0, 4]),
         prodVertexIdx: ints([0, 1, 2]),
-        decayVertexIdx: ints([1, -1, -1]),
+        decayVertexIdx: ints([1, 3, -1]),
+        energy: Float32Array.from([5, 0.5, 0.2]),
       },
     },
-    Vtx: { n: 3, columns: { x: new Float32Array(3) } },
+    Vtx: { n: 4, columns: { x: new Float32Array(4) } },
     Hit: { n: 3, columns: { x: new Float32Array(3) } },
   },
-  relations: { kids: csr([[1], [], []]), prod: csr([[0], [1], [2]]), hits: csr([[0], [1], [2]]) },
+  relations: {
+    kids: csr([[1], [], []]),
+    prod: csr([[0], [1], [2]]),
+    decay: csr([[1], [3], []]),
+    hits: csr([[0], [1], [2]]),
+  },
 } as unknown as EventData;
 const at = (table: string, row = 0): Ref => ({ table, row });
 const drawn = (table: string) => [...(highlight.value?.get(table) ?? [])].sort();
@@ -80,26 +96,31 @@ beforeEach(() => {
   rawEvent.value = ev;
   selection.value = null;
   truthDraw.value = "descendants";
+  visible.value = { "Part:markers": true, "Vtx:markers": true, "Hit:cells": true };
+  cuts.value = { "Truth E": 1 };
 });
 
 describe("picking truth particles", () => {
   it("picks one: the card and the focus are on it, the view draws it with its descendants, or alone", () => {
     pickTruth(0);
     expect(state()).toEqual({ picks: [0], selection: 0, focus: 0 });
-    expect([drawn("Part"), drawn("Vtx")]).toEqual([
+    expect([drawn("Part"), drawn("Vtx"), drawn("Hit")]).toEqual([
       [0, 1],
+      [0, 1, 3],
       [0, 1],
     ]);
     truthDraw.value = "particle";
     expect([drawn("Part"), drawn("Vtx")]).toEqual([[0], [0, 1]]); // where it was made and where it ended
-    expect(drawn("Hit")).toEqual([0, 1]); // the hits stay the focus's, its descendants' too
+    expect(drawn("Hit")).toEqual([0]); // its own hits, not its descendants'
   });
   it("ticks more: the last pick is the card's and the focus; unticking goes back to the one before", () => {
     pickTruth(0);
     togglePick(2);
     expect(state()).toEqual({ picks: [0, 2], selection: 2, focus: 2 });
     expect(drawn("Part")).toEqual([0, 1, 2]);
-    expect(drawn("Hit")).toEqual([2]); // reco and hits follow the last pick
+    expect(drawn("Hit")).toEqual([0, 1, 2]); // the hits and reco of every pick, with their descendants'
+    truthDraw.value = "particle";
+    expect(drawn("Hit")).toEqual([0, 2]);
     togglePick(2);
     expect(state()).toEqual({ picks: [0], selection: 0, focus: 0 });
     togglePick(0);
@@ -139,5 +160,32 @@ describe("picking truth particles", () => {
     expect([truthPicks.value, drawn("Part")]).toEqual([[0], [1]]);
     look(at("Vtx", 2));
     expect([truthPicks.value, drawn("Vtx")]).toEqual([[0], [2]]);
+  });
+  it("draws the picks' vertices and descendants also when their collections are unticked", () => {
+    visible.value = { "Part:markers": false, "Vtx:markers": false, "Hit:cells": true };
+    truthDraw.value = "particle";
+    pickTruth(0);
+    expect([...focusRows(header.display[1])!].sort()).toEqual([0, 1]);
+    truthDraw.value = "descendants";
+    expect([...focusRows(header.display[0])!].sort()).toEqual([0, 1]);
+    expect([...focusRows(header.display[1])!].sort()).toEqual([0, 1, 3]);
+    look(at("Hit", 1)); // another focus: only what is selected
+    expect(focusRows(header.display[1])).toBeUndefined();
+  });
+  it("cuts the descendants and the vertices only they reach, never the picks", () => {
+    const [part, vtx] = header.display,
+      rows = (d: DisplayLayer) => [...onlyFor(d, `${d.table}:markers`, highlight.value, false)!].sort();
+    pickTruth(0);
+    expect([rows(part), rows(vtx)]).toEqual([[0], [0, 1]]); // particle 1 (0.5 GeV) and its end vertex 3 are cut
+    togglePick(2); // 0.2 GeV, but picked
+    expect([rows(part), rows(vtx)]).toEqual([
+      [0, 2],
+      [0, 1, 2],
+    ]);
+    cuts.value = { "Truth E": 0 };
+    expect([rows(part), rows(vtx)]).toEqual([
+      [0, 1, 2],
+      [0, 1, 2, 3],
+    ]);
   });
 });

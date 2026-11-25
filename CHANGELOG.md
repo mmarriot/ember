@@ -99,10 +99,11 @@ with a message while an old one is set without its new name. `deploy.sh` links `
 - **Viewer:**
   - The Truth tab is built around the event's truth graph: chips choose the truth levels it shows (hard process, b /
     c hadron, τ visible, reconstructable, entered the calorimeter, generator particle), each in its colour, and
-    particles at no level shown are skipped. The hard process is on top (`t → b W⁺`, `W⁺ → s̄ c`), the underlying
-    event and pile-up folded under it. Click a particle to pick it, tick more to draw several; **3D particle only |
-    + descendants** says what the view draws of them. The lists are folded under Details, and the truth coverage is in
-    the Metadata tab. The old hard process box and truth graph browser are gone.
+    particles at no level shown are skipped. The event hangs from its collisions: the signal collision ("p p, 14
+    TeV") with its hard scatter open (`t → b W⁺`, `W⁺ → s̄ c`) and its underlying event folded, then pile-up, one
+    folded collision each, the hardest first. Click a particle to pick it, tick more to draw several; **3D particle
+    only | + descendants** says what the view draws of them. The lists are folded under Details, and the truth
+    coverage is in the Metadata tab. The old hard process box and truth graph browser are gone.
   - A simulated event's title starts "MC" (was "SIMULATION"); a truth particle's card is headed "truth", its lineage
     no longer repeats the particle, and a truth vertex's card names its reason ("hadronic inelastic", not 11).
   - The side panel's tabs are **Reconstruction · Truth · Metadata** (were Collections, Truth, Event). In

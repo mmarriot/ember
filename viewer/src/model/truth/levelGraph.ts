@@ -17,8 +17,8 @@ export interface GraphLevel {
 /** The levels the graph shows, by priority: a particle takes the colour of the first one it is at (levelColour).
  *  "hard process" also takes in the particles its legs came from (t, W⁺: see levelGraph). Not offered: bit 0 (stable
  *  legs of the initial state), bit 5 (the first reconstructable products of the signal process, within
- *  "reconstructable"), bit 6 (the underlying event: a group of the graph, see levelGraph) and bit 7 (parton jets: the
- *  hard-process partons again). */
+ *  "reconstructable"), bit 6 (the underlying event: a part of the signal collision, see levelGraph) and bit 7 (parton
+ *  jets: the hard-process partons again). */
 export const GRAPH_LEVELS: GraphLevel[] = [
   {
     id: "hard",
@@ -65,7 +65,9 @@ export const DEFAULT_LEVELS = GRAPH_LEVELS.filter((l) => l.id !== "calo" && l.id
   0,
 );
 const HARD = 1 << 1,
-  SIGNAL = 1 << 4;
+  SIGNAL = 1 << 4,
+  HARD_SCATTER = 17, // truth::VertexReason
+  BEAM = 4; // generator status of an incoming beam particle (HepMC)
 
 /** One particle of the level graph: a particle at a shown level, with its generator copies (graph.ts top/last). */
 export interface ParticleNode {
@@ -82,7 +84,7 @@ export interface ParticleNode {
   /** The vertex node it was made at (its first copy's production vertex), -1 for none. */
   made: number;
   /** The nearest shown particles above it (particle nodes): through its parent of highest energy first, so the first
-   *  is its primary parent (where a tree places it; the others are "also from"). Empty: a root of its group. */
+   *  is its primary parent (where a tree places it; the others are "also from"). Empty: a root of its collision. */
   parents: number[];
   /** The shown particles whose parents it is among (particle nodes), largest energy first. A tree's children of a
    *  node are those whose primary parent it is. */
@@ -92,8 +94,8 @@ export interface ParticleNode {
   /** The particles below it at no shown level with no shown particle between (counted once per particle, its copies
    *  folded): what "▸ N below" offers to show. */
   below: number;
-  /** Its group (see Group). */
-  group: GroupId;
+  /** The collision it came from (one of the level graph's `signal` and `pileup`). */
+  collision: Collision;
 }
 /** A truth vertex where shown particles were made. */
 export interface VertexNode {
@@ -112,22 +114,47 @@ export interface VertexNode {
    *  beam remnant in a string) does not count. */
   skips: boolean;
 }
-/** The graph's groups of roots: the hard process and what came from it; the rest of the signal collision (the
- *  underlying event); the pile-up collisions. */
-export type GroupId = "hard" | "underlying" | "pileup";
-/** A group: its name and its roots (particle nodes with no shown particle above them), largest energy first. */
-export interface Group {
-  id: GroupId;
-  name: string;
-  roots: number[];
+/** A collision of the bunch crossing, the vertex the event's particles hang from: the signal collision or a pile-up
+ *  one. Its roots are its particle nodes with no shown particle above them, largest energy first; a tree shows each
+ *  under its primary parent, so every node is below one root of its collision (in a graph without loops of parents). */
+export interface Collision {
+  /** Its index in the bunch crossing (the particles' eventIndex: 0 the signal collision), stable between levels shown;
+   *  -1 without the column. */
+  id: number;
+  /** It is the signal collision (else pile-up). */
+  signal: boolean;
+  /** It has a hard process (a particle at it, or a hard scatter vertex): its roots are split into `hard` and `rest`, the
+   *  underlying event, even where the levels shown leave one empty. False for pile-up and a particle gun. */
+  scatter: boolean;
+  /** Where it happened (a row of the vertex table, -1 for none): the signal collision's hard scatter (reason 17), else
+   *  the vertex its first particles came out of (a pile-up collision's share one; a particle gun's). A row, not a
+   *  vertex node: its node, if a shown particle was made there, is the one of `vertices` with this `row` (the hard
+   *  scatter's roots are made there; at the default levels so are a pile-up collision's, not at all levels). */
+  vertex: number;
+  /** Its incoming beam particles (rows, generator status 4: "p p"); empty for pile-up, which has no generator history,
+   *  for a particle gun, and where the file left them out (a truth preset's bundle). */
+  beams: number[];
+  /** The roots that are the hard process (or a truth preset's signal process) or came from it, with the hard process
+   *  hidden: what hangs from the hard scatter. Empty unless `scatter`. */
+  hard: number[];
+  /** Its other roots: the underlying event of a collision with `scatter`; else all its roots (a pile-up collision's, a
+   *  particle gun's, even a preset's signal process in one). */
+  rest: number[];
+  /** The summed pT of its roots (GeV): the transverse activity shown, by which the pile-up collisions are ordered (so
+   *  the order can change with the levels shown; `id` does not). A root is below no other, so no particle counts
+   *  twice. */
+  pt: number;
 }
 /** An event's truth graph at the shown levels (levelGraph). Node indices are in the order of the graph (a particle's
  *  parents before it). Its lists are read only: empty ones are one shared, frozen array. */
 export interface LevelGraph {
   particles: ParticleNode[];
   vertices: VertexNode[];
-  /** The groups that have roots, in the order hard, underlying, pileup. */
-  groups: Group[];
+  /** The signal collision; null when no particle of it is shown. */
+  signal: Collision | null;
+  /** The pile-up collisions with particles shown, by `pt`, largest first (at 200 pile-up: about 180, with up to 650
+   *  roots each). */
+  pileup: Collision[];
   /** For each particle row (any copy): its particle node, -1 if it is at no shown level. */
   nodeOf: Int32Array;
   /** For each particle row at no shown level: the node it is hidden under (its primary nearest shown ancestor), -1
@@ -152,12 +179,14 @@ const NONE: number[] = Object.freeze([]) as unknown as number[];
  *    marks.
  *  - Each shown particle hangs from its nearest shown ancestors (every parent path, so a hadron of a string between
  *    a b and an s̄ has both), at the vertex where it was made.
- *  - Groups, from the truth graph alone: "hard" holds the hard process, the signal process (bit 4) and everything
- *    below either; "pileup" every particle whose `first` is 0; "underlying" the rest of the signal collision, which
- *    the generator does not split further (its strings mix initial-state radiation, multiple interactions and the
- *    beam remnants, so a hadron at η 8 and one at η 1 can come from the same string). Bit 6, set by a truth preset,
- *    marks the same particles as stable legs of the underlying event; it is not read. In an event with neither a
- *    hard nor a signal process (a particle gun), "underlying" is the whole signal collision. */
+ *  - Each particle belongs to a collision: the signal one, or the pile-up collision of its eventIndex where `first`
+ *    is 0. The roots of a signal collision with a hard process are split, from the truth graph alone, into `hard` (the
+ *    hard process, the signal process (bit 4) and what came from either) and `rest` (the underlying event, which the
+ *    generator does not split
+ *    further: its strings mix initial-state radiation, multiple interactions and the beam remnants, so a hadron at η
+ *    8 and one at η 1 can come from the same string). Bit 6, set by a truth preset, marks the same particles as
+ *    stable legs of the underlying event; it is not read. Pile-up has no generator history: all its roots are
+ *    `rest`, as are a particle gun's (a truth preset's gun too, whose particles are its signal process). */
 export function levelGraph(g: Graph, flags: string, first: string | undefined, mask: number): LevelGraph {
   const n = g.n,
     top = g.top;
@@ -171,6 +200,8 @@ export function levelGraph(g: Graph, flags: string, first: string | undefined, m
   const energy = column("energy"),
     made = column("prodVertexIdx"),
     signal = column(first),
+    index = column("eventIndex"),
+    pt = column("pt"),
     flag = column(flags);
   // A particle's level flags: those of any of its copies, kept at its first copy's row.
   const lv = new Uint32Array(n);
@@ -181,14 +212,12 @@ export function levelGraph(g: Graph, flags: string, first: string | undefined, m
   for (const r of legs) for (const p of g.parents(r)) lv[top[p]] |= HARD;
   const counts = GRAPH_LEVELS.map(() => 0),
     level = new Int8Array(n).fill(-1);
-  let hardEvent = false,
-    signalEvent = false;
+  let hardEvent = false;
   for (let r = 0; r < n; r++) {
     if (top[r] !== r || !lv[r]) continue;
     for (let i = 0; i < GRAPH_LEVELS.length; i++) if (lv[r] & GRAPH_LEVELS[i].mask) counts[i]++;
     level[r] = levelOf(lv[r], mask);
     hardEvent ||= !!(lv[r] & HARD);
-    signalEvent ||= !!(lv[r] & SIGNAL);
   }
   const shown = (t: number) => level[t] >= 0;
 
@@ -222,12 +251,33 @@ export function levelGraph(g: Graph, flags: string, first: string | undefined, m
   };
   const todo: number[] = [];
   for (let r = 0; r < n; r++) if (!(waiting[r] = g.parents(r).length)) todo.push(r);
+  const parentless = todo.length; // todo's first rows: the particles without parents
   for (let k = 0; k < todo.length; k++) {
     const r = todo[k];
     visit(r);
     for (const c of g.children(r)) if (--waiting[c] === 0) todo.push(c);
   }
   if (todo.length < n) for (let r = 0; r < n; r++) if (waiting[r] > 0) visit(r); // a loop (bad data): as they come
+
+  // The collisions, each made with its first particle shown: the signal one, and the pile-up ones by eventIndex.
+  let sig = null as Collision | null;
+  const pileupOf = new Map<number, Collision>();
+  const collision = (r: number, isSignal: boolean): Collision => ({
+    id: Number.isNaN(index[r]) ? -1 : index[r],
+    signal: isSignal,
+    scatter: false,
+    vertex: -1,
+    beams: [],
+    hard: [],
+    rest: [],
+    pt: 0,
+  });
+  const collisionOf = (r: number) => {
+    if (signal[r] !== 0) return (sig ??= collision(r, true));
+    let c = pileupOf.get(index[r]);
+    if (!c) pileupOf.set(index[r], (c = collision(r, false)));
+    return c;
+  };
 
   // The nodes, in that order. Empty lists are the one shared NONE until something is added.
   const nodeOf = new Int32Array(n).fill(-1),
@@ -246,7 +296,7 @@ export function levelGraph(g: Graph, flags: string, first: string | undefined, m
           children: NONE,
           ends: NONE,
           below: 0,
-          group: signal[r] === 0 ? "pileup" : fromTop[r] ? "hard" : "underlying",
+          collision: collisionOf(r),
         }) - 1;
   // Their parents once every node is made: a loop of parents (bad data) visits a particle before its parent.
   for (const p of particles)
@@ -291,19 +341,34 @@ export function levelGraph(g: Graph, flags: string, first: string | undefined, m
   for (const p of particles) if (p.children.length > 1) p.children.sort(byEnergy);
   for (const v of vertices) if (v.out.length > 1) v.out.sort(byEnergy);
 
-  const names: Record<GroupId, string> = {
-    hard: hardEvent ? "hard process" : "signal process",
-    underlying: hardEvent || signalEvent ? "underlying event" : "signal collision",
-    pileup: "pile-up",
-  };
-  const roots: Record<GroupId, number[]> = { hard: [], underlying: [], pileup: [] };
+  // Where each collision happened and the signal collision's beams, from the particles without parents; whether the
+  // signal collision has a hard process; the collisions' roots.
+  for (let k = 0; k < parentless; k++) {
+    const r = todo[k],
+      c = signal[r] !== 0 ? sig : pileupOf.get(index[r]);
+    if (c?.signal && g.col("status", r) === BEAM) c.beams.push(r);
+    else if (c && c.vertex < 0 && made[r] >= 0 && made[r] < g.nv) c.vertex = made[r];
+  }
+  if (sig) {
+    sig.scatter = hardEvent;
+    for (let v = 0; v < g.nv; v++)
+      if (g.vcol("reason", v) === HARD_SCATTER && g.vcol("isSignal", v) !== 0) {
+        sig.vertex = v;
+        sig.scatter = true;
+        break;
+      }
+  }
   particles.forEach((p, i) => {
-    if (!p.parents.length) roots[p.group].push(i);
+    if (p.parents.length) return;
+    (p.collision.scatter && fromTop[p.top] ? p.collision.hard : p.collision.rest).push(i);
+    p.collision.pt += pt[p.top] || 0;
   });
-  const groups = (["hard", "underlying", "pileup"] as const)
-    .filter((id) => roots[id].length)
-    .map((id) => ({ id, name: names[id], roots: roots[id].sort(byEnergy) }));
-  return { particles, vertices, groups, nodeOf, hiddenUnder, counts };
+  const pileup = [...pileupOf.values()].sort((a, b) => b.pt - a.pt || a.id - b.id);
+  for (const c of sig ? [sig, ...pileup] : pileup) {
+    c.hard.sort(byEnergy);
+    c.rest.sort(byEnergy);
+  }
+  return { particles, vertices, signal: sig, pileup, nodeOf, hiddenUnder, counts };
 }
 
 /** The particle nodes the search `query` finds (truth/particles.ts parseTruthQuery: a name's start, a pdgId,

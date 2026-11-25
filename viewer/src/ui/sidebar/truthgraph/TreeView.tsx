@@ -1,5 +1,6 @@
-// The truth graph as a tree that folds (view.ts says what a view gets and may use): each particle under its primary
-// parent, joined by the lines of the tree, with the vertex its daughters were made at standing on their line (◆).
+// The truth graph as a tree that folds (view.ts says what a view gets and may use): the collisions it hangs from (◆),
+// each particle under its primary parent, joined by the lines of the tree, with the vertex its daughters were made at
+// standing on their line (◆).
 // The rows are rows.ts treeRows: only what is unfolded, long lists in parts.
 import { signal } from "@preact/signals";
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
@@ -22,8 +23,19 @@ import {
 import { GRAPH_LEVELS, type LevelGraph } from "../../../model/truth/levelGraph";
 import { PALETTES } from "../../../render/colour";
 import { categoryNames } from "../../card/chips";
-import { emptyState, LIST, pathTo, reveal, type Path, type Place, type Row, treeRows, type TreeState } from "./rows";
-import { type GraphViewProps, levelColour } from "./view";
+import {
+  emptyState,
+  headKey,
+  LIST,
+  pathTo,
+  reveal,
+  type Path,
+  type Place,
+  type Row,
+  treeRows,
+  type TreeState,
+} from "./rows";
+import { collisionName, type GraphViewProps, levelColour } from "./view";
 
 /** The search unfolds the way to this many of the particles it finds, the largest. */
 const REVEAL = 20;
@@ -104,7 +116,7 @@ export function TreeView({ lg, g, particles, vertices }: GraphViewProps) {
   const energy = (row: number) => <span class="tg-e">{short(g.col("energy", row))} GeV</span>;
   const toggle = (row: Row) =>
     update(ev, (s) => {
-      if (row.kind === "group") return { ...s, groups: { ...s.groups, [row.group.id]: !row.open } };
+      if (row.kind === "head") return { ...s, heads: new Map(s.heads).set(headKey(row.head), !row.open) };
       const top = row.kind === "particle" ? P[row.node].top : row.kind === "hidden" ? row.top : -1;
       return { ...s, folds: new Map(s.folds).set(top, !("open" in row && row.open)) };
     });
@@ -163,7 +175,7 @@ export function TreeView({ lg, g, particles, vertices }: GraphViewProps) {
       data-key={r.key}
       data-top={top}
       role="treeitem"
-      aria-level={r.depth + 2}
+      aria-level={r.depth + 1}
       aria-expanded={r.open}
       aria-selected={top === current}
     >
@@ -171,16 +183,43 @@ export function TreeView({ lg, g, particles, vertices }: GraphViewProps) {
     </div>
   );
 
+  /** "1 particle", "648 particles". */
+  const count = (n: number, what: string) => `${n.toLocaleString()} ${what}${n === 1 ? "" : "s"}`;
+  /** A head's name, whether it is a vertex (◆), and what it says of what it holds. */
+  const head = (r: Row & { kind: "head" }): [string, boolean, string[]] => {
+    const h = r.head;
+    if (h.kind === "pileup") return ["pile-up", false, [count(lg.pileup.length, "collision")]];
+    if (h.kind === "scatter") return ["hard scatter", true, []];
+    if (h.kind === "underlying") return ["underlying event", false, [count(h.c.rest.length, "particle")]];
+    const where = collisionName(h.c, g, particles);
+    if (h.c.signal) return ["signal collision", true, where ? [where] : []];
+    return [where || "collision", true, [`ΣpT ${short(h.c.pt)} GeV`, count(h.c.rest.length, "particle")]];
+  };
+
   const line = (r: Row) => {
-    if (r.kind === "group")
+    if (r.kind === "head") {
+      const [title, vertex, says] = head(r);
       return (
-        <div class="tg-group" key={r.key} data-key={r.key} role="treeitem" aria-level={1} aria-expanded={r.open}>
+        <div
+          class={vertex ? "tg-row head vx" : "tg-row head"}
+          key={r.key}
+          data-key={r.key}
+          role="treeitem"
+          aria-level={r.depth + 1}
+          aria-expanded={r.open}
+        >
+          {guides(r)}
+          {fold(r, r.open)}
+          {vertex && <i class="tg-vx" />}
           <button class="tg-name" onClick={() => toggle(r)}>
-            <span class="tg-caret">{r.open ? "▾" : "▸"}</span>
-            {r.group.name} <span class="count">{r.size.toLocaleString()}</span>
+            {title}
           </button>
+          {says.map((x) => (
+            <span class="tg-e">{x}</span>
+          ))}
         </div>
       );
+    }
     if (r.kind === "vertex") {
       const v = lg.vertices[r.vertex],
         list = (ns: number[]) =>

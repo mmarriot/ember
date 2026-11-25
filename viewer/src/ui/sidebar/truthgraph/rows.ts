@@ -1,22 +1,18 @@
-// The level graph as the rows of a tree (TreeView.tsx): each particle under its primary parent, the vertices its
+// The level graph as the rows of a tree (TreeView.tsx): the collisions it hangs from (the signal collision, its hard
+// scatter and underlying event; the pile-up collisions), each particle under its primary parent, the vertices its
 // daughters were made at between them, and, when asked ("▸ N below"), the particles at no shown level under a node.
 // Only what is unfolded is listed, and a long list in parts, so the rows stay few at any pile-up.
 import { copiesBelow, type Graph } from "../../../model/truth/graph";
-import {
-  GRAPH_LEVELS,
-  type Group,
-  type GroupId,
-  type LevelGraph,
-  type ParticleNode,
-} from "../../../model/truth/levelGraph";
+import { type Collision, GRAPH_LEVELS, type LevelGraph, type ParticleNode } from "../../../model/truth/levelGraph";
 
 /** How many particles a list shows at first, and how many more each "show more" adds. */
 export const LIST = 50;
 
 /** What is folded and listed: the tree's display state. Particles by their first copy's row (graph.ts top). */
 export interface TreeState {
-  /** Groups folded or unfolded by hand; else the hard process is open and the others folded. */
-  groups: Partial<Record<GroupId, boolean>>;
+  /** Heads (by headKey) folded or unfolded by hand; else the signal collision and its hard scatter are open, the
+   *  rest folded. */
+  heads: Map<string, boolean>;
   /** Particles folded or unfolded by hand; else defaultOpen (a particle at no shown level: folded). */
   folds: Map<number, boolean>;
   /** Particles whose particles at no shown level are listed under them ("▸ N below"). */
@@ -24,7 +20,15 @@ export interface TreeState {
   /** How many particles a list shows (by Row "more" list), when not LIST. */
   more: Map<string, number>;
 }
-export const emptyState = (): TreeState => ({ groups: {}, folds: new Map(), below: new Set(), more: new Map() });
+export const emptyState = (): TreeState => ({ heads: new Map(), folds: new Map(), below: new Set(), more: new Map() });
+
+/** A row above the particles: a collision (a vertex: the signal one, or one of pile-up), the signal collision's hard
+ *  scatter (a vertex too) or its underlying event, or the pile-up, which holds the pile-up collisions. */
+export type Head = { kind: "collision" | "scatter" | "underlying"; c: Collision } | { kind: "pileup" };
+/** A head's key, for its fold and its list: a pile-up collision by its id, stable between the levels shown. */
+export const headKey = (h: Head) =>
+  h.kind === "pileup" ? "pileup" : h.kind !== "collision" ? h.kind : h.c.signal ? "signal" : `pu${h.c.id}`;
+const openHead = (h: Head) => (h.kind === "collision" && h.c.signal) || h.kind === "scatter";
 
 /** Where a row sits: its depth; for each ancestor level, whether the line joining that level's siblings passes beside
  *  it (`rails[d]` for depth d + 1); whether it is the last of its siblings (its own line stops at it). */
@@ -36,24 +40,25 @@ export interface Place {
 }
 /** A row of the tree. `open` is undefined for a particle with nothing to fold. A particle's `below`: how many particles
  *  at no shown level it made, which "▸ N below" lists. A vertex row stands on the line of the daughters made at it,
- *  which follow it. "more": the rest of list `list`, `left` particles. */
+ *  which follow it. "more": the rest of list `list`, `left` particles or collisions. */
 export type Row =
-  | { kind: "group"; key: string; group: Group; open: boolean; size: number }
+  | (Place & { kind: "head"; head: Head; open: boolean })
   | (Place & { kind: "particle"; node: number; open?: boolean; below: number })
   | (Place & { kind: "hidden"; top: number; open?: boolean })
   | (Place & { kind: "vertex"; vertex: number })
   | (Place & { kind: "more"; list: string; left: number });
 
 type Entry =
+  | { kind: "head"; head: Head }
   | { kind: "particle"; node: number }
   | { kind: "hidden"; top: number }
   | { kind: "vertex"; vertex: number }
   | { kind: "more"; list: string; left: number };
 
 const RECO = GRAPH_LEVELS.findIndex((l) => l.id === "reco");
-/** A particle is unfolded by default in the hard process, down to its b / c hadrons and τ (the levels above
- *  "reconstructable"); the rest is folded. */
-export const defaultOpen = (p: ParticleNode) => p.group === "hard" && p.level < RECO;
+/** A particle is unfolded by default under the hard scatter (`hard`), down to its b / c hadrons and τ (the levels
+ *  above "reconstructable"); the rest is folded. */
+export const defaultOpen = (p: ParticleNode, hard: boolean) => hard && p.level < RECO;
 
 /** The particles a tree lists under node `i`: those whose primary parent it is, largest energy first. */
 export const treeChildren = (lg: LevelGraph, i: number) =>
@@ -68,12 +73,14 @@ export function hiddenChildren(g: Graph, lg: LevelGraph, top: number): number[] 
   return [...out].sort((a, b) => g.col("energy", b) - g.col("energy", a));
 }
 
-/** The way down the tree to a particle: the particles (by top) from its root, the shown ones first (`tops[0 ..
- *  hidden - 1]`), then for a particle at no shown level, those at no shown level from below the node it hides under.
- *  As the level graph places it, each climbs through its parent of highest energy that is shown or has a shown
- *  particle above it (not a dead end such as a beam remnant's string). */
+/** The way down the tree to a particle: its root's collision and whether the root hangs from the hard scatter (`hard`,
+ *  else from the underlying event or straight from the collision), the particles (by top) from its root, the shown
+ *  ones first (`tops[0 .. hidden - 1]`), then for a particle at no shown level, those at no shown level from below the
+ *  node it hides under. As the level graph places it, each climbs through its parent of highest energy that is shown
+ *  or has a shown particle above it (not a dead end such as a beam remnant's string). */
 export interface Path {
-  group: GroupId;
+  collision: Collision;
+  hard: boolean;
   tops: number[];
   hidden: number;
 }
@@ -89,43 +96,48 @@ export function pathTo(g: Graph, lg: LevelGraph, row: number): Path | null {
     t = g.top[ps.reduce((a, b) => (g.col("energy", b) > g.col("energy", a) ? b : a))];
   }
   const tops: number[] = [];
-  for (let i = lg.nodeOf[t]; i >= 0 && tops.length <= P.length; i = P[i].parents[0] ?? -1) tops.unshift(P[i].top);
-  return { group: P[lg.nodeOf[t]].group, tops: [...tops, ...chain], hidden: tops.length };
+  let root = -1;
+  for (let i = lg.nodeOf[t]; i >= 0 && tops.length <= P.length; i = P[i].parents[0] ?? -1)
+    tops.unshift(P[(root = i)].top);
+  const c = P[root].collision;
+  return { collision: c, hard: c.hard.includes(root), tops: [...tops, ...chain], hidden: tops.length };
 }
 
-/** `s` with `path` unfolded down to its particle: its group, the particles above it, and the list of particles at no
- *  shown level of the node it hides under; `s` itself when all that is open already. */
+/** The heads (by headKey) above the particles of `path`: the pile-up and its collision, or the signal collision and
+ *  its hard scatter or underlying event. */
+const headsOf = ({ collision: c, hard }: Path) =>
+  !c.signal
+    ? ["pileup", headKey({ kind: "collision", c })]
+    : !c.scatter
+      ? ["signal"]
+      : ["signal", hard ? "scatter" : "underlying"];
+
+/** `s` with `path` unfolded down to its particle: the heads above it, the particles above it, and the list of
+ *  particles at no shown level of the node it hides under; `s` itself when all that is open already. */
 export function reveal(s: TreeState, path: Path): TreeState {
-  const open = path.tops.slice(0, -1),
+  const heads = headsOf(path),
+    open = path.tops.slice(0, -1),
     under = path.hidden < path.tops.length ? path.tops[path.hidden - 1] : -1;
-  if (s.groups[path.group] && open.every((t) => s.folds.get(t)) && (under < 0 || s.below.has(under))) return s;
+  if (heads.every((k) => s.heads.get(k)) && open.every((t) => s.folds.get(t)) && (under < 0 || s.below.has(under)))
+    return s;
   const below = new Set(s.below);
   if (under >= 0) below.add(under);
   return {
     ...s,
-    groups: { ...s.groups, [path.group]: true },
+    heads: new Map([...s.heads, ...heads.map((k): [string, boolean] => [k, true])]),
     folds: new Map([...s.folds, ...open.map((t): [number, boolean] => [t, true])]),
     below,
   };
 }
 
-/** How many particles each group holds, once per level graph. */
-const sizes = new WeakMap<LevelGraph, Partial<Record<GroupId, number>>>();
-function sizesOf(lg: LevelGraph) {
-  let size = sizes.get(lg);
-  if (!size) {
-    sizes.set(lg, (size = {}));
-    for (const p of lg.particles) size[p.group] = (size[p.group] ?? 0) + 1;
-  }
-  return size;
-}
 const NONE = emptyState();
 
-/** The rows of the tree of `lg` in state `s`: the groups, and under each open one its roots and what is unfolded
- *  below them. `vertices`: vertex rows between a particle and its daughters. A list shows its first particles (LIST,
- *  or `s.more`) and those in `keep` (by top: the ways to the picks and to what the search found). `force`: what is
- *  open besides, whatever `s` says (the ways to what the search finds, while it is typed). A particle's list of
- *  particles at no shown level shows only while it is unfolded. */
+/** The rows of the tree of `lg` in state `s`: the signal collision, with its hard scatter and underlying event, then
+ *  the pile-up and its collisions, under each open one its roots and what is unfolded below them; a folded one lists
+ *  nothing. `vertices`: vertex rows between a particle and its daughters. A list shows its first particles or
+ *  collisions (LIST, or `s.more`) and those in `keep` (by top: the ways to the picks and to what the search found; a
+ *  collision with one of them). `force`: what is open besides, whatever `s` says (the ways to what the search finds,
+ *  while it is typed). A particle's list of particles at no shown level shows only while it is unfolded. */
 export function treeRows(
   lg: LevelGraph,
   g: Graph,
@@ -136,10 +148,13 @@ export function treeRows(
 ): Row[] {
   const P = lg.particles,
     out: Row[] = [];
-  /** The particles of list `list` shown, and a "more" entry for the rest. */
-  const part = (list: string, items: number[], top: (x: number) => number) => {
+  // The collisions that hold a kept particle: listed whatever the length of the pile-up's list.
+  const kept = new Set<Collision>();
+  for (const t of keep) if (lg.nodeOf[t] >= 0) kept.add(P[lg.nodeOf[t]].collision);
+  /** The items of list `list` shown (its first ones and those `kept`), and a "more" entry for the rest. */
+  const part = <T>(list: string, items: T[], kept: (x: T) => boolean) => {
     const n = s.more.get(list) ?? LIST,
-      shown = keep.size ? items.filter((x, k) => k < n || keep.has(top(x))) : items.slice(0, n);
+      shown = keep.size ? items.filter((x, k) => k < n || kept(x)) : items.slice(0, n);
     const more: Entry[] =
       shown.length < items.length ? [{ kind: "more", list, left: items.length - shown.length }] : [];
     return { shown, more };
@@ -159,18 +174,41 @@ export function treeRows(
     ]);
   };
   const hidden = (list: string, tops: number[]): Entry[] => {
-    const h = part(list, tops, (t) => t);
+    const h = part(list, tops, (t) => keep.has(t));
     return [...h.shown.map((top): Entry => ({ kind: "hidden", top })), ...h.more];
   };
-  /** Adds the row of `e` at `place`; returns the entries listed under it. */
-  const add = (e: Entry, place: Place): Entry[] => {
+  /** A collision's roots, or what else a head holds, while it is open. */
+  const roots = (list: string, nodes: number[]): Entry[] => {
+    const r = part(list, nodes, (i) => keep.has(P[i].top));
+    return [...r.shown.map((node): Entry => ({ kind: "particle", node })), ...r.more];
+  };
+  const held = (h: Head, list: string): Entry[] => {
+    if (h.kind === "pileup") {
+      const r = part(list, lg.pileup, (c) => kept.has(c));
+      return [...r.shown.map((c): Entry => ({ kind: "head", head: { kind: "collision", c } })), ...r.more];
+    }
+    const c = h.c;
+    if (h.kind !== "collision") return roots(list, h.kind === "scatter" ? c.hard : c.rest);
+    if (!c.scatter) return roots(list, c.rest);
+    return (["scatter", "underlying"] as const)
+      .filter((kind) => (kind === "scatter" ? c.hard : c.rest).length)
+      .map((kind): Entry => ({ kind: "head", head: { kind, c } }));
+  };
+  /** Adds the row of `e` at `place` (`hard`: under the hard scatter); returns the entries listed under it. */
+  const add = (e: Entry, place: Place, hard: boolean): Entry[] => {
+    if (e.kind === "head") {
+      const k = headKey(e.head),
+        open = force.heads.get(k) || (s.heads.get(k) ?? openHead(e.head));
+      out.push({ ...place, ...e, open });
+      return open ? held(e.head, k) : [];
+    }
     if (e.kind === "particle") {
       const p = P[e.node],
         kids = treeChildren(lg, e.node),
-        open = kids.length ? force.folds.get(p.top) || (s.folds.get(p.top) ?? defaultOpen(p)) : undefined,
+        open = kids.length ? force.folds.get(p.top) || (s.folds.get(p.top) ?? defaultOpen(p, hard)) : undefined,
         below = p.below ? hiddenChildren(g, lg, p.top) : [];
       out.push({ ...place, ...e, open, below: below.length });
-      const c = part(`c${p.top}`, open ? kids : [], (i) => P[i].top),
+      const c = part(`c${p.top}`, open ? kids : [], (i) => keep.has(P[i].top)),
         listed = open !== false && (s.below.has(p.top) || force.below.has(p.top));
       return [...daughters(c.shown), ...c.more, ...hidden(`h${p.top}`, listed ? below : [])];
     }
@@ -184,28 +222,28 @@ export function treeRows(
     return [];
   };
   const keyOf = (e: Entry) =>
-    e.kind === "particle"
-      ? `p${P[e.node].top}`
-      : e.kind === "hidden"
-        ? `h${e.top}`
-        : e.kind === "vertex"
-          ? `v${e.vertex}`
-          : `m${e.list}`;
-  const walk = (entries: Entry[], depth: number, rails: boolean[], parent: string) =>
+    e.kind === "head"
+      ? headKey(e.head)
+      : e.kind === "particle"
+        ? `p${P[e.node].top}`
+        : e.kind === "hidden"
+          ? `h${e.top}`
+          : e.kind === "vertex"
+            ? `v${e.vertex}`
+            : `m${e.list}`;
+  const walk = (entries: Entry[], depth: number, rails: boolean[], parent: string, hard: boolean) =>
     entries.forEach((e, k) => {
       const last = k === entries.length - 1,
         key = `${parent}/${keyOf(e)}`,
-        kids = add(e, { key, depth, rails, last });
-      if (kids.length) walk(kids, depth + 1, depth ? [...rails, !last] : [], key);
+        under = hard || (e.kind === "head" && e.head.kind === "scatter"),
+        kids = add(e, { key, depth, rails, last }, hard);
+      if (kids.length) walk(kids, depth + 1, depth ? [...rails, !last] : [], key, under);
     });
 
-  const size = sizesOf(lg);
-  for (const group of lg.groups) {
-    const open = force.groups[group.id] || (s.groups[group.id] ?? group.id === "hard");
-    out.push({ kind: "group", key: group.id, group, open, size: size[group.id] ?? 0 });
-    if (!open) continue;
-    const r = part(`g${group.id}`, group.roots, (i) => P[i].top);
-    walk([...r.shown.map((node): Entry => ({ kind: "particle", node })), ...r.more], 0, [], group.id);
-  }
+  const tops: Entry[] = [
+    ...(lg.signal ? [{ kind: "head" as const, head: { kind: "collision" as const, c: lg.signal } }] : []),
+    ...(lg.pileup.length ? [{ kind: "head" as const, head: { kind: "pileup" as const } }] : []),
+  ];
+  walk(tops, 0, [], "", false);
   return out;
 }

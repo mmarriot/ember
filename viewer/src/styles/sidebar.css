@@ -855,34 +855,6 @@ table.inview td > span {
   font-size: 12px;
   line-height: 22px;
 }
-.tg-group {
-  border-bottom: 1px solid var(--line);
-  margin-top: 6px;
-}
-.tg-group .tg-name {
-  width: 100%;
-  border: 0;
-  background: none;
-  padding: 2px 0;
-  text-align: left;
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-.tg-group .tg-name:hover {
-  color: var(--text);
-  background: none;
-}
-.tg-caret {
-  display: inline-block;
-  width: 14px;
-}
-.tg-group .count {
-  font-weight: 400;
-  margin-left: 4px;
-}
 .tg-row {
   display: flex;
   flex-wrap: wrap;
@@ -1032,6 +1004,22 @@ table.inview td > span {
 .tg-more .link:hover,
 .link.tg-more:hover {
   color: var(--accent);
+}
+/* A head above the particles: a collision or the hard scatter, a vertex (◆ after its fold, its name in italics), or
+   the underlying event or the pile-up. */
+.tg-vx {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  margin: 7.5px 2px 0 3px;
+  background: var(--muted);
+  transform: rotate(45deg);
+}
+.tg-row.head .tg-name {
+  font-weight: 400;
+}
+.tg-row.head.vx .tg-name {
+  font-style: italic;
 }
 .tg-row.vertex {
   line-height: 16px;

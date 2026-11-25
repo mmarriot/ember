@@ -106,7 +106,7 @@ with a message while an old one is set without its new name. `deploy.sh` links `
   - What the view draws for the picked truth particles: with **particle only**, each one's line, its two vertices, and
     only its own hits and reco matches; with **+ descendants**, those of everything below it; with several picks, the
     hits and reco of all of them (was the last one's). The vertices are drawn even with the Vertices collection
-    unticked, as rings over the lines; the lines are thin with an edge of the background's colour, and the selected
+    unticked, as rings of one neutral grey over the lines; the lines are thin with an edge of the background's colour, and the selected
     one's halo is one pixel (was a wide band that hid the lines beside it). The truth particle energy cut now hides
     the descendants below it (they were drawn whatever the cut); the picks stay drawn. A truth particle's card gives
     the distance from where it was made to its last vertex ("decays where it was made (0 cm)" for a top quark).

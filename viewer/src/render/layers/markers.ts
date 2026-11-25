@@ -41,7 +41,7 @@ export function markers(input: LayerInput): Layer {
       ...baseUniforms(input.pal, input.d.context),
       uPx: pxUniform,
       uSized: { value: sizeCol ? 1 : 0 },
-      uHollow: { value: d.truth ? 1 : 0 },
+      uHollow: { value: d.truth ? (input.picks ? 2 : 1) : 0 },
     },
     vertexShader: /* glsl */ `
       attribute float ix, iy, iz, isel, ipsel, iemph, icut, iT, iL, isize;
@@ -75,7 +75,10 @@ export function markers(input: LayerInput): Layer {
         float big = uSized > 0.5 ? mix(5.0, 14.0, isize) : 7.0;
         float size = mix(emph > 0.5 ? big : 4.0, max(uHollow > 0.5 ? 12.0 : 10.0, big), chosen) * (1.0 + 1.2 * p) * (1.0 + 0.6 * gPin) * uPx * remaining();
         gl_PointSize = size + 1.0; // a pixel more: the edge's smoothing reaches half a pixel beyond the disc
-        vec3 col = linked ? icol : uGrey;
+        // The picks' vertices: one neutral colour between the background and the rim (light grey on the dark theme,
+        // dark grey on the light one), so a colour always means a particle and a ring a vertex; the card names the
+        // vertex's process.
+        vec3 col = linked ? (uHollow > 1.5 ? mix(uRim, uBg, 0.3) : icol) : uGrey;
         col = mix(col, uBg, 0.45 * (1.0 - chosen) * (1.0 - emph)); // objects in no group are background
         vCol = fade(mix(col, vec3(1.0), uFlash * p), s);
         vRim = max(chosen, (1.0 - selActive()) * emph);

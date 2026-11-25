@@ -493,6 +493,15 @@ describe("truth lines", () => {
   });
 });
 
+describe("truth vertices", () => {
+  it("are rings in their own colours, and in one neutral colour for the Truth tab's picks", () => {
+    const t = table({ x: col(0, 1), y: col(0, 0), z: col(0, 0) }),
+      input = { key: "k", d: hint({ repr: "markers", truth: true }), t, pal: PALETTES.dark, rgb: new Float32Array(6) };
+    expect(parts(builders.markers(input)).m.uniforms.uHollow.value).toBe(1);
+    expect(parts(builders.markers({ ...input, limited: true, picks: true })).m.uniforms.uHollow.value).toBe(2);
+  });
+});
+
 describe("sizes on screen", () => {
   it("are CSS pixels, turned into drawing-buffer pixels by one shared uniform", () => {
     Object.assign(globalThis, { devicePixelRatio: 2 }); // not read when a layer is built

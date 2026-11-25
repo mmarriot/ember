@@ -97,6 +97,8 @@ export interface LayerInput {
   cut?: Float32Array;
   /** Built with only the focus's rows (control/sceneFocus.ts onlyFor): a few objects, not the whole table. */
   limited?: boolean;
+  /** Built for the Truth tab's picks (the focus is one of them): their vertices are rings of one neutral colour. */
+  picks?: boolean;
   /** The solenoid field, for helices. */
   field?: Field;
   /** A relation of the event, with its `to` table (`polyline` reads its points through it). */

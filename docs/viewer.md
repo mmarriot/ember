@@ -488,9 +488,11 @@ objects that left hits, and the tree, which folds. With truth, from the top:
     side so they read over hits and over each other, and the selected one has a one-pixel halo in the accent colour.
     When the truth particles are drawn whole instead (**Others** showing everything, or a replay), they keep the look
     of the whole table: one-pixel lines, the selected one with the wider accent halo of any selected line.
-    The vertices are rings of constant size on top of the lines, coloured by their reason (decay, hadronization,
-    hadronic inelastic, …), hollow so that the lines through them and rings that overlap stay readable. They are
-    drawn whether or not the Vertices collection is ticked, and so are the particles if Particles is unticked;
+    The vertices are rings of constant size on top of the lines, all in one neutral grey with an edge of the
+    background's colour, hollow so that the lines through them and rings that overlap stay readable: a colour always
+    means a particle, a ring a vertex. Its process (decay, hadronization, hadronic inelastic, …) is in its tooltip
+    and card; the Vertices collection drawn for anything else keeps the colours by reason. They are drawn whether or
+    not the Vertices collection is ticked, and so are the particles if Particles is unticked;
   - the truth particle energy cut (Details) hides the descendants below it, and the vertices that only those reach.
     It is the only cut on them: a track below its pT cut does not hide the particle it is matched to. The picks
     themselves, and their two vertices, are drawn whatever the truth cut, as any selected object is;

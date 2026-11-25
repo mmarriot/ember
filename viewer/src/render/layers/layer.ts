@@ -95,6 +95,8 @@ export interface LayerInput {
   behind?: boolean;
   /** Per object, the value compared with the cut's minimum; HIDDEN for objects never shown. */
   cut?: Float32Array;
+  /** Built with only the focus's rows (control/sceneFocus.ts onlyFor): a few objects, not the whole table. */
+  limited?: boolean;
   /** The solenoid field, for helices. */
   field?: Field;
   /** A relation of the event, with its `to` table (`polyline` reads its points through it). */

@@ -31,6 +31,14 @@ const HELIX_POINTS = 48,
   TURNS_PER_PIECE = 1.5,
   MAX_PIECES = 256;
 const PICK_POINTS = 17; // points per path of the CPU polyline used for picking and framing
+/** Truth lines drawn for a selection (defines WIDE and TRUTH): dashed as all truth (layer.ts DASHED_LINE_FRAGMENT),
+ *  the selection's at their full colour and the rest dimmed, and the ribbon's sides (beyond vCore of its half-width)
+ *  in the background's colour. */
+const TRUTH_FRAGMENT = /* glsl */ `uniform vec3 uBg; varying vec3 vCol; varying float vS, vHi, vAcross, vCore;
+  void main() {
+    if (mod(vS, 7.0) > 4.0) discard;
+    gl_FragColor = vec4(abs(vAcross) > vCore ? uBg : mix(vCol, uBg, 0.35 * (1.0 - vHi)), 1.0);
+  }`;
 /** Paths per table and display hint, kept as long as the event's table lives (a WeakMap entry goes with its key): a
  *  layer that shows only the selection's objects is rebuilt on every click, and its paths do not change. */
 const pathCache = new WeakMap<
@@ -93,8 +101,11 @@ export function helices(input: LayerInput): Layer {
       pick,
     } = cached,
     [x, y, z] = paths.end;
-  const g = new THREE.InstancedBufferGeometry(),
-    wide = (d.width ?? 1) > 1;
+  // Truth drawn for a selection (a few lines) is a ribbon: thin, with an edge of the background's colour (TRUTH).
+  // Drawn whole (100k lines at PU200), it stays one-pixel lines: a ribbon costs about four times the vertex work.
+  const truth = !!d.truth && !!input.limited,
+    g = new THREE.InstancedBufferGeometry(),
+    wide = (d.width ?? 1) > 1 || truth;
   // x: 0 to 1 along the arc of the piece; 2 for the last point, the end point (on the last piece). Wide paths: each
   // point twice, y = -1 and +1 for the two sides of a strip of quads.
   const along = (k: number) => (k === HELIX_POINTS - 1 ? 2 : k / (HELIX_POINTS - 2));
@@ -131,13 +142,13 @@ export function helices(input: LayerInput): Layer {
       uDash: { value: d.truth ? 1 : 0 },
       ...lineWidthUniforms(d.width ?? 1),
     },
-    defines: wide ? { WIDE: 1 } : {},
+    defines: { ...(wide ? { WIDE: 1 } : {}), ...(truth ? { TRUTH: 1 } : {}) },
     side: THREE.DoubleSide,
     vertexShader: /* glsl */ `
       attribute float isel, ipsel, icut, iT, iL, ipiece, ipieces;
       attribute vec3 istart, iend, icol, idir, ipath; // ipath: curvature (rad/cm), length in the field, length of the arc (cm)
       varying vec3 vCol;
-      varying float vS;
+      varying float vS, vHi, vAcross, vCore;
       ${SHADER_COMMON}
       // The point at path length l: helix in the field, then straight along its last direction (render/helix.ts).
       vec3 pathAt(float l) {
@@ -173,15 +184,28 @@ export function helices(input: LayerInput): Layer {
         vec4 nb = placed(back > 0.5 ? min(position.x, 1.0) - step : position.x + step, grow, s * 2.0, ignored);
         vec2 dir = (nb.xy / nb.w - gl_Position.xy / gl_Position.w) * uRes * (back > 0.5 ? -1.0 : 1.0);
         vec2 across = length(dir) > 1e-6 ? normalize(vec2(-dir.y, dir.x)) : vec2(0.0, 1.0);
-        gl_Position.xy += across * position.y * (uWidth * (1.0 + 0.5 * s * selActive() + 2.0 * gPin) + HALO_PX) * uPx / uRes * gl_Position.w;
+        #ifdef TRUTH
+        // The selection's truth: a line of 2 px (the selected one 2.5) between edges of 1 px in the background's colour
+        // (TRUTH_FRAGMENT), and its halo 1 px of the accent beyond them: thin, but clear over hits and other lines.
+        float hi = s * selActive(), core = mix(uWidth, gPin > 0.5 ? 2.5 : 2.0, hi), width = core + 2.0 * hi;
+        #ifdef HALO
+        width += 2.0;
         #endif
+        vCore = core / width;
+        vAcross = position.y;
+        #else
+        float width = uWidth * (1.0 + 0.5 * s * selActive() + 2.0 * gPin) + HALO_PX;
+        #endif
+        gl_Position.xy += across * position.y * width * uPx / uRes * gl_Position.w;
+        #endif
+        vHi = s * selActive();
         gl_Position = inFront(gl_Position, s);
         // A selected line is lifted towards white: a thin line in a dark colour (a low-pT track) would be hard to see.
         // It flashes as it appears and, when built, as it is complete.
         float p = max(pop(iT), iL > iT && grow >= 1.0 ? pop(iL) : 0.0);
         vCol = fade(mix(mix(icol, vec3(1.0), 0.3 * s * selActive()), vec3(1.0), uFlash * p), s) * remaining() + uBg * (1.0 - remaining());
       }`,
-    fragmentShader: DASHED_LINE_FRAGMENT,
+    fragmentShader: truth ? TRUTH_FRAGMENT : DASHED_LINE_FRAGMENT,
   });
   const common = shaderLayer(
     input,

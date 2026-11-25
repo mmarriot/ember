@@ -193,6 +193,7 @@ export function startScene(canvas: HTMLCanvasElement): () => void {
         emphasis: e.emphasis,
         behind: underHits(e.d),
         cut,
+        limited: !!only,
         field: b?.header.field,
         relation: relationOf(b?.header, event.peek()),
       });

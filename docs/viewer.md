@@ -461,14 +461,20 @@ objects that left hits, and the tree, which folds. With truth, from the top:
   nearest ones above it that are shown, at the vertex where it was made ("● decay", "● hadronization"; "⋯" when
   particles were skipped in between). A hadron made from several partons (a string between the b and the s̄) hangs
   under the one of highest energy and says "also from" the others. "23 below" counts the particles under it at no
-  level shown. Its groups:
-  - **hard process**, open: the outgoing legs of the hard scatter (level HardProcess) under the particles they came
-    from, so `t → b W⁺` and `W⁺ → s̄ c`, and everything below them (with the hard process hidden, what came from it
-    stays in this group). Without a hard process, the signal process of a truth preset;
-  - **underlying event**: the rest of the signal collision. The generator's strings mix initial-state radiation,
-    multiple interactions and the beam remnants, so they are one group (a hadron at η 8 and one at η 1 can come from
-    the same string);
-  - **pile-up**: the particles of the other collisions (20,000 or more at 200 pile-up), largest first.
+  level shown. The whole event hangs from its collisions, each a vertex (◆), where its particles came out of:
+  - **◆ signal collision**, open, named by its beams ("p p, 14 TeV"):
+    - **◆ hard scatter**, open: the outgoing legs of the hard scatter (level HardProcess) under the particles they
+      came from, so `t → b W⁺` and `W⁺ → s̄ c`, and everything below them (with the hard process hidden, what came
+      from it stays here). A truth preset's signal process hangs here too;
+    - **underlying event**, folded: the rest of the signal collision, with how many particles it lists. The
+      generator's strings mix initial-state radiation, multiple interactions and the beam remnants, so they are not
+      split further (a hadron at η 8 and one at η 1 can come from the same string).
+
+    Without a hard process (a particle gun), the collision's particles hang straight under it;
+  - **pile-up**, folded: the other collisions of the bunch crossing (about 180 at 200 pile-up), each folded and
+    named by where it happened ("◆ z -6.75 mm"), with the summed pT of its particles shown and how many they are.
+    The hardest (largest summed pT) comes first. Pile-up has no generator history, so its particles hang straight
+    under their collision. A folded collision costs nothing to show.
 
   A click on a particle's name picks it alone: the card describes it, and the view draws it. Its tick adds it to the
   particles drawn (or takes it out); the card describes the last one picked. The hits and reco objects drawn, and

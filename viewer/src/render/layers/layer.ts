@@ -173,7 +173,9 @@ export const CULL = (id = "gl_InstanceID") => `
   if ((icut < uCut && pinned < 0.5) || iT > uClock || remaining() <= 0.0 || gone(selected(ipsel, isel))) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }`;
 
 /** Fragment shader of lines that may be truth: simulation truth (uniform uDash) is dashed, 4 cm on and 3 cm off along
- *  the line (varying vS, in cm), and dimmer than reconstructed tracks, so it never looks like one. */
+ *  the line (varying vS, in cm), and pulled 35% towards the background, so it never looks like a reconstructed track.
+ *  The truth drawn for a selection is a ribbon with its own shader (helices.ts TRUTH_FRAGMENT), the selection's lines
+ *  at their full colour between edges of the background's colour. */
 export const DASHED_LINE_FRAGMENT = `uniform float uDash; uniform vec3 uBg; varying vec3 vCol; varying float vS;
       void main() {
         if (uDash > 0.5 && mod(vS, 7.0) > 4.0) discard;

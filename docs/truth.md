@@ -369,7 +369,7 @@ Truth and reco are told apart by one visual grammar, everywhere:
 
 | means | looks | used for |
 |---|---|---|
-| simulation (the truth graph, the hit index) | violet, dashed lines, hollow markers | truth particles and vertices, the TRUTH badge, truth labels in the view |
+| simulation (the truth graph, the hit index) | violet, dashed lines, hollow rings; the selection's truth lines between edges of the background's colour | truth particles and vertices, the TRUTH badge, truth labels in the view |
 | a CMSSW associator's answer | a small solid `match` tag, the associator named | the chain's and the card's match lines |
 | simulated energy on hits | a small solid `sim` tag | the chain's hit steps, the side panel's kind headings |
 | reco | solid lines, filled markers, type colours | all reco |

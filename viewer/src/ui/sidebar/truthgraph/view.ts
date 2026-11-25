@@ -6,12 +6,18 @@
 //   click picks, `copies`); `level`, its colour (levelColour); `parents`, the nearest shown particles above it, the
 //   primary first (a tree places it under that one and says "also from" the others); `children`; `made`, the vertex
 //   node it was made at, -1 for none; `ends`, the vertex nodes below it; `below`, the particles under it at no shown
-//   level ("▸ N below"); `group`;
+//   level ("▸ N below"); `collision`, the collision it came from;
 // - `vertices[k]`: a vertex where shown particles were made: `row` in the vertex table, `reason` (named by
 //   ui/card/chips.tsx categoryNames(vertices)), `into` and `out` particle nodes, `skips` when particles at no shown
 //   level lie between;
-// - `groups`: the roots, by group: hard process, underlying event, pile-up (the last can hold 20,000 roots at 200
-//   pile-up: list a part of it, largest first, until asked for more);
+// - the collisions, which the whole event hangs from (each is a vertex: where its particles came out of). `signal`, the
+//   signal collision, named by collisionName ("p p, 14 TeV"): its `hard` roots hang from the hard scatter, its `rest`
+//   are its underlying event (with no hard process, a particle gun: its particles, straight under the collision).
+//   `pileup`: the pile-up collisions, hardest (summed pT of the roots, `pt`) first, each with its roots in `rest` (no
+//   generator history: about 180 at 200 pile-up, up to 650 roots each). Show the underlying event and each pile-up
+//   collision folded at first, and build nothing of a folded one (no rows, no layout); key a fold by the collision's
+//   `id`, stable between the levels shown. To reveal a node, follow its primary parents (`parents[0]`) up to a root:
+//   it is in the `hard` or `rest` of the node's `collision`;
 // - `nodeOf[row]`, `hiddenUnder[row]`: the node of any particle row; for one at no shown level, the node it hides
 //   under (to reveal a particle selected in the view).
 //
@@ -24,8 +30,9 @@
 //   store `truthDraw`), so a view never sets `selection` itself. `clearPicks` is the controls row's.
 // - its own display state (what is folded, scrolled) is its own: keep it in signals of its module, so it survives the
 //   tab being closed and reopened (TruthTab renders the tab anew each time).
-import type { Graph } from "../../../model/truth/graph";
-import type { LevelGraph } from "../../../model/truth/levelGraph";
+import { short, truthText } from "../../../model/store";
+import { type Graph, length } from "../../../model/truth/graph";
+import type { Collision, LevelGraph } from "../../../model/truth/levelGraph";
 import { matchesQuery, parseTruthQuery } from "../../../model/truth/particles";
 import type { Pal } from "../../../render/colour";
 
@@ -42,6 +49,17 @@ export interface GraphViewProps {
 /** The colour of GRAPH_LEVELS level `level` (a node's `level`): the theme's identity colours, which are told apart in
  *  both themes and in the common colour-vision deficiencies (render/colour.ts). */
 export const levelColour = (pal: Pal, level: number) => pal.identity[level % pal.identity.length];
+
+/** A collision's name: its beams and their energy for a generator's signal collision ("p p, 14 TeV"), else where it
+ *  happened ("z -6.8 mm"); empty without either. `particles`: the particle table (for the beams' names). */
+export function collisionName(c: Collision, g: Graph, particles: string): string {
+  if (c.beams.length) {
+    const e = c.beams.reduce((sum, r) => sum + g.col("energy", r), 0);
+    const names = c.beams.map((r) => truthText(particles, r).split(" · ")[0]).join(" ");
+    return `${names}, ${e >= 1000 ? `${short(e / 1000)} TeV` : `${short(e)} GeV`}`;
+  }
+  return c.vertex >= 0 ? `z ${length(g.vcol("z", c.vertex))}` : "";
+}
 
 /** The particle nodes the search `query` finds (truth/particles.ts parseTruthQuery: a name's start, a pdgId,
  *  |pdg|=11), largest energy first; empty for no query. `names`: the particle layer's pdgId names. */

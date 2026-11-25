@@ -457,35 +457,39 @@ objects that left hits, and the tree, which folds. With truth, from the top:
   everything below it; + descendants at first, as a truth particle selected anywhere else), a search box (the start of
   a name, `B`, `μ`; a pdgId, `511`; either sign, `|pdg|=11`), and "2 selected · clear" once particles are picked;
 - **the graph**: the event's truth graph at the levels shown, as a tree that folds (▸ ▾), its lines joining each
-  particle to the ones it made. A particle row has its tick, a dot in its level's colour, its name and its energy. A
-  particle that the generator wrote several times (status 23, 51, 1) is one particle ("s ×2"); particles at no level
-  shown are skipped, so each particle hangs under the nearest ones above it that are shown. With **Vertices show**, the
-  vertex where its daughters were made stands on their line, a grey ◆ with its process in italics ("decay",
-  "hadronization"; "⋯" when particles were skipped in between); pointing at it (or a tap) names the particles in and
-  out. A hadron made from several partons (a string between the b and the s̄) hangs under the one of highest energy
-  and says "also from" the others (a click goes to it). "▸ 23 below" counts the particles at no level shown that it
-  made; a click lists them under it (unfolding it), with a hollow dot, each folding its own. A list of more than 50
-  shows the 50 largest and "show 50 more". A particle selected elsewhere (in the view, `X`) is unfolded to and
-  scrolled into view (one at no level shown under the particle it hides under). The particles the search finds are
-  marked, and the way to the 20 largest is open while the search is typed (clearing it folds them back); the
-  controls say how many it found, and Enter or "next" picks the next one. Where the panel is beside the view and tall
-  enough, the levels and the controls stay at its top while the graph scrolls. In the tree, ↑ ↓ move between the names and → ← unfold and fold (there they
-  do not step the event or the focus level). The whole event hangs from its collisions, each a vertex (◆), where its particles came out of:
+  particle to the ones it made. The whole event hangs from its collisions, each a vertex (◆, its name in italics),
+  where its particles came out of:
   - **◆ signal collision**, open, named by its beams ("p p, 14 TeV"), or where it happened when the file has no
-    beams (a truth preset's bundle):
+    beams (a truth preset's bundle). Under it:
     - **◆ hard scatter**, open: the outgoing legs of the hard scatter (level HardProcess) under the particles they
       came from, so `t → b W⁺` and `W⁺ → s̄ c`, and everything below them (with the hard process hidden, what came
-      from it stays here). A truth preset's signal process hangs here too;
-    - **underlying event**, folded: the rest of the signal collision, with how many particles it lists. The
+      from it stays here), unfolded down to the b / c hadrons and τ. A truth preset's signal process hangs here too;
+    - **underlying event**, folded, with how many particles it lists: the rest of the signal collision. The
       generator's strings mix initial-state radiation, multiple interactions and the beam remnants, so they are not
       split further (a hadron at η 8 and one at η 1 can come from the same string).
 
     Without a hard process (a particle gun, also a truth preset's), the collision's particles hang straight under it;
-  - **pile-up**, folded: the other collisions of the bunch crossing (about 180 at 200 pile-up), each folded and
-    named by where it happened ("◆ z -6.75 mm"), with the summed pT of the particles it lists and how many they are.
-    The hardest (largest summed pT) comes first, so the order can change with the levels shown. Pile-up has no
-    generator history, so its particles hang straight under their collision. A folded collision costs nothing to
-    show.
+  - **pile-up**, folded, with how many collisions: the other collisions of the bunch crossing (about 180 at 200
+    pile-up), each a folded **◆** named by where it happened ("z -6.75 mm"), with the summed pT of the particles it
+    lists and how many they are. The hardest (largest summed pT) comes first, so the order can change with the levels
+    shown. Pile-up has no generator history, so its particles hang straight under their collision. A folded
+    collision costs nothing to show.
+
+  A particle row has its tick, a dot in its level's colour, its name and its energy. A particle that the generator
+  wrote several times (status 23, 51, 1) is one particle ("s ×2"); particles at no level shown are skipped, so each
+  particle hangs under the nearest ones above it that are shown. With **Vertices show**, the vertex where its
+  daughters were made stands on their line, a grey ◆ with its process in italics ("decay", "hadronization"; "⋯" when
+  particles were skipped in between); pointing at it (or a tap) names the particles in and out. A hadron made from
+  several partons (a string between the b and the s̄) hangs under the one of highest energy and says "also from" the
+  others (a click goes to it). "▸ 23 below" counts the particles at no level shown that it made; a click lists them
+  under it (unfolding it), with a hollow dot, each folding its own. A list of more than 50 particles or collisions
+  shows the 50 largest and "show 50 more". A particle selected elsewhere (in the view, `X`) is unfolded to and
+  scrolled into view, the pile-up and its collision or the underlying event opening above it (one at no level shown
+  under the particle it hides under). The particles the search finds are marked, and the way to the 20 largest is
+  open while the search is typed (clearing it folds them back); the controls say how many it found, and Enter or
+  "next" picks the next one. Where the panel is beside the view and tall enough, the levels and the controls stay at
+  its top while the graph scrolls. In the tree, ↑ ↓ move between the names and → ← unfold and fold (there they do not
+  step the event or the focus level).
 
   A click on a particle's name picks it alone: the card describes it, and the view draws it. Its tick adds it to the
   particles drawn (or takes it out); the card describes the last one picked. The hits and reco objects drawn, and

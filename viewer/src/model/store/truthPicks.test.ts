@@ -41,7 +41,8 @@ const csr = (rows: number[][]) => ({
   weights: {},
 });
 // Truth particles 0 (made at vertex 0, ends at vertex 1) -> 1 (made at vertex 1, ends at vertex 3), and 2 on its own
-// (vertex 2); each left energy in hit 0, 1, 2. Energies 5, 0.5 and 0.2 GeV, against a cut of 1 GeV.
+// (vertex 2); each left energy in hit 0, 1, 2. Energies 5, 0.5 and 0.2 GeV, against a cut of 1 GeV. Track 0 (pT 0.5
+// GeV, below its cut of 1 GeV) is matched to particle 1.
 const header = {
   display: [
     layer("Part", {
@@ -52,6 +53,7 @@ const header = {
     }),
     layer("Vtx", { truth: true, onSelection: true }),
     layer("Hit", { repr: "cells" }),
+    layer("Track", { cut: { group: "Track pT", unit: "GeV", default: 1, column: "pt" } }),
   ],
   tables: {},
   relations: {
@@ -59,6 +61,7 @@ const header = {
     prod: { from: "Part", to: "Vtx", weights: [] },
     decay: { from: "Part", to: "Vtx", weights: [] },
     hits: { from: "Part", to: "Hit", weights: [], association: true },
+    trackTruth: { from: "Track", to: "Part", weights: [], association: true },
   },
 } as unknown as Header;
 const ints = (xs: number[]) => Int32Array.from(xs);
@@ -79,12 +82,14 @@ const ev = {
     },
     Vtx: { n: 4, columns: { x: new Float32Array(4) } },
     Hit: { n: 3, columns: { x: new Float32Array(3) } },
+    Track: { n: 1, columns: { x: new Float32Array(1), pt: Float32Array.from([0.5]) } },
   },
   relations: {
     kids: csr([[1], [], []]),
     prod: csr([[0], [1], [2]]),
     decay: csr([[1], [3], []]),
     hits: csr([[0], [1], [2]]),
+    trackTruth: csr([[1]]),
   },
 } as unknown as EventData;
 const at = (table: string, row = 0): Ref => ({ table, row });
@@ -96,8 +101,8 @@ beforeEach(() => {
   rawEvent.value = ev;
   selection.value = null;
   truthDraw.value = "descendants";
-  visible.value = { "Part:markers": true, "Vtx:markers": true, "Hit:cells": true };
-  cuts.value = { "Truth E": 1 };
+  visible.value = { "Part:markers": true, "Vtx:markers": true, "Hit:cells": true, "Track:markers": true };
+  cuts.value = { "Truth E": 1, "Track pT": 1 };
 });
 
 describe("picking truth particles", () => {
@@ -182,10 +187,21 @@ describe("picking truth particles", () => {
       [0, 2],
       [0, 1, 2],
     ]);
-    cuts.value = { "Truth E": 0 };
+    cuts.value = { "Truth E": 0, "Track pT": 1 };
     expect([rows(part), rows(vtx)]).toEqual([
       [0, 1, 2],
       [0, 1, 2, 3],
+    ]);
+  });
+  it("cuts the picks' truth by the truth cut alone, not by the cut of the reco matched to it", () => {
+    const [part, vtx] = header.display,
+      rows = (d: DisplayLayer) => [...onlyFor(d, `${d.table}:markers`, highlight.value, false)!].sort();
+    cuts.value = { "Truth E": 0.3, "Track pT": 1 }; // particle 1 (0.5 GeV) passes; its only track (0.5 GeV) does not
+    pickTruth(0);
+    expect(drawn("Track")).toEqual([0]);
+    expect([rows(part), rows(vtx)]).toEqual([
+      [0, 1],
+      [0, 1, 3],
     ]);
   });
 });

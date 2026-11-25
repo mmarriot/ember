@@ -54,17 +54,18 @@ export const replayOnly = (d: DisplayLayer, key: string, hl: Highlight, replayin
 /** For a layer drawn only for the focus: the rows to keep (none without a focus), less those reached only from objects
  *  a cut hides (the hits and truth of a vertex's tracks below the pT cut), but the selected object; else undefined.
  *  Drawn only for the focus: a layer the view leaves out (another part's, or unticked: store/selection.ts focusRows),
- *  and an `onSelection` layer. While the focus is one of the Truth tab's picks, the truth layers' rows are cut too (the
- *  descendants below the truth particle energy cut, and the vertices only they reach), but the picks themselves and
- *  their vertices. */
+ *  and an `onSelection` layer. While the focus is one of the Truth tab's picks, the truth layers' rows are cut by the
+ *  truth cut alone (the descendants below the truth particle energy cut, and the vertices only they reach), never by
+ *  the cut of the reco matched to them, and the picks themselves and their vertices stay. */
 export const onlyFor = (d: DisplayLayer, key: string, hl: Highlight, replaying: boolean) => {
   // a replay draws every reconstruction stage of the view whole, also one holding the selection
   const forFocus = replaying && d.stage !== undefined && inDomain(d) ? undefined : untracked(() => focusRows(d));
   if (!forFocus && (!d.onSelection || showAll.peek()[key] || replayOnly(d, key, hl, replaying))) return undefined;
   const rows = forFocus ?? hl?.get(d.table);
   if (!rows) return (!hl && truthPreview(d)) || new Set<number>(); // before a selection, the truth colours' particles
-  const cut = belowCut(d.table, hl!);
-  if (d.truth && d.cut && focusPicked.peek()) {
+  const picked = !!d.truth && focusPicked.peek(),
+    cut = belowCut(d.table, hl!, picked);
+  if (picked && d.cut) {
     const col = event.peek()?.tables[d.table]?.columns[d.cut.column],
       min = cuts.peek()[d.cut.group] ?? 0;
     if (col) for (const r of rows) if (Number(col[r]) < min) cut.add(r);
@@ -83,8 +84,9 @@ function pinned(table: string, row: number) {
 }
 
 /** The focus's objects of `table` reached only from focus objects (not pinned ones) that fail their layer's cut,
- *  across every relation into `table`. */
-function belowCut(table: string, hl: Map<string, Set<number>>) {
+ *  across every relation into `table` (with `truthOnly`, only from truth tables: the picks' vertices follow their
+ *  particles, and a track below its pT cut does not hide the particle it is matched to). */
+function belowCut(table: string, hl: Map<string, Set<number>>, truthOnly = false) {
   const h = bundle.peek()?.header,
     ev = event.peek(),
     c = cuts.peek(),
@@ -95,7 +97,7 @@ function belowCut(table: string, hl: Map<string, Set<number>>) {
       rel = ev?.relations[name],
       from = hl.get(r.from),
       col = p?.cut && ev?.tables[r.from]?.columns[p.cut.column];
-    if (r.to !== table || r.from === table || !p?.cut || !rel || !from || !col) continue;
+    if (r.to !== table || r.from === table || !p?.cut || !rel || !from || !col || (truthOnly && !p.truth)) continue;
     const min = c[p.cut.group] ?? 0;
     for (const f of from) {
       const into = Number(col[f]) >= min || pinned(r.from, f) ? kept : hidden;

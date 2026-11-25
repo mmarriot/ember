@@ -102,8 +102,11 @@ export function helices(input: LayerInput): Layer {
       pick,
     } = cached,
     [x, y, z] = paths.end;
-  // Truth drawn for a selection (a few lines) is a ribbon: thin, with an edge of the background's colour (TRUTH).
-  // Drawn whole (100k lines at PU200), it stays one-pixel lines: a ribbon costs about four times the vertex work.
+  // Truth drawn only for some rows (`limited`: the focus's, or before a selection the truth colours' particles) is a
+  // ribbon: thin, the selection's with an edge of the background's colour (TRUTH); with nothing selected it is 1 px
+  // with no edge, as the lines. Drawn whole (Others "show all", a replay: 100k lines at PU200), it stays one-pixel lines
+  // with the usual HALO_PX halo, as a ribbon costs about four times the vertex work, and keying the style on the
+  // selection would rebuild that whole layer on every click.
   const truth = !!d.truth && !!input.limited,
     g = new THREE.InstancedBufferGeometry(),
     wide = (d.width ?? 1) > 1 || truth;

@@ -486,6 +486,8 @@ objects that left hits, and the tree, which folds. With truth, from the top:
     pair view (the pid and truth colours), they stay the pair's, that of the last one picked;
   - the lines are thin (2 px, the selected one 2.5 px) and dashed, with an edge of the background's colour on each
     side so they read over hits and over each other, and the selected one has a one-pixel halo in the accent colour.
+    When the truth particles are drawn whole instead (**Others** showing everything, or a replay), they keep the look
+    of the whole table: one-pixel lines, the selected one with the wider accent halo of any selected line.
     The vertices are rings of constant size on top of the lines, coloured by their reason (decay, hadronization,
     hadronic inelastic, …), hollow so that the lines through them and rings that overlap stay readable. They are
     drawn whether or not the Vertices collection is ticked, and so are the particles if Particles is unticked;

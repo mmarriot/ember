@@ -113,6 +113,43 @@ describe("treeRows", () => {
     s.heads.set("pu2", true);
     expect(text(rows(s))).toEqual(["[s] ▸", "[pile-up] ▾", "  [2] ▾", "    π⁺", "    γ", "  [1] ▸"]);
   });
+  it("leaves out a hard scatter or an underlying event with nothing under it", () => {
+    const hard = levelGraph(g, "levelFlags", "isSignal", DEFAULT_LEVELS & ~RECO); // no π⁻ of the underlying event
+    expect(text(treeRows(hard, g, emptyState(), true, new Set())).filter((x) => x.includes("["))).toEqual([
+      "[s] ▾",
+      "  [scatter] ▾",
+    ]);
+  });
+  it("opens for the search only the way to what it found, not the first particles of each collision", () => {
+    const n = 2 * LIST,
+      // collision 1: n π⁺, largest first; the search finds the last
+      many = graphOf(
+        {
+          n,
+          columns: {
+            pdgId: Array(n).fill(211),
+            status: Array(n).fill(1),
+            energy: Array.from({ length: n }, (_, i) => n - i),
+            levelFlags: Array(n).fill(RECO),
+            isSignal: Array(n).fill(0),
+            eventIndex: Array(n).fill(1),
+          },
+        },
+        csr(Array.from({ length: n }, () => [])),
+      );
+    const mlg = levelGraph(many, "levelFlags", "isSignal", DEFAULT_LEVELS),
+      path = pathTo(many, mlg, n - 1)!;
+    const r = treeRows(mlg, many, emptyState(), true, new Set(path.tops), reveal(emptyState(), path));
+    const shape = (x: Row) =>
+      x.kind === "head" ? `${x.head.kind}${x.open ? " ▾" : ""}` : x.kind === "more" ? `+${x.left}` : x.kind;
+    expect(r.map(shape)).toEqual(["pileup ▾", "collision ▾", "particle", `+${n - 1}`]);
+    expect(r[2].kind === "particle" && mlg.particles[r[2].node].top).toBe(n - 1);
+    // opened by hand, it lists its first ones too
+    const s = reveal(emptyState(), path);
+    expect(treeRows(mlg, many, s, true, new Set(path.tops)).filter((x) => x.kind === "particle")).toHaveLength(
+      LIST + 1,
+    );
+  });
   it("hangs a collision without a hard scatter's particles straight under it", () => {
     // a particle gun: two π at vertex 0, the signal collision
     const gun = graphOf(

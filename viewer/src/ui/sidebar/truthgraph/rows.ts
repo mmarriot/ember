@@ -151,9 +151,10 @@ export function treeRows(
   // The collisions that hold a kept particle: listed whatever the length of the pile-up's list.
   const kept = new Set<Collision>();
   for (const t of keep) if (lg.nodeOf[t] >= 0) kept.add(P[lg.nodeOf[t]].collision);
-  /** The items of list `list` shown (its first ones and those `kept`), and a "more" entry for the rest. */
-  const part = <T>(list: string, items: T[], kept: (x: T) => boolean) => {
-    const n = s.more.get(list) ?? LIST,
+  /** The items of list `list` shown (its first ones, unless only `kept` ones are asked for, and those `kept`), and a
+   *  "more" entry for the rest. */
+  const part = <T>(list: string, items: T[], kept: (x: T) => boolean, first = true) => {
+    const n = s.more.get(list) ?? (first ? LIST : 0),
       shown = keep.size ? items.filter((x, k) => k < n || kept(x)) : items.slice(0, n);
     const more: Entry[] =
       shown.length < items.length ? [{ kind: "more", list, left: items.length - shown.length }] : [];
@@ -177,19 +178,21 @@ export function treeRows(
     const h = part(list, tops, (t) => keep.has(t));
     return [...h.shown.map((top): Entry => ({ kind: "hidden", top })), ...h.more];
   };
-  /** A collision's roots, or what else a head holds, while it is open. */
-  const roots = (list: string, nodes: number[]): Entry[] => {
-    const r = part(list, nodes, (i) => keep.has(P[i].top));
+  /** A collision's roots, or what else a head holds, while it is open; `first`: its first ones too (else only the kept
+   *  ones: the head is open only for the search, which opens the way to its matches and not 50 roots of each of up
+   *  to 20 collisions). */
+  const roots = (list: string, nodes: number[], first: boolean): Entry[] => {
+    const r = part(list, nodes, (i) => keep.has(P[i].top), first);
     return [...r.shown.map((node): Entry => ({ kind: "particle", node })), ...r.more];
   };
-  const held = (h: Head, list: string): Entry[] => {
+  const held = (h: Head, list: string, first: boolean): Entry[] => {
     if (h.kind === "pileup") {
-      const r = part(list, lg.pileup, (c) => kept.has(c));
+      const r = part(list, lg.pileup, (c) => kept.has(c), first);
       return [...r.shown.map((c): Entry => ({ kind: "head", head: { kind: "collision", c } })), ...r.more];
     }
     const c = h.c;
-    if (h.kind !== "collision") return roots(list, h.kind === "scatter" ? c.hard : c.rest);
-    if (!c.scatter) return roots(list, c.rest);
+    if (h.kind !== "collision") return roots(list, h.kind === "scatter" ? c.hard : c.rest, first);
+    if (!c.scatter) return roots(list, c.rest, first);
     return (["scatter", "underlying"] as const)
       .filter((kind) => (kind === "scatter" ? c.hard : c.rest).length)
       .map((kind): Entry => ({ kind: "head", head: { kind, c } }));
@@ -198,9 +201,10 @@ export function treeRows(
   const add = (e: Entry, place: Place, hard: boolean): Entry[] => {
     if (e.kind === "head") {
       const k = headKey(e.head),
-        open = force.heads.get(k) || (s.heads.get(k) ?? openHead(e.head));
+        mine = s.heads.get(k) ?? openHead(e.head),
+        open = mine || !!force.heads.get(k);
       out.push({ ...place, ...e, open });
-      return open ? held(e.head, k) : [];
+      return open ? held(e.head, k, mine) : [];
     }
     if (e.kind === "particle") {
       const p = P[e.node],

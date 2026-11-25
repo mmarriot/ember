@@ -193,7 +193,11 @@ export function TreeView({ lg, g, particles, vertices }: GraphViewProps) {
     if (h.kind === "underlying") return ["underlying event", false, [count(h.c.rest.length, "particle")]];
     const where = collisionName(h.c, g, particles);
     if (h.c.signal) return ["signal collision", true, where ? [where] : []];
-    return [where || "collision", true, [`ΣpT ${short(h.c.pt)} GeV`, count(h.c.rest.length, "particle")]];
+    return [
+      where || (h.c.id >= 0 ? `collision ${h.c.id}` : "collision"),
+      true,
+      [`ΣpT ${short(h.c.pt)} GeV`, count(h.c.rest.length, "particle")],
+    ];
   };
 
   const line = (r: Row) => {

@@ -7,7 +7,8 @@ segmentation of each subdetector, and are checked against every cell of the Run 
               type) or half the tile's width, r dphi / 2 (288 tiles in phi, 432 fine ones)
   ecalEndcap  ECAL endcap crystals: dEta and dPhi of an eta-phi bin with the area of the crystal's 2.862 cm square face
   preshower   preshower strips: the unit vectors u (across, 1.9 mm) and v (along, 6.1 cm) of the strip
-  hcal        HB, HE, HF, HO: dEta, dPhi and depth (cm, front to back face) from the |ieta| and depth of the DetId
+  hcal        HB, HE, HF, HO: dEta, dPhi and depth (cm, from the front face outwards: radial in HB and HO, along z in
+              HE and HF) from the |ieta| and depth of the DetId
 """
 
 import numpy as np
@@ -25,7 +26,7 @@ COLUMNS = {
     "hcal": {
         "dEta": "eta width of the tower",
         "dPhi": "phi width of the tower",
-        "depth": "depth of the cell, from its front to its back face [cm]",
+        "depth": "depth of the cell from its front face outwards [cm]: radial in HB and HO, along z in HE and HF",
     },
 }
 
@@ -42,7 +43,9 @@ HCAL_SUBDETS = {1: "HB", 2: "HE", 3: "HO", 4: "HF"}
 
 # (subdetector, |ieta|) -> {depth: (dEta, dPhi [degrees], depth [cm])} of the Run 3 geometry, from the geometry sweep
 # (median per cell kind; every cell of a kind agrees within 1e-4). Phase 2 (D104) has the same HB, HF and HO but for
-# one cell, in HCAL_PHASE2.
+# one cell, in HCAL_PHASE2. The depth is the sweep's thickness, from the front face's centre to the back face's along
+# the line from the origin; _hcal projects it onto the face's normal (HB, HE, HO), as the viewer's towers grow from
+# the face along its normal.
 HCAL = {
     ("HB", 1): {1: (0.087, 5, 0.9), 2: (0.087, 5, 18.5), 3: (0.087, 5, 24.5), 4: (0.087, 5, 44)},
     ("HB", 2): {1: (0.087, 5, 0.9), 2: (0.087, 5, 18.6), 3: (0.087, 5, 24.7), 4: (0.087, 5, 44.4)},
@@ -200,24 +203,30 @@ def compute(rule, det_id, x, y, z, geometry="run3"):
             "vx": np.where(across_x, zero, one), "vy": np.where(across_x, one, zero), "vz": zero,
         }  # fmt: skip
     elif rule == "hcal":
-        out = _hcal(det_id, geometry)
+        out = _hcal(det_id, r, z, geometry)
     else:
         raise ValueError(f"unknown cell rule {rule}; known: {', '.join(COLUMNS)}")
     return {c: v.astype(np.float32) for c, v in out.items()}
 
 
-def _hcal(det_id, geometry):
+def _hcal(det_id, r, z, geometry):
     """dEta, dPhi, depth of HCAL cells from the HCAL tables (NaN for a cell they lack, or another detector): each
-    cell's (subdetector, |ieta|, depth) is looked up among the table's sorted keys, one numpy search for all rows."""
+    cell's (subdetector, |ieta|, depth) is looked up among the table's sorted keys, one numpy search for all rows.
+    The table's depth, along the line from the origin through the cell at (r, z), becomes radial in HB and HO (times
+    r / R, R the distance from the origin: 1 / cosh eta) and along z in HE (times |z| / R: |tanh eta|); HF's is already
+    along z."""
     keys, values = _hcal_lookup(geometry)
     new = ((det_id >> 24) & 1) == 1  # the HcalDetId layout since 2017 (bit 24), else the one before
     ieta = np.where(new, (det_id >> 10) & 0x1FF, (det_id >> 7) & 0x3F)
     depth = np.where(new, (det_id >> 20) & 0xF, (det_id >> 14) & 0x1F)
-    key = _hcal_key((det_id >> 25) & 7, ieta, depth)
+    subdet = (det_id >> 25) & 7
+    key = _hcal_key(subdet, ieta, depth)
     pos = np.minimum(np.searchsorted(keys, key), len(keys) - 1)
     found = ((det_id >> 28) == DET_HCAL) & (keys[pos] == key)
     out = np.where(found[:, None], values[pos], np.nan)
-    return {"dEta": out[:, 0], "dPhi": np.radians(out[:, 1]), "depth": out[:, 2]}
+    R = np.hypot(r, z)
+    along = np.select([np.isin(subdet, (1, 3)), subdet == 2], [r / R, np.abs(z) / R], 1.0)  # HB and HO, HE; HF 1
+    return {"dEta": out[:, 0], "dPhi": np.radians(out[:, 1]), "depth": out[:, 2] * along}
 
 
 def _hcal_key(subdet, ieta, depth):

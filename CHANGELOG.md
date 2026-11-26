@@ -244,6 +244,10 @@ with a message while an old one is set without its new name. `deploy.sh` links `
   - Pressing R with nothing drawn, and a dropped file during the tour, no longer leave the replay's or the tour's
     drawing on.
 - **The command:**
+  - HCAL cells are as deep as they are in the geometry. Their depth was measured along the line from the origin and
+    drawn radially (HB) or along z (HE), so the depths of a barrel tower overlapped by up to 16 cm at |η| 1.3 and the
+    outer one ended 40 cm past the barrel; HE cells were up to 15% too deep. Convert a bundle again to fix it (the
+    legacy `calo` profile, which reads the earlier export's thickness column, is unchanged).
   - `ember step3.root --events ... --max-events N` finds the events anywhere in the file.
   - `ember validate` reports a damaged record and goes on to the others.
   - `ember list` and `ember rm` run without numpy (before `cmsenv`); a command that needs it says to run `cmsenv`.

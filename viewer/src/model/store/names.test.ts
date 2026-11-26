@@ -3,7 +3,7 @@ import type { Bundle } from "../../io/bundle";
 import type { EventData } from "../../io/format";
 // The store sets the page's theme as it loads: a stand-in page (the tests run without a DOM).
 Object.assign(globalThis, { document: { documentElement: { dataset: {} } } });
-const { bundle, describe, nameOf, numberOf, showEvent } = await import(".");
+const { bundle, cardNameOf, chipText, describe, nameOf, numberOf, showEvent, truthText } = await import(".");
 
 group("describe", () => {
   it("names a value by `names`, else after its `prefix` or its column, with its unit", async () => {
@@ -126,5 +126,42 @@ group("numberOf", () => {
     // ranked again for the next event
     await showEvent(1);
     expect([0, 1, 2].map((r) => numberOf("Ele", r))).toEqual([1, 3, 2]);
+  });
+});
+
+group("truthText", () => {
+  it("names a truth particle by pT and η everywhere, without a number; a beam particle by its energy", async () => {
+    const columns = {
+      pdgId: new Int32Array([11, 2212]),
+      pt: new Float32Array([39.4, 0]),
+      eta: new Float32Array([1.22, 1e10]),
+      energy: new Float32Array([72.6, 7000]),
+    };
+    const ev = { id: [1, 1, 0], tables: { P: { n: 2, columns } }, relations: {} } as unknown as EventData;
+    const doc = { type: "f4", doc: "" };
+    bundle.value = {
+      header: {
+        display: [
+          {
+            table: "P",
+            label: "Particles",
+            repr: "helix",
+            truth: true,
+            particle: { flags: "levelFlags", bit: 2 },
+            describe: { columns: ["pdgId", "energy"], names: { pdgId: { "11": "e⁻", "2212": "p" } } },
+          },
+        ],
+        tables: { P: { doc: "", columns: { pdgId: doc, pt: doc, eta: doc, energy: doc } } },
+        relations: {},
+      },
+      events: [{}],
+      event: async () => ev,
+      keep: () => {},
+    } as unknown as Bundle;
+    await showEvent(0);
+    const e = { table: "P", row: 0 };
+    expect(truthText("P", 0)).toBe("e⁻ · pT 39.4 · η 1.22");
+    expect([nameOf(e), cardNameOf(e)[0], chipText("P", 0)]).toEqual(Array(3).fill("e⁻ · pT 39.4 · η 1.22"));
+    expect(truthText("P", 1)).toBe("p · E 7000 GeV");
   });
 });

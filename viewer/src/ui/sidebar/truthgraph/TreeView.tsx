@@ -113,7 +113,10 @@ export function TreeView({ lg, g, particles, vertices }: GraphViewProps) {
   });
 
   const name = (top: number) => names[String(g.col("pdgId", top))] ?? `pdgId ${g.col("pdgId", top)}`;
-  const energy = (row: number) => <span class="tg-e">{short(g.col("energy", row))} GeV</span>;
+  // A particle's numbers as everywhere (store/names.ts truthText): pT and η, a beam particle's energy.
+  const energy = (row: number) => (
+    <span class="tg-e">{truthText(particles, row).split(" · ").slice(1).join(" · ")}</span>
+  );
   const toggle = (row: Row) =>
     update(ev, (s) => {
       if (row.kind === "head") return { ...s, heads: new Map(s.heads).set(headKey(row.head), !row.open) };

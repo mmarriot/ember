@@ -99,7 +99,7 @@ export function graphOf(
 
 const NEUTRINOS = new Set([12, 14, 16]);
 /** Geant4 / generator vertex reasons (truth::VertexReason) that the summaries below read. */
-export const REASON = { decay: 2, brem: 3, conversion: 5, hadronicInelastic: 11 } as const;
+export const REASON = { decay: 2, brem: 3, conversion: 5, hadronicInelastic: 11, hadronization: 19 } as const;
 
 /** A distance in cm in a sensible unit: "12 µm", "0.74 mm", "26.3 cm". */
 export function length(cm: number) {
@@ -117,6 +117,58 @@ export function copiesBelow(g: Graph, r: number): number[] {
     if (k === undefined) break;
     out.push(k);
   }
+  return out;
+}
+/** Every particle above `r` in the graph (its parents, theirs, ...: generator copies included). */
+export function ancestorsOf(g: Graph, r: number): Set<number> {
+  const out = new Set<number>(),
+    todo = [r];
+  while (todo.length)
+    for (const q of g.parents(todo.pop()!))
+      if (!out.has(q)) {
+        out.add(q);
+        todo.push(q);
+      }
+  return out;
+}
+/** Whether particles `a` and `b` are one line of the graph: one is above the other (or they are the same). */
+export const sameLine = (g: Graph, a: number, b: number) =>
+  a === b || ancestorsOf(g, a).has(b) || ancestorsOf(g, b).has(a);
+/** The generator's internals: quarks, gluons, generator codes (81-100), diquarks (e.g. 2101). */
+function isParton(pdgId: number) {
+  const id = Math.abs(pdgId);
+  return id <= 8 || id === 21 || (id >= 81 && id <= 100) || (id > 1000 && id < 6000 && Math.floor(id / 10) % 10 === 0);
+}
+
+/** The ancestors of truth particle `row` named in its card's crumb ("t → W⁻ → e⁻"), oldest first, each by its first
+ *  copy, `null` where some are left out: those of the hard process (`hard`: a leg; also the particle a leg came from,
+ *  as the Truth tab's tree counts them), and up to `near` nearest ones, up to the first parton of the generator. By
+ *  first parents (a hadron from a string follows the parton it hangs under in the tree). */
+export function crumbOf(g: Graph, row: number, hard: (r: number) => boolean, near = 3): (number | null)[] {
+  const up: number[] = [];
+  for (let r = g.top[row], seen = new Set<number>([r]); ; ) {
+    const p = g.parents(r)[0];
+    if (p === undefined || seen.has(g.top[p])) break;
+    r = g.top[p];
+    seen.add(r);
+    up.push(r);
+  }
+  const isHard = (a: number) => hard(a) || g.children(g.last[a]).some(hard);
+  const keep = new Set<number>();
+  for (const a of up) {
+    if (isParton(g.col("pdgId", a)) || isHard(a) || keep.size === near) break;
+    keep.add(a);
+  }
+  for (const a of up) if (isHard(a)) keep.add(a);
+  const out: (number | null)[] = [];
+  let gap = false;
+  for (let i = up.length - 1; i >= 0; i--)
+    if (keep.has(up[i])) {
+      if (gap && out.length) out.push(null);
+      out.push(up[i]);
+      gap = false;
+    } else gap = true;
+  if (gap && out.length) out.push(null);
   return out;
 }
 /** The top of `r`'s generator copies (see copiesBelow). */
@@ -314,7 +366,8 @@ export function decayVertexMatches(
 /** A truth vertex in words: the particle that made its particles, its reason, and the charged particles the graph
  *  keeps from it ("B⁰ decay · 3 charged"). `reasons`: the reasons' names (the vertex layer's categories). */
 export function vertexText(g: Graph, v: number, name: (r: number) => string, reasons: Record<string, string>) {
-  const r = g.into(v),
+  // A hadronization joins a string of partons: the first of them (often a gluon) does not name it.
+  const r = g.vcol("reason", v) === REASON.hadronization ? -1 : g.into(v),
     reason = reasons[String(g.vcol("reason", v))] ?? "vertex",
     charged = g.outOf(v).filter((c) => g.col("charge", c) !== 0 && Number.isFinite(g.col("charge", c))).length;
   return `${r >= 0 ? `${name(r)} ` : ""}${reason}${charged ? ` · ${charged} charged` : ""}`;

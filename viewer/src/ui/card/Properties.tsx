@@ -2,6 +2,7 @@
 import type { Table } from "../../io/format";
 import { colourBy, customColumns, customDoc } from "../../model/custom/settings";
 import { cellText, isCopied, isIndex } from "../../model/event/describe";
+import { columnName } from "../../model/event/objects";
 import { bundle, layerKey, layerOf, sizeColumn } from "../../model/store";
 
 /** An object's key columns: its layer's `inspect` columns (e.g. a jet's pT, η, φ), else what colours, places and sizes
@@ -40,18 +41,52 @@ export function Rows({ name, table, row, columns }: { name: string; table: Table
   );
 }
 
-/** All its columns, folded; a truth object's key columns too (a reco object's are in Physics.tsx). */
-export function Properties({ table, name, row }: { table: Table; name: string; row: number }) {
-  const truth = !!layerOf(name)?.truth,
-    n = Object.keys(table.columns).length;
+/** An object's key numbers as small tiles, name over value (`columns` of `table`; `extra`: [name, value, title]
+ *  pairs worked out elsewhere, first). The name is the column's short name ("φ"), its doc behind it. */
+export function Numbers({
+  name,
+  table,
+  row,
+  columns,
+  extra = [],
+}: {
+  name: string;
+  table: Table;
+  row: number;
+  columns: string[];
+  extra?: [string, string, string?][];
+}) {
+  const h = bundle.value!.header,
+    info = h.tables[name],
+    d = layerOf(name);
+  const tiles = [
+    ...extra,
+    ...columns.map((c): [string, string, string?] => {
+      const [value, unit] = cellText(h, d, name, table, c, row);
+      return [columnName(c), unit ? `${value} ${unit}` : value, info?.columns[c]?.doc ?? customDoc(name, c)];
+    }),
+  ];
+  if (!tiles.length) return null;
   return (
-    <section class="props">
-      {truth && <Rows name={name} table={table} row={row} columns={keyColumns(name, table)} />}
-      <details class="allcolumns">
-        <summary>All {n} columns</summary>
-        <Rows name={name} table={table} row={row} columns={Object.keys(table.columns)} />
-      </details>
-    </section>
+    <dl class="numbers">
+      {tiles.map(([n, v, doc]) => (
+        <div title={doc}>
+          <dt>{n}</dt>
+          <dd>{v}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+/** All its columns, folded. */
+export function Properties({ table, name, row }: { table: Table; name: string; row: number }) {
+  const n = Object.keys(table.columns).length;
+  return (
+    <details class="allcolumns">
+      <summary>All {n} columns</summary>
+      <Rows name={name} table={table} row={row} columns={Object.keys(table.columns)} />
+    </details>
   );
 }
 /** A reco object's energy fractions (layer hint `fractions`, e.g. a jet's hadrons and photons) as one bar, in a

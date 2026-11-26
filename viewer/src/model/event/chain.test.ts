@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { DisplayLayer, EventData, Header } from "../../io/format";
-import { foldReco, recoLadder, recoOfTruth, type Ladder } from "./chain";
+import { recoByDetector, recoLadder, recoOfTruth, type Ladder } from "./chain";
 import { matchClass, matchTally, truthStatus, type TruthStatus } from "../truth/match";
 import { relatedParts } from "./relations";
 import { leadChoice, type PartLine, partChoices, truthStatement, whereItWent } from "../truth/statement";
@@ -267,10 +267,10 @@ describe("recoOfTruth", () => {
           table: "Trk",
           measure: "hits",
           in: "tracker",
-          partners: [{ row: 0, completeness: expect.closeTo(0.6), best: true, unmatched: false }],
+          partners: [{ row: 0, completeness: expect.closeTo(0.6), best: true, unmatched: false, owner: 0 }],
         },
       ],
-      hits: [{ in: "HGCal", hits: 2, energy: 4, weight: "simEnergy" }],
+      hits: [{ in: "HGCal", table: "Hit", hits: 2, energy: 4, weight: "simEnergy" }],
     });
   });
   it("keeps an empty entry where nothing of a matched kind was reconstructed", () => {
@@ -280,71 +280,109 @@ describe("recoOfTruth", () => {
   });
 });
 
-describe("foldReco", () => {
-  const p = (row: number, completeness?: number, best = false) => ({ row, completeness, best, unmatched: false });
-  const kind = (table: string, partners: ReturnType<typeof p>[], measure = "energy", within = "HGCal") => ({
+describe("recoByDetector", () => {
+  const p = (row: number, completeness?: number, best = false) => ({
+    row,
+    completeness,
+    best,
+    unmatched: false,
+    owner: -1,
+  });
+  const kind = (
+    table: string,
+    partners: ReturnType<typeof p>[],
+    measure = "energy",
+    within: string | undefined = "HGCal",
+  ) => ({
     table,
     measure,
     in: within,
     partners,
   });
-  // the same trackster at two levels: row r of "Cand" is row r + 10 of "Tks"
-  const same = (a: { table: string; row: number }, b: { table: string; row: number }) =>
-    a.table === b.table ? a.row === b.row : Math.abs(a.row - b.row) === 10;
-  it("folds the objects that hold under 5% of the particle into the count, and keeps at most four, best first", () => {
+  const h = {
+    domains: [{ name: "Tracker" }, { name: "Calo" }, { name: "HGCal" }],
+    display: [
+      { table: "Cand", domain: "HGCal", stage: 2 },
+      { table: "Tks", domain: "HGCal", stage: 0 },
+      { table: "Hits", domain: "HGCal" },
+      { table: "Ecal", domain: "Calo" },
+      { table: "HF", domain: "Calo" },
+      { table: "Trk", domain: "Tracker" },
+    ],
+  } as unknown as Header;
+  const hits = (within: string, table: string, n: number) => ({ in: within, table, hits: n, energy: 0, weight: "" });
+  it("names per detector the compared kind (the first, latest stage) and its largest holders from 5%, at most three", () => {
+    const [line] = recoByDetector(h, {
+      reco: [
+        kind("Cand", [p(0, 0.67), p(1, 0.11, true), p(2, 0.06), p(3, 0.05), p(4, 0.01, true)]),
+        kind("Tks", [p(10, 0.3)]),
+      ],
+      hits: [],
+    });
+    expect(line).toEqual({
+      in: "HGCal",
+      table: "Cand",
+      measure: "energy",
+      objects: [p(0, 0.67), p(1, 0.11, true), p(2, 0.06)],
+      others: 2,
+      hits: 0,
+    });
+  });
+  it("keeps the largest holder under 5%, and no 0% object beside it, its own best or not", () => {
+    // a pion's only track holds 0.8% of its hits with its secondaries'
     expect(
-      foldReco([kind("Cand", [p(0, 0.86, true), p(1, 0.3), p(2, 0.2), p(3, 0.1), p(4, 0.06), p(5, 0.02)])], same),
-    ).toEqual([
-      {
-        tables: ["Cand"],
-        measure: "energy",
-        in: "HGCal",
-        partners: [p(0, 0.86, true), p(1, 0.3), p(2, 0.2), p(3, 0.1)],
-        folded: 2,
-      },
+      recoByDetector(h, { reco: [kind("Trk", [p(0, 0.008, true), p(1, 0, true)], "hits", "tracker")], hits: [] }),
+    ).toMatchObject([{ in: "tracker", objects: [p(0, 0.008, true)], others: 1 }]);
+  });
+  it("adds the hits a particle left to its detector's line, and gives a detector with hits alone a line of its own", () => {
+    const lines = recoByDetector(h, {
+      reco: [kind("Cand", [p(0, 0.5)]), kind("Ecal", [p(5, 0.86)], "energy", "ECAL")],
+      hits: [hits("HGCal", "Hits", 1762), hits("HF", "HF", 12)],
+    });
+    expect(lines.map((l) => [l.in, l.table, l.hits])).toEqual([
+      ["ECAL", "Ecal", 0],
+      ["HF", undefined, 12],
+      ["HGCal", "Cand", 1762],
     ]);
   });
-  it("keeps the objects of an association without completeness", () => {
-    expect(foldReco([kind("V", [p(0), p(1)], "pt2", undefined)], same)[0].partners).toEqual([p(0), p(1)]);
-  });
-  it("merges the levels that list the same objects, naming each, and counts what they fold once", () => {
-    expect(
-      foldReco(
-        [kind("Cand", [p(0, 0.86, true), p(1, 0.02)]), kind("Tks", [p(10, 0.86, true), p(11, 0.02), p(12, 0.01)])],
-        same,
-      ),
-    ).toEqual([{ tables: ["Cand", "Tks"], measure: "energy", in: "HGCal", partners: [p(0, 0.86, true)], folded: 2 }]);
-  });
-  it("always lists the objects whose own best match it is, under 5% or beyond four", () => {
-    // a pion's only track holds 0.8% of its hits with its secondaries', and the pion is its best match
-    expect(foldReco([kind("Trk", [p(0, 0.008, true)], "hits", "tracker")], same)[0]).toMatchObject({
-      partners: [p(0, 0.008, true)],
-      folded: 0,
+  it("orders the detectors as the domain bar, and keys an association without a detector by its table", () => {
+    const lines = recoByDetector(h, {
+      reco: [
+        kind("Cand", [p(0, 0.5)]),
+        { ...kind("V", [p(0)], "pt2"), in: undefined },
+        kind("Trk", [p(1, 0.9)], "hits", "tracker"),
+      ],
+      hits: [],
     });
-    // split into five tracksters, each best matched to it: all five, and no other beside them
-    const five = [0, 1, 2, 3, 4].map((r) => p(r, 0.3 - r * 0.05, true));
-    expect(foldReco([kind("Tks", [...five, p(5, 0.06)])], same)[0]).toMatchObject({ partners: five, folded: 1 });
+    expect(lines.map((l) => l.in)).toEqual(["tracker", "HGCal", "V"]);
   });
-  it("keeps apart levels whose objects differ in their parts, completeness, best mark or detector", () => {
-    const n = (r: Parameters<typeof foldReco>[0]) => foldReco(r, same).length;
-    expect(n([kind("Cand", [p(0, 0.86)]), kind("Tks", [p(11, 0.86)])])).toBe(2); // other parts
-    expect(n([kind("Cand", [p(0, 0.86)]), kind("Tks", [p(10, 0.7)])])).toBe(2);
-    expect(n([kind("Cand", [p(0, 0.86, true)]), kind("Tks", [p(10, 0.86)])])).toBe(2);
-    expect(n([kind("Cand", [p(0, 0.86)]), kind("Tks", [p(10, 0.86)], "energy", "ECAL")])).toBe(2);
+  it("leaves out a detector with nothing", () => {
+    expect(recoByDetector(h, { reco: [kind("Cand", [])], hits: [] })).toEqual([]);
   });
-  it("lists as one line the kinds of a detector whose objects all hold under 5% of a particle (a barrel one in HGCal)", () => {
-    expect(
-      foldReco(
-        [
-          kind("Cand", [p(0, 0.01)]),
-          kind("Tks", [p(10, 0.02), p(13, 0.01)]),
-          kind("Trk", [p(0, 0.3)], "hits", "tracker"),
-        ],
-        same,
-      ),
-    ).toEqual([
-      { tables: ["Cand", "Tks"], measure: "energy", in: "HGCal", partners: [], folded: 3 },
-      { tables: ["Trk"], measure: "hits", in: "tracker", partners: [p(0, 0.3)], folded: 0 },
+  it("keeps the compared kind when it holds nothing and an earlier step does, never falling back to that step", () => {
+    expect(recoByDetector(h, { reco: [kind("Cand", []), kind("Tks", [p(10, 0.3)])], hits: [] })).toEqual([
+      { in: "HGCal", table: "Cand", measure: "energy", objects: [], others: 0, hits: 0 },
+    ]);
+  });
+  it("gives kinds of one detector that are not steps of one chain a line each (primary and secondary vertices)", () => {
+    const hv = {
+      ...h,
+      display: [
+        { table: "PV", domain: "Tracker" },
+        { table: "SV", domain: "Tracker" },
+      ],
+    } as unknown as Header;
+    const lines = recoByDetector(hv, {
+      reco: [
+        kind("PV", [p(0, 0.83)], "pt2", "tracker"),
+        kind("SV", [p(2, 0.35)], "pt2", "tracker"),
+        kind("Trk", [], "hits", "tracker"),
+      ],
+      hits: [],
+    });
+    expect(lines.map((l) => [l.in, l.table])).toEqual([
+      ["tracker", "PV"],
+      ["tracker", "SV"],
     ]);
   });
 });
@@ -459,8 +497,17 @@ describe("truthStatement", () => {
   });
   it("says where a matched object's particle went, and which other particles it is the best match of", () => {
     expect(whereItWent(ev, header, "P", 0, "Trk", 0)).toEqual({
-      objects: [{ row: 0, completeness: expect.closeTo(0.6, 5), best: true, unmatched: false }],
+      objects: [{ row: 0, completeness: expect.closeTo(0.6, 5), best: true, unmatched: false, owner: 0 }],
       merges: [],
     });
+  });
+  it("counts as merged only the particles off its own particle's line of the graph", () => {
+    // particle 1 also has track 0 as its best: a merge, unless it is above or below particle 0 (a K⁰S and its π⁺)
+    const both = {
+      ...ev,
+      relations: { ...ev.relations, truthTrk: csr([[0], [0]], { frac: [0.6, 0.3] }) },
+    } as unknown as EventData;
+    expect(whereItWent(both, header, "P", 0, "Trk", 0).merges).toEqual([1]);
+    expect(whereItWent(both, header, "P", 0, "Trk", 0, (q) => q === 1).merges).toEqual([]);
   });
 });

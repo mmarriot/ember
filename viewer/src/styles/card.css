@@ -206,15 +206,12 @@
   gap: 3px;
   align-items: baseline;
 }
-.matchcard .lineage {
-  margin-bottom: 0;
-}
 .meters {
   margin: 4px 0 6px;
 }
 .meter {
   display: grid;
-  grid-template-columns: 92px 1fr 40px;
+  grid-template-columns: 88px 1fr 40px;
   align-items: center;
   column-gap: 8px;
   font-size: 12px;
@@ -250,10 +247,6 @@
   background: var(--text);
   opacity: 0.7;
 }
-.meter .mnote {
-  grid-column: 1 / -1;
-  font-size: 11px;
-}
 .pairhead {
   font-size: 12px;
   margin: 6px 0 3px;
@@ -280,9 +273,6 @@
 .pairlegend b {
   color: var(--text);
   font-weight: 600;
-}
-.props .kv {
-  margin-top: 2px;
 }
 .meter .mbar i.q-clean {
   background: var(--clean);
@@ -353,10 +343,7 @@ ul.matches li {
 .truthcard {
   margin: 0 0 8px;
 }
-.lineage {
-  margin: 0 0 8px;
-}
-/* A truth particle's head (ParticleFacts.tsx): kinematics, vertices, levels, physics from the graph. */
+/* A truth particle's facts (ParticleFacts.tsx): its numbers, where it was made and ended, physics from the graph. */
 .pfacts {
   margin: 4px 0 8px;
   font-size: 12px;
@@ -364,29 +351,10 @@ ul.matches li {
 .pfacts p {
   margin: 2px 0;
 }
-.pfacts .phead {
-  font-size: 12.5px;
-  font-variant-numeric: tabular-nums;
-}
 .pfacts .physics {
   margin-top: 4px;
   padding-top: 4px;
   border-top: 1px solid var(--line);
-}
-.lineage.crumb {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 3px 4px;
-  align-items: baseline;
-  font-size: 12px;
-  margin-top: 4px;
-}
-.lineage.crumb .chip,
-.lineage.crumb .badge {
-  margin: 0;
-}
-.lineage span.here > .chip {
-  outline: 1px dashed currentColor;
 }
 /* Inspector: a reco object's energy fractions, one bar in a neutral ramp. */
 .fractions {
@@ -520,10 +488,6 @@ ul.partlines li {
 .physline .rkind {
   margin-right: 4px;
 }
-.src {
-  color: var(--muted);
-  font-size: 10.5px;
-}
 .chooser {
   margin-top: 6px;
   padding: 6px 8px;
@@ -553,7 +517,8 @@ ul.partlines li {
   background: transparent;
   color: inherit;
 }
-.physics .pgroup h5 {
+.pgroup h5,
+.partstruth h5 {
   margin: 6px 0 2px;
   font-size: 10.5px;
   font-weight: 600;
@@ -561,11 +526,144 @@ ul.partlines li {
   letter-spacing: 0.04em;
   color: var(--muted);
 }
-.hint.delegated {
-  border-top: 1px solid var(--line);
-  padding-top: 6px;
+
+/* A truth particle's place under its name (Lineage.tsx Crumb): "t → W⁻ → e⁻". */
+.inspector .crumb {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 4px;
+  margin: 3px 0 0;
+  font-size: 12px;
 }
-/* Under the truth block's own heading, the match line needs no second "truth" badge. */
-.truthblock .truthcard > .truthline > .badge.truth {
-  display: none;
+.inspector .crumb .chip {
+  margin: 0;
+  padding: 0 6px;
+}
+
+/* An object's key numbers (Properties.tsx Numbers): small tiles, name over value. */
+dl.numbers {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  gap: 6px 10px;
+  margin: 2px 0 8px;
+}
+dl.numbers > div {
+  min-width: 0;
+}
+dl.numbers dt {
+  font-size: 10.5px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+dl.numbers dd {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+/* A truth object's answer (TruthSide.tsx): per detector, what holds it. */
+ul.reconlines {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.reconlines .rdet {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 12px;
+}
+.reconlines .rhits {
+  margin-left: auto;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.reconlines .robjs,
+.went .physline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 3px 6px;
+  margin-top: 2px;
+  font-size: 12px;
+}
+.reconlines .partner {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+}
+.reconlines .chip,
+.went .chip {
+  margin: 0;
+}
+.pct {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.tag-merged {
+  font-size: 10px;
+  padding: 0 5px;
+  border-radius: 3px;
+  border: 1px solid var(--impure);
+  color: var(--impure);
+}
+.went {
+  margin: 2px 0 4px;
+}
+.went .physline {
+  margin: 0 0 2px;
+}
+
+/* The evidence under one fold (Card.tsx More), its state remembered. */
+.inspector section.more {
+  padding: 4px 0 2px;
+}
+.moretoggle {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  width: 100%;
+  border: 0;
+  background: none;
+  color: inherit;
+  padding: 4px 0;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.moretoggle .muted {
+  font-weight: 400;
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.moretoggle .fold {
+  width: 10px;
+  color: var(--muted);
+}
+.moretoggle:hover .fold,
+.moretoggle:hover {
+  color: var(--accent);
+}
+.morebody > * + * {
+  margin-top: 8px;
+}
+.morebody > section {
+  padding-bottom: 0;
+}
+.partstruth .partlines li {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 1px;
 }

@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  ancestorsOf,
   bremOf,
+  crumbOf,
   conversionOf,
   copiesBelow,
   decayVertexMatches,
@@ -8,6 +10,7 @@ import {
   foldCopies,
   graphOf,
   length,
+  sameLine,
   vertexDistance,
   tauDecayOf,
   topCopy,
@@ -203,10 +206,53 @@ describe("the truth graph", () => {
     expect(vertexText(g, 5, names, reasons)).toBe("B⁰ decay · 3 charged");
     expect(vertexText(g, 3, names, reasons)).toBe("γ conversion · 2 charged"); // the photon whose daughters these are
   });
+  it("finds a particle's ancestors, and whether two particles are on one line of the graph", () => {
+    expect([...ancestorsOf(g, 21)].sort((a, b) => a - b)).toEqual([6, 7]); // a Compton electron of the π⁰'s photon
+    expect(sameLine(g, 6, 21)).toBe(true);
+    expect(sameLine(g, 21, 6)).toBe(true);
+    expect(sameLine(g, 7, 10)).toBe(false); // the π⁰'s two photons are sisters
+    expect(sameLine(g, 0, 2)).toBe(true); // generator copies
+  });
   it("gives lengths in a unit that suits them", () => {
     expect(length(0.0012)).toBe("12.0 µm");
     expect(length(0.074)).toBe("740 µm");
     expect(length(0.3)).toBe("3.00 mm");
     expect(length(26.3)).toBe("26.3 cm");
+  });
+});
+
+// A tt̄ event's top, in the truth graph's terms: 0 g -> 1 t (hard scatter, vertex 0) -> 2 W⁻, 5 b (legs of the hard
+// process: level bit 1); 2 W⁻ -> 3 e⁻ (a leg) -> 4 γ (brem); 5 b -> 6 a string (pdgId 92) -> 7 ρ⁰ (hadronization,
+// vertex 1) -> 8 π⁺.
+const top = graphOf(
+  {
+    n: 9,
+    columns: {
+      pdgId: [21, 6, -24, 11, 22, 5, 92, 113, 211],
+      status: [21, 22, 22, 1, 1, 23, 2, 2, 1],
+      charge: [0, 0.67, -1, -1, 0, -0.33, 0, 0, 1],
+      prodVertexIdx: [-1, 0, 0, 0, 2, 0, 0, 1, 3],
+      decayVertexIdx: [0, 0, 0, 2, -1, 0, 1, 3, -1],
+      levelFlags: [0, 0, 0, 2, 0, 2, 0, 0, 4],
+    },
+  },
+  csr([[1], [2, 5], [3], [4], [], [6], [7], [8], []]),
+  { n: 4, columns: { reason: [17, 19, 3, 2], x: [0, 0, 5, 0], y: [0, 0, 0, 0], z: [0, 0, 0, 0] } },
+);
+const hard = (r: number) => ((top.col("levelFlags", r) >>> 1) & 1) === 1;
+
+describe("the crumb of a particle's card", () => {
+  it("names the hard process above it: the legs and the particles they came from, not the incoming parton", () => {
+    expect(crumbOf(top, 3, hard)).toEqual([1, 2]); // e⁻: t → W⁻ → (e⁻)
+    expect(crumbOf(top, 4, hard)).toEqual([1, 2, 3]); // its brem photon: t → W⁻ → e⁻ → (γ)
+  });
+  it("names its nearest ancestors up to the generator's partons, with … where some are left out", () => {
+    expect(crumbOf(top, 8, hard)).toEqual([1, 5, null, 7]); // π⁺: t → b → … → ρ⁰ → (π⁺)
+    expect(crumbOf(top, 1, hard)).toEqual([]); // the top: nothing above it but the incoming gluon
+  });
+  it("names a hadronization by itself, not by the first parton of its string", () => {
+    const names = (r: number) => ({ 6: "string", 3: "e⁻" })[r] ?? "?";
+    expect(vertexText(top, 1, names, { "19": "hadronization" })).toBe("hadronization");
+    expect(vertexText(top, 2, names, { "3": "bremsstrahlung" })).toBe("e⁻ bremsstrahlung");
   });
 });

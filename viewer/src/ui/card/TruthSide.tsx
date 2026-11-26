@@ -1,18 +1,16 @@
-// The card of a truth object: where it sits in the truth graph, and what was reconstructed from it.
+// The card of a truth object: what was reconstructed from it, per detector (the answer), then its facts. Where it
+// sits in the truth graph is the crumb under its name (Lineage.tsx); the Truth tab's tree has the rest.
 import { percent } from "../../model/truth/match";
-import { foldReco } from "../../model/event/chain";
-import { sharedParts } from "../../model/event/physics";
-import { type Ref, sameRef } from "../../model/event/relations";
+import { recoByDetector } from "../../model/event/chain";
 import { unassociatedKinds } from "../../model/truth/particles";
-import { bundle, event, modes, reconstructed, stepName, truthGraph, truthName, truthStatuses } from "../../model/store";
+import { sameLine } from "../../model/truth/graph";
+import { bundle, event, kindOf, modes, reconstructed, truthGraph, truthName, truthStatuses } from "../../model/store";
+import { inText, singular } from "../../model/event/describe";
 import { cross, crossing } from "../../control/navigate";
 import { chip } from "./chips";
 import { Info } from "../common/Info";
-import { Lineage } from "./Lineage";
 import { ParticleFacts } from "./ParticleFacts";
 import { GapLink } from "./TruthBlock";
-
-const NONE = new Set<string>();
 
 /** The button across the reco <-> truth link (X), disabled with the reason when there is nothing across. */
 function GoAcross() {
@@ -26,17 +24,20 @@ function GoAcross() {
 }
 
 /** The kinds with no truth association that truth particle `row` could have reached, and their gaps ("no
- *  associator", not "nothing holds it"). */
-function unassociated(row: number): { names: string[]; gaps: number[] } {
+ *  associator", not "nothing holds it"); for another truth object, all of them. */
+function unanswered(table: string, row: number): { names: string[]; gaps: number[] } {
   const b = bundle.value,
     ev = event.value,
     tg = truthGraph.value,
     st = truthStatuses.value;
-  if (!b || !ev || !tg) return { names: [], gaps: [] };
-  const kinds = unassociatedKinds(ev, b.header, tg.particles, row, tg.graph, (t) => {
-    const s = st.get(t);
-    return s?.kind === "none" ? { reason: s.reason, gap: s.gap } : undefined;
-  });
+  if (!b || !ev) return { names: [], gaps: [] };
+  const kinds =
+    tg && table === tg.particles
+      ? unassociatedKinds(ev, b.header, tg.particles, row, tg.graph, (t) => {
+          const s = st.get(t);
+          return s?.kind === "none" ? { reason: s.reason, gap: s.gap } : undefined;
+        })
+      : [...st].flatMap(([t, s]) => (s.kind === "none" ? [{ table: t, gap: s.gap }] : []));
   return {
     names: [...new Set(kinds.map((k) => truthName(k.table)))],
     gaps: [...new Set(kinds.flatMap((k) => (k.gap === undefined ? [] : [k.gap])))],
@@ -45,64 +46,52 @@ function unassociated(row: number): { names: string[]; gaps: number[] } {
 
 export function TruthSide({ table, row }: { table: string; row: number }) {
   const rec = reconstructed.value,
-    root = modes.value.roots.truth;
-  // The kinds without an associator: those this particle could have reached; for another truth object, all of them.
-  const none = [...truthStatuses.value].flatMap(([t, s]) => (s.kind === "none" ? [{ t, gap: s.gap }] : [])),
-    unanswered =
-      table === root
-        ? unassociated(row)
-        : {
-            names: [...new Set(none.map(({ t }) => truthName(t)))],
-            gaps: [...new Set(none.flatMap(({ gap }) => (gap === undefined ? [] : [gap])))],
-          };
-  const b = bundle.value,
-    ev = event.value;
-  // The same objects at several levels (the same parts, e.g. a trackster's layer clusters) are one line.
-  const same = (x: Ref, y: Ref) =>
-    !!b && !!ev && sharedParts(ev, b.header, x.table, x.row, NONE).some((s) => s.same && sameRef(s, y));
-  const found = foldReco(rec?.reco.filter((r) => r.partners.length) ?? [], same),
-    empty = rec?.reco.filter((r) => !r.partners.length) ?? [];
+    b = bundle.value;
+  if (!b) return null;
+  const lines = rec ? recoByDetector(b.header, rec) : [],
+    none = unanswered(table, row),
+    tg = truthGraph.value,
+    particle = tg?.particles === table;
+  // Merged: the object's own best match is another particle, off this one's line of the graph (a b quark's tracks are
+  // its descendants' best matches: they are its own, not a merge).
+  // Tagged only from 5%: a holder under that is shown as the largest of its kind, and a share that small says little.
+  const merged = (o: { owner: number; completeness?: number }) =>
+    o.owner >= 0 &&
+    o.owner !== row &&
+    (o.completeness ?? 1) >= 0.05 &&
+    !(particle && tg && sameLine(tg.graph, row, o.owner));
+  const detector = (where: string) => where.charAt(0).toUpperCase() + where.slice(1);
   const help = (
     <>
       <p>
-        The reco objects that share hits or energy with this truth object, from CMSSW's truth to reco maps, most
-        complete first.
+        Per part of the detector, the reco objects of the kind CMSSW compares it with there (its last reconstruction
+        step: in HGCal the TICL candidates' tracksters), from CMSSW's truth to reco maps.
       </p>
       <p>
-        <b>completeness</b>: the share of this particle that the object holds, by the associator: of its energy in that
-        detector (calorimeters: each cell's rechit energy, split between the particles by the simulated energy they left
-        in it), or of its tracker hits (tracks, its descendants' hits included). <span class="ok">★ its best</span>: the
-        particle is that object's own best match; an object best matched to another particle merges this one into it.
+        <b>%</b>: the share of this particle each object holds (completeness, by the associator): of its energy in that
+        detector, or of its tracker hits (its descendants' included). The largest first; those holding under 5% are
+        counted in "+N" (all of them are under More, Every association).
+      </p>
+      <p>
+        <span class="tag-merged">merged</span>: the object holds at least 5% of it, and its own best match is another
+        particle (not one above or below this one), which it merges this one with.
+      </p>
+      <p>
+        <b>hits</b>: the hits it left simulated energy in. Where no object of the kind compared holds any of it (also
+        when one of an earlier step does: those are under More), the line says so; a detector whose reco has no
+        association to truth (HF, HO) is not compared.
       </p>
       <p>
         <b>Click</b> an object to look at it in the view; <b>double click</b> to open its card.
       </p>
-      <p>
-        Under each kind, the objects that hold at least 5% of it, at most four; "+N" counts the others (all of them
-        under Every association, below). Kinds that show the same objects (the same parts) share one line.
-      </p>
-      {empty.length > 0 && (
+      {none.names.length > 0 && (
         <p>
-          Nothing holds any of it in: {empty.map((r) => stepName(r.table)).join(", ")}. That is not by itself an
-          inefficiency: the particle may never have reached that detector.
-        </p>
-      )}
-      {rec && !rec.hits.length && (
-        <p>
-          No hits are recorded on this particle itself: the file gives hits to the particles that entered the
-          calorimeter (each with its own shower). If this one did not, the particles it made carry them: its pair
-          (below) shows them.
-        </p>
-      )}
-      {unanswered.names.length > 0 && (
-        <p>
-          No CMSSW associator, so no answer, for {table === root ? "the kinds it could have reached" : "these kinds"}:{" "}
-          {unanswered.names.join(", ")}
-          {unanswered.gaps.length > 0 && (
+          No CMSSW associator, so no answer, for: {none.names.join(", ")}
+          {none.gaps.length > 0 && (
             <>
               {" "}
-              (the gaps:{" "}
-              {unanswered.gaps.map((g, i) => (
+              (
+              {none.gaps.map((g, i) => (
                 <>
                   {i > 0 && ", "}
                   <GapLink gap={g} />
@@ -118,89 +107,78 @@ export function TruthSide({ table, row }: { table: string; row: number }) {
   );
   return (
     <>
-      {table === root && (
-        <section class="matchcard">
-          <ParticleFacts row={row} />
-          <Lineage row={row} />
-        </section>
-      )}
-      {rec && (rec.reco.length > 0 || rec.hits.length > 0) && (
-        <section class="ladder" aria-label="Reconstructed as">
-          <h4>
-            Reconstructed as{" "}
-            <span class="lanes">
-              <GoAcross />
-              <Info title="Reconstructed as">{help}</Info>
-            </span>
-          </h4>
-          <ol>
-            {found.map((r) => {
-              const t = r.tables[0],
-                of =
-                  r.measure === "hits"
-                    ? `hits${r.in ? ` in the ${r.in}` : ""} (with its secondaries')`
-                    : r.measure === "pt2"
-                      ? "findable tracks (pT²)"
-                      : `energy${r.in ? ` in ${r.in}` : ""}`;
-              return (
-                <li class="rung below">
-                  <div class="rhead">
-                    <span
-                      class="rkind"
-                      title={
-                        r.tables.length > 1 ? "The same objects at each of these levels (the same parts)" : undefined
-                      }
-                    >
-                      {r.tables.map((x) => stepName(x)).join(", ")}
-                    </span>
-                  </div>
-                  <div class="rlink">
-                    {r.partners.map((p) => (
-                      <span class="partner">
-                        {chip(
-                          t,
-                          p.row,
-                          `${p.completeness !== undefined ? `it holds ${percent(p.completeness)} of this one's ${of}; ` : ""}${p.best ? "this is its own best match" : p.unmatched ? "it has no best match of its own" : "its own best match is another truth object"}`,
-                        )}
-                        {p.completeness !== undefined && (
-                          <span
-                            class="muted"
-                            title="completeness: the share of this particle the object holds (associator)"
-                          >
-                            completeness {percent(p.completeness)}
-                          </span>
-                        )}
-                        {p.best && (
-                          <span class="ok" title="The particle is this object's own best match (associator)">
-                            ★ its best
-                          </span>
-                        )}
-                      </span>
-                    ))}
-                    {r.folded > 0 && (
-                      <span
-                        class="muted"
-                        title="The others, most holding under 5% of it: all of them under Every association, below"
-                      >
-                        +{r.folded}
+      <section class="recon" aria-label="Reconstructed as">
+        <h4>
+          Reconstructed as{" "}
+          <span class="lanes">
+            <GoAcross />
+            <Info title="Reconstructed as">{help}</Info>
+          </span>
+        </h4>
+        {lines.length ? (
+          <ul class="reconlines">
+            {lines.map((l) => (
+              <li>
+                <div class="rdet">
+                  <b>{l.in === l.table ? kindOf(l.table) : detector(l.in)}</b>{" "}
+                  <span class="muted">
+                    {!l.table
+                      ? "not compared"
+                      : !l.objects.length
+                        ? `no ${inText(singular(kindOf(l.table)))} holds any of it`
+                        : l.in !== l.table
+                          ? inText(kindOf(l.table))
+                          : ""}
+                  </span>
+                  {l.hits > 0 && <span class="muted rhits">{l.hits.toLocaleString()} hits</span>}
+                </div>
+                {l.table && l.objects.length > 0 && (
+                  <div class="robjs">
+                    {l.objects.map((o) => {
+                      const m = merged(o);
+                      return (
+                        <span class="partner">
+                          {chip(
+                            l.table!,
+                            o.row,
+                            `${o.completeness !== undefined ? `it holds ${percent(o.completeness)} of this one` : ""}${m ? "; its own best match is another particle" : ""}`,
+                          )}
+                          {o.completeness !== undefined && (
+                            <span class="pct" title="The share of this particle it holds (completeness, associator)">
+                              {percent(o.completeness)}
+                            </span>
+                          )}
+                          {m && (
+                            <span
+                              class="tag-merged"
+                              title="Its own best match is another particle: it merges this one with it (associator)"
+                            >
+                              merged
+                            </span>
+                          )}
+                        </span>
+                      );
+                    })}
+                    {l.others > 0 && (
+                      <span class="muted" title="Others holding some of it, most under 5% (all under More)">
+                        +{l.others}
                       </span>
                     )}
                   </div>
-                </li>
-              );
-            })}
-            {rec.hits.map((h) => (
-              <li class="rung below">
-                <div class="rhead">
-                  <span class="rkind">Hits{h.in && ` · ${h.in}`}</span>
-                  <span class="count">{h.hits.toLocaleString()}</span>
-                </div>
+                )}
               </li>
             ))}
-          </ol>
-          {!found.length && !rec.hits.length && <p class="hint">No reco object holds any of it.</p>}
-        </section>
-      )}
+          </ul>
+        ) : !rec || (!rec.reco.length && !rec.hits.length) ? (
+          <p class="hint">Not compared: the file has no association from it to reco objects or hits.</p>
+        ) : (
+          <p class="hint">
+            No reco object holds any of it
+            {particle ? ", and it left no hits of its own in the file" : ""}.
+          </p>
+        )}
+      </section>
+      {table === modes.value.roots.truth && <ParticleFacts row={row} />}
     </>
   );
 }

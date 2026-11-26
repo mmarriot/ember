@@ -1,31 +1,15 @@
-// A reco object's truth card (docs/truth.md): the associator's best match, how good it is in linear numbers (purity,
-// completeness) next to the associator's own score, and the generator particle the match belongs to. Every line says
-// where it comes from: the simulation (a fact), the CMSSW associator (a match, never "is"), or Ember.
+// A reco object's truth (docs/truth.md): the associator's best match, where that particle comes from, and how good the
+// match is in two linear numbers, purity (how much of the object is the particle) and completeness (how much of the
+// particle is in the object). Only the file's associations: a match, never "is".
 import type { Header } from "../../io/format";
 import { completeness, percent, quality, TARGETS } from "../../model/truth/match";
 import { bestPartners } from "../../model/event/relations";
-import { identities } from "../../model/colour/identities";
 import { withUnit } from "../../model/event/describe";
-import { bundle, describe, event, labelOf, layerOf, modes, nameOf, short } from "../../model/store";
-import { named, ObjChip, truthChip } from "./chips";
+import { topCopy } from "../../model/truth/graph";
+import { bundle, event, labelOf, layerOf, modes, short, truthGraph, truthText } from "../../model/store";
+import { categoryNames, GENERATOR_STEPS, ObjChip, truthChip, vertexLabel } from "./chips";
 import { Info } from "../common/Info";
-import { Lineage } from "./Lineage";
 
-/** A collision's truth vertex, by whether it is the signal (the particles' `first` column, e.g. isSignal, is on the
- *  vertex table too): what a primary vertex's match means, not its generator step ("shower branching"). */
-function collision(truth: string, t: string, r: number) {
-  const first = layerOf(truth)?.particle?.first,
-    v = first ? event.value?.tables[t]?.columns[first]?.[r] : undefined;
-  return v === undefined
-    ? nameOf({ table: t, row: r })
-    : `${Number(v) ? "signal collision" : "pile-up collision"} ${r + 1}`;
-}
-/** Any other truth vertex: its name (e.g. its reason, "decay"), marked when it belongs to a pile-up collision. */
-function vertexName(truth: string, t: string, r: number) {
-  const first = layerOf(truth)?.particle?.first,
-    v = first ? event.value?.tables[t]?.columns[first]?.[r] : undefined;
-  return `${describe(t, r) || named(t, r) || nameOf({ table: t, row: r })}${v !== undefined && !Number(v) ? " (pile-up)" : ""}`;
-}
 /** How far apart two objects are, from their layers' positions (cm); undefined without them. */
 function distance(a: string, ra: number, b: string, rb: number) {
   const ev = event.value,
@@ -44,8 +28,23 @@ const matchRelations = (header: Header, table: string) =>
     ([, r]) => (r.match?.shared ?? r.match?.purity) && r.from === table && !!layerOf(r.to)?.truth,
   );
 
-/** The truth card of reco object `row` of `table`: its best match and how good it is; null for a kind without a match
- *  relation (TruthBlock.tsx says why). */
+/** Where truth particle `row` comes from, as the graph names the vertex that made it ("W⁻ decay", "γ conversion"); ""
+ *  for a generator step (a hadronization's first parton does not name it) or when the graph names neither. */
+export function originOf(row: number) {
+  const tg = truthGraph.value;
+  if (!tg?.vertices) return "";
+  const g = tg.graph,
+    v = g.col("prodVertexIdx", topCopy(g, row)),
+    parent = v >= 0 ? g.into(v) : -1,
+    reason = v >= 0 ? g.vcol("reason", v) : NaN;
+  if (parent < 0 || GENERATOR_STEPS.has(reason)) return "";
+  const name = truthText(tg.particles, parent).split(" · ")[0],
+    word = categoryNames(tg.vertices)[String(reason)];
+  return word && !name.startsWith("pdgId") ? `${name} ${word}` : "";
+}
+
+/** The truth match of reco object `row` of `table`: its best match and how good it is; null for a kind without a
+ *  match relation (TruthBlock.tsx says why). */
 export function TruthCard({ table, row }: { table: string; row: number }) {
   const b = bundle.value,
     ev = event.value,
@@ -60,18 +59,19 @@ export function TruthCard({ table, row }: { table: string; row: number }) {
   const { partner, entry } = bestPartners(rel, info, true, ev.tables[table]?.n ?? 0);
   const p = partner[row],
     q = p >= 0 ? quality(ev, b.header, name, entry[row], row) : undefined;
-  const unit = m.measure === "hits" ? "hits" : m.measure === "pt2" ? "of the pT² of its tracks" : "GeV";
+  const unit = m.measure === "hits" ? "hits" : m.measure === "pt2" ? "of its tracks' pT²" : "GeV";
   const amount = (x: number) => (m.measure === "hits" ? `${Math.round(x)}` : short(x));
   const c = p >= 0 ? completeness(ev, b.header, target, p, table, row) : undefined;
   const particles = target === truth,
-    generator = p >= 0 && particles ? generatorOf(truth, p) : -1,
-    away = p >= 0 && !particles ? distance(table, row, target, p) : undefined;
-  const what =
+    from = p >= 0 && particles ? originOf(p) : "",
+    away = p >= 0 && !particles ? distance(table, row, target, p) : undefined,
+    what = particles ? "the particle" : "the truth vertex";
+  const counts =
     m.measure === "hits"
-      ? "hits"
+      ? "its tracker hits"
       : m.measure === "pt2"
-        ? "tracks (weighted by pT²)"
-        : `reconstructed energy in ${m.in} (its raw energy: the rechits', each by its fraction; the shared part is the rechit energy of the match's share of each hit)`;
+        ? "its tracks (weighted by pT²)"
+        : `its reconstructed energy in ${m.in}`;
   const help = (
     <>
       {m.target && (
@@ -81,21 +81,21 @@ export function TruthCard({ table, row }: { table: string; row: number }) {
       )}
       <p>
         The match is the best one CMSSW's associator found for this object (AdaptiveNominal working point)
-        {particles ? ": a truth particle with everything it made" : ""}.
+        {particles ? ": a truth particle with everything below it" : ""}.
       </p>
       <p>
-        <b>Purity</b>: the share of this object's {what} that comes from its match.
-        {m.good !== undefined && ` Clean from ${percent(m.good)} (the mark on the bar).`}
+        <b>Purity</b>: the share of {counts} that comes from {what}.
+        {m.good !== undefined && ` A clean match from ${percent(m.good)}, the mark on the bar.`}
       </p>
       {c && (
         <p>
-          <b>Completeness</b>: the share of the match's{" "}
+          <b>Completeness</b>: the share of {what}'s{" "}
           {c.match.measure === "hits"
-            ? "tracker hits, its secondaries' included,"
+            ? "tracker hits (its descendants' included)"
             : c.match.measure === "pt2"
               ? "findable tracks (pT²)"
               : `energy in ${c.match.in} (each cell's rechit energy, split between the particles by the simulated energy they left in it)`}{" "}
-          that this object has.
+          that this object holds.
         </p>
       )}
       {q?.score !== undefined && (
@@ -108,104 +108,69 @@ export function TruthCard({ table, row }: { table: string; row: number }) {
       )}
     </>
   );
+  const clean = q?.purity !== undefined && m.good !== undefined ? q.purity >= m.good : undefined;
   return (
-    <section class="truthcard">
+    <div class="truthcard">
       <p class="truthline">
-        <span class="badge truth">truth</span>{" "}
         {p < 0 ? (
           <span class="q q-unmatched">not matched</span>
+        ) : particles ? (
+          truthChip(target, p)
         ) : (
-          <>
-            match{" "}
-            {particles ? (
-              truthChip(target, p, m.measure)
-            ) : (
-              <ObjChip
-                table={target}
-                row={p}
-                text={m.target === "interaction" ? collision(truth, target, p) : vertexName(truth, target, p)}
-              />
-            )}
-          </>
+          <ObjChip table={target} row={p} text={vertexLabel(p, m.target === "interaction")} />
         )}
+        {from && <span class="muted">from {from}</span>}
         {away !== undefined && <span class="muted">{withUnit(away, "cm")} away</span>}
         <Info title="Truth match">{help}</Info>
       </p>
-      {p < 0 ? null : (
-        <>
-          <div class="meters">
-            {q?.purity !== undefined && (
-              <Meter
-                name="purity"
-                value={q.purity}
-                good={m.good}
-                note={
-                  m.purity
-                    ? "of its tracks' pT²"
-                    : `${amount(q.shared)} of ${amount(q.over!)} ${unit}${m.measure === "energy" ? " reconstructed" : ""}`
-                }
-              />
-            )}
-            {c && (
-              <Meter
-                name="completeness (associator)"
-                value={c.value}
-                note={`of the ${particles ? "particle's" : "truth vertex's"} ${c.match.measure === "hits" ? "tracker hits, its descendants' included" : c.match.measure === "pt2" ? "tracks (pT²)" : `energy in ${c.match.in}, rechit scale`}`}
-              />
-            )}
-          </div>
-          {generator >= 0 && generator !== p && (
-            <p class="hint">part of generator particle {truthChip(truth, generator, m.measure)}</p>
+      {p >= 0 && (
+        <div class="meters">
+          {q?.purity !== undefined && (
+            <Meter
+              name="purity"
+              value={q.purity}
+              good={m.good}
+              title={`${percent(q.purity)} of ${counts} comes from ${what}${q.over !== undefined && !m.purity ? ` (${amount(q.shared)} of ${amount(q.over)} ${unit})` : ""}${clean === undefined ? "" : clean ? ": a clean match" : ": impure"}`}
+            />
           )}
-          {particles && generator === p && aboveLevel(truth, p) && (
-            <p class="hint" title="The match decayed in the generator (e.g. a π⁰): it is above the generator particles">
-              merges the generator particles its match decayed to
-            </p>
+          {c && (
+            <Meter
+              name="completeness"
+              value={c.value}
+              title={`This object holds ${percent(c.value)} of ${what} (associator)`}
+            />
           )}
-          {particles && <Lineage row={p} compact />}
-        </>
+        </div>
       )}
-    </section>
+    </div>
   );
 }
 
-/** A purity or completeness as a linear bar, with what it counts under it; `good`: the clean-match threshold, marked
- *  on the bar, green from there and amber below. */
-function Meter({ name, value, good, note }: { name: string; value: number; good?: number; note: string }) {
-  const state = good === undefined ? "" : value >= good ? "clean" : "impure";
+/** A purity or completeness as a linear bar; `good`: the clean-match threshold, marked on the bar, green from there
+ *  and amber below; `clean`: that verdict, worked out elsewhere. */
+export function Meter({
+  name,
+  value,
+  good,
+  clean,
+  title,
+}: {
+  name: string;
+  value: number;
+  good?: number;
+  clean?: boolean;
+  title: string;
+}) {
+  const state =
+    clean !== undefined ? (clean ? "clean" : "impure") : good === undefined ? "" : value >= good ? "clean" : "impure";
   return (
-    <div class="meter">
+    <div class="meter" title={title}>
       <span class="mname">{name}</span>
       <span class="mbar">
         <i class={state && `q-${state}`} style={{ width: `${Math.round(100 * Math.min(1, Math.max(0, value)))}%` }} />
         {good !== undefined && <u style={{ left: `${100 * good}%` }} />}
       </span>
-      <b>{percent(value)}</b>
-      <span class="muted mnote">
-        {note}
-        {state && (
-          <>
-            {" "}
-            · <span class={`q q-${state}`}>{state}</span>
-          </>
-        )}
-      </span>
+      <b class={state && `q q-${state}`}>{percent(value)}</b>
     </div>
   );
-}
-
-/** Whether truth row `row` is outside the particle level (e.g. a π⁰ or a B decayed by the generator). */
-function aboveLevel(truth: string, row: number) {
-  const d = layerOf(truth),
-    flags = d?.particle ? event.value?.tables[truth]?.columns[d.particle.flags] : undefined;
-  return !!flags && !((Number(flags[row]) >>> d!.particle!.bit) & 1);
-}
-
-/** The generator particle a truth row belongs to (its colour key; docs/truth.md), -1 without truth. */
-function generatorOf(truth: string, row: number) {
-  const b = bundle.value,
-    ev = event.value,
-    d = layerOf(truth);
-  if (!b || !ev || !d || !ev.tables[truth]) return -1;
-  return identities(d, ev.tables[truth], ev, b.header, 0).key[row];
 }

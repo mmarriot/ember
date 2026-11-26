@@ -616,7 +616,7 @@ function InView({ table }: { table: string }) {
                 <tbody>
                   {sorted.slice(0, LISTED).map((r) => (
                     <tr>
-                      <td>{chip(table, r.particle, truthText(table, r.particle, sim))}</td>
+                      <td>{chip(table, r.particle, truthText(table, r.particle))}</td>
                       {sim && <td class="num">{amount(r.amount)}</td>}
                       <td>
                         {!d.kind ? (

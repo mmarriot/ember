@@ -1,12 +1,13 @@
-// The card's physics block (docs/viewer.md): what a reco object is made of and its main numbers, its profile's groups
-// of columns (`inspectGroups`: b-tags, e/γ ID), what holds it or shares its parts, and for MET the angle to the jets.
+// The card's physics block (docs/viewer.md): a reco object's main numbers, what it is made of, and for MET the angle to
+// the jets. Its profile's groups of columns (`inspectGroups`: b-tags, e/γ ID) and what holds it or shares its parts
+// are under the card's More (PhysicsMore).
 import { kindName } from "../../io/format";
 import { plain } from "../../model/event/describe";
 import { constituents, deltaPhi, memberships } from "../../model/event/physics";
 import { bundle, drawnLayers, event, layerKey, layerOf, nameOf, stepName } from "../../model/store";
 import { ranked } from "../../control/navigate";
 import { chip, ObjChip } from "./chips";
-import { Fractions, keyColumns, Rows } from "./Properties";
+import { Fractions, keyColumns, Numbers, Rows } from "./Properties";
 import { Shares } from "./Relations";
 
 export function Physics({ table, row }: { table: string; row: number }) {
@@ -16,64 +17,67 @@ export function Physics({ table, row }: { table: string; row: number }) {
     t = ev?.tables[table];
   if (!b || !ev || !d || !t || d.truth) return null;
   const key = keyColumns(table, t).filter((c) => !d.describe?.columns.includes(c)), // the card's name gives those
-    groups = (d.inspectGroups ?? [])
-      .map((g) => ({ ...g, columns: g.columns.filter((c) => c in t.columns) }))
-      .filter((g) => g.columns.length);
-  const holders = memberships(ev, b.header, table, row),
-    parts = constituents(ev, b.header, table, row);
+    parts = constituents(ev, b.header, table, row).filter((p) => p.types.length);
   return (
     <section class="physics" aria-label="Reconstruction">
+      <Numbers name={table} table={t} row={row} columns={key} />
       {d.fractions && <Fractions fractions={d.fractions} table={t} row={row} />}
-      {parts
-        .filter((p) => p.types.length)
-        .map((p) => (
-          <p class="physline">
-            <span class="rkind">{stepName(p.table)}</span> {p.n}
-            {p.types.length > 0 && (
-              <span class="muted">
-                {": "}
-                {p.types.map(([name, n]) => `${name} ${n}`).join(" · ")}
-              </span>
-            )}
-            {p.kept !== null && (
-              <span title={`Their layer's filter keeps the rows where ${p.filter} (e.g. PUPPI's weight above 0)`}>
-                {" "}
-                · {p.kept === p.n ? "all" : <b>{p.kept}</b>} kept by <code>{p.filter}</code>
-                {p.kept < p.n && (
-                  <>
-                    , <b>{p.n - p.kept}</b> not
-                  </>
-                )}
-              </span>
-            )}
-          </p>
-        ))}
-      {holders.length > 0 && (
+      {parts.map((p) => (
         <p class="physline">
-          {holders.slice(0, 4).map((h, i) => (
-            <>
-              {i > 0 && " · "}
-              in <ObjChip table={h.table} row={h.row} text={nameOf(h)} />
-              {h.weight !== undefined && (
-                <span class="muted">
-                  {" "}
-                  {h.weightName} {plain(h.weight)}
-                </span>
-              )}
-            </>
-          ))}
+          <span class="rkind">{stepName(p.table)}</span> {p.n}
+          <span class="muted">
+            {": "}
+            {p.types.map(([name, n]) => `${name} ${n}`).join(" · ")}
+          </span>
+          {p.kept !== null && p.kept < p.n && (
+            <span title={`Their layer's filter keeps the rows where ${p.filter} (e.g. PUPPI's weight above 0)`}>
+              {" "}
+              · <b>{p.kept}</b> kept by <code>{p.filter}</code>
+            </span>
+          )}
         </p>
-      )}
-      <Rows name={table} table={t} row={row} columns={key} />
+      ))}
+      <Met table={table} row={row} />
+    </section>
+  );
+}
+
+/** Under the card's More: a reco object's groups of columns (its profile's `inspectGroups`), what holds it (with the
+ *  weights, e.g. PUPPI's) and the objects with exactly its parts. */
+export function PhysicsMore({ table, row }: { table: string; row: number }) {
+  const b = bundle.value,
+    ev = event.value,
+    d = layerOf(table),
+    t = ev?.tables[table];
+  if (!b || !ev || !d || !t || d.truth) return null;
+  const groups = (d.inspectGroups ?? [])
+      .map((g) => ({ ...g, columns: g.columns.filter((c) => c in t.columns) }))
+      .filter((g) => g.columns.length),
+    holders = memberships(ev, b.header, table, row).filter((h) => h.weight !== undefined);
+  return (
+    <>
       {groups.map((g) => (
         <div class="pgroup">
           <h5>{g.name}</h5>
           <Rows name={table} table={t} row={row} columns={g.columns} />
         </div>
       ))}
+      {holders.length > 0 && (
+        <p class="physline">
+          {holders.slice(0, 4).map((h, i) => (
+            <>
+              {i > 0 && " · "}
+              in <ObjChip table={h.table} row={h.row} text={nameOf(h)} />
+              <span class="muted">
+                {" "}
+                {h.weightName} {plain(h.weight!)}
+              </span>
+            </>
+          ))}
+        </p>
+      )}
       <Shares table={table} row={row} />
-      <Met table={table} row={row} />
-    </section>
+    </>
   );
 }
 

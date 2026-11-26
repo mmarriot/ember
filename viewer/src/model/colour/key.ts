@@ -11,7 +11,6 @@ import { colourLevel } from "../truth/levelFlags";
 import {
   activeMode,
   bundle,
-  caloView,
   drawnLayers,
   event,
   layerKey,
@@ -105,7 +104,7 @@ export const modeKey = computed<KeyGroup | null>(() => {
       title: `${level.name} (truth)`,
       entries: [
         ...legendOf(roots.truth).map((it) => ({
-          label: (it.ref && truthText(it.ref.table, it.ref.row, caloView.value)) || it.label,
+          label: (it.ref && truthText(it.ref.table, it.ref.row)) || it.label,
           colours: [it.colour],
           ref: it.ref,
         })),
@@ -198,6 +197,6 @@ export const viewKey = computed<KeyGroup[]>(() => {
       kinds.entries.push({ ...entries[0], label: layerTitle(d) });
     else own.push({ id: key, title: layerTitle(d), entries });
   }
-  const about = pair && pair.particle >= 0 ? truthText(pair.truth, pair.particle, caloView.value) : undefined;
+  const about = pair && pair.particle >= 0 ? truthText(pair.truth, pair.particle) : undefined;
   return [used && mode ? { ...mode, about } : null, kinds, ...own].filter((g): g is KeyGroup => !!g?.entries.length);
 });

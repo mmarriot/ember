@@ -106,7 +106,7 @@ export const truthLinked = computed(() => {
 });
 
 /** `linked` (what an association links to the truth drawn) less the reco objects whose own best truth match (their
- *  kind's match relation, which the card calls "its best") is not in `owners` (the picks and everything below them): a
+ *  kind's match relation, its card's match) is not in `owners` (the picks and everything below them): a
  *  cluster that a photon's conversion electrons share in, but that is mostly the electron's that radiated the photon
  *  (above it), is that electron's, not the photon's; a top quark's tracks, best matched to the particles it decayed
  *  to, are its own. Hits, and objects of a kind without a match relation, stay. */

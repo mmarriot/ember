@@ -95,9 +95,10 @@ export const full = (v: number | bigint) =>
         ? v.toExponential(3)
         : v.toFixed(3);
 
-/** A truth particle's name (docs/truth.md "Words"): by its pT and η ("μ⁺ · pT 96.6 · η 1.11"); with `energy`, next to
- *  a calorimeter object, by its energy ("μ⁺ · E 162 GeV"). Its `describe` name without pT and η columns. */
-export function truthText(table: string, row: number, energy = false): string {
+/** A truth particle's name (docs/truth.md "Words"), the same everywhere (card, chips, the view's labels, the Truth
+ *  tab): by its pT and η ("μ⁺ · pT 96.6 · η 1.11"); a beam particle (pT 0, η "infinite" by the ROOT convention) by its
+ *  energy. Its `describe` name without pT and η columns. */
+export function truthText(table: string, row: number): string {
   const t = event.value?.tables[table],
     pdg = t?.columns.pdgId,
     pt = t?.columns.pt,
@@ -106,11 +107,14 @@ export function truthText(table: string, row: number, energy = false): string {
   if (!t || row >= t.n || !pdg || !pt || !eta) return describe(table, row);
   const id = String(pdg[row]),
     name = layerOf(table)?.describe?.names?.pdgId?.[id] ?? `pdgId ${id}`;
-  // A beam particle (pT 0, η "infinite" by the ROOT convention) is named by its energy too.
-  return e && (energy || !(Number(pt[row]) > 1e-6) || Math.abs(Number(eta[row])) > 20)
+  return e && (!(Number(pt[row]) > 1e-6) || Math.abs(Number(eta[row])) > 20)
     ? `${name} · E ${short(Number(e[row]))} GeV`
     : `${name} · pT ${short(Number(pt[row]))} · η ${short(Number(eta[row]))}`;
 }
+
+/** Whether `table` holds the truth particles (its layer has a `particle` level): they are named by truthText alone,
+ *  without a number (a row of thousands that no list shows). */
+const isParticles = (table: string) => !!layerOf(table)?.particle;
 
 /** A short name for one object's values (event/describe.ts describeRow): "π+ · E 88.9 GeV". `skip`: columns to leave
  *  out. */
@@ -124,6 +128,7 @@ export function describe(table: string, row: number, skip: string[] = []): strin
 export function nameOf(ref: { table: string; row: number }, skip: string[] = [], cmssw = false) {
   const b = bundle.value,
     d = layerOf(ref.table);
+  if (isParticles(ref.table)) return truthText(ref.table, ref.row);
   return b && d
     ? objectName(b.header, d, numberOf(ref.table, ref.row), describe(ref.table, ref.row, skip), cmssw)
     : `${ref.table} ${ref.row + 1}`;
@@ -133,6 +138,7 @@ export function nameOf(ref: { table: string; row: number }, skip: string[] = [],
 export function labelText(ref: { table: string; row: number }, skip: string[], labelled: DisplayLayer[]) {
   const b = bundle.value,
     d = layerOf(ref.table);
+  if (isParticles(ref.table)) return truthText(ref.table, ref.row);
   return b && d
     ? labelName(b.header, d, numberOf(ref.table, ref.row), describe(ref.table, ref.row, skip), labelled)
     : `${ref.table} ${ref.row + 1}`;
@@ -142,6 +148,7 @@ export function labelText(ref: { table: string; row: number }, skip: string[], l
 export function cardNameOf(ref: { table: string; row: number }): [string, string] {
   const b = bundle.value,
     d = layerOf(ref.table);
+  if (isParticles(ref.table)) return [truthText(ref.table, ref.row), ""];
   return b && d
     ? cardName(b.header, d, numberOf(ref.table, ref.row), describe(ref.table, ref.row))
     : [`${ref.table} ${ref.row + 1}`, ""];
@@ -151,5 +158,6 @@ export function cardNameOf(ref: { table: string; row: number }): [string, string
 export function chipText(table: string, row: number) {
   const b = bundle.value,
     d = layerOf(table);
+  if (isParticles(table)) return truthText(table, row);
   return b && d ? chipName(b.header, d, numberOf(table, row), describe(table, row)) : `${table} ${row + 1}`;
 }

@@ -225,8 +225,8 @@ reads:
   PUPPI" and "Jet 1 · CHS" of "AK4 PUPPI (raw, no JEC)" and "AK4 CHS (raw, no JEC)"). Labelled, not shown: a label
   hidden by an overlapping one still counts, so the names do not change as the camera moves;
 - its values, each named after its quantity: "pT 49.7 GeV" (transverse momentum), "E raw 178 GeV" (a TICL
-  candidate's raw energy). A truth particle is named by its pT and η ("π⁺ · pT 30.1 · η 0.714"), or by its energy
-  next to a calorimeter object ("π⁺ · E 88.9 GeV").
+  candidate's raw energy). A truth particle is named by its pT and η everywhere ("π⁺ · pT 30.1 · η 0.714"),
+  a beam particle by its energy.
 
 Numbers are written in a unit that suits their size, never in e-notation: lengths in µm below 1 mm and in mm below
 1 cm ("6.57 µm"), energies in MeV below 0.1 GeV ("35 MeV"). A value that means "not set" reads as words: "no time"
@@ -475,7 +475,7 @@ objects that left hits, and the tree, which folds. With truth, from the top:
     shown. Pile-up has no generator history, so its particles hang straight under their collision. A folded
     collision costs nothing to show.
 
-  A particle row has its tick, a dot in its level's colour, its name and its energy. A particle that the generator
+  A particle row has its tick, a dot in its level's colour, its name and its pT and η. A particle that the generator
   wrote several times (status 23, 51, 1) is one particle (its tooltip says how many times); particles at no level
   shown are skipped, so each particle hangs under the nearest ones above it that are shown. With **Vertices show**,
   every group of daughters made at one vertex has that vertex above it on their line, a grey ◆ with its process in
@@ -514,7 +514,7 @@ objects that left hits, and the tree, which folds. With truth, from the top:
   - **+ descendants**: every particle below each pick drawn as its line (also a photon an electron radiated: anything
     made below it, whatever the process), every vertex of them as a ring, and the hits and reco objects linked to any
     of them;
-  - a reco object is lit when its own best truth match (the card's "its best") is one of the picks or below one, not
+  - a reco object is lit when its own best truth match (its card's match) is one of the picks or below one, not
     when they only share in it: a photon an electron radiated, which converts, does not light the electron's cluster
     and track (best matched to the electron, above the photon), though its conversion's electrons left some energy in
     them; a top quark's tracks, best matched to the particles it decayed to, are its own. Hits are lit for every
@@ -538,8 +538,8 @@ objects that left hits, and the tree, which folds. With truth, from the top:
   event's reco ↔ truth scorecard:
   - **Particles in this view**: for the part of the detector looked at, detector by detector, the particles that left
     simulated energy in its hits (from the hit index), largest first; in the tracker, which has no simulated energy
-    in the file, the particles a track is matched to, by pT. Each row gives the particle (by its energy in a
-    calorimeter, by pT and η in the tracker), in a calorimeter the energy it deposited there (column "deposited in
+    in the file, the particles a track is matched to, by pT. Each row gives the particle (by its pT and η, as
+    everywhere), in a calorimeter the energy it deposited there (column "deposited in
     HGCal": simulated, in MeV or GeV, not calibrated, and not the particle's energy), its best match among the kind
     compared there with that match's completeness ("51%", the column's "% of it"), "split n" when n objects of the
     kind hold part of it, and "shared +n" when n other particles have the same best match (a merge). A detector
@@ -627,7 +627,7 @@ cluster, a trackster), or a hit shows its truth ↔ reco pair (`viewer/src/model
 
 - **Truth: one branch.** The selected particle and everything below it. A reco object takes its best match (the
   associator's), a hit the particle that left the most simulated energy in it. Not its siblings, not the generator
-  particle above it: to see a larger branch (a W's, a B hadron's), select the parent in the card's lineage. A particle
+  particle above it: to see a larger branch (a W's, a B hadron's), select the parent in the card's crumb or the Truth tab. A particle
   inside another's shower (a brem photon) has no hits of its own in the file: the pair shows that shower's, and says
   so; its matches stay its own.
 - **Reco: per detector.** In each detector the branch left hits in, the kind the associator matches there (HGCal: the
@@ -678,79 +678,62 @@ replay keeps each candidate's colour throughout.
 
 ## The selection's card
 
-The card is the same for every kind of object (`viewer/src/ui/card/Card.tsx`). It shows names, bars and numbers.
-More is behind small buttons:
+The card is the same for every kind of object (`viewer/src/ui/card/Card.tsx`). It answers first, in a few lines that
+read the same for every kind, and keeps the evidence under one fold, **More**. What a word means is behind the **i**
+next to it: the table's description next to its collection, the truth's words next to the truth, the chain's next to
+the chain; gap numbers of the [truth-graph notes](truth-graph.md#gap-table) are links behind the **i** of a kind with
+no CMSSW associator.
 
-- the table's description is behind the **i** next to its title;
-- what the chain's words mean is behind the chain's **i**;
-- what a step's tag means on that step is behind the tag itself: click "match" or "sim";
-- gap numbers of the [truth-graph notes](truth-graph.md#gap-table) are behind the **i** of a "no CMSSW associator"
-  line, as links.
-
-The card puts the answer first and the evidence below. It holds these parts, in this order.
-
-**The header**: the object's kind, number and values ([Selecting an object](#selecting-an-object)), for example
-"Jet 1 · pT 46 GeV · η 0.606", and on a small line below it where it comes from: its collection and its CMSSW
-collection, "AK4 PUPPI (raw, no JEC) · ak4PFJetsPuppi".
-
-**The truth block** (`viewer/src/ui/card/TruthBlock.tsx`, `viewer/src/model/truth/statement.ts`), built only from the
-associations in the file:
-
-- one line: the kind's own association, its match (see **The match** below); else, for a kind with no truth of its
-  own, the match of its parts that are each the only one of their collection in their step (an electron's or a
-  muon's track, a photon's PF cluster), when no other part is matched and they all name one particle, named as that
-  part's, with where the particle comes from and the match's purity: "via its track · e⁻ · pT 27.5 · η −0.596 · from
-  Z decay · purity 100%"; "via the PF cluster inside it" for a part only built from it (a photon's). A muon whose track
-  is a K⁺ reads "via its track · K⁺ …". A charged PF candidate whose track is a π⁺ and whose HCAL cluster is a K⁰L,
-  a jet, a τ: "No truth match for jets in CMSSW · its parts match 21 particles (X)". The origin is left out where the
-  graph names neither the particle that made it nor why (a pile-up vertex). Why the kind has
-  no truth of its own (no CMSSW associator, with its gap), and that the line is the part's answer, are behind its
-  **i**;
-- folded under **Each part's match**, one line per step of its parts that has an association of its own: a track, a
-  PF cluster, a candidate trackster. For one object, the part, its particle, and the match's purity ("Track pT 30.1
-  GeV → π⁻ · purity 100%"). For several, how many are matched ("2 of 4 matched (2 clean)"). Each line names its
-  source: "associator · tracker hits", "associator · energy in ECAL". Objects built only from its parts (an
-  electron's PF cluster, all of whose hits are in its supercluster) come under their own heading, "Built from its
-  parts". Completeness is on the truth particle's side ("Reconstructed as"), where its denominator is the particle's:
-  a genuine electron's track holds a small share of everything its brem photons made;
-- **Go to truth (X)**, and the chooser it opens for a kind with no truth of its own.
-
-It never gives a verdict for the object from its parts: a pion's track inside a photon's cluster is the story. For a
-hit, the block lists the simulated energy each particle deposited in it (in MeV or GeV, not calibrated; in HF,
-photoelectrons) and its share of the hit's, with a button for the particle's pair.
-
-**The physics block** (`viewer/src/ui/card/Physics.tsx`): what the object is made of and its main numbers.
-
-- its energy fractions (layer hint `fractions`), as one bar in a neutral grey ramp (a reconstruction quantity, not
-  one of the view's colours);
-- its constituents by type, from a relation into a layer that names its objects by a column with `names` ("PF
-  candidates 7: γ 4 · π⁻ 2 · μ⁺ 1"), and how many their layer's filter keeps ("all kept by puppiWeight > 0", or "5
-  kept, 26 not" for a CHS jet at pile-up);
-- the objects holding it with a weight: "in Primary vertex 1 · weight 0.90" (a track), "in Secondary vertex 1";
-- its key columns (the layer's `inspect`) but those its title gives (pT, η), with units and named values
-  ("decayMode h± π⁰ (1)" where the layer's `describe.names` names them). Raw indices (`trackIdx`), components derived
-  from others (px) and positions copied in from another table (a jet's PV position) are left to **All columns**;
-- the layer's `inspectGroups`, each under its name (for example "b-tag": DeepCSV, JP). A group shows once the bundle
-  has its columns, with no change to the viewer;
-- objects of other kinds with exactly the same parts, from the relations alone: "same supercluster as Photon 1" (and
-  "same supercluster as Electron 2" on the photon's card), "same PF candidates as Jet 1 · AK4 CHS", "all its PF
-  candidates are in Jet 1 · AK4" (a tau). Several objects with the same wording share one line: "same layer clusters
-  as Trackster 4 · Candidate trackster 1";
-- for MET (a one-object kind with an azimuth): the other MET of the bundle and its Δφ, and Δφ to the leading jets
-  of the drawn jet layers.
+**The header**: the object's name with its values ([Selecting an object](#selecting-an-object)), "Jet 1 · pT 46 GeV
+· η 0.606", and on a small line below it where it comes from, its collection and its CMSSW collection: "AK4 PUPPI
+(raw, no JEC) · ak4PFJetsPuppi". A truth particle is named as everywhere by its pT and η, "e⁻ · pT 39.4 · η 1.22",
+under "truth particle · signal" (or pile-up), with where it comes from in the truth graph on one line below: its hard
+process and its nearest ancestors, "t → W⁻ → e⁻", "t → b → … → ρ⁰ → π⁺" (`…` where generator partons are left out).
+Each ancestor is a button; the Truth tab's tree has the whole graph. A truth vertex is named by what happened there:
+"B⁰ decay · 3 charged", "hadronization · signal collision".
 
 **Names of objects.** Every object name in the card is a button. A click looks at the object; a double click opens
 its card ([Following the chain](#following-the-chain)). For a kind that a CMSSW associator matches, each name has a
-dot for what the associator says about that object (`matchClass` in `viewer/src/model/truth/match.ts`):
+dot for what the associator says about that object (`matchClass` in `viewer/src/model/truth/match.ts`): filled green,
+a clean match; half amber, an impure match; hollow grey, not matched. A kind that is matched without a clean
+threshold gets no dot.
 
-- filled green: a clean match;
-- half amber: an impure match;
-- hollow grey: not matched.
+### A reco object
 
-So an unfolded step shows at a glance which of its objects are which. A kind that is matched without a clean
-threshold gets no dot and no green, because nothing says how good its match is.
+**Truth** (`viewer/src/ui/card/TruthBlock.tsx`, `TruthCard.tsx`, `viewer/src/model/truth/statement.ts`), built only
+from the associations in the file, with **Go to truth (X)**:
 
-**The chain** (`viewer/src/model/event/chain.ts`). A reco object is shown between:
+- a kind with its own association: its match, where that particle comes from ("π⁻ · pT 4.61 · η −1.67 from ρ⁰
+  decay"; a vertex by its distance, "590 µm away"), and two bars, the associator's **purity** (how much of the object
+  is the particle, green from the kind's clean threshold, which is marked, amber below) and **completeness** (how much
+  of the particle the object holds). What each counts is in its tooltip. Then, only when there is more to say:
+  **Rest of π⁻**, the other objects of the kind holding at least 5% of the particle (of it and what it made, as the
+  associator's completeness counts: a brem photon's conversion track under an electron's), and **Merged in**, the
+  other particles whose own best object this is (a merge). A particle above or below the match in the truth graph is
+  no merge (the associator matches a particle with everything below it, so a K⁰S and its π⁺ share their best track)
+  and is not listed;
+- a kind without one: the match of its part when its parts that are each the only one of their collection in their
+  step (an electron's or a muon's track, a photon's PF cluster) all name one particle, named as that part's, with its
+  purity and completeness bars: "via its track · e⁻ · pT 39.4 · η 1.22 from W⁻ decay"; "via the PF cluster inside it"
+  for a part only built from it (a photon's). Otherwise (a jet, a τ, a charged PF candidate whose track is a π⁺ and
+  whose HCAL cluster a K⁰L): "No match of its own · its parts match 21 particles (X)". Why the kind has none (no
+  CMSSW associator, with its gap) is behind its **i**. When the view shows a part's pair instead of the object's own
+  (a TICL candidate's candidate trackster, owner decision D4), a line says so: "The view shows its candidate
+  trackster's pair: π⁺ · pT 5.98 · η −1.63";
+- a hit: the simulated energy each particle deposited in it (in MeV or GeV, not calibrated; in HF, photoelectrons)
+  and its share of the hit's, with a button for the particle's pair.
+
+It never gives a verdict for the object from its parts: a pion's track inside a photon's cluster is the story.
+
+**Its numbers** (`viewer/src/ui/card/Physics.tsx`): its key columns (the layer's `inspect`) but those its name gives
+(pT, η), as small tiles with units and named values ("decayMode h± π⁰ (1)"); its energy fractions (layer hint
+`fractions`) as one bar in a neutral grey ramp (a reconstruction quantity, not one of the view's colours); its
+constituents by type ("PF candidates 7: γ 4 · π⁻ 2 · μ⁺ 1"), with how many their layer's filter keeps when it drops
+some ("5 kept by puppiWeight > 0"); for MET, the other MET of the bundle and its Δφ, and Δφ to the leading jets of the
+drawn jet layers.
+
+**The chain** (`viewer/src/model/event/chain.ts`, `viewer/src/ui/card/Chain.tsx`), to move through. A reco object is
+shown between:
 
 - what it is **part of**: the objects that contain it, outermost first;
 - what it is **made of**: from the largest objects down to the hits, one branch at a time. A jet's PF candidates come
@@ -761,116 +744,65 @@ threshold gets no dot and no green, because nothing says how good its match is.
   example a secondary vertex whose tracks are all in the jet, or a tau made of its PF candidates.
 
 A step names its objects when there are three or fewer. Otherwise it counts them and unfolds to a list, largest
-first. Every object is a button that moves the selection there. A step of a kind with several collections names
-each object's collection ("AK4 · pT 52.8 GeV", "AK4 CHS · pT 52.8 GeV"), and its match lines are one per collection
-("Trackster links", "Superclustering DNN").
-
-Each kind's name says, on hover, what that kind of object is, where the bundle's profile explains it (the same text
-is behind the kind's **i** in the side panel). For example, the TICL kinds: tracksters (CLUE3D), linked tracksters
-(TICL's linking), and candidate tracksters (one per TICL candidate, written with the candidates).
+first. **show** draws a step (`↓` `↑` move the tick), and a step in another part of the detector has a link that looks
+there. A step of a kind with several collections names each object's collection ("AK4 · pT 52.8 GeV", "AK4 CHS · pT
+52.8 GeV"). Each kind's name says, on hover, what that kind of object is, where the bundle's profile explains it.
 
 For some objects, no relation in the bundle says what contains them. For example, nothing says which linked
 trackster, interpretation and candidate contain a trackster. Then Ember works it out: the card shows the object that
-holds the most of the trackster's parts, if it holds at least half of them, and marks it "≈ holds 3 of its 4
-parts". An object that
-contains the selection is never listed among its parts.
-
-Related rows of tables that the bundle does not draw (for example a hit's digi) are listed last, as **other
-tables**.
-
-**A step with a truth statement of its own has a tag**, in the words of [Truth](truth.md#where-truth-stops). The
-selected object's own statement is in the truth block, not repeated on its step.
-
-| tag | what the step shows |
-|---|---|
-| match | For one object: the associator's best match and its purity (green from the kind's clean threshold, amber below), or "not matched" (a fake, or an object that the associator does not consider, such as a candidate without calorimeter energy). For several objects: their counts, in the colours of their dots, for example "11 clean · 4 impure · 1 not matched". On a step that holds the object (its vertex), the line says it is that step's own match: "the vertex's own: …". |
-| sim | The particles that left the simulated energy in the step's hits, with their shares, one line per detector (never summed across detectors). "per CSC layer" where the simulation records a coarser unit than the hit. "no simulated energy" where no exported particle left any (noise, out-of-time pile-up, or a particle the export left out): the tag says so. |
-
-Steps of kinds that CMSSW has no associator for have no tag and no line: they are named once, with each kind's reason
-and gap, behind the chain's **i**. "no truth" is never used: the card says which of three things it is, "no CMSSW associator" (the kind), "not matched"
-(this object of a matched kind), or "no simulated energy" (a hit). A part with no truth of its own that goes with its
-container (the hits of a track) has no line.
-
-Each line is the step's own statement. No match is built through the parts ([Truth](truth.md#constituents)):
-
-- Under an object whose kind has no truth of its own (a jet, a PF candidate), a step of several parts counts their
-  own matches ("9 of 9 matched · 9 clean") but names no particle. Its hits and layer clusters say only that the
-  statement is on each of them ("on each hit: select one for its particles"). A ranking of the particles in a jet's
-  hits would be a match through hits.
-- One part alone speaks for itself (for example a candidate's track).
-- Under a kind with truth of its own (a trackster, a PF cluster, a track), the particles are listed.
-- Where a step's collections differ in truth (muon rechits: sim; hits on muon tracks: none), each line names its
-  collection.
-
-When a kind gets an associator in CMSSW, it gets a `match` relation in the profile. Its steps then show the match,
-with no change to the viewer.
+holds the most of the trackster's parts, if it holds at least half of them, and marks it "≈ holds 3 of its 4 parts".
+An object that contains the selection is never listed among its parts. Related rows of tables that the bundle does not
+draw (for example a hit's digi) are listed last, as **other tables**.
 
 **The levels in the view.** Sometimes the view is built around an object other than the selection: the pair's
-candidate for a truth particle, or the object in focus for one of its parts. Then a line under the chain
-lists that object's levels, those drawn (ticked) lit. Click one to tick or untick its collections, or press `↓` `↑`
-to move the tick.
+candidate for a truth particle, or the object in focus for one of its parts. Then a line under the chain lists that
+object's levels, those drawn (ticked) lit. Click one to tick or untick its collections, or press `↓` `↑` to move the
+tick.
 
-**The match**, in the truth block. For a reco object whose association has a `match` contract, the card shows:
+### A truth object
 
-- the associator's best match, or "not matched";
-- its purity and its completeness, named as the associator's, as linear bars with what they count under them ("21 of
-  21 hits · clean"; "completeness (associator) … of the particle's energy in HGCal, rechit scale"), and the clean
-  threshold marked. The pair's "in its match 59%" further down is another number: the share of the particle's
-  simulated energy in the match's hits;
-- the generator particle that the match belongs to;
-- the match's chain in the truth graph, on one line, from the collision down;
-- **where it went**, when there is more than this object: every object of the kind that the particle's truth → reco
-  association gives, with its completeness and "★ its best" where the particle is that object's own best match (a
-  split); and "also best match of …": the other particles whose best object this is (a merge).
+**Reconstructed as**, per part of the detector, with **Go to reco (X)**: the kind CMSSW compares it with there (its
+last reconstruction step with an association there: tracks, ECAL and HCAL PF clusters, in HGCal the TICL candidates'
+tracksters; `recoByDetector` in `viewer/src/model/event/chain.ts`), its largest holder and those holding at least 5%
+of it, at most three, each with its completeness ("67%", the share of the particle it holds), and "+N" for the others
+(all of them under More, Every association). Primary and secondary vertices, not steps of one chain, are a line each.
+**merged** marks an object holding at least 5% of it whose own best match is another particle off this one's line of
+the graph: it merges the two (a b quark's tracks, best matched to its pions, are its own, not merged). The hits it
+left there are counted on the right. Where no object of the kind compared holds any of it, the line says so ("no
+candidate trackster holds any of it"), also when an object of an earlier step does (it is under Every association):
+the line never falls back to that step. A detector whose reco has no association to truth (HF, HO) is "not
+compared", and so is a truth object the file has no association for at all. Its **i** names the kinds with **no CMSSW associator** that the particle could have reached (no
+answer, which is not "nothing holds it").
 
-Behind its **i**: what the kind reconstructs (for example "the particle that entered the calorimeter"), how purity
-and completeness are counted, and the associator's score ("0 best; not a fraction").
+**Its facts**: its energy and φ (its pT and η are in its name); the vertex it was made in and the last one where its
+daughters were made (the file's end vertex: not necessarily where it stopped), named by what happened there ("W⁻ decay
+· 1 charged", "γ conversion · 2 charged"), with R and z; and what the graph says of its physics
+([Truth](truth.md#physics-from-the-graph)): an electron's brem, a photon's conversion, a τ's decay, a b or c hadron's
+flight and the reco vertex matched to its decay.
 
-**Its part's pair** (owner decision D4, a trial). A TICL candidate has no truth of its own. When every part it has one
-of (its candidate trackster, its linked trackster, its track) that is matched points to the same particle, the view
-shows the pair of its first such part of an earlier reconstruction step: the candidate trackster, or in a TICL v6 bundle
-(which has none with a match) the linked trackster. The truth block says so at its top in one line, "Showing its
-candidate trackster's truth: the TICL candidate has none of its own", with the details behind its **i**. When the parts
-disagree, there is no pair.
+### More
 
-**A truth object** shows:
+One fold at the bottom, whose line says what is in it. It is remembered (open or folded) from one object to the next
+and between visits, and built only while open:
 
-- its head: `μ⁺ · pT 96.6 GeV · η 1.11 · φ -2.72 · E 162 GeV · status 1 · signal (bx 0)`; where it was made and the
-  last vertex where its daughters were made (the file's end vertex: not necessarily where it stopped), with R and z
-  and the vertex named after the particle that made its particles and its process ("W⁻ decay · 1 charged",
-  "γ conversion · 2 charged"); its generator copies; a tag for each truth level it belongs to (hard process,
-  generator particle, entered the calorimeter, parton jet, b or c hadron, reconstructable, τ visible); and what the
-  graph says of its physics ([Truth](truth.md#physics-from-the-graph)): an electron's brem, a photon's conversion, a
-  τ's decay, a b or c hadron's flight and the reco vertex matched to its decay;
-- its lineage: its ancestors (the generator's quarks and gluons folded into one line), itself ("this particle": its
-  name, levels and copies are in the head), its daughters, the levels each one belongs to, and the reco objects whose
-  best match it is. A particle's generator copies are one
-  entry ("μ⁺ ×4 (status 23→1)"); a particle made from several partons says "from n partons", and the line follows the
-  first;
-- **Reconstructed as**: for each reco kind with a truth → reco association, the objects that hold at least 5% of it
-  (completeness), most complete first, at most four; "+N" counts the others (all of them are under Every association).
-  Each shows "completeness 51%", the share of the particle that it holds, and "★ its best" where the particle is that
-  object's own best match. Kinds that show the same objects (the same parts: one trackster at the candidate, linked
-  and plain levels), with the same completeness, are one line naming every kind; so are the kinds of one detector
-  that hold under 5% of it each (a barrel particle's few MeV in HGCal). Hit-based association weights (tracks) are
-  counted in hits. With nothing at all: "No reco object holds any of it". Its **i** names the kinds that nothing holds
-  any of it in (not by itself an inefficiency: the particle may never have reached that detector), and apart the kinds
-  with **no CMSSW associator** that the particle could have reached: those made of hits in a detector where its branch
-  left simulated energy, of the tracker when a track holds part of it, of the muon system for a muon, and a species'
-  own kinds (electrons, photons, muons, taus) only for that species. "Nothing holds it" (not matched) and "no
-  associator" (no answer) stay two different statements. **Go to reco (X)** crosses over;
-- the number of hits it left, per detector.
-
-**Every association**, folded: each object that an association in the file links to the selection, with the
-relation's weights as stored (shared energy, score, a hit's simulated energy), best first. These are the associator's
-other partners behind the best match, for example every particle that shares an impure trackster.
-
-**The pair** that the view is coloured by ([above](#the-pair-view)): the branch, then one block per detector with
-what it is compared with, its matches, the branch's simulated energy (in its match, in others, in none; own shower and
-descendants') and the match's rechit energy (from the branch, from other particles, with no simulated energy). Each
-bar names its energy. The match's purity and completeness are the associator's, for the selected object.
-
-**All columns**, folded, with units and sentinels as in the physics block.
+- a reco object's **parts' truth**: for each step of its parts with a truth statement of its own, a tag in the words of
+  [Truth](truth.md#where-truth-stops). **match**: for one object the associator's best match and its purity, or "not
+  matched"; for several, their counts in the colours of their dots ("11 clean · 4 impure · 1 not matched"). **sim**:
+  the particles that left the simulated energy in the step's hits, with their shares, one line per detector ("per CSC
+  layer" where the simulation records a coarser unit; "no simulated energy" where no exported particle left any). The
+  kinds with no CMSSW associator are named, with their gaps. No match is built through the parts
+  ([Truth](truth.md#constituents)): under a kind with no truth of its own, a step of several parts counts their own
+  matches but names no particle;
+- a reco object's column groups (the layer's `inspectGroups`, e.g. "b-tag", "Shower shape"), the objects holding it
+  with a weight ("in Primary vertex 1 · weight 0.90"), and the objects of other kinds with exactly its parts ("same
+  supercluster as Photon 1", "all its PF candidates are in Jet 1 · AK4");
+- a truth particle's status and bunch crossing, its generator copies, and the truth levels it belongs to;
+- **the pair** that the view is coloured by ([above](#the-pair-view)): the branch, then one block per detector with
+  what it is compared with, its matches, the branch's simulated energy (in its match, in others, in none; own shower
+  and descendants') and the match's rechit energy (from the branch, from other particles, with no simulated energy);
+- **Every association**, folded: each object that an association in the file links to it, with the relation's
+  weights as stored, best first;
+- **All columns**, folded, with units and sentinels.
 
 ## Expressions
 

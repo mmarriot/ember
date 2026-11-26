@@ -133,6 +133,7 @@ export async function checkBundle(run, file, tag, state) {
   if (steps < 2) fail(`selecting ${target.table} #0 shows no chain (${steps} steps)`);
   // In the "Particle type" mode a selection shows its truth <-> reco pair (a candidate, and its particle with truth).
   if (await page.locator(".colourkey").count()) {
+    await openMore(page); // the pair's bars are under the card's More (kept open from here on)
     const pair = await page
       .locator(".inspector .pairline")
       .innerText()
@@ -699,8 +700,8 @@ async function checkLevels(page, h, target, fail, shot, tag) {
   await page.waitForTimeout(600);
   if ((await drawn()) !== before) fail("the other key did not move the tick back to the focus's first layers");
   if ((await style()) !== style0) fail("the other key did not give the focus its first surface back");
-  // In the truth <-> reco pair view, the pair's particle opens its own pair, which names it on its truth line. (Not
-  // the chip of the one-line answer, named by energy next to a calorimeter part.)
+  // In the truth <-> reco pair view, the pair's particle (the chip of its own match's line, not of a part's answer)
+  // opens its own pair, which names it on its truth line.
   const particle = page.locator(".inspector .truthline:not(.answer) .chip").first();
   if (!(await page.locator(".pairline").count()) || !(await particle.count())) return;
   const name = (await particle.innerText()).replace(/\s+/g, " ");
@@ -717,6 +718,16 @@ async function checkLevels(page, h, target, fail, shot, tag) {
   if (!truthLine.includes(name)) fail(`the particle ${name} does not open its own pair`);
   await page.locator(".inspector .looking .lookhead .link").click({ timeout: 120000 }); // stop looking at the particle
   await page.waitForTimeout(600);
+}
+
+/** Open the card's More (the evidence: each part's truth, the pair's bars, every association), if it is folded. Its
+ *  state is remembered, so it stays open for the next cards. */
+async function openMore(page) {
+  const fold = page.locator(".inspector .moretoggle[aria-expanded='false']");
+  if (await fold.count()) {
+    await fold.click({ timeout: 120000 });
+    await page.waitForTimeout(300);
+  }
 }
 
 /** With a domain bar: D keeps the selection and moves to the next domain it has objects in; a chip of the focus bar
@@ -800,7 +811,8 @@ async function checkCross(page, h, fail, tag) {
   await page.waitForTimeout(900);
   const s1 = sel(),
     across = truth.has(s1.split(":")[0]) !== truth.has(s0.split(":")[0]);
-  const lanes = await page.locator(".inspector .ladder .rung").count();
+  // a reco object's chain steps, or a truth object's detectors (what was reconstructed from it)
+  const lanes = await page.locator(".inspector .ladder .rung, .inspector .reconlines li").count();
   await unticked(`X from ${s0} to ${sel()}`);
   await page.keyboard.press("b");
   await page.waitForTimeout(900);

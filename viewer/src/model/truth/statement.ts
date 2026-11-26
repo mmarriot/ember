@@ -135,7 +135,9 @@ export function leadChoice(choices: PartChoice[]) {
 }
 
 /** Where truth row `particle` went among the objects of `table` (W2): every object its truth -> reco association
- *  gives it (recoOfTruth), and `merges`, the other particles whose TruthToReco best there is `row`. */
+ *  gives it (recoOfTruth), and `merges`, the other particles whose TruthToReco best there is `row`, but those `kin`
+ *  says are on its own line of the graph (its ancestors and descendants: the associator matches a particle with all
+ *  below it, so a K⁰S and its π⁺ share their best track, which is no merge). */
 export function whereItWent(
   ev: EventData,
   header: Header,
@@ -143,6 +145,7 @@ export function whereItWent(
   particle: number,
   table: string,
   row: number,
+  kin: (q: number) => boolean = () => false,
 ) {
   const objects = recoOfTruth(ev, header, { table: truth, row: particle }).reco.find(
     (r) => r.table === table,
@@ -151,7 +154,7 @@ export function whereItWent(
     merges: number[] = [];
   if (t2r && ev.relations[t2r[0]]) {
     const best = bestPartners(ev.relations[t2r[0]], t2r[1], true, ev.tables[truth]?.n ?? 0).partner;
-    for (let q = 0; q < best.length; q++) if (q !== particle && best[q] === row) merges.push(q);
+    for (let q = 0; q < best.length; q++) if (q !== particle && best[q] === row && !kin(q)) merges.push(q);
   }
   return { objects: objects ?? [], merges };
 }

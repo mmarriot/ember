@@ -138,7 +138,8 @@ export function PairBars() {
       </p>
       <p>
         <b>Which particle</b>: the one selected; for a reco object, its best match (associator); for a hit, the particle
-        that left the most simulated energy in it. Its parents are in the lineage: select one there for a larger branch.
+        that left the most simulated energy in it. Its ancestors are in the crumb under its name, and in the Truth tab:
+        select one there for a larger branch.
       </p>
       <p>
         <b>Simulated energy</b>: what the branch's particles deposited in each detector's sensors (Geant4), counted once

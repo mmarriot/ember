@@ -118,6 +118,21 @@ with a message while an old one is set without its new name. `deploy.sh` links `
     lit are those whose best truth match is a pick or below one: a photon from an electron's brem no longer lights the
     electron's cluster and track. A truth particle's card gives the distance from where it was made to its last vertex
     ("decays where it was made (0 cm)" for a top quark), and its label sits in the middle of its line.
+  - The selection's card answers first and keeps the evidence under one fold, **More** (remembered, and built only
+    while open: each part's truth, column groups such as the e/γ ID, the pair's bars, every association, all
+    columns). A reco object's truth is its match, where that particle comes from ("from ρ⁰ decay") and two bars,
+    purity and completeness, then the rest of its particle only when it is split, and the particles it merges; a kind
+    without an associator shows its track's (or its one cluster's) match with both bars. Its numbers are small
+    tiles; its chain is for moving through, without truth tags. A truth particle's card says what was reconstructed
+    from it per detector (the kind compared there, its largest holders from 5%, "merged", the hits it left), then
+    where it was made and where it ended; its lineage is one line under its name, "t → W⁻ → e⁻", as the Truth tab's
+    tree has the rest. The longest cards (a trackster, a TICL candidate, an electron) went from over 1,400 px to
+    under 720.
+  - A truth particle has one name everywhere, by its pT and η, "e⁻ · pT 39.4 · η 1.22": its card (no row number), the
+    chips, its label in the view, the colour key and the Truth tab's tree (whose rows gave its energy). It was named
+    by its energy next to calorimeter objects. A truth vertex is named by what happened there, "B⁰ decay · 3
+    charged" (was "decay 208"), a generator step by its collision ("hadronization · signal collision", was "g
+    hadronization").
   - A truth electron, positron or photon that reached the calorimeter is drawn to where it entered it, when its last
     vertex with daughters is no earlier (a vertex of its shower): an electron's line was bent towards a positron
     annihilation tens of cm off its path.
@@ -211,6 +226,9 @@ with a message while an old one is set without its new name. `deploy.sh` links `
 ### Fixed
 
 - **Viewer:**
+  - The card no longer lists a match's own ancestors as particles it merges ("also best match of K̄⁰ · K⁰S" on the
+    track of the K⁰S's π⁺: the associator matches a particle with everything below it), nor marks a b quark's
+    tracks as merged into its own pions, nor lists objects holding 0% of a particle as "★ its best".
   - Messages are readable: they took the ⓘ button's 15 px width and showed one word per line.
   - run:lumi:event in the event box read the lumi section as the event number.
   - "only" on a kind drawn for the selection (track hits) left the view empty.

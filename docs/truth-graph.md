@@ -37,7 +37,7 @@ What a reco object is compared with, the measures (purity, completeness) and the
 | a reco object's "best match"; the pair view's particle for a selected reco object | `<Key>ToTruth` (earlier export: `<collection>ToTruth`): the AdaptiveNominal working point, one particle per reco object, with `sharedEnergy` and `score` (0 is best) |
 | a reco object's purity, and whether its match is clean (inspector, truth mode) | `ToTruth.sharedEnergy` over the object's own amount, as the relation's `match` hint says ([Truth](truth.md#measures)) |
 | a truth particle's matched reco objects (its card's "Reconstructed as"), a match's completeness | `TruthTo<Key>` (earlier export: `<collection>FromTruth`), with `sharedEnergyFraction` (earlier export: `sharedFraction`) and `score` |
-| "the particle" that colours everything below it in the truth colours; the levels in the lineage | `TruthParticles.levelFlags` (truth::LevelFlag; bit 2 StableDecayProducts, bit 3 CaloBoundary) |
+| "the particle" that colours everything below it in the truth colours; the levels a particle belongs to (its card's More) | `TruthParticles.levelFlags` (truth::LevelFlag; bit 2 StableDecayProducts, bit 3 CaloBoundary) |
 | a hit's particle; "simulated energy in its hits, by particle" | `TruthHGCalRecHits`, `TruthPFRecHits` (earlier export: `TruthHGCalHits`, `TruthSoAHits{EE,HSi,HSci}`, and the barrel and forward ones of gap 12): per (particle, hit), the simulated energy of the particle's subgraph |
 
 **Choices in Ember.** Ember derives no truth association where CMSSW has none: a layer cluster, a TICL candidate or a
@@ -49,7 +49,7 @@ eye:
   `particle` level, the generator-level stable particles (`identities` in the same file; [Truth](truth.md)). So a π⁺
   that interacted in the tracker, its daughters' hits and its track share one colour. A shower secondary matched to a
   trackster has the colour of the shower's hits. The inspector still names the particle that was actually matched,
-  and its lineage.
+  and where it comes from.
 - **Small, faint grey hits** mean that no exported particle left energy in them: noise, or a particle that was not
   exported (gaps 3 to 5). The export cannot tell which. The larger mid grey means something else: a particle beyond
   the seven that get a colour (the key says which seven: [Truth](truth.md#which-particles-get-a-colour)).

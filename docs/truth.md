@@ -49,8 +49,8 @@ energy, but only 57–62% of the tracker hits. So Ember uses two levels:
   generator level (`hasGen && status == 1`). This is what came out of the collision, before the detector. Every truth
   particle below it belongs to it and takes its colour, in every subdetector: Geant4 secondaries, conversion
   electrons, the daughters of an interaction or of a decay in flight. For example, the track of a conversion
-  electron and the showers of that photon share the photon's colour. The lineage in the inspector shows how they are
-  related.
+  electron and the showers of that photon share the photon's colour. The Truth tab's tree (and the crumb under a
+  truth particle's name in its card) shows how they are related.
 - **The target** is what one reco kind reconstructs. Its association declares it in `match.target`:
   - tracks: the particle whose own tracker hits they collected (`trackerHits`);
   - calorimeter objects: the particle that entered the calorimeter (`caloBoundary`);
@@ -149,7 +149,8 @@ With a truth particle, a matched reco object or a hit selected, the view shows o
   associator's, at the kind's target); for a hit, the particle that left the most simulated energy in it; for a part
   drawn with its container (a track's hits), the container's best match. The branch is
   that particle and everything below it: never its siblings, its parent's other descendants, or the generator particle
-  above it. Its lineage in the card goes up: select a parent there for a larger branch (a W, a B hadron, a top).
+  above it. The crumb under its name in the card goes up: select a parent there (or in the Truth tab) for a larger branch (a W,
+  a B hadron, a top).
 - **The hits are the simulation's.** The file gives hits to the particles that entered the calorimeter (truth level
   CaloBoundary), each with its whole shower inside the calorimeter. So the branch's hits are those of its particles
   that entered the calorimeter, each hit counted once:
@@ -268,11 +269,10 @@ to the [gap table](truth-graph.md#gap-table).
 
 - **the selection's card**, in its truth block at the top ([Viewer](viewer.md#the-selections-card)). For a kind
   without an association, one line: the match of its parts that are each the only one of their collection in their
-  step, when no other part is matched and they name one particle ("via its track · e⁻ … · purity 100%"), else "No
-  truth match for jets in CMSSW"; behind its **i**: "the truth graph has no jet associator, and no generator-jet
-  level", with the gap as a link. Each part's own match is folded below it
-  ([below](#constituents)). In the chain, a step with its own truth has a tag (match, sim); the kinds without an
-  associator are named behind the chain's **i**;
+  step, when no other part is matched and they name one particle ("via its track · e⁻ …", with its purity and
+  completeness), else "No match of its own"; behind its **i**: "the truth graph has no jet associator, and no
+  generator-jet level", with the gap as a link. Under the card's **More**, "Its parts' truth" gives each step of its
+  parts with its own truth a tag (match, sim) and names the kinds without an associator ([below](#constituents));
 - **the truth colour key**: "faint: no CMSSW associator for that kind", once, with the kinds behind its **i** (the
   side panel's rows of those kinds carry no line of their own); its
   switch reads "Colour by: reco type | truth particle", and its grey reads "no simulated energy, or not cleanly
@@ -299,11 +299,11 @@ fact in that layer's part of the detector. Bundles whose layer clusters still ca
 
 A composite object (jet, muon, PF candidate, electron) shows the **own** associations of its parts in its card's truth
 block, each named as the part's. Its line names one only when its matched parts are each the only one of their
-collection in their step and all name one particle: "via its track · μ⁺ · pT 95.3 · from W⁺ decay · purity 100%", the track's answer, which its
-**i** says is not a verdict for the muon. Under **Each part's match**, folded, every step with an association: a step
-of one part names its particle and the match's purity ("Track pT 95.3 GeV → μ⁺ · purity 100% · associator · tracker
-hits"), a step of several counts them ("3 of 3 matched (3 clean)"). The parts are the steps of what it is made of, and
-the objects built only from its parts (an electron's PF cluster inside its supercluster, under "Built from its parts").
+collection in their step and all name one particle: "via its track · μ⁺ · pT 95.3 · η 1.11 from W⁺ decay", with the track's purity and completeness: the track's
+answer, which its **i** says is not a verdict for the muon. Under the card's **More**, "Its parts' truth", every step
+with its own truth: a step of one part names its particle and the match's purity ("match μ⁺ · pT 95.3 · η 1.11 ·
+purity 100%"), a step of several counts them ("3 clean"). The parts are the steps of what it is made of, and the
+objects built only from its parts (an electron's PF cluster inside its supercluster).
 `X` goes to the particle the line names, else offers the parts' particles in a chooser, larger parts first among
 those whose matches count the same thing. Naming one part's match when the parts disagree, or ranking particles by
 size across a track's pT and a cluster's energy, would be a verdict built in Ember.
@@ -375,11 +375,9 @@ Truth and reco are told apart by one visual grammar, everywhere:
 | reco | solid lines, filled markers, type colours | all reco |
 | no information | plain grey text, no badge | "no truth" |
 
-A truth particle is named for what it is shown next to: by pT and η next to a track, a muon, a jet, an e/γ object or
-MET, and in the colour key of Physics, the tracker and All (`μ⁺ · pT 96.6 · η 1.11`); by its energy next to a
-calorimeter object or hits, and in the views of HGCal and Calo (`K⁻ · E 69.4 GeV`). A part's match in the card's
-truth block and in the choices of `X` is named as on the chain's step: a track's particle by pT and η, a trackster's or
-a PF cluster's by its energy, whatever the view.
+A truth particle has one name everywhere, by its pT and η (`μ⁺ · pT 96.6 · η 1.11`): its card, every chip naming it,
+its label in the view, the colour key, the choices of `X` and the Truth tab's tree. A beam particle (pT 0) is named by
+its energy. The same particle never reads as two (`E 72.6 GeV` in one place and `pT 39.4` in another).
 
 Violet is the truth's only: no category colour of the palettes is violet, and the profiles give RPC hits and taus,
 violet before, other colours. Bundles converted before that are drawn in the new colours by a shim

@@ -13,8 +13,8 @@ import { chip, namedChip, ObjChip } from "./chips";
 const SHOWN = 2; // the other objects named; the rest counted
 const SOME = 0.05; // an other object named holds at least this much of the particle
 
-/** Under a reco object's match: the other objects of its kind that hold a good part of its particle ("Rest of π⁻",
- *  a split), and the other particles whose own best object it is ("Merged in"), but its particle's own ancestors and
+/** Under a reco object's match: the other objects of its kind that hold a good part of its particle, it and what it
+ *  made ("Rest of π⁻"), and the other particles whose own best object it is ("Merged in"), but its particle's own ancestors and
  *  descendants, which share its best object by the associator's design (it matches a particle with all below it). */
 export function WentTo({ table, row, relation }: { table: string; row: number; relation: string }) {
   const b = bundle.value!,
@@ -34,7 +34,10 @@ export function WentTo({ table, row, relation }: { table: string; row: number; r
   return (
     <div class="went">
       {others.length > 0 && (
-        <p class="physline" title="Other objects of its kind holding part of its match (associator): a split">
+        <p
+          class="physline"
+          title="Other objects of its kind holding part of its match: of it and what it made, as the associator's completeness counts (e.g. a brem photon's conversion track under an electron's)"
+        >
           <span class="muted">Rest of {name}:</span>{" "}
           {others.slice(0, SHOWN).map((o, i) => (
             <>

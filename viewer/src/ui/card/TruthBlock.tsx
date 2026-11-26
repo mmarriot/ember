@@ -80,6 +80,7 @@ export function TruthBlock({ table, row }: { table: string; row: number }) {
       )}
       {own?.kind === "container" && <p class="truthline nolink">Its truth is that of what contains it.</p>}
       {own?.kind === "fact" && <HitTruth />}
+      <Delegated />
       <Chooser />
     </section>
   );
@@ -114,12 +115,10 @@ function Answer({ table, reason }: { table: string; reason?: { reason: string; g
   );
   if (lead) {
     const from = originOf(lead.particle),
-      p = pairView.value,
       part = inText(singular(kindOf(lead.table)));
-    // the view's pair is that of this part (model/truth/pair.ts delegatedPart): its class says so
     return (
       <>
-        <p class={`truthline answer${p?.via && p.from ? " delegated" : ""}`}>
+        <p class="truthline answer">
           <span class="muted">
             {lead.beside ? "via the" : "via its"} {part}
             {lead.beside ? " inside it" : ""}
@@ -172,6 +171,19 @@ export function Quality({ purity, completeness, clean }: { purity?: number; comp
         </span>
       )}
     </>
+  );
+}
+
+/** When the view's pair is that of the object's part (model/truth/pair.ts delegatedPart: a TICL candidate's candidate
+ *  trackster), one line that says so, so that the view's colours never read as the object's own truth. */
+function Delegated() {
+  const p = pairView.value;
+  if (!p?.via || !p.from || p.particle < 0) return null;
+  const part = inText(singular(kindOf(p.from.table)));
+  return (
+    <p class="hint delegated">
+      The view shows its {part}'s pair: {truthChip(p.truth, p.particle)}
+    </p>
   );
 }
 

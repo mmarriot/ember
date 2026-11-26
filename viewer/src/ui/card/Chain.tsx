@@ -146,11 +146,10 @@ export function PartsTruth() {
   );
 }
 
-/** The steps of kinds without an associator (also inside a step that has one: PF clusters, HCAL outer). */
+/** Its parts' steps of kinds without an associator (also inside a step that has one: PF clusters, HCAL outer). Not
+ *  the steps that hold it: they are not its parts. */
 const noneOf = (l: Ladder) =>
-  [...l.above, ...l.below, ...l.beside].flatMap((r) =>
-    r.links.flatMap((x) => (x.kind === "none" ? [[r.kind, x] as const] : [])),
-  );
+  [...l.below, ...l.beside].flatMap((r) => r.links.flatMap((x) => (x.kind === "none" ? [[r.kind, x] as const] : [])));
 /** Whether PartsTruth has anything to say of ladder `l`. */
 export const partsSay = (l: Ladder | null) => !!l && ([...l.below, ...l.beside].some(says) || noneOf(l).length > 0);
 

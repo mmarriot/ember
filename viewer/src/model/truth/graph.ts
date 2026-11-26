@@ -135,7 +135,7 @@ export function ancestorsOf(g: Graph, r: number): Set<number> {
 export const sameLine = (g: Graph, a: number, b: number) =>
   a === b || ancestorsOf(g, a).has(b) || ancestorsOf(g, b).has(a);
 /** The generator's internals: quarks, gluons, generator codes (81-100), diquarks (e.g. 2101). */
-export function isParton(pdgId: number) {
+function isParton(pdgId: number) {
   const id = Math.abs(pdgId);
   return id <= 8 || id === 21 || (id >= 81 && id <= 100) || (id > 1000 && id < 6000 && Math.floor(id / 10) % 10 === 0);
 }

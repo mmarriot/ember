@@ -143,9 +143,8 @@ function More({ table, row, truth, particle }: { table: string; row: number; tru
   const what = [
     !truth && partsSay(ladder.value) ? "parts' truth" : "",
     ...(truth ? [] : (d?.inspectGroups ?? []).filter((g) => g.columns.some((c) => c in t.columns)).map((g) => g.name)),
-    particle ? "status, copies, levels" : "",
+    particle ? "status, levels" : "",
     pair ? "view colours" : "",
-    "associations",
     `all ${Object.keys(t.columns).length} columns`,
   ].filter(Boolean);
   return (

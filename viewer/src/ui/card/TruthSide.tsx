@@ -3,7 +3,6 @@
 import { percent } from "../../model/truth/match";
 import { recoByDetector } from "../../model/event/chain";
 import { unassociatedKinds } from "../../model/truth/particles";
-import { comparedKind } from "../../model/truth/pair";
 import { sameLine } from "../../model/truth/graph";
 import { bundle, event, kindOf, modes, reconstructed, truthGraph, truthName, truthStatuses } from "../../model/store";
 import { inText, singular } from "../../model/event/describe";
@@ -45,15 +44,6 @@ function unanswered(table: string, row: number): { names: string[]; gaps: number
   };
 }
 
-/** A detector where it left hits and nothing of the compared kind holds any of it ("no PF cluster"), or whose reco
- *  has no association to truth ("not compared"). */
-function NoneHere({ where }: { where: string }) {
-  const b = bundle.value,
-    truth = modes.value.roots.truth,
-    kind = b && truth ? comparedKind(b.header, truth, where) : undefined;
-  return <>{kind ? `no ${inText(singular(kindOf(kind)))} holds any of it` : "not compared"}</>;
-}
-
 export function TruthSide({ table, row }: { table: string; row: number }) {
   const rec = reconstructed.value,
     b = bundle.value;
@@ -64,7 +54,12 @@ export function TruthSide({ table, row }: { table: string; row: number }) {
     particle = tg?.particles === table;
   // Merged: the object's own best match is another particle, off this one's line of the graph (a b quark's tracks are
   // its descendants' best matches: they are its own, not a merge).
-  const merged = (owner: number) => owner >= 0 && owner !== row && !(particle && tg && sameLine(tg.graph, row, owner));
+  // Tagged only from 5%: a holder under that is shown as the largest of its kind, and a share that small says little.
+  const merged = (o: { owner: number; completeness?: number }) =>
+    o.owner >= 0 &&
+    o.owner !== row &&
+    (o.completeness ?? 1) >= 0.05 &&
+    !(particle && tg && sameLine(tg.graph, row, o.owner));
   const detector = (where: string) => where.charAt(0).toUpperCase() + where.slice(1);
   const help = (
     <>
@@ -78,12 +73,13 @@ export function TruthSide({ table, row }: { table: string; row: number }) {
         counted in "+N" (all of them are under More, Every association).
       </p>
       <p>
-        <span class="tag-merged">merged</span>: the object's own best match is another particle (not one above or below
-        this one), which it merges this one with.
+        <span class="tag-merged">merged</span>: the object holds at least 5% of it, and its own best match is another
+        particle (not one above or below this one), which it merges this one with.
       </p>
       <p>
-        <b>hits</b>: the hits it left simulated energy in. Where it left hits and no object of the kind compared holds
-        any of it, the line says so; a detector whose reco has no association to truth (HF, HO) is not compared.
+        <b>hits</b>: the hits it left simulated energy in. Where no object of the kind compared holds any of it (also
+        when one of an earlier step does: those are under More), the line says so; a detector whose reco has no
+        association to truth (HF, HO) is not compared.
       </p>
       <p>
         <b>Click</b> an object to look at it in the view; <b>double click</b> to open its card.
@@ -126,34 +122,43 @@ export function TruthSide({ table, row }: { table: string; row: number }) {
                 <div class="rdet">
                   <b>{l.in === l.table ? kindOf(l.table) : detector(l.in)}</b>{" "}
                   <span class="muted">
-                    {l.table ? l.in !== l.table ? inText(kindOf(l.table)) : "" : <NoneHere where={l.in} />}
+                    {!l.table
+                      ? "not compared"
+                      : !l.objects.length
+                        ? `no ${inText(singular(kindOf(l.table)))} holds any of it`
+                        : l.in !== l.table
+                          ? inText(kindOf(l.table))
+                          : ""}
                   </span>
                   {l.hits > 0 && <span class="muted rhits">{l.hits.toLocaleString()} hits</span>}
                 </div>
-                {l.table && (
+                {l.table && l.objects.length > 0 && (
                   <div class="robjs">
-                    {l.objects.map((o) => (
-                      <span class="partner">
-                        {chip(
-                          l.table!,
-                          o.row,
-                          `${o.completeness !== undefined ? `it holds ${percent(o.completeness)} of this one` : ""}${merged(o.owner) ? "; its own best match is another particle" : ""}`,
-                        )}
-                        {o.completeness !== undefined && (
-                          <span class="pct" title="The share of this particle it holds (completeness, associator)">
-                            {percent(o.completeness)}
-                          </span>
-                        )}
-                        {merged(o.owner) && (
-                          <span
-                            class="tag-merged"
-                            title="Its own best match is another particle: it merges this one with it (associator)"
-                          >
-                            merged
-                          </span>
-                        )}
-                      </span>
-                    ))}
+                    {l.objects.map((o) => {
+                      const m = merged(o);
+                      return (
+                        <span class="partner">
+                          {chip(
+                            l.table!,
+                            o.row,
+                            `${o.completeness !== undefined ? `it holds ${percent(o.completeness)} of this one` : ""}${m ? "; its own best match is another particle" : ""}`,
+                          )}
+                          {o.completeness !== undefined && (
+                            <span class="pct" title="The share of this particle it holds (completeness, associator)">
+                              {percent(o.completeness)}
+                            </span>
+                          )}
+                          {m && (
+                            <span
+                              class="tag-merged"
+                              title="Its own best match is another particle: it merges this one with it (associator)"
+                            >
+                              merged
+                            </span>
+                          )}
+                        </span>
+                      );
+                    })}
                     {l.others > 0 && (
                       <span class="muted" title="Others holding some of it, most under 5% (all under More)">
                         +{l.others}
@@ -164,10 +169,12 @@ export function TruthSide({ table, row }: { table: string; row: number }) {
               </li>
             ))}
           </ul>
+        ) : !rec || (!rec.reco.length && !rec.hits.length) ? (
+          <p class="hint">Not compared: the file has no association from it to reco objects or hits.</p>
         ) : (
           <p class="hint">
             No reco object holds any of it
-            {table === modes.value.roots.truth ? ", and it left no hits of its own in the file" : ""}.
+            {particle ? ", and it left no hits of its own in the file" : ""}.
           </p>
         )}
       </section>

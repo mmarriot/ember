@@ -302,8 +302,8 @@ describe("recoByDetector", () => {
   const h = {
     domains: [{ name: "Tracker" }, { name: "Calo" }, { name: "HGCal" }],
     display: [
-      { table: "Cand", domain: "HGCal" },
-      { table: "Tks", domain: "HGCal" },
+      { table: "Cand", domain: "HGCal", stage: 2 },
+      { table: "Tks", domain: "HGCal", stage: 0 },
       { table: "Hits", domain: "HGCal" },
       { table: "Ecal", domain: "Calo" },
       { table: "HF", domain: "Calo" },
@@ -356,8 +356,34 @@ describe("recoByDetector", () => {
     });
     expect(lines.map((l) => l.in)).toEqual(["tracker", "HGCal", "V"]);
   });
-  it("leaves out a kind with nothing", () => {
+  it("leaves out a detector with nothing", () => {
     expect(recoByDetector(h, { reco: [kind("Cand", [])], hits: [] })).toEqual([]);
+  });
+  it("keeps the compared kind when it holds nothing and an earlier step does, never falling back to that step", () => {
+    expect(recoByDetector(h, { reco: [kind("Cand", []), kind("Tks", [p(10, 0.3)])], hits: [] })).toEqual([
+      { in: "HGCal", table: "Cand", measure: "energy", objects: [], others: 0, hits: 0 },
+    ]);
+  });
+  it("gives kinds of one detector that are not steps of one chain a line each (primary and secondary vertices)", () => {
+    const hv = {
+      ...h,
+      display: [
+        { table: "PV", domain: "Tracker" },
+        { table: "SV", domain: "Tracker" },
+      ],
+    } as unknown as Header;
+    const lines = recoByDetector(hv, {
+      reco: [
+        kind("PV", [p(0, 0.83)], "pt2", "tracker"),
+        kind("SV", [p(2, 0.35)], "pt2", "tracker"),
+        kind("Trk", [], "hits", "tracker"),
+      ],
+      hits: [],
+    });
+    expect(lines.map((l) => [l.in, l.table])).toEqual([
+      ["tracker", "PV"],
+      ["tracker", "SV"],
+    ]);
   });
 });
 

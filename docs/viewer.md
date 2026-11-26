@@ -514,7 +514,7 @@ objects that left hits, and the tree, which folds. With truth, from the top:
   - **+ descendants**: every particle below each pick drawn as its line (also a photon an electron radiated: anything
     made below it, whatever the process), every vertex of them as a ring, and the hits and reco objects linked to any
     of them;
-  - a reco object is lit when its own best truth match (the card's "its best") is one of the picks or below one, not
+  - a reco object is lit when its own best truth match (its card's match) is one of the picks or below one, not
     when they only share in it: a photon an electron radiated, which converts, does not light the electron's cluster
     and track (best matched to the electron, above the photon), though its conversion's electrons left some energy in
     them; a top quark's tracks, best matched to the particles it decayed to, are its own. Hits are lit for every
@@ -707,7 +707,8 @@ from the associations in the file, with **Go to truth (X)**:
   decay"; a vertex by its distance, "590 µm away"), and two bars, the associator's **purity** (how much of the object
   is the particle, green from the kind's clean threshold, which is marked, amber below) and **completeness** (how much
   of the particle the object holds). What each counts is in its tooltip. Then, only when there is more to say:
-  **Rest of π⁻**, the other objects of the kind holding at least 5% of the particle (a split), and **Merged in**, the
+  **Rest of π⁻**, the other objects of the kind holding at least 5% of the particle (of it and what it made, as the
+  associator's completeness counts: a brem photon's conversion track under an electron's), and **Merged in**, the
   other particles whose own best object this is (a merge). A particle above or below the match in the truth graph is
   no merge (the associator matches a particle with everything below it, so a K⁰S and its π⁺ share their best track)
   and is not listed;
@@ -716,8 +717,9 @@ from the associations in the file, with **Go to truth (X)**:
   purity and completeness bars: "via its track · e⁻ · pT 39.4 · η 1.22 from W⁻ decay"; "via the PF cluster inside it"
   for a part only built from it (a photon's). Otherwise (a jet, a τ, a charged PF candidate whose track is a π⁺ and
   whose HCAL cluster a K⁰L): "No match of its own · its parts match 21 particles (X)". Why the kind has none (no
-  CMSSW associator, with its gap) is behind its **i**. A TICL candidate's line is its candidate trackster's, whose pair
-  the view then shows (owner decision D4);
+  CMSSW associator, with its gap) is behind its **i**. When the view shows a part's pair instead of the object's own
+  (a TICL candidate's candidate trackster, owner decision D4), a line says so: "The view shows its candidate
+  trackster's pair: π⁺ · pT 5.98 · η −1.63";
 - a hit: the simulated energy each particle deposited in it (in MeV or GeV, not calibrated; in HF, photoelectrons)
   and its share of the hit's, with a button for the particle's pair.
 
@@ -763,11 +765,13 @@ tick.
 last reconstruction step with an association there: tracks, ECAL and HCAL PF clusters, in HGCal the TICL candidates'
 tracksters; `recoByDetector` in `viewer/src/model/event/chain.ts`), its largest holder and those holding at least 5%
 of it, at most three, each with its completeness ("67%", the share of the particle it holds), and "+N" for the others
-(all of them under More, Every association). **merged** marks an object whose own best match is another particle off
-this one's line of the graph: it merges the two (a b quark's tracks, best matched to its pions, are its own, not
-merged). The hits it left there are counted on the right. A detector where it left hits that no object of the kind
-compared holds any of says so ("no PF cluster holds any of it"); one whose reco has no association to truth (HF, HO)
-is "not compared". Its **i** names the kinds with **no CMSSW associator** that the particle could have reached (no
+(all of them under More, Every association). Primary and secondary vertices, not steps of one chain, are a line each.
+**merged** marks an object holding at least 5% of it whose own best match is another particle off this one's line of
+the graph: it merges the two (a b quark's tracks, best matched to its pions, are its own, not merged). The hits it
+left there are counted on the right. Where no object of the kind compared holds any of it, the line says so ("no
+candidate trackster holds any of it"), also when an object of an earlier step does (it is under Every association):
+the line never falls back to that step. A detector whose reco has no association to truth (HF, HO) is "not
+compared", and so is a truth object the file has no association for at all. Its **i** names the kinds with **no CMSSW associator** that the particle could have reached (no
 answer, which is not "nothing holds it").
 
 **Its facts**: its energy and φ (its pT and η are in its name); the vertex it was made in and the last one where its

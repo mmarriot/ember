@@ -700,8 +700,8 @@ async function checkLevels(page, h, target, fail, shot, tag) {
   await page.waitForTimeout(600);
   if ((await drawn()) !== before) fail("the other key did not move the tick back to the focus's first layers");
   if ((await style()) !== style0) fail("the other key did not give the focus its first surface back");
-  // In the truth <-> reco pair view, the pair's particle opens its own pair, which names it on its truth line. (Not
-  // the chip of the one-line answer, named by energy next to a calorimeter part.)
+  // In the truth <-> reco pair view, the pair's particle (the chip of its own match's line, not of a part's answer)
+  // opens its own pair, which names it on its truth line.
   const particle = page.locator(".inspector .truthline:not(.answer) .chip").first();
   if (!(await page.locator(".pairline").count()) || !(await particle.count())) return;
   const name = (await particle.innerText()).replace(/\s+/g, " ");

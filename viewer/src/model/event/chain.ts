@@ -343,8 +343,8 @@ export function recoOfTruth(ev: EventData, header: Header, sel: Ref): { reco: Re
 
 /** One detector of a truth object's "Reconstructed as" (the card's answer for it): the reco kind compared there (the
  *  last reconstruction stage with an association in that detector, as truth/pair.ts comparedKind chooses), the
- *  objects of that kind that hold the most of it, how many others hold some of it, and the hits it left there. A
- *  detector with hits and no association has no `table`. */
+ *  objects of that kind that hold the most of it (none: nothing of that kind holds any of it), how many others hold
+ *  some of it, and the hits it left there. A detector with hits and no association has no `table`. */
 export interface DetectorLine {
   in: string;
   table?: string;
@@ -355,23 +355,33 @@ export interface DetectorLine {
 }
 
 /** "Reconstructed as" by detector (`reco` and `hits` of recoOfTruth): per detector (the association's `in`, else its
- *  table), its compared kind's largest holder always, then those holding at least `min` of the particle, at most `max`
- *  in all; `others` counts the rest. Detectors in the order of the domain bar, then of the display. */
+ *  table), the kind compared there (the latest stage of a chain of steps, as truth/pair.ts comparedKind; recoOfTruth
+ *  lists it first), even when nothing of it holds the particle but an earlier step does (no line falls back to that
+ *  step); kinds of one detector that are not steps of one chain (a primary and a secondary vertex) are a line each. A
+ *  line names its kind's largest holder always, then those holding at least `min` of the particle, at most `max` in
+ *  all; `others` counts the rest. Lines with nothing in any of their kinds and no hits are left out. Detectors in the
+ *  order of the domain bar, then of the display. */
 export function recoByDetector(
   header: Header,
   { reco, hits }: { reco: Reconstructed[]; hits: Deposits[] },
   min = 0.05,
   max = 3,
 ): DetectorLine[] {
-  const lines = new Map<string, DetectorLine & { at: string }>();
-  // recoOfTruth lists the latest stage first: the first kind of a detector is the one compared there
+  const stage = (t: string) => header.display.find((d) => d.table === t)?.stage;
+  const lines = new Map<string, DetectorLine & { at: string; any: boolean }>();
   for (const r of reco) {
-    const where = r.in ?? r.table;
-    if (lines.has(where) || !r.partners.length) continue;
+    const where = r.in ?? r.table,
+      first = lines.get(where),
+      key = first && stage(first.at) === undefined && stage(r.table) === undefined ? `${where}|${r.table}` : where,
+      line = lines.get(key);
+    if (line) {
+      line.any ||= r.partners.length > 0;
+      continue;
+    }
     const shown = r.partners.filter(
       (p, i) => i === 0 || (i < max && (p.completeness === undefined || p.completeness >= min)),
     );
-    lines.set(where, {
+    lines.set(key, {
       in: where,
       table: r.table,
       measure: r.measure,
@@ -379,12 +389,15 @@ export function recoByDetector(
       others: r.partners.length - shown.length,
       hits: 0,
       at: r.table,
+      any: r.partners.length > 0,
     });
   }
   for (const h of hits) {
     const line = lines.get(h.in);
-    if (line) line.hits += h.hits;
-    else lines.set(h.in, { in: h.in, objects: [], others: 0, hits: h.hits, at: h.table });
+    if (line) {
+      line.hits += h.hits;
+      line.any ||= h.hits > 0;
+    } else lines.set(h.in, { in: h.in, objects: [], others: 0, hits: h.hits, at: h.table, any: h.hits > 0 });
   }
   const domains = (header.domains ?? []).map((d) => d.name),
     place = (t: string) => {
@@ -393,10 +406,11 @@ export function recoByDetector(
       return [d < 0 ? domains.length : d, i] as const;
     };
   return [...lines.values()]
+    .filter((l) => l.any)
     .sort((a, b) => {
       const [da, ia] = place(a.at),
         [db, ib] = place(b.at);
       return da - db || ia - ib;
     })
-    .map(({ at: _, ...l }) => l);
+    .map(({ at: _, any: __, ...l }) => l);
 }

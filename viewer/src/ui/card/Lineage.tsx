@@ -16,6 +16,7 @@ export function Crumb({ row }: { row: number }) {
     flags = d.particle?.flags,
     name = (r: number) => truthText(tg.particles, r).split(" · ")[0];
   const steps = crumbOf(g, row, (r) => !!flags && ((g.col(flags, r) >>> HARD_BIT) & 1) === 1);
+  if (!steps.length) return null; // nothing above it but the generator's partons (a top quark)
   return (
     <p class="crumb" title="Where it comes from in the truth graph (the Truth tab's tree shows all of it)">
       {steps.map((a) => (

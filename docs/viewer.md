@@ -487,12 +487,12 @@ objects that left hits, and the tree, which folds. With truth, from the top:
   under it (unfolding it), with a hollow dot, each folding its own. A list of more than 50 particles or collisions
   shows the 50 largest and "show 50 more". A particle selected elsewhere (in the view, `X`) is unfolded to and
   scrolled into view, the pile-up and its collision or the underlying event opening above it (one at no level shown
-  under the particle it hides under). The particles the search finds are marked, and the way to the 20 largest is
-  open while the search is typed (clearing it folds them back); the controls say how many it found, and Enter or
-  "next" selects the next one. A name can be typed on a plain keyboard: Greek letters by their names and the charge
-  at the end (`pi0` π⁰, `e-` e⁻, `W+` W⁺, `gamma` γ); the signal collision's matches come first, then pile-up's. Where the panel is beside the view and tall enough, the levels and the controls stay at
-  its top while the graph scrolls. In the tree, ↑ ↓ move between the names and → ← unfold and fold (there they do not
-  step the event or the focus level).
+  under the particle it hides under). The particles the search finds are marked, and the way to the 20 largest is open
+  while the search is typed (clearing it folds them back); the controls say how many it found, and Enter or "next"
+  selects the next one. A name can be typed on a plain keyboard: Greek letters by their names and the charge at the end
+  (`pi0` π⁰, `e-` e⁻, `W+` W⁺, `gamma` γ); the signal collision's matches come first, then pile-up's. Where the panel is
+  beside the view and tall enough, the levels and the controls stay at its top while the graph scrolls. In the tree, ↑ ↓
+  move between the names and → ← unfold and fold (there they do not step the event or the focus level).
 
   A click on a particle's name selects it: the card describes it, and the view draws it, highlighted, with the
   ticked particles, which stay as they are. Its tick keeps it drawn (ticking selects it too); unticking the one
@@ -503,9 +503,10 @@ objects that left hits, and the tree, which folds. With truth, from the top:
   elsewhere (in the view, from a card, `X`) is the one selected, with the ticked ones. What the view draws for the
   ticked particles and the one selected (the picks):
   - **particle only**: each pick as one line (all its generator copies), from the vertex where it was made to its
-    last vertex with daughters, and both vertices; a particle that reached the calorimeter ends where it entered it
-    when that vertex is no earlier (a vertex of its shower, which can lie tens of cm off its path), without that
-    vertex. Its label is in the middle of its line. A parton of the hard process (t, W, the quarks) is made and ends at the
+    last vertex with daughters, and both vertices; an electron, positron or photon that reached the calorimeter ends
+    where it entered it when that vertex is no earlier (a vertex of its shower, which can lie tens of cm off its path),
+    without that vertex (a muon or a hadron goes on to where it stopped or interacted). Its label is in the middle of
+    its line. A parton of the hard process (t, W, the quarks) is made and ends at the
     collision: it is two rings at one point and no line, and its card says "decays where it was made (0 cm)". The hits
     and reco objects drawn are those linked to the picks themselves through an association, not to their
     descendants. The reco associators match a particle's whole branch (it and everything below it), so a top quark
@@ -513,12 +514,13 @@ objects that left hits, and the tree, which folds. With truth, from the top:
   - **+ descendants**: every particle below each pick drawn as its line (also a photon an electron radiated: anything
     made below it, whatever the process), every vertex of them as a ring, and the hits and reco objects linked to any
     of them;
-  - a reco object is lit when its own best truth match (the card's "its best") is among the particles drawn, not when
-    they only share in it: a photon an electron radiated, which converts, does not light the electron's cluster and
-    track, though its conversion's electrons left some energy in them. Hits are lit for every particle that left
-    energy in them;
+  - a reco object is lit when its own best truth match (the card's "its best") is one of the picks or below one, not
+    when they only share in it: a photon an electron radiated, which converts, does not light the electron's cluster
+    and track (best matched to the electron, above the photon), though its conversion's electrons left some energy in
+    them; a top quark's tracks, best matched to the particles it decayed to, are its own. Hits are lit for every
+    particle that left energy in them;
   - with several picks, the hits and reco objects of all of them (and **Others** around them). In the truth ↔ reco
-    pair view (the pid and truth colours), they stay the pair's, that of the last one picked;
+    pair view (the pid and truth colours), they stay the pair's, that of the one selected;
   - the lines are thin (2 px, the selected one 2.5 px) and dashed, with an edge of the background's colour on each
     side so they read over hits and over each other, and the selected one has a one-pixel halo in the accent colour.
     When the truth particles are drawn whole instead (**Others** showing everything, or a replay), they keep the look

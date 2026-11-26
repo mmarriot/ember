@@ -115,12 +115,12 @@ with a message while an old one is set without its new name. `deploy.sh` links `
     unticked, as rings of one neutral grey over the lines; the lines are thin with an edge of the background's colour,
     and the selected one's halo is one pixel (was a wide band that hid the lines beside it). The truth particle energy
     cut now hides the descendants below it (they were drawn whatever the cut); the picks stay drawn. The reco objects
-    lit are those whose best truth match is drawn: a photon from an electron's brem no longer lights the electron's
-    cluster and track. A truth particle's card gives the distance from where it was made to its last vertex ("decays
-    where it was made (0 cm)" for a top quark), and its label sits in the middle of its line.
-  - A truth particle that reached the calorimeter is drawn to where it entered it, when its last vertex with
-    daughters is no earlier (a vertex of its shower): an electron's line was bent towards a positron annihilation
-    tens of cm off its path.
+    lit are those whose best truth match is a pick or below one: a photon from an electron's brem no longer lights the
+    electron's cluster and track. A truth particle's card gives the distance from where it was made to its last vertex
+    ("decays where it was made (0 cm)" for a top quark), and its label sits in the middle of its line.
+  - A truth electron, positron or photon that reached the calorimeter is drawn to where it entered it, when its last
+    vertex with daughters is no earlier (a vertex of its shower): an electron's line was bent towards a positron
+    annihilation tens of cm off its path.
   - A simulated event's title starts "MC" (was "SIMULATION"); a truth particle's card is headed "truth", its lineage
     no longer repeats the particle, and a truth vertex's card names its reason ("hadronic inelastic", not 11).
   - The side panel's tabs are **Reconstruction · Truth · Metadata** (were Collections, Truth, Event). In

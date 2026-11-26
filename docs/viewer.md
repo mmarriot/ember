@@ -476,10 +476,12 @@ objects that left hits, and the tree, which folds. With truth, from the top:
     collision costs nothing to show.
 
   A particle row has its tick, a dot in its level's colour, its name and its energy. A particle that the generator
-  wrote several times (status 23, 51, 1) is one particle ("s ×2"); particles at no level shown are skipped, so each
-  particle hangs under the nearest ones above it that are shown. With **Vertices show**, the vertex where its
-  daughters were made stands on their line, a grey ◆ with its process in italics ("decay", "hadronization"; "⋯" when
-  particles were skipped in between); pointing at it (or a tap) names the particles in and out. A hadron made from
+  wrote several times (status 23, 51, 1) is one particle (its tooltip says how many times); particles at no level
+  shown are skipped, so each particle hangs under the nearest ones above it that are shown. With **Vertices show**,
+  every group of daughters made at one vertex has that vertex above it on their line, a grey ◆ with its process in
+  italics ("decay", "hadronization", "bremsstrahlung", "conversion"; "⋯" when particles were skipped in between),
+  also the daughters listed "▸ N below"; pointing at it (or a tap) names the particles in and out, from the truth
+  graph. A hadron made from
   several partons (a string between the b and the s̄) hangs under the one of highest energy and says "also from" the
   others (a click goes to it). "▸ 23 below" counts the particles at no level shown that it made; a click lists them
   under it (unfolding it), with a hollow dot, each folding its own. A list of more than 50 particles or collisions
@@ -487,22 +489,34 @@ objects that left hits, and the tree, which folds. With truth, from the top:
   scrolled into view, the pile-up and its collision or the underlying event opening above it (one at no level shown
   under the particle it hides under). The particles the search finds are marked, and the way to the 20 largest is
   open while the search is typed (clearing it folds them back); the controls say how many it found, and Enter or
-  "next" picks the next one. Where the panel is beside the view and tall enough, the levels and the controls stay at
+  "next" selects the next one. A name can be typed on a plain keyboard: Greek letters by their names and the charge
+  at the end (`pi0` π⁰, `e-` e⁻, `W+` W⁺, `gamma` γ); the signal collision's matches come first, then pile-up's. Where the panel is beside the view and tall enough, the levels and the controls stay at
   its top while the graph scrolls. In the tree, ↑ ↓ move between the names and → ← unfold and fold (there they do not
   step the event or the focus level).
 
-  A click on a particle's name picks it alone: the card describes it, and the view draws it. Its tick adds it to the
-  particles drawn (or takes it out); the card describes the last one picked. **clear** picks none and closes the card.
-  A truth particle selected elsewhere (in the view, from a card, `X`) is the one picked. What the view draws for the
-  picks:
+  A click on a particle's name selects it: the card describes it, and the view draws it, highlighted, with the
+  ticked particles, which stay as they are. Its tick keeps it drawn (ticking selects it too); unticking the one
+  selected moves the card to the last one ticked, or closes it. So several particles can be ticked and each looked at
+  in turn without losing the others. With a particle selected, "e⁻ and below (151): **tick all** · **untick all**"
+  ticks or unticks it and every particle below it (also those at no level shown); unticking leaves the card where it
+  is. "**3 ticked** · **clear**" counts them; clear unticks all and closes the card. A truth particle selected
+  elsewhere (in the view, from a card, `X`) is the one selected, with the ticked ones. What the view draws for the
+  ticked particles and the one selected (the picks):
   - **particle only**: each pick as one line (all its generator copies), from the vertex where it was made to its
-    last vertex with daughters, and both vertices. A parton of the hard process (t, W, the quarks) is made and ends at the
+    last vertex with daughters, and both vertices; a particle that reached the calorimeter ends where it entered it
+    when that vertex is no earlier (a vertex of its shower, which can lie tens of cm off its path), without that
+    vertex. Its label is in the middle of its line. A parton of the hard process (t, W, the quarks) is made and ends at the
     collision: it is two rings at one point and no line, and its card says "decays where it was made (0 cm)". The hits
     and reco objects drawn are those linked to the picks themselves through an association, not to their
     descendants. The reco associators match a particle's whole branch (it and everything below it), so a top quark
     alone still shows the tracks and showers matched to it, but no hits: hits belong to the particle that left them;
-  - **+ descendants**: every particle below each pick drawn as its line, every vertex of them as a ring, and the hits
-    and reco objects linked to any of them;
+  - **+ descendants**: every particle below each pick drawn as its line (also a photon an electron radiated: anything
+    made below it, whatever the process), every vertex of them as a ring, and the hits and reco objects linked to any
+    of them;
+  - a reco object is lit when its own best truth match (the card's "its best") is among the particles drawn, not when
+    they only share in it: a photon an electron radiated, which converts, does not light the electron's cluster and
+    track, though its conversion's electrons left some energy in them. Hits are lit for every particle that left
+    energy in them;
   - with several picks, the hits and reco objects of all of them (and **Others** around them). In the truth ↔ reco
     pair view (the pid and truth colours), they stay the pair's, that of the last one picked;
   - the lines are thin (2 px, the selected one 2.5 px) and dashed, with an edge of the background's colour on each
@@ -514,7 +528,8 @@ objects that left hits, and the tree, which folds. With truth, from the top:
     means a particle, a ring a vertex. Its process (decay, hadronization, hadronic inelastic, …) is in its tooltip
     and card; the Vertices collection drawn for anything else keeps the colours by reason. They are drawn whether or
     not the Vertices collection is ticked, and so are the particles if Particles is unticked;
-  - the truth particle energy cut (Details) hides the descendants below it, and the vertices that only those reach.
+  - the truth particle energy cut (Details) hides the descendants below it, and the vertices that only those reach;
+    the controls say how many it hides ("16 of 151 drawn: the rest are below 1 GeV"), and **draw all** sets it to 0.
     It is the only cut on them: a track below its pT cut does not hide the particle it is matched to. The picks
     themselves, and their two vertices, are drawn whatever the truth cut, as any selected object is;
 - **Details**, folded: the truth collections (Particles, Vertices) with their cuts, the particles in this view and the

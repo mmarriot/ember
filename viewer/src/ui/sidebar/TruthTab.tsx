@@ -2,7 +2,7 @@
 // (vertices, what the view draws of the picks, search, the picks), the graph (truthgraph/view.ts), and a folded
 // Details section: the truth collections, the particles in the view and the reco <-> truth scorecard. A bundle with
 // trees but no truth calls the tab "Tree" and shows them (Tree.tsx), as does a truth bundle without level flags.
-import { signal, type Signal } from "@preact/signals";
+import { computed, signal, type Signal } from "@preact/signals";
 import { filterMask, filters } from "../../model/custom/settings";
 import { factIn, facts } from "../../model/truth/facts";
 import { particlesInView, type ViewRow } from "../../model/truth/particles";
@@ -197,22 +197,27 @@ function Choice<T>({
   );
 }
 
+/** The truth particle selected and every particle below it (what "+ descendants" draws for it), by first copy (`tops`,
+ *  it first) and as the rows a tick picks (`rows`, their last copies): what "tick all · untick all" acts on. Once per
+ *  selection, not per render of the controls (a search keystroke). */
+const selectedFamily = computed(() => {
+  const tg = truthGraph.value,
+    sel = selection.value,
+    g = tg?.graph;
+  if (!g || sel?.table !== tg.particles) return { tops: [] as number[], rows: [] as number[] };
+  const tops = [...new Set([g.top[sel.row], ...[...drawnRows(g, [sel.row], true).particles].map((r) => g.top[r])])];
+  return { tops, rows: tops.map((t) => g.last[t]) };
+});
+
 /** The graph's controls: its vertices, what the view draws of the picked particles, the search (how many it finds;
  *  Enter or "next" selects the next one), the picks, and ticking the particle selected with all below it. */
 function Controls() {
   const n = truthPicks.value.length,
     found = graphFound.value.length,
     away = truthCutAway.value;
-  // The particle selected and every particle below it (what "+ descendants" draws), as the rows a tick picks (their
-  // last copies), it first.
   const tg = truthGraph.value,
-    g = tg?.graph,
     sel = selection.value,
-    family =
-      g && sel?.table === tg.particles
-        ? [...new Set([g.top[sel.row], ...[...drawnRows(g, [sel.row], true).particles].map((r) => g.top[r])])]
-        : [],
-    rows = family.map((t) => g!.last[t]),
+    { tops: family, rows } = selectedFamily.value,
     ticked = family.filter((t) => pickedTops.value.has(t)).length;
   return (
     <div class="graphcontrols">

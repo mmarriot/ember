@@ -372,7 +372,8 @@ export function levelGraph(g: Graph, flags: string, first: string | undefined, m
 }
 
 /** The particle nodes the search `query` finds (truth/particles.ts parseTruthQuery: a name's start, a pdgId,
- *  |pdg|=11), largest energy first; empty for no query. `names`: the particle layer's pdgId names. */
+ *  |pdg|=11), those of the signal collision first (at 200 pile-up a "π" finds some 18,000, nearly all pile-up), each
+ *  part largest energy first; empty for no query. `names`: the particle layer's pdgId names. */
 export function matchingNodes(lg: LevelGraph, g: Graph, names: Record<string, string>, query: string): number[] {
   const q = parseTruthQuery(query);
   if (!q) return [];
@@ -380,7 +381,11 @@ export function matchingNodes(lg: LevelGraph, g: Graph, names: Record<string, st
   return lg.particles
     .map((_, i) => i)
     .filter((i) => matchesQuery(q, pdg(i), names[String(pdg(i))] ?? ""))
-    .sort((a, b) => g.col("energy", lg.particles[b].top) - g.col("energy", lg.particles[a].top));
+    .sort(
+      (a, b) =>
+        +lg.particles[b].collision.signal - +lg.particles[a].collision.signal ||
+        g.col("energy", lg.particles[b].top) - g.col("energy", lg.particles[a].top),
+    );
 }
 
 /** Particle node `i` and every shown particle below it (through all its children, not only those a tree places under

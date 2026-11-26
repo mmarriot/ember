@@ -248,7 +248,7 @@ function Controls() {
       <input
         class="expr"
         type="search"
-        placeholder="Find: a name (B, μ), a pdgId (511), |pdg|=11"
+        placeholder="Find: a name (B, mu, pi0, e-), a pdgId (511), |pdg|=11"
         value={graphQuery.value}
         spellcheck={false}
         onInput={(e) => (graphQuery.value = (e.target as HTMLInputElement).value)}

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { graphOf } from "./graph";
-import { matchesQuery, parseTruthQuery, particlesInView, unassociatedKinds } from "./particles";
+import { asciiName, matchesQuery, parseTruthQuery, particlesInView, unassociatedKinds } from "./particles";
 
 const csr = (rows: number[][]) => ({
   offsets: Uint32Array.from(rows.reduce((o, r) => [...o, o[o.length - 1] + r.length], [0])),
@@ -15,6 +15,22 @@ describe("truth search", () => {
     expect(parseTruthQuery("|11|")).toEqual({ pdg: 11, abs: true });
     expect(parseTruthQuery(" B ")).toEqual({ name: "b" });
     expect(parseTruthQuery("  ")).toBeNull();
+  });
+  it("reads names typed on a plain keyboard in the names' symbols", () => {
+    expect(["pi0", "e-", "W+", "gamma", "mu", "nu", "Sigma++", "phi", "eta", "B0"].map(asciiName)).toEqual([
+      "π⁰",
+      "e⁻",
+      "W⁺",
+      "γ",
+      "μ",
+      "ν",
+      "Σ⁺⁺",
+      "φ",
+      "η",
+      "B⁰",
+    ]);
+    expect(matchesQuery(parseTruthQuery("Pi")!, 211, "π⁺")).toBe(true);
+    expect(matchesQuery(parseTruthQuery("lambda")!, 3122, "Λ")).toBe(true);
   });
   it("matches particles by them", () => {
     expect(matchesQuery({ pdg: 11, abs: true }, -11, "e⁺")).toBe(true);

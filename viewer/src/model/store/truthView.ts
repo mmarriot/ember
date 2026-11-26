@@ -89,28 +89,35 @@ export const truthDrawn = computed(() => {
 });
 
 /** What is linked through an association to the truth drawn for the picks (truthDrawn): their hits, and the reco
- *  objects matched to the particles and to their vertices whose best match is among them (bestOwned), by table; null
- *  without picks. selection.ts puts them in the highlight of a truth focus, so they follow the choice (each pick alone,
- *  or with its descendants) and are those of every pick. */
+ *  objects matched to the particles and to their vertices that are theirs (bestOwned: their best match is one of the
+ *  picks or below one), by table; null without picks. selection.ts puts them in the highlight of a truth focus, so they
+ *  follow the choice (each pick alone, or with its descendants) and are those of every pick. */
 export const truthLinked = computed(() => {
-  const drawn = truthDrawn.value,
+  const tg = truthGraph.value,
+    drawn = truthDrawn.value,
     b = bundle.value,
     ev = event.value;
-  return drawn && b && ev ? bestOwned(ev, b.header, drawn, linkedTo(ev, b.header, drawn)) : null;
+  if (!tg || !drawn || !b || !ev) return null;
+  // The picks with everything below them: with "+ descendants", what is drawn; with "particle only", more.
+  const below = truthDraw.value === "descendants" ? null : drawnRows(tg.graph, truthShown.value, true),
+    owners: Related = below ? new Map([[tg.particles, below.particles]]) : drawn;
+  if (below && tg.vertices) owners.set(tg.vertices, below.vertices);
+  return bestOwned(ev, b.header, owners, linkedTo(ev, b.header, drawn));
 });
 
-/** `linked` (what is linked to the truth `drawn`) less the reco objects whose own best truth match (their kind's match
- *  relation, which the card calls "its best") is another particle: a cluster that a photon's conversion electrons
- *  share in but that is mostly the electron's that radiated it is that electron's, not the photon's. Hits, and objects
- *  of a kind without a match relation, stay. */
-export function bestOwned(ev: EventData, header: Header, drawn: Related, linked: Related): Related {
+/** `linked` (what an association links to the truth drawn) less the reco objects whose own best truth match (their
+ *  kind's match relation, which the card calls "its best") is not in `owners` (the picks and everything below them): a
+ *  cluster that a photon's conversion electrons share in, but that is mostly the electron's that radiated the photon
+ *  (above it), is that electron's, not the photon's; a top quark's tracks, best matched to the particles it decayed
+ *  to, are its own. Hits, and objects of a kind without a match relation, stay. */
+export function bestOwned(ev: EventData, header: Header, owners: Related, linked: Related): Related {
   const out = new Map(linked);
   for (const [name, info] of Object.entries(header.relations)) {
     const rel = ev.relations[name],
-      truth = drawn.get(info.to),
+      truth = owners.get(info.to),
       rows = out.get(info.from),
       n = ev.tables[info.from]?.n ?? 0;
-    if (!info.match || !info.best || !rel || !truth || !rows || drawn.has(info.from)) continue;
+    if (!info.match || !info.best || !rel || !truth || !rows || owners.has(info.from)) continue;
     const { partner } = bestPartners(rel, info, true, n);
     out.set(info.from, new Set([...rows].filter((r) => partner[r] < 0 || truth.has(partner[r]))));
   }

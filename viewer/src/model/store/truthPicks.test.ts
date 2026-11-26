@@ -232,7 +232,10 @@ describe("picking truth particles", () => {
     cuts.value = { "Truth E": 0, "Track pT": 1 };
     expect(truthCutAway.value).toBeNull();
   });
-  it("keeps of the reco linked to the truth drawn only the objects whose best match is drawn", () => {
+  it("keeps of the reco linked to the truth drawn the objects whose best match is a pick or below one", () => {
+    // As CMSSW writes them: each track has one best particle (track -> particle, one entry), and a particle lists every
+    // track it shares in (particle -> track, the relation linkedTo follows). Track 0 is particle 1's, track 1
+    // particle 2's.
     const h = {
         relations: {
           trackTruth: {
@@ -248,21 +251,22 @@ describe("picking truth particles", () => {
       e = {
         tables: { Track: { n: 2, columns: {} } },
         relations: {
-          // track 0: 0.3 of it from particle 1, 0.7 from particle 2; track 1: all from particle 1
           trackTruth: {
-            offsets: Uint32Array.from([0, 2, 3]),
-            indices: Uint32Array.from([1, 2, 1]),
-            weights: { share: Float32Array.from([0.3, 0.7, 1]) },
+            offsets: Uint32Array.from([0, 1, 2]),
+            indices: Uint32Array.from([1, 2]),
+            weights: { share: Float32Array.from([0.9, 0.8]) },
           },
         },
       } as unknown as EventData,
-      drawn = new Map([["Part", new Set([1])]]),
       linked = new Map([
         ["Track", new Set([0, 1])],
         ["Hit", new Set([1])],
       ]);
-    const out = bestOwned(e, h, drawn, linked);
-    expect([[...out.get("Track")!], [...out.get("Hit")!]]).toEqual([[1], [1]]);
+    // particle 0 alone, its tracks those of its daughter 1: the owners are 0 and all below it
+    const own = bestOwned(e, h, new Map([["Part", new Set([0, 1])]]), linked);
+    expect([[...own.get("Track")!], [...own.get("Hit")!]]).toEqual([[0], [1]]); // hits stay
+    // a photon (2) the electron (1) radiated: the electron's track is not the photon's
+    expect([...bestOwned(e, h, new Map([["Part", new Set([2])]]), linked).get("Track")!]).toEqual([1]);
   });
   it("cuts the picks' truth by the truth cut alone, not by the cut of the reco matched to it", () => {
     const [part, vtx] = header.display,

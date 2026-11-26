@@ -55,7 +55,7 @@ const text = (rows: Row[]) =>
     const pad = "  ".repeat(r.depth),
       fold = "open" in r && r.open !== undefined ? (r.open ? " ▾" : " ▸") : "";
     if (r.kind === "head") return `${pad}${headText(r.head)}${fold}`;
-    if (r.kind === "vertex") return `${pad}◆${V.reason[lg.vertices[r.vertex].row]}`;
+    if (r.kind === "vertex") return `${pad}◆${V.reason[r.vertex]}`;
     if (r.kind === "more") return `${pad}+${r.left}`;
     return `${pad}${r.kind === "hidden" ? "~" : ""}${NAMES[r.kind === "hidden" ? r.top : lg.particles[r.node].top]}${fold}`;
   });
@@ -204,7 +204,11 @@ describe("treeRows", () => {
     const s = emptyState();
     s.below.add(5);
     const r = text(rows(s));
-    expect(r.slice(r.indexOf("        π⁺"), r.indexOf("  [underlying] ▸"))).toEqual(["        π⁺", "        ~str"]);
+    expect(r.slice(r.indexOf("        π⁺"), r.indexOf("  [underlying] ▸"))).toEqual([
+      "        π⁺",
+      "        ◆19", // the vertex the string was made at, as for any daughters
+      "        ~str",
+    ]);
     expect(hiddenChildren(g, lg, 8)).toEqual([]); // the string's daughters are all shown: nothing to unfold
   });
   it("gives every row its own key", () => {
@@ -224,7 +228,12 @@ describe("treeRows", () => {
     ]);
     expect([...s.below]).toEqual([12]);
     expect([...s.folds.keys()]).toEqual([2, 5, 9, 11, 12]); // the K⁻ unfolded too: its list shows only then
-    expect(text(rows(s)).slice(14, 17)).toEqual(["            K⁻", "              ~π⁻", "              ~γ"]);
+    expect(text(rows(s)).slice(14, 18)).toEqual([
+      "            K⁻",
+      "              ◆11",
+      "              ~π⁻",
+      "              ~γ",
+    ]);
     expect(pathTo(g, lg, 16)).toEqual({ collision: lg.signal, hard: false, tops: [16], hidden: 1 });
     expect([...reveal(emptyState(), pathTo(g, lg, 16)!).heads.keys()]).toEqual(["signal", "underlying"]);
     expect([...reveal(emptyState(), pathTo(g, lg, 17)!).heads.keys()]).toEqual(["pileup", "pu1"]);

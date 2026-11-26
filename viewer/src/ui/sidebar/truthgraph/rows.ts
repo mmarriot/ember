@@ -39,20 +39,21 @@ export interface Place {
   last: boolean;
 }
 /** A row of the tree. `open` is undefined for a particle with nothing to fold. A particle's `below`: how many particles
- *  at no shown level it made, which "▸ N below" lists. A vertex row stands on the line of the daughters made at it,
- *  which follow it. "more": the rest of list `list`, `left` particles or collisions. */
+ *  at no shown level it made, which "▸ N below" lists. A vertex row (`vertex`, its row in the vertex table; `node`, its
+ *  node in the level graph, -1 if no shown particle was made there) stands on the line of the daughters made at it,
+ *  shown or listed below, which follow it. "more": the rest of list `list`, `left` particles or collisions. */
 export type Row =
   | (Place & { kind: "head"; head: Head; open: boolean })
   | (Place & { kind: "particle"; node: number; open?: boolean; below: number })
   | (Place & { kind: "hidden"; top: number; open?: boolean })
-  | (Place & { kind: "vertex"; vertex: number })
+  | (Place & { kind: "vertex"; vertex: number; node: number })
   | (Place & { kind: "more"; list: string; left: number });
 
 type Entry =
   | { kind: "head"; head: Head }
   | { kind: "particle"; node: number }
   | { kind: "hidden"; top: number }
-  | { kind: "vertex"; vertex: number }
+  | { kind: "vertex"; vertex: number; node: number }
   | { kind: "more"; list: string; left: number };
 
 const RECO = GRAPH_LEVELS.findIndex((l) => l.id === "reco");
@@ -163,23 +164,39 @@ export function treeRows(
       shown.length < items.length ? [{ kind: "more", list, left: items.length - shown.length }] : [];
     return { shown, more };
   };
-  /** Particle nodes as entries, each run of those made at one vertex after a row for it. */
-  const daughters = (nodes: number[]): Entry[] => {
-    if (!vertices) return nodes.map((node) => ({ kind: "particle", node }));
-    const at = new Map<number, number[]>();
-    for (const i of nodes) {
-      const k = P[i].made;
+  /** Daughters as entries: particle nodes, then particles at no shown level (by top), each run of those made at one
+   *  vertex after a row for it, in the order the vertices first come. */
+  const daughters = (nodes: number[], tops: number[] = []): Entry[] => {
+    const all: Entry[] = [
+      ...nodes.map((node): Entry => ({ kind: "particle", node })),
+      ...tops.map((top): Entry => ({ kind: "hidden", top })),
+    ];
+    if (!vertices) return all;
+    const at = new Map<number, Entry[]>(),
+      node = new Map<number, number>();
+    for (const e of all) {
+      const v = e.kind === "particle" ? P[e.node].made : -1,
+        row =
+          e.kind === "particle"
+            ? v >= 0
+              ? lg.vertices[v].row
+              : -1
+            : e.kind === "hidden"
+              ? g.col("prodVertexIdx", e.top)
+              : -1,
+        k = row >= 0 && row < g.nv ? row : -1;
       if (!at.has(k)) at.set(k, []);
-      at.get(k)!.push(i);
+      at.get(k)!.push(e);
+      if (v >= 0) node.set(k, v);
     }
-    return [...at].flatMap(([vertex, is]): Entry[] => [
-      ...(vertex >= 0 ? [{ kind: "vertex" as const, vertex }] : []),
-      ...is.map((node) => ({ kind: "particle" as const, node })),
+    return [...at].flatMap(([vertex, es]): Entry[] => [
+      ...(vertex >= 0 ? [{ kind: "vertex" as const, vertex, node: node.get(vertex) ?? -1 }] : []),
+      ...es,
     ]);
   };
   const hidden = (list: string, tops: number[]): Entry[] => {
     const h = part(list, tops, (t) => keep.has(t));
-    return [...h.shown.map((top): Entry => ({ kind: "hidden", top })), ...h.more];
+    return [...daughters([], h.shown), ...h.more];
   };
   /** A collision's roots, or what else a head holds, while it is open; `first`: its first ones too (else only the kept
    *  ones: the head is open only for the search, which opens the way to its matches and not 50 roots of each of up
@@ -216,8 +233,9 @@ export function treeRows(
         below = p.below ? hiddenChildren(g, lg, p.top) : [];
       out.push({ ...place, ...e, open, below: below.length });
       const c = part(`c${p.top}`, open ? kids : [], (i) => keep.has(P[i].top)),
-        listed = open !== false && (s.below.has(p.top) || force.below.has(p.top));
-      return [...daughters(c.shown), ...c.more, ...hidden(`h${p.top}`, listed ? below : [])];
+        listed = open !== false && (s.below.has(p.top) || force.below.has(p.top)),
+        h = part(`h${p.top}`, listed ? below : [], (t) => keep.has(t));
+      return [...daughters(c.shown, h.shown), ...c.more, ...h.more];
     }
     if (e.kind === "hidden") {
       const kids = hiddenChildren(g, lg, e.top),

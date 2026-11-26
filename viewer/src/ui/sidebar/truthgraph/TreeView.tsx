@@ -225,12 +225,11 @@ export function TreeView({ lg, g, particles, vertices }: GraphViewProps) {
       );
     }
     if (r.kind === "vertex") {
-      const v = lg.vertices[r.vertex],
-        list = (ns: number[]) =>
-          ns
-            .slice(0, 6)
-            .map((i) => name(P[i].top))
-            .join(" ") + (ns.length > 6 ? " …" : "");
+      // What went in and came out of it, from the truth graph (also the particles at no level shown), by first copy.
+      const out = [...new Set(g.outOf(r.vertex).map((c) => g.top[c]))],
+        into = [...new Set(out.flatMap((t) => g.parents(t).map((q) => g.top[q])))].filter((t) => !out.includes(t)),
+        reason = g.vcol("reason", r.vertex),
+        list = (ts: number[]) => ts.slice(0, 6).map(name).join(" ") + (ts.length > 6 ? ` … ${ts.length} in all` : "");
       return (
         <div
           class={io === r.key ? "tg-row vertex io" : "tg-row vertex"}
@@ -240,11 +239,11 @@ export function TreeView({ lg, g, particles, vertices }: GraphViewProps) {
         >
           {guides(r, true)}
           <span class="tg-vname">
-            {Number.isNaN(v.reason) ? "vertex" : (reasons[String(v.reason)] ?? `reason ${v.reason}`)}
-            {v.skips && <span title="Particles at no level shown in between"> ⋯</span>}
+            {Number.isNaN(reason) ? "vertex" : (reasons[String(reason)] ?? `reason ${reason}`)}
+            {r.node >= 0 && lg.vertices[r.node].skips && <span title="Particles at no level shown in between"> ⋯</span>}
           </span>
           <span class="tg-io">
-            {list(v.into)} → {list(v.out)}
+            {list(into)} → {list(out)}
           </span>
         </div>
       );

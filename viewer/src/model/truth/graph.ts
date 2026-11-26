@@ -1,6 +1,7 @@
 // The truth graph (particles, their parents and children, their vertices) and the physics read from it: copies,
 // brem, conversions, decays (owner decision D1, docs/truth.md "Physics from the graph").
 import type { EventData, Header } from "../../io/format";
+import { endsAtBoundary } from "./ends";
 
 /** One event's truth particles and vertices, from the truth graph's tables (docs/truth-graph.md). Missing columns
  *  read as NaN. A particle's `decayVertexIdx` is only the latest vertex where its kept daughters were made, and its
@@ -120,9 +121,14 @@ export function copiesBelow(g: Graph, r: number): number[] {
 }
 /** The top of `r`'s generator copies (see copiesBelow). */
 export const topCopy = (g: Graph, r: number) => g.top[r];
+/** The vertex particle `r` (a last copy) ended at: its decayVertexIdx, but -1 for a vertex no earlier than where it
+ *  entered the calorimeter, a vertex of its shower: its line ends at the calorimeter (truth/ends.ts). */
+export function endVertex(g: Graph, r: number) {
+  const v = g.col("decayVertexIdx", r);
+  return endsAtBoundary(g.col("hasBoundary", r), g.col("boundaryT", r), g.vcol("t", v)) ? -1 : v;
+}
 /** What the view draws of the truth for picked particles `rows` (the Truth tab's picks): each one's generator copies,
- *  the vertex it was made at (its first copy's production vertex) and the one it ended at (its last copy's end
- *  vertex); with `descendants`, the same for every particle below them (the children of all their copies). */
+ *  the vertex it was made at (its first copy's production vertex) and the one it ended at (endVertex); with `descendants`, the same for every particle below them (the children of all their copies). */
 export function drawnRows(g: Graph, rows: number[], descendants: boolean) {
   const particles = new Set<number>(),
     vertices = new Set<number>(),
@@ -136,7 +142,7 @@ export function drawnRows(g: Graph, rows: number[], descendants: boolean) {
     const copies = copiesBelow(g, t);
     for (const r of copies) particles.add(r);
     vertex(g.col("prodVertexIdx", t));
-    vertex(g.col("decayVertexIdx", copies.at(-1)!));
+    vertex(endVertex(g, copies.at(-1)!));
     if (descendants) for (const r of copies) for (const c of g.children(r)) if (g.top[c] !== t) todo.push(c);
   }
   return { particles, vertices };

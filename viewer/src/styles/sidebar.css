@@ -845,6 +845,11 @@ table.inview td > span {
   .graphhead {
     position: sticky;
   }
+  /* A control focused here is in view already: the scroller's scroll padding (--graphhead), which keeps the rows clear
+     of the head, would otherwise scroll the panel by the head's height on each click. */
+  .graphhead * {
+    scroll-margin-top: calc(-1 * var(--graphhead, 0px));
+  }
 }
 /* The graph as a tree (truthgraph/TreeView.tsx). A row is a line of the tree: its guide cells (a rail per ancestor
    level, then its elbow ├ └ or, for a vertex, ◆ on its daughters' line), its fold, and its content. Rows have no

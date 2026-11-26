@@ -29,6 +29,7 @@ describe("truth search", () => {
       "η",
       "B⁰",
     ]);
+    expect(["K0S", "K0L", "J/psi"].map(asciiName)).toEqual(["K⁰S", "K⁰L", "J/ψ"]);
     expect(matchesQuery(parseTruthQuery("Pi")!, 211, "π⁺")).toBe(true);
     expect(matchesQuery(parseTruthQuery("lambda")!, 3122, "Λ")).toBe(true);
   });

@@ -40,15 +40,16 @@ const GREEK: Record<string, string> = {
   upsilon: "Υ",
 };
 const SIGN: Record<string, string> = { "+": "⁺", "-": "⁻", "0": "⁰", "++": "⁺⁺", "--": "⁻⁻" };
-/** A name as typed on a plain keyboard in the names' symbols: Greek letters by their names, a charge at the end as a
- *  superscript ("pi0" π⁰, "e-" e⁻, "W+" W⁺, "Sigma++" Σ⁺⁺). */
+/** A name as typed on a plain keyboard in the names' symbols: Greek letters by their names (at the start, or after a
+ *  "/"), a charge at the end as a superscript, before a K⁰'s S or L ("pi0" π⁰, "e-" e⁻, "W+" W⁺, "Sigma++" Σ⁺⁺, "K0S"
+ *  K⁰S, "J/psi" J/ψ). */
 export function asciiName(s: string): string {
   return s
     .replace(
-      /^(gamma|upsilon|lambda|sigma|delta|omega|phi|psi|chi|tau|eta|rho|pi|mu|nu|xi)/i,
-      (w) => GREEK[w.toLowerCase()],
+      /(^|\/)(gamma|upsilon|lambda|sigma|delta|omega|phi|psi|chi|tau|eta|rho|pi|mu|nu|xi)/i,
+      (_, at: string, w: string) => at + GREEK[w.toLowerCase()],
     )
-    .replace(/(\+\+|--|[+\-0])$/, (c) => SIGN[c]);
+    .replace(/(\+\+|--|[+\-0])([SL]?)$/, (_, c: string, k: string) => SIGN[c] + k);
 }
 /** Whether particle `pdg`, named `name`, answers query `q`. */
 export function matchesQuery(q: Exclude<TruthQuery, null>, pdg: number, name: string) {

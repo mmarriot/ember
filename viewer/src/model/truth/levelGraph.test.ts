@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { drawnRows, graphOf } from "./graph";
-import { DEFAULT_LEVELS, GRAPH_LEVELS, levelGraph } from "./levelGraph";
+import { DEFAULT_LEVELS, GRAPH_LEVELS, levelGraph, matchingNodes } from "./levelGraph";
 
 const csr = (rows: number[][]) => ({
   offsets: Uint32Array.from(rows.reduce((o, r) => [...o, o[o.length - 1] + r.length], [0])),
@@ -270,5 +270,20 @@ describe("drawnRows", () => {
     expect([...d.particles].sort((a, b) => a - b)).toEqual([9, 11, 12, 13, 14, 17]);
     expect([...d.vertices].sort((a, b) => a - b)).toEqual([5, 6, 7, 8, 10]);
     expect([...drawnRows(g, [9], false).particles]).toEqual([9]);
+  });
+});
+
+describe("matchingNodes", () => {
+  it("finds the signal collision's particles first, each part largest first", () => {
+    // the pile-up π⁺ (18) made harder than the signal's (10, 50 GeV)
+    const hot = graphOf(
+        { n: P.pdgId.length, columns: { ...P, energy: P.energy.map((e, r) => (r === 18 ? 1000 : e)) } },
+        csr(kids),
+        { n: V.reason.length, columns: V },
+      ),
+      lg = levelGraph(hot, "levelFlags", "isSignal", DEFAULT_LEVELS);
+    expect(rows(lg, matchingNodes(lg, hot, { "211": "π⁺", "-211": "π⁻", "111": "π⁰" }, "pi"))).toEqual([
+      10, 16, 18, 17,
+    ]);
   });
 });

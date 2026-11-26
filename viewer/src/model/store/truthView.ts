@@ -2,12 +2,14 @@
 // and the truth rows the view draws for them. Picking is in selection.ts (it moves the selection and the focus).
 import { computed, signal } from "@preact/signals";
 import { cached } from "../event/cache";
-import { linkedTo } from "../event/relations";
+import { bestPartners, linkedTo, type Related } from "../event/relations";
+import type { EventData, Header } from "../../io/format";
 import { copiesBelow, drawnRows } from "../truth/graph";
 import { DEFAULT_LEVELS, levelGraph, matchingNodes } from "../truth/levelGraph";
 import { truthGraph } from "./colours";
 import { bundle, event } from "./data";
 import { layerOf } from "./names";
+import { cuts } from "./view";
 
 /** The truth levels the graph shows: GRAPH_LEVELS bits (truth/levelGraph.ts). Kept between events and bundles. */
 export const graphLevels = signal(DEFAULT_LEVELS);
@@ -86,13 +88,48 @@ export const truthDrawn = computed(() => {
   return out;
 });
 
-/** What is linked through an association to the truth drawn for the picks (truthDrawn): their hits, the reco objects
- *  matched to the particles and to their vertices, by table; null without picks. selection.ts puts them in the
- *  highlight of a truth focus, so they follow the choice (each pick alone, or with its descendants) and are those of
- *  every pick. */
+/** What is linked through an association to the truth drawn for the picks (truthDrawn): their hits, and the reco
+ *  objects matched to the particles and to their vertices whose best match is among them (bestOwned), by table; null
+ *  without picks. selection.ts puts them in the highlight of a truth focus, so they follow the choice (each pick alone,
+ *  or with its descendants) and are those of every pick. */
 export const truthLinked = computed(() => {
   const drawn = truthDrawn.value,
     b = bundle.value,
     ev = event.value;
-  return drawn && b && ev ? linkedTo(ev, b.header, drawn) : null;
+  return drawn && b && ev ? bestOwned(ev, b.header, drawn, linkedTo(ev, b.header, drawn)) : null;
+});
+
+/** `linked` (what is linked to the truth `drawn`) less the reco objects whose own best truth match (their kind's match
+ *  relation, which the card calls "its best") is another particle: a cluster that a photon's conversion electrons
+ *  share in but that is mostly the electron's that radiated it is that electron's, not the photon's. Hits, and objects
+ *  of a kind without a match relation, stay. */
+export function bestOwned(ev: EventData, header: Header, drawn: Related, linked: Related): Related {
+  const out = new Map(linked);
+  for (const [name, info] of Object.entries(header.relations)) {
+    const rel = ev.relations[name],
+      truth = drawn.get(info.to),
+      rows = out.get(info.from),
+      n = ev.tables[info.from]?.n ?? 0;
+    if (!info.match || !info.best || !rel || !truth || !rows || drawn.has(info.from)) continue;
+    const { partner } = bestPartners(rel, info, true, n);
+    out.set(info.from, new Set([...rows].filter((r) => partner[r] < 0 || truth.has(partner[r]))));
+  }
+  return out;
+}
+
+/** The particles drawn for the picks (truthDrawn) that the truth particle cut hides, as the Truth tab says: how many
+ *  are drawn and how many are below the cut (by particle, their copies once; the picks are never cut), the cut's group
+ *  and value. Null without picks, or with none below the cut. */
+export const truthCutAway = computed(() => {
+  const tg = truthGraph.value,
+    drawn = truthDrawn.value?.get(tg?.particles ?? ""),
+    cut = tg ? layerOf(tg.particles)?.cut : undefined,
+    ev = event.value;
+  if (!tg || !drawn || !cut || !ev) return null;
+  const min = cuts.value[cut.group] ?? 0,
+    col = ev.tables[tg.particles]?.columns[cut.column],
+    picked = shownTops.value,
+    tops = new Set([...drawn].map((r) => tg.graph.top[r])),
+    below = col ? [...tops].filter((t) => !picked.has(t) && Number(col[tg.graph.last[t]]) < min).length : 0;
+  return below ? { shown: tops.size - below, all: tops.size, group: cut.group, min, unit: cut.unit } : null;
 });

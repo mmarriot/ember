@@ -33,6 +33,8 @@ import {
   short,
   stepName,
   theme,
+  cuts,
+  truthCutAway,
   truthDraw,
   truthGraph,
   truthLevelGraph,
@@ -198,7 +200,8 @@ function Choice<T>({
  *  Enter or "next" selects the next one), the picks, and ticking the particle selected with all below it. */
 function Controls() {
   const n = truthPicks.value.length,
-    found = graphFound.value.length;
+    found = graphFound.value.length,
+    away = truthCutAway.value;
   // The particle selected and those below it at the levels shown, as rows to tick (their last copies).
   const tg = truthGraph.value,
     lg = truthLevelGraph.value,
@@ -226,6 +229,22 @@ function Controls() {
           ["descendants", "+ descendants", "Each picked particle and everything it made"],
         ]}
       />
+      {away && (
+        <span
+          class="found"
+          title={`The truth particle cut (${away.group}, in Details) hides the rest; the picks are always drawn`}
+        >
+          {away.shown.toLocaleString()} of {away.all.toLocaleString()} drawn: the rest are below {short(away.min)}{" "}
+          {away.unit} ·{" "}
+          <button
+            class="link"
+            title={`Set the ${away.group} cut to 0`}
+            onClick={() => (cuts.value = { ...cuts.value, [away.group]: 0 })}
+          >
+            draw all
+          </button>
+        </span>
+      )}
       <input
         class="expr"
         type="search"

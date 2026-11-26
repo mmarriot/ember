@@ -5,6 +5,7 @@ import type { Ref } from "../event/relations";
 // The store sets the page's theme as it loads: a stand-in page (the tests run without a DOM).
 Object.assign(globalThis, { document: { documentElement: { dataset: {} } } });
 const {
+  bestOwned,
   bundle,
   clearPicks,
   cuts,
@@ -20,6 +21,7 @@ const {
   selectTruth,
   setPicks,
   togglePick,
+  truthCutAway,
   truthDraw,
   truthLooked,
   truthPicks,
@@ -218,6 +220,47 @@ describe("picking truth particles", () => {
       [0, 1, 2],
       [0, 1, 2, 3],
     ]);
+  });
+  it("says how many of the particles drawn for the picks the truth cut hides", () => {
+    togglePick(0);
+    expect(truthCutAway.value).toMatchObject({ shown: 1, all: 2, group: "Truth E", min: 1 }); // particle 1, 0.5 GeV
+    truthDraw.value = "particle";
+    expect(truthCutAway.value).toBeNull();
+    truthDraw.value = "descendants";
+    cuts.value = { "Truth E": 0, "Track pT": 1 };
+    expect(truthCutAway.value).toBeNull();
+  });
+  it("keeps of the reco linked to the truth drawn only the objects whose best match is drawn", () => {
+    const h = {
+        relations: {
+          trackTruth: {
+            from: "Track",
+            to: "Part",
+            weights: ["share"],
+            association: true,
+            match: {},
+            best: { weight: "share", order: "max" },
+          },
+        },
+      } as unknown as Header,
+      e = {
+        tables: { Track: { n: 2, columns: {} } },
+        relations: {
+          // track 0: 0.3 of it from particle 1, 0.7 from particle 2; track 1: all from particle 1
+          trackTruth: {
+            offsets: Uint32Array.from([0, 2, 3]),
+            indices: Uint32Array.from([1, 2, 1]),
+            weights: { share: Float32Array.from([0.3, 0.7, 1]) },
+          },
+        },
+      } as unknown as EventData,
+      drawn = new Map([["Part", new Set([1])]]),
+      linked = new Map([
+        ["Track", new Set([0, 1])],
+        ["Hit", new Set([1])],
+      ]);
+    const out = bestOwned(e, h, drawn, linked);
+    expect([[...out.get("Track")!], [...out.get("Hit")!]]).toEqual([[1], [1]]);
   });
   it("cuts the picks' truth by the truth cut alone, not by the cut of the reco matched to it", () => {
     const [part, vtx] = header.display,

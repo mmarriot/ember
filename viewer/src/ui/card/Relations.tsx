@@ -1,64 +1,64 @@
-// How the card's object relates to others, from the file's own relations and associations, never matched in Ember: a
-// split and a merge under its truth match (WentTo), and the objects with exactly its parts in its physics (Shares).
+// How the card's object relates to others, from the file's own relations and associations, never matched in Ember:
+// where the rest of its particle went and the particles it merges, under its truth match (WentTo), and the objects
+// with exactly its parts, under More (Shares).
 import { inText, singular } from "../../model/event/describe";
 import { percent } from "../../model/truth/match";
 import { sharedParts } from "../../model/event/physics";
 import { bestPartners } from "../../model/event/relations";
+import { sameLine } from "../../model/truth/graph";
 import { whereItWent } from "../../model/truth/statement";
-import { bundle, event, kindOf, ladder, layerOf, nameOf } from "../../model/store";
-import { chip, namedChip, ObjChip, truthChip } from "./chips";
+import { bundle, event, kindOf, ladder, nameOf, truthGraph, truthText } from "../../model/store";
+import { chip, namedChip, ObjChip } from "./chips";
 
-/** Where the object's particle went among the objects of its kind, and the other particles whose best object it is
- *  (model/truth/statement.ts whereItWent), when there is more than this object to say. */
+const SHOWN = 2; // the other objects named; the rest counted
+const SOME = 0.05; // an other object named holds at least this much of the particle
+
+/** Under a reco object's match: the other objects of its kind that hold a good part of its particle ("Rest of π⁻",
+ *  a split), and the other particles whose own best object it is ("Merged in"), but its particle's own ancestors and
+ *  descendants, which share its best object by the associator's design (it matches a particle with all below it). */
 export function WentTo({ table, row, relation }: { table: string; row: number; relation: string }) {
   const b = bundle.value!,
     ev = event.value!,
     info = b.header.relations[relation],
-    rel = ev.relations[relation];
+    rel = ev.relations[relation],
+    tg = truthGraph.value;
   if (!info || !rel) return null;
   const p = bestPartners(rel, info, true, ev.tables[table]?.n ?? 0).partner[row];
   if (p === undefined || p < 0) return null;
-  const { objects, merges } = whereItWent(ev, b.header, info.to, p, table, row),
-    others = objects.filter((o) => o.row !== row);
+  const particles = tg?.particles === info.to,
+    kin = particles && tg ? (q: number) => sameLine(tg.graph, p, q) : undefined;
+  const { objects, merges } = whereItWent(ev, b.header, info.to, p, table, row, kin),
+    others = objects.filter((o) => o.row !== row && (o.completeness ?? 0) >= SOME);
   if (!others.length && !merges.length) return null;
-  const SHOWN = 4;
+  const name = particles ? truthText(info.to, p).split(" · ")[0] : "it";
   return (
     <div class="went">
       {others.length > 0 && (
-        <p class="physline">
-          <span class="rkind">
-            Where {layerOf(info.to)?.particle ? truthChip(info.to, p, info.match?.measure) : namedChip(info.to, p)} went
-          </span>{" "}
-          {objects.slice(0, SHOWN).map((o, i) => (
-            <span>
-              {i > 0 && " · "}
-              {o.row === row ? <b>this one</b> : chip(table, o.row)}{" "}
-              {o.completeness !== undefined && (
-                <span class="q" title="completeness: the share of the particle this object holds (associator)">
-                  completeness {percent(o.completeness)}
-                </span>
-              )}
-              {o.best && (
-                <span class="ok" title="The particle is this object's own best match (associator)">
-                  {" "}
-                  ★ its best
-                </span>
-              )}
-            </span>
+        <p class="physline" title="Other objects of its kind holding part of its match (associator): a split">
+          <span class="muted">Rest of {name}:</span>{" "}
+          {others.slice(0, SHOWN).map((o, i) => (
+            <>
+              {i > 0 && " "}
+              {chip(table, o.row)}
+              <span class="pct">{percent(o.completeness)}</span>
+            </>
           ))}
-          {objects.length > SHOWN && <span class="muted"> +{objects.length - SHOWN}</span>}
+          {others.length > SHOWN && <span class="muted"> +{others.length - SHOWN}</span>}
         </p>
       )}
       {merges.length > 0 && (
-        <p class="physline" title="Other particles whose best object of this kind is this one (associator): a merge">
-          <span class="rkind">also best match of</span>{" "}
-          {merges.slice(0, 3).map((q, i) => (
+        <p
+          class="physline"
+          title="Other particles whose own best object of this kind is this one (associator): a merge"
+        >
+          <span class="muted">Merged in:</span>{" "}
+          {merges.slice(0, SHOWN).map((q, i) => (
             <>
-              {i > 0 && " · "}
+              {i > 0 && " "}
               {namedChip(info.to, q)}
             </>
           ))}
-          {merges.length > 3 && <span class="muted"> +{merges.length - 3}</span>}
+          {merges.length > SHOWN && <span class="muted"> +{merges.length - SHOWN}</span>}
         </p>
       )}
     </div>

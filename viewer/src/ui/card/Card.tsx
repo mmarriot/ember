@@ -1,12 +1,16 @@
-// The card of the selected object (the `.inspector` panel in styles/card.css; docs/truth.md "The card"): its name,
-// then the answer first and the evidence below. A reco object: its truth (TruthBlock.tsx), physics (Physics.tsx) and
-// chain (Chain.tsx); a truth object: its lineage and what was reconstructed from it (TruthSide.tsx). Then the view's
-// levels, the pair (PairBars.tsx), every association and all its columns, and at the bottom edge the object looked at.
+// The card of the selected object (the `.inspector` panel in styles/card.css; docs/viewer.md "The selection's card"):
+// the answer first, the evidence under More. Its name (and for a truth particle where it comes from), then:
+// - a reco object: its truth (TruthBlock.tsx), its numbers and what it is made of (Physics.tsx), its chain (Chain.tsx);
+// - a truth object: what was reconstructed from it, per detector, and its facts (TruthSide.tsx);
+// then the view's levels, and More (folded, remembered): each part's truth, its columns' groups, the view's colours
+// (PairBars.tsx), every association, all its columns. At the bottom edge, the object looked at.
 //
 // `subject` is the card's object and `selection` the object the view shows: they differ while another object is
 // looked at from the card, and `anchor` then holds the card's object.
+import { signal } from "@preact/signals";
 import { bestFirst, sameRef } from "../../model/event/relations";
 import { plain } from "../../model/event/describe";
+import { browserStorage } from "../../model/site/library";
 import {
   anchor,
   bundle,
@@ -20,22 +24,26 @@ import {
   modes,
   nameOf,
   openCard,
+  pairView,
   selection,
+  ladder,
   levelOn,
   subject,
   tickLevel,
+  truthGraph,
 } from "../../model/store";
-import { Chain } from "./Chain";
-import { chip } from "./chips";
-import { keyColumns, Properties, Rows } from "./Properties";
+import { Chain, PartsTruth, partsSay } from "./Chain";
+import { chip, vertexLabel } from "./chips";
+import { keyColumns, Numbers, Properties } from "./Properties";
 import { Info } from "../common/Info";
 import { back, frameFocus } from "../../control/navigate";
 import { PairBars } from "./PairBars";
-import { Lineage } from "./Lineage";
+import { Crumb } from "./Lineage";
 import { TruthCard } from "./TruthCard";
 import { TruthBlock } from "./TruthBlock";
 import { TruthSide } from "./TruthSide";
-import { Physics } from "./Physics";
+import { ParticleMore } from "./ParticleFacts";
+import { Physics, PhysicsMore } from "./Physics";
 import { Icon } from "../common/widgets";
 
 export function Card() {
@@ -47,8 +55,19 @@ export function Card() {
     table = ev.tables[sel.table];
   const d = layerOf(sel.table),
     truth = !!d?.truth,
+    particle = sel.table === modes.value.roots.truth,
+    vertex = sel.table === truthGraph.value?.vertices,
     prev = !anchor.value && focusHistory.value.at(-1),
-    [name, source] = cardNameOf(sel);
+    [name, source] = vertex ? [vertexLabel(sel.row) || cardNameOf(sel)[0], ""] : cardNameOf(sel);
+  // the table's description, behind an i on the line under the name (a long name would push it onto a line alone)
+  const doc = (info.doc || d?.doc) && (
+    <Info title={labelOf(sel.table)}>
+      {d?.doc && <p>{d.doc}</p>}
+      {info.doc && <p>{info.doc}</p>}
+    </Info>
+  );
+  const first = particle ? d?.particle?.first : undefined,
+    collision = first && first in table.columns ? (Number(table.columns[first][sel.row]) ? "signal" : "pile-up") : "";
   return (
     <div class="inspector" role="dialog" aria-label="Selected object">
       <header>
@@ -58,17 +77,19 @@ export function Card() {
               ← {nameOf(prev)}
             </button>
           )}
-          {truth && <div class="kind truth">truth</div>}
-          <h2>
-            {name}{" "}
-            {(info.doc || d?.doc) && (
-              <Info title={labelOf(sel.table)}>
-                {d?.doc && <p>{d.doc}</p>}
-                {info.doc && <p>{info.doc}</p>}
-              </Info>
-            )}
-          </h2>
-          {source && <div class="source">{source}</div>}
+          {truth && (
+            <div class="kind truth">
+              {particle ? "truth particle" : vertex ? "truth vertex" : "truth"}
+              {collision && ` · ${collision}`} {!source && doc}
+            </div>
+          )}
+          <h2>{name}</h2>
+          {(source || (!truth && doc)) && (
+            <div class="source">
+              {source} {doc}
+            </div>
+          )}
+          {particle && <Crumb row={sel.row} />}
         </div>
         <div class="actions">
           <button class="icon-button" title="Zoom to what the view shows (F)" onClick={() => frameFocus()}>
@@ -81,7 +102,14 @@ export function Card() {
       </header>
       <div class="navbody">
         {truth ? (
-          <TruthSide table={sel.table} row={sel.row} />
+          <>
+            <TruthSide table={sel.table} row={sel.row} />
+            {!particle && (
+              <section>
+                <Numbers name={sel.table} table={table} row={sel.row} columns={keyColumns(sel.table, table)} />
+              </section>
+            )}
+          </>
         ) : (
           <>
             <TruthBlock table={sel.table} row={sel.row} />
@@ -90,12 +118,57 @@ export function Card() {
           </>
         )}
         <ViewLevels />
-        <PairBars />
-        <Associations table={sel.table} row={sel.row} />
-        <Properties table={table} name={sel.table} row={sel.row} />
+        <More table={sel.table} row={sel.row} truth={truth} particle={particle} />
       </div>
       <Looking />
     </div>
+  );
+}
+
+/** More is open: kept between objects and visits (browser storage), so who wants the evidence keeps it in view. */
+const moreOpen = signal(browserStorage.get("evd.cardMore") === "open");
+const toggleMore = () => {
+  moreOpen.value = !moreOpen.peek();
+  browserStorage.set("evd.cardMore", moreOpen.value ? "open" : "");
+};
+
+/** The evidence, folded under one line that says what is in it. Built only while open: its parts (every association,
+ *  the pair's bars) are the card's costliest. */
+function More({ table, row, truth, particle }: { table: string; row: number; truth: boolean; particle: boolean }) {
+  const open = moreOpen.value,
+    d = layerOf(table),
+    t = event.value?.tables[table],
+    pair = pairView.value;
+  if (!t) return null;
+  const what = [
+    !truth && partsSay(ladder.value) ? "parts' truth" : "",
+    ...(truth ? [] : (d?.inspectGroups ?? []).filter((g) => g.columns.some((c) => c in t.columns)).map((g) => g.name)),
+    particle ? "status, copies, levels" : "",
+    pair ? "view colours" : "",
+    "associations",
+    `all ${Object.keys(t.columns).length} columns`,
+  ].filter(Boolean);
+  return (
+    <section class="more">
+      <button class="moretoggle" aria-expanded={open} onClick={toggleMore}>
+        <span class="fold">{open ? "▾" : "▸"}</span> More <span class="muted">{what.join(" · ")}</span>
+      </button>
+      {open && (
+        <div class="morebody">
+          {truth ? (
+            particle && <ParticleMore row={row} />
+          ) : (
+            <>
+              <PartsTruth />
+              <PhysicsMore table={table} row={row} />
+            </>
+          )}
+          <PairBars />
+          <Associations table={table} row={row} />
+          <Properties table={t} name={table} row={row} />
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -130,11 +203,11 @@ function Looking() {
         </span>
       </div>
       {truth ? (
-        sel.table === modes.value.roots.truth && <Lineage row={sel.row} compact />
+        sel.table === modes.value.roots.truth && <Crumb row={sel.row} />
       ) : (
         <TruthCard table={sel.table} row={sel.row} />
       )}
-      <Rows name={sel.table} table={t} row={sel.row} columns={keyColumns(sel.table, t).slice(0, 5)} />
+      <Numbers name={sel.table} table={t} row={sel.row} columns={keyColumns(sel.table, t).slice(0, 6)} />
     </section>
   );
 }

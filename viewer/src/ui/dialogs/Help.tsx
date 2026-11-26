@@ -205,14 +205,14 @@ export function HelpDialog() {
         another's shower, that shower's hits) and, in each detector, the reco objects the associator rates best for it,
         every hit coloured shared, contamination, split off or missed, with bars in the card that name the energy they
         count. A detector whose reco has no association is shown, not compared. The card opens with what the truth says
-        of the object, in one line: its match; for a kind without one, its track's (or its one cluster's) match, named
-        as the part's; else that its kind has none. Each part's own match is folded under it. A step of its chain with
-        truth of its own has a tag: match (the CMSSW associator's, with its purity) or sim (simulated energy per
-        particle in its hits); the kinds with no CMSSW associator are named behind the chain's i. A dot on an object's
-        name says what the associator found for it: green for a clean match, half amber for an impure one, hollow for
-        not matched. The Truth tab counts, for each matched kind, the clean, impure and unmatched objects of the event.
-        Truth is drawn dashed. ⋯ on a row colours it by any column, or by the colour of a related object, instead. With
-        something selected, everything unrelated fades.
+        of the object: its match with its purity and completeness; for a kind without one, its track's (or its one
+        cluster's) match, named as the part's; else that its kind has none. A truth particle's card says what was
+        reconstructed from it in each detector. The evidence is under More: each part's own truth (match, with its
+        purity, or sim, the simulated energy per particle in its hits), the pair's bars, every association, all the
+        columns. A dot on an object's name says what the associator found for it: green for a clean match, half amber
+        for an impure one, hollow for not matched. The Truth tab counts, for each matched kind, the clean, impure and
+        unmatched objects of the event. Truth is drawn dashed. ⋯ on a row colours it by any column, or by the colour of
+        a related object, instead. With something selected, everything unrelated fades.
       </p>
       <h3>Expressions</h3>
       <p class="hint">

@@ -5,7 +5,6 @@ import type { DisplayLayer, EventData, Header } from "../../io/format";
 import { colours, describeNoLink, type Legend, type Pal } from "../../render/colour";
 import { colourBy, type ColourMode, withColour } from "../custom/settings";
 import { inText } from "../event/describe";
-import { facts } from "../truth/facts";
 import { truthStatus, type TruthStatus } from "../truth/match";
 import { graphOf } from "../truth/graph";
 import type { ColourLevel } from "../truth/levelFlags";
@@ -65,21 +64,6 @@ export function shownLayer(d: DisplayLayer, mode = activeMode.peek(), by = colou
   const plain = pid && !c && d.table !== roots.reco && d.colourBy && d.colour && !d.fixedColour; // a kind's own colour wins
   return withColour(c ? { ...d, colourBy: c } : plain ? { ...d, colourBy: undefined } : d, by[layerKey(d)]);
 }
-
-/** The domain looked at is a calorimeter's (simulated energy in hits drawn as cells): truth particles are then named
- *  by their energy, elsewhere by pT and η (names.ts truthText). */
-export const caloView = computed(() => {
-  const dom = domain.value,
-    h = bundle.value?.header;
-  return (
-    !!dom &&
-    !!h &&
-    facts(h).some((f) => {
-      const l = h.display.find((x) => x.table === f.to);
-      return l?.domain === dom && l.repr === "cells";
-    })
-  );
-});
 
 /** The truth particles as a graph (truth/graph.ts), once per event; null without them. Their vertex table is the
  *  other truth table a plain relation from them reaches. */

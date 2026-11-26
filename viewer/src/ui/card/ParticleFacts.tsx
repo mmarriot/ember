@@ -1,5 +1,5 @@
-// The head of a truth particle's card (docs/truth.md "The particle card"): its kinematics, where it was made and where
-// it ended, its copies, its levels, and what the truth graph alone says of its physics.
+// A truth particle's facts on its card (docs/truth.md "The particle card"): its numbers, where it was made and where
+// it ended, and what the truth graph alone says of its physics; its generator copies, levels and status under More.
 import { percent } from "../../model/truth/match";
 import { bundle, event, layerOf, short, truthGraph, truthText } from "../../model/store";
 import {
@@ -14,85 +14,101 @@ import {
   REASON,
   tauDecayOf,
   topCopy,
-  vertexText,
 } from "../../model/truth/graph";
 import { LEVELS } from "../../model/truth/levelFlags";
-import { categoryNames, namedChip as chip, ObjChip, spaced } from "./chips";
+import { namedChip as chip, ObjChip, spaced, vertexLabel } from "./chips";
+import { Numbers } from "./Properties";
 
-/** The truth particle `row`: kinematics, status and collision; production and end vertices; copies; levels; physics. */
+const num = (v: number, digits = 3) => (Number.isFinite(v) ? short(Number(v.toPrecision(digits))) : "?");
+
+/** The truth particle `row`: its energy and φ (its pT and η are in its name, its collision above it); the vertex it
+ *  was made at and the last one it has daughters at; its physics from the graph. */
 export function ParticleFacts({ row }: { row: number }) {
   const tg = truthGraph.value,
-    d = tg ? layerOf(tg.particles) : undefined;
-  if (!tg || !d) return null;
+    d = tg ? layerOf(tg.particles) : undefined,
+    t = tg ? event.value?.tables[tg.particles] : undefined;
+  if (!tg || !d || !t) return null;
   const g = tg.graph,
     top = topCopy(g, row),
-    copies = copiesBelow(g, top),
-    last = copies.at(-1)!,
-    col = (c: string) => g.col(c, row);
-  const name = truthText(tg.particles, row).split(" · ")[0],
-    first = d.particle?.first,
-    signal = first ? !!g.col(first, row) : undefined,
-    bx = col("bunchCrossing");
-  const reasons = categoryNames(tg.vertices);
-  const pname = (r: number) => truthText(tg.particles, r).split(" · ")[0];
-  const vchip = (v: number) =>
-    tg.vertices ? <ObjChip table={tg.vertices} row={v} text={vertexText(g, v, pname, reasons)} /> : null;
+    last = copiesBelow(g, top).at(-1)!;
+  const vchip = (v: number) => (tg.vertices ? <ObjChip table={tg.vertices} row={v} text={vertexLabel(v)} /> : null);
   const where = (v: number) => `R ${length(Math.hypot(g.vcol("x", v), g.vcol("y", v)))}, z ${length(g.vcol("z", v))}`;
   const prod = g.col("prodVertexIdx", top),
     end = g.col("decayVertexIdx", last),
     apart = vertexDistance(g, row),
     decays = g.vcol("reason", end) === REASON.decay;
-  const flags = d.particle ? g.col(d.particle.flags, row) : NaN,
-    levels = Number.isFinite(flags) ? LEVELS.filter(({ bit }) => (flags >>> bit) & 1) : [];
-  const num = (v: number, digits = 3) => (Number.isFinite(v) ? short(Number(v.toPrecision(digits))) : "?");
   return (
     <div class="pfacts">
-      <p class="phead">
-        <b>{name}</b> · pT {num(col("pt"))} GeV · η {num(col("eta"))} · φ {num(col("phi"))} · E {num(col("energy"))} GeV
-        · status {col("status")}
-        {signal !== undefined && (
-          <>
-            {" "}
-            · {signal ? "signal" : "pile-up"}
-            {Number.isFinite(bx) && ` (bx ${bx})`}
-          </>
-        )}
-      </p>
-      {copies.length > 1 && (
-        <p class="muted">
-          written {copies.length} times by the generator (status {copies.map((r) => g.col("status", r)).join(" → ")}
-          ): {spaced(copies.map((r) => (r === row ? <b>this one</b> : chip(tg.particles, r))))}
-        </p>
-      )}
+      <Numbers
+        name={tg.particles}
+        table={t}
+        row={row}
+        columns={[]}
+        extra={[
+          ["E", `${num(g.col("energy", row))} GeV`],
+          ["φ", num(g.col("phi", row))],
+        ]}
+      />
       {prod >= 0 && (
         <p>
-          <span class="muted">made at</span> {where(prod)} · {vchip(prod)}
+          <span class="muted">made in</span> {vchip(prod)} <span class="muted">at {where(prod)}</span>
         </p>
       )}
       {end >= 0 && (
-        <p>
-          <span
-            class="muted"
-            title="Its end vertex in the file: the latest of the vertices where its kept daughters were made, not necessarily where it stopped"
-          >
-            last vertex with daughters
-          </span>{" "}
-          {where(end)} · {vchip(end)}
-          {Number.isFinite(apart) && (
+        <p title="The last vertex where its kept daughters were made, not necessarily where it stopped">
+          {Number.isFinite(apart) && apart === 0 ? (
             <>
-              {" "}
-              ·{" "}
-              <span title="The straight-line distance from the vertex it was made at to this one">
-                {decays && apart === 0
-                  ? "decays where it was made (0 cm)"
-                  : `${decays ? "decays" : "last vertex"} ${length(apart)} from where it was made`}
+              <span class="muted">{decays ? "decays" : "ends"} where it was made, in</span> {vchip(end)}
+            </>
+          ) : (
+            <>
+              <span class="muted">ends in</span> {vchip(end)}{" "}
+              <span class="muted">
+                at {where(end)}
+                {Number.isFinite(apart) && `, ${length(apart)} on`}
               </span>
             </>
           )}
         </p>
       )}
+      <GraphPhysics g={g} row={row} particles={tg.particles} vertices={tg.vertices} />
+    </div>
+  );
+}
+
+/** Under the card's More: a truth particle's generator copies, its levels and its status. */
+export function ParticleMore({ row }: { row: number }) {
+  const tg = truthGraph.value,
+    d = tg ? layerOf(tg.particles) : undefined;
+  if (!tg || !d) return null;
+  const g = tg.graph,
+    copies = copiesBelow(g, topCopy(g, row)),
+    flags = d.particle ? g.col(d.particle.flags, row) : NaN,
+    levels = Number.isFinite(flags) ? LEVELS.filter(({ bit }) => (flags >>> bit) & 1) : [],
+    bx = g.col("bunchCrossing", row);
+  return (
+    <div class="pfacts">
+      <p>
+        <span class="muted">status</span> {g.col("status", row)}
+        {Number.isFinite(bx) && (
+          <>
+            {" "}
+            · <span class="muted">bunch crossing</span> {bx}
+          </>
+        )}
+      </p>
+      {copies.length > 1 && (
+        <p>
+          <span class="muted">
+            written {copies.length} times by the generator (status {copies.map((r) => g.col("status", r)).join(" → ")}
+            ):
+          </span>{" "}
+          {spaced(copies.map((r) => (r === row ? <b>this one</b> : chip(tg.particles, r))))}
+        </p>
+      )}
       {levels.length > 0 && (
         <p class="plevels">
+          <span class="muted">levels</span>{" "}
           {levels.map(({ name: n, flag, what, bit }, i) => (
             <>
               {i > 0 && " "}
@@ -103,7 +119,6 @@ export function ParticleFacts({ row }: { row: number }) {
           ))}
         </p>
       )}
-      <GraphPhysics g={g} row={row} particles={tg.particles} vertices={tg.vertices} />
     </div>
   );
 }
@@ -124,7 +139,7 @@ function GraphPhysics({
   const b = bundle.value,
     ev = event.value,
     name = (r: number) => truthText(particles, r).split(" · ")[0];
-  const pchip = (r: number) => <ObjChip table={particles} row={r} text={truthText(particles, r, true)} />;
+  const pchip = (r: number) => <ObjChip table={particles} row={r} />;
   const out = [];
   const brem = bremOf(g, row);
   if (brem)
@@ -201,11 +216,8 @@ function GraphPhysics({
           matches.slice(0, 3).map((m) => (
             <>
               {" "}
-              ·{" "}
-              {m.vertex === flight.vertex
-                ? "its decay vertex"
-                : vertexText(g, m.vertex, name, categoryNames(vertices))}{" "}
-              matched by {chip(m.table, m.row)}
+              · {m.vertex === flight.vertex ? "its decay vertex" : vertexLabel(m.vertex)} matched by{" "}
+              {chip(m.table, m.row)}
               {Number.isFinite(m.completeness) && (
                 <span class="muted" title="The association's completeness: the share of the truth vertex it holds">
                   {" "}

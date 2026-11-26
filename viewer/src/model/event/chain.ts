@@ -5,7 +5,7 @@
 import { type DisplayLayer, type EventData, type Header, kindName } from "../../io/format";
 import { factIn, facts } from "../truth/facts";
 import { chainOrder, focusLevels } from "./levels";
-import { bestPurities, percent, simEnergyByParticle, type TruthStatus } from "../truth/match";
+import { bestPurities, simEnergyByParticle, type TruthStatus } from "../truth/match";
 import { bestPartners, contentPartners, levelsOf, type Ref, type Related } from "./relations";
 
 /** What the truth says about the objects of one step, one line per truth table, detector or reason:
@@ -275,16 +275,17 @@ function linksOf(
 
 /** What was reconstructed from truth object `sel`: per reco table with a truth -> reco association, latest step
  *  first, the objects sharing hits or energy with it, most complete first, each with its completeness and whether
- *  `sel` is that object's own best match (`unmatched`: it has none). `hits`: per detector, the hits it left simulated
- *  energy in (facts). */
+ *  `sel` is that object's own best match (`owner`: that best match, -1 for none or unknown; `unmatched`: it has none).
+ *  `hits`: per detector, the hits it left simulated energy in (facts). */
 export interface Reconstructed {
   table: string;
   measure?: string;
   in?: string;
-  partners: { row: number; completeness?: number; best: boolean; unmatched: boolean }[];
+  partners: { row: number; completeness?: number; best: boolean; unmatched: boolean; owner: number }[];
 }
 export interface Deposits {
   in: string;
+  table: string;
   hits: number;
   energy: number;
   weight: string;
@@ -303,7 +304,7 @@ export function recoOfTruth(ev: EventData, header: Header, sel: Ref): { reco: Re
     if (where !== undefined) {
       const weight = info.best?.weight ?? info.weights[0] ?? "",
         w = weight ? rel.weights[weight] : undefined;
-      const d = hits.get(where) ?? { in: where, hits: 0, energy: 0, weight };
+      const d = hits.get(where) ?? { in: where, table: info.to, hits: 0, energy: 0, weight };
       d.hits += hi - lo;
       if (w) for (let k = lo; k < hi; k++) d.energy += w[k];
       if (hi > lo) hits.set(where, d);
@@ -326,6 +327,7 @@ export function recoOfTruth(ev: EventData, header: Header, sel: Ref): { reco: Re
         completeness: cw ? (c!.complement ? 1 - cw[k] : cw[k]) : undefined,
         best: own?.[row] === sel.row,
         unmatched: !!own && own[row] < 0,
+        owner: own?.[row] ?? -1,
       };
     }).sort(
       (a, b) => (b.completeness ?? 0) - (a.completeness ?? 0) || Number(b.best) - Number(a.best) || a.row - b.row,
@@ -339,43 +341,62 @@ export function recoOfTruth(ev: EventData, header: Header, sel: Ref): { reco: Re
   return { reco, hits: [...hits.values()] };
 }
 
-/** "Reconstructed as" as the truth card lists it: per kind, the objects whose own best match it is and those that
- *  hold at least `min` of the particle (all, without a completeness), at most `max` beside the best matches;
- *  `folded` counts the rest ("+N"). Kinds listing the same objects (`same`: e.g. one trackster at several levels) with
- *  the same completeness, best mark and detector are one entry naming every kind (`tables`), with the largest folded
- *  count; kinds that list nothing are one entry too, their folded counts added up. */
-export function foldReco(
-  reco: Reconstructed[],
-  same: (a: Ref, b: Ref) => boolean,
+/** One detector of a truth object's "Reconstructed as" (the card's answer for it): the reco kind compared there (the
+ *  last reconstruction stage with an association in that detector, as truth/pair.ts comparedKind chooses), the
+ *  objects of that kind that hold the most of it, how many others hold some of it, and the hits it left there. A
+ *  detector with hits and no association has no `table`. */
+export interface DetectorLine {
+  in: string;
+  table?: string;
+  measure?: string;
+  objects: Reconstructed["partners"];
+  others: number;
+  hits: number;
+}
+
+/** "Reconstructed as" by detector (`reco` and `hits` of recoOfTruth): per detector (the association's `in`, else its
+ *  table), its compared kind's largest holder always, then those holding at least `min` of the particle, at most `max`
+ *  in all; `others` counts the rest. Detectors in the order of the domain bar, then of the display. */
+export function recoByDetector(
+  header: Header,
+  { reco, hits }: { reco: Reconstructed[]; hits: Deposits[] },
   min = 0.05,
-  max = 4,
-): { tables: string[]; measure?: string; in?: string; partners: Reconstructed["partners"]; folded: number }[] {
-  const out: ReturnType<typeof foldReco> = [];
+  max = 3,
+): DetectorLine[] {
+  const lines = new Map<string, DetectorLine & { at: string }>();
+  // recoOfTruth lists the latest stage first: the first kind of a detector is the one compared there
   for (const r of reco) {
-    // its own best matches always show (a pion's only track, at 0.8% of its hits with its secondaries'); the others
-    // from `min`, up to `max` in all
-    const listed = r.partners.filter((p) => p.best || p.completeness === undefined || p.completeness >= min),
-      room = Math.max(0, max - listed.filter((p) => p.best).length);
-    let others = 0;
-    const shown = listed.filter((p) => p.best || others++ < room),
-      folded = r.partners.length - shown.length;
-    const twin = out.find(
-      (o) =>
-        o.measure === r.measure &&
-        o.in === r.in &&
-        o.partners.length === shown.length &&
-        o.partners.every(
-          (p, i) =>
-            percent(p.completeness) === percent(shown[i].completeness) &&
-            p.best === shown[i].best &&
-            same({ table: o.tables[0], row: p.row }, { table: r.table, row: shown[i].row }),
-        ),
+    const where = r.in ?? r.table;
+    if (lines.has(where) || !r.partners.length) continue;
+    const shown = r.partners.filter(
+      (p, i) => i === 0 || (i < max && (p.completeness === undefined || p.completeness >= min)),
     );
-    if (twin) {
-      twin.tables.push(r.table);
-      // the same objects at another level are not more of them; kinds listing nothing fold different ones
-      twin.folded = shown.length ? Math.max(twin.folded, folded) : twin.folded + folded;
-    } else out.push({ tables: [r.table], measure: r.measure, in: r.in, partners: shown, folded });
+    lines.set(where, {
+      in: where,
+      table: r.table,
+      measure: r.measure,
+      objects: shown,
+      others: r.partners.length - shown.length,
+      hits: 0,
+      at: r.table,
+    });
   }
-  return out;
+  for (const h of hits) {
+    const line = lines.get(h.in);
+    if (line) line.hits += h.hits;
+    else lines.set(h.in, { in: h.in, objects: [], others: 0, hits: h.hits, at: h.table });
+  }
+  const domains = (header.domains ?? []).map((d) => d.name),
+    place = (t: string) => {
+      const i = header.display.findIndex((d) => d.table === t),
+        d = domains.indexOf(header.display[i]?.domain ?? "");
+      return [d < 0 ? domains.length : d, i] as const;
+    };
+  return [...lines.values()]
+    .sort((a, b) => {
+      const [da, ia] = place(a.at),
+        [db, ib] = place(b.at);
+      return da - db || ia - ib;
+    })
+    .map(({ at: _, ...l }) => l);
 }

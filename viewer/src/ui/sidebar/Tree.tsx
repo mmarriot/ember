@@ -5,7 +5,6 @@ import type { Relation } from "../../io/format";
 import { filterMask, filters } from "../../model/custom/settings";
 import {
   bundle,
-  caloView,
   chipText,
   describe,
   event,
@@ -51,7 +50,7 @@ export function Tree({ name, table }: { name: string; table: string }) {
   const tg = truthGraph.value,
     g = tg?.particles === table ? tg.graph : undefined,
     copies = (r: number) => (g ? copiesBelow(g, r) : [r]),
-    nameOf = (r: number) => (g ? truthText(table, r, caloView.value) : describe(table, r)) || chipText(table, r);
+    nameOf = (r: number) => (g ? truthText(table, r) : describe(table, r)) || chipText(table, r);
   const children = (r: number) => {
     const k = copies(r).at(-1)!;
     return order([...rel.indices.subarray(rel.offsets[k], rel.offsets[k + 1])].filter(kept));

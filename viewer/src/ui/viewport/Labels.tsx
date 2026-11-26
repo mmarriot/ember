@@ -7,7 +7,6 @@ import type { Ref } from "../../model/event/relations";
 import { filters } from "../../model/custom/settings";
 import {
   bundle,
-  caloView,
   cuts,
   domain,
   drawnLayers,
@@ -148,7 +147,7 @@ export function Labels() {
       {list.map((item) => {
         // A truth object's label: violet, dashed, "Truth · μ⁺ · pT 96.6 · η 1.11" (docs/truth.md).
         const truth = !!layerOf(item.ref.table)?.truth,
-          name = truth && truthText(item.ref.table, item.ref.row, caloView.value);
+          name = truth && truthText(item.ref.table, item.ref.row);
         return (
           <div class={`label ${item.kind}${truth ? " truth" : ""}`}>
             <span>{truth ? `Truth · ${name || item.text}` : item.text}</span>

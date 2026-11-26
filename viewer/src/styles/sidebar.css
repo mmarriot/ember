@@ -983,15 +983,11 @@ table.inview td > span {
   font-size: 12px;
   color: var(--muted);
 }
-.tg-copies,
 .tg-e,
 .tg-more {
   color: var(--muted);
   font-size: 11px;
   white-space: nowrap;
-}
-.tg-copies {
-  margin-left: -4px;
 }
 .tg-more {
   margin-left: 4px;

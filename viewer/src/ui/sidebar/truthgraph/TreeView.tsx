@@ -290,9 +290,9 @@ export function TreeView({ lg, g, particles, vertices }: GraphViewProps) {
           p.top,
           p.last,
           <i class="tg-dot" style={{ background: levelColour(pal, p.level) }} />,
-          `${truthText(particles, p.last)} · ${GRAPH_LEVELS[p.level].name}`,
+          `${truthText(particles, p.last)} · ${GRAPH_LEVELS[p.level].name}` +
+            (p.copies > 1 ? ` · written ${p.copies} times by the generator (its steps), shown once` : ""),
         )}
-        {p.copies > 1 && <span class="tg-copies">×{p.copies}</span>}
         {energy(p.last)}
         {also.length > 0 && (
           <span class="tg-more">

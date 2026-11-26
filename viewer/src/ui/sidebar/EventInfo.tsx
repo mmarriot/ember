@@ -1,11 +1,13 @@
 // The Metadata tab: the event's identity, its run's information and summary charts (where the bundle has them), its
-// provenance with every table of the event, and the custom columns no collection lists.
+// provenance with every table of the event, the truth coverage of each kind (Coverage.tsx), and the custom columns no
+// collection lists.
 import type { Summary } from "../../io/format";
 import { customColumns, evaluate, filters } from "../../model/custom/settings";
 import { provenance } from "../../model/site/about";
 import { cutMin, cutValues } from "../../model/custom/cuts";
 import { hideUnclustered, unclusteredHidden } from "../../model/event/clustered";
 import { bundle, cuts, event, eventIndex, layerOf, loadMs, opened, short } from "../../model/store";
+import { Coverage } from "./Coverage";
 import { ColumnDef } from "./LayerOptions";
 
 export function EventInfo() {
@@ -58,6 +60,7 @@ export function EventInfo() {
           </table>
         </details>
       </section>
+      <Coverage />
       <OtherColumns />
     </div>
   );

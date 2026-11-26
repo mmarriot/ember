@@ -58,7 +58,7 @@ export function Card() {
               ← {nameOf(prev)}
             </button>
           )}
-          {truth && <div class="kind truth">simulation</div>}
+          {truth && <div class="kind truth">truth</div>}
           <h2>
             {name}{" "}
             {(info.doc || d?.doc) && (

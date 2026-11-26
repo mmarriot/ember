@@ -14,14 +14,12 @@ export const when = (iso?: string) =>
  *  numbers every simulated run 1 (data runs are in the hundreds of thousands). */
 export const isSimulation = (h: Pick<Header, "display">, run: number) => run === 1 || h.display.some((d) => d.truth);
 
-/** The event in one line, for the view's title and a picture's caption: "SIMULATION · ttbar 0PU · Run 1 · LS 1 ·
- *  Event 18". Data are named by their run alone: "DATA · Run 392294 · LS 21 · Event 11805516". `sample`: the data
+/** The event in one line, for the view's title and a picture's caption: "MC · ttbar 0PU · Run 1 · LS 1 · Event 18"
+ *  (MC: a simulated event). Data are named by their run alone: "DATA · Run 392294 · LS 21 · Event 11805516". `sample`: the data
  *  set's title, of which the first part (before " · ") is kept. */
 export function eventTitle(sim: boolean, sample: string, id: { run: number; lumi: number; event: number }): string {
   const name = sim ? sample.split(" · ")[0] : "";
-  return [sim ? "SIMULATION" : "DATA", name, `Run ${id.run}`, `LS ${id.lumi}`, `Event ${id.event}`]
-    .filter(Boolean)
-    .join(" · ");
+  return [sim ? "MC" : "DATA", name, `Run ${id.run}`, `LS ${id.lumi}`, `Event ${id.event}`].filter(Boolean).join(" · ");
 }
 
 /** One line: how many events, whose it is (or that it is local, or from another site), when it expires. */

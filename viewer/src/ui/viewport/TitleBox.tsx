@@ -1,4 +1,4 @@
-// The view's top-left corner, in words that stay in a screenshot: the event ("SIMULATION · ttbar 0PU · Run 1 · LS 1 ·
+// The view's top-left corner, in words that stay in a screenshot: the event ("MC · ttbar 0PU · Run 1 · LS 1 ·
 // Event 18"), the physics objects in one line, and the kind looked at alone with the way back.
 import { eventTitle, isSimulation } from "../../model/site/about";
 import { sharedDomains } from "../../model/event/domains";

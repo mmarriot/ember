@@ -810,8 +810,9 @@ async function checkCross(page, h, fail, tag) {
   if (sel() !== s0) fail(`B did not come back from ${s1} to ${s0}`);
 }
 
-/** The tables of drawn layers that are not ticked, other than the selected object's and the focus's own (the only ones
- *  a selection may draw unticked: store/selection.ts focusRows). */
+/** The tables of drawn layers that are not ticked, other than the selected object's and the focus's own, and the truth
+ *  drawn for the Truth tab's picks (its particles and vertices): the only ones a selection may draw unticked
+ *  (store/selection.ts focusRows). */
 const untickedDrawn = (page) =>
   page.evaluate(async () => {
     const url = performance
@@ -820,7 +821,9 @@ const untickedDrawn = (page) =>
       .find((n) => n.includes("/src/model/store/index.ts"));
     const store = await import(url),
       own = new Set([store.selection.peek()?.table, store.focus.peek()?.table]),
-      ticks = store.visible.peek(),
+      picked = store.focusPicked.peek() ? [...(store.truthDrawn.peek()?.keys() ?? [])] : [];
+    for (const t of picked) own.add(t);
+    const ticks = store.visible.peek(),
       display = store.bundle.peek().header.display;
     return window.emberEngine.layers
       .map((l) => display.find((d) => d.table === l.table && store.layerKey(d) === l.key))
@@ -852,8 +855,8 @@ async function checkOnly(page, h, fail, shot, tag) {
   if ((await tables()) !== before) fail(`"show everything" did not bring the other layers back`);
 }
 
-/** With truth matches in the bundle, the Truth tab has the event's scorecard, folded under the hard process: a row
- *  per matched kind, and a count unfolds to its objects. */
+/** With truth matches in the bundle, the Truth tab has the event's scorecard, folded in Details under the truth
+ *  graph: a row per matched kind, and a count unfolds to its objects. */
 async function checkScorecard(page, h, fail, shot, tag) {
   const truth = new Set(h.display.filter((d) => d.truth).map((d) => d.table));
   if (
@@ -863,7 +866,9 @@ async function checkScorecard(page, h, fail, shot, tag) {
   )
     return;
   await page.getByRole("tab", { name: "Truth", exact: true }).click();
-  // unfold it unless open already (the tab keeps its sections' state)
+  // unfold Details and the scorecard unless open already (the tab keeps its sections' state)
+  if (await page.locator("section.details > details:not([open])").count())
+    await page.locator("section.details > details > summary").click();
   if (await page.locator("section.scorecard details:not([open])").count())
     await page.locator("section.scorecard summary").click();
   const rows = await page.locator("table.score tbody tr:not(.list)").count(),

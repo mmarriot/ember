@@ -89,7 +89,7 @@ export function Lineage({ row, compact = false }: { row: number; compact?: boole
     return (
       <div
         class="lineage crumb"
-        title="Where the match sits in the truth graph, from the collision down (simulation). Click a particle to go to it; X goes to the match"
+        title="Where the match sits in the truth graph, from the collision down. Click a particle to go to it; X goes to the match"
       >
         <span class="badge truth">truth</span>
         <span class="muted">chain</span>
@@ -120,12 +120,18 @@ export function Lineage({ row, compact = false }: { row: number; compact?: boole
       </div>
     );
   const claims = claimsOf(b.header, truth, new Set(chain.concat(children)));
+  // The particle itself is named, with its levels and copies, at the top of its card: here it is only its place.
   const line = (grp: number[], depth: number) => (
     <li style={{ paddingLeft: `${depth * 10}px` }} class={grp.includes(row) ? "here" : undefined}>
       {depth > 0 && <span class="muted">└ </span>}
-      {entry(grp)}
-      {grp.includes(row) && <span class="muted"> ← this one</span>}
-      {tags(rep(grp))}
+      {grp.includes(row) ? (
+        <b>this particle</b>
+      ) : (
+        <>
+          {entry(grp)}
+          {tags(rep(grp))}
+        </>
+      )}
       {grp
         .flatMap((r) => claims.get(r) ?? [])
         .slice(0, 3)
@@ -141,12 +147,12 @@ export function Lineage({ row, compact = false }: { row: number; compact?: boole
   return (
     <div
       class="lineage"
-      title="Where it sits in the truth graph: its ancestors, itself and its daughters (simulation); the reco objects whose best match a particle is (associator)"
+      title="Where it sits in the truth graph: its ancestors, itself and its daughters; the reco objects whose best match a particle is (associator)"
     >
       <p class="truthline">
         <span class="badge truth">truth</span> lineage{" "}
         <Info title="Lineage">
-          <p>Where the particle sits in the truth graph (simulation): its ancestors, itself, its daughters.</p>
+          <p>Where the particle sits in the truth graph: its ancestors, itself, its daughters.</p>
           <p>
             The generator writes a particle again at each of its steps (status 23, 51, …, 1): those copies are one
             entry, "×4". A particle made from several partons (a string) follows the first of them.

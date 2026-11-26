@@ -265,7 +265,7 @@ function TruthKey({ entries }: { entries: KeyEntry[] }) {
           {faint.length > 0 && (
             <p>
               Faint: kinds the truth graph has no answer for ({faint.join(", ")}). They never take a particle's colour;
-              the Truth tab says why.
+              the Metadata tab's truth coverage says why.
             </p>
           )}
         </Info>

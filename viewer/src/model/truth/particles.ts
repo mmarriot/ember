@@ -10,7 +10,7 @@ import { comparedKind, truthToReco } from "./pair";
 // ---- Truth search
 
 /** A truth search (docs/viewer.md "Truth tab"): a pdgId (`511`, `-11`), a pdgId either sign (`|pdg|=11`, `|11|`), or
- *  the start of a particle's name ("B", "μ"). */
+ *  the start of a particle's name ("B", "μ", or typed as "mu", "pi0", "e-", "gamma": asciiName). */
 export type TruthQuery = { pdg: number; abs: boolean } | { name: string } | null;
 export function parseTruthQuery(q: string): TruthQuery {
   const s = q.trim();
@@ -19,7 +19,37 @@ export function parseTruthQuery(q: string): TruthQuery {
   if (abs) return { pdg: Math.abs(Number(abs[1])), abs: true };
   const id = /^(?:pdg(?:id)?\s*=?\s*)?(-?\d+)$/i.exec(s);
   if (id) return { pdg: Number(id[1]), abs: false };
-  return { name: s.toLowerCase() };
+  return { name: asciiName(s).toLowerCase() };
+}
+const GREEK: Record<string, string> = {
+  gamma: "γ",
+  pi: "π",
+  phi: "φ",
+  psi: "ψ",
+  mu: "μ",
+  nu: "ν",
+  tau: "τ",
+  eta: "η",
+  rho: "ρ",
+  omega: "ω",
+  chi: "χ",
+  xi: "Ξ",
+  lambda: "Λ",
+  sigma: "Σ",
+  delta: "Δ",
+  upsilon: "Υ",
+};
+const SIGN: Record<string, string> = { "+": "⁺", "-": "⁻", "0": "⁰", "++": "⁺⁺", "--": "⁻⁻" };
+/** A name as typed on a plain keyboard in the names' symbols: Greek letters by their names (at the start, or after a
+ *  "/"), a charge at the end as a superscript, before a K⁰'s S or L ("pi0" π⁰, "e-" e⁻, "W+" W⁺, "Sigma++" Σ⁺⁺, "K0S"
+ *  K⁰S, "J/psi" J/ψ). */
+export function asciiName(s: string): string {
+  return s
+    .replace(
+      /(^|\/)(gamma|upsilon|lambda|sigma|delta|omega|phi|psi|chi|tau|eta|rho|pi|mu|nu|xi)/i,
+      (_, at: string, w: string) => at + GREEK[w.toLowerCase()],
+    )
+    .replace(/(\+\+|--|[+\-0])([SL]?)$/, (_, c: string, k: string) => SIGN[c] + k);
 }
 /** Whether particle `pdg`, named `name`, answers query `q`. */
 export function matchesQuery(q: Exclude<TruthQuery, null>, pdg: number, name: string) {

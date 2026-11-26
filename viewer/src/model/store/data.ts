@@ -5,6 +5,7 @@ import type { Bundle } from "../../io/bundle";
 import type { EventData } from "../../io/format";
 import { customColumns, withCustomColumns } from "../custom/settings";
 import { clusterSources, withClustered } from "../event/clustered";
+import { withTruthEnds } from "../truth/ends";
 
 /** The bundle open, or null before the first one opens. */
 export const bundle = signal<Bundle | null>(null);
@@ -22,11 +23,12 @@ export const shownOf = signal<Bundle | null>(null);
 export const shownEntry = computed(() =>
   bundle.value && shownOf.value === bundle.value ? bundle.value.events[eventIndex.value] : undefined,
 );
-/** The event shown, with which of its objects a later step uses (model/event/clustered.ts): once per event. */
+/** The event shown, with which of its objects a later step uses (model/event/clustered.ts) and its truth particles'
+ *  lines ending where they entered the calorimeter (model/truth/ends.ts): once per event. */
 const clusteredEvent = computed(() => {
   const ev = rawEvent.value,
     b = shownOf.value;
-  return ev && b ? withClustered(ev, clusterSources(b.header)) : ev;
+  return ev && b ? withTruthEnds(withClustered(ev, clusterSources(b.header)), b.header) : ev;
 });
 /** The event shown, with the user's custom columns added (model/custom/settings.ts): what the view and the panels use. */
 export const event = computed(() =>

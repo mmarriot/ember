@@ -70,9 +70,7 @@ describe("what is known about the data set open", () => {
 describe("the event's title", () => {
   it("names a simulated event's sample, and data by their run alone", () => {
     const id = { run: 1, lumi: 1, event: 18 };
-    expect(eventTitle(true, "ttbar 0PU · Phase 2 · 10 events", id)).toBe(
-      "SIMULATION · ttbar 0PU · Run 1 · LS 1 · Event 18",
-    );
+    expect(eventTitle(true, "ttbar 0PU · Phase 2 · 10 events", id)).toBe("MC · ttbar 0PU · Run 1 · LS 1 · Event 18");
     expect(eventTitle(false, "Run 3 JetMET data", { run: 392294, lumi: 21, event: 11805516 })).toBe(
       "DATA · Run 392294 · LS 21 · Event 11805516",
     );

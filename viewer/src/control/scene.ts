@@ -20,6 +20,7 @@ import {
   event,
   focus,
   focusLayers,
+  focusPicked,
   focusRowsKey,
   highlight,
   hover,
@@ -193,6 +194,8 @@ export function startScene(canvas: HTMLCanvasElement): () => void {
         emphasis: e.emphasis,
         behind: underHits(e.d),
         cut,
+        limited: !!only,
+        picks: !!only && focusPicked.peek(),
         field: b?.header.field,
         relation: relationOf(b?.header, event.peek()),
       });
@@ -274,6 +277,7 @@ export function startScene(canvas: HTMLCanvasElement): () => void {
         rescued: rescued(keep, focusRows, clustered, own),
         cut: cutValues(d, t, f[d.table], only, focusRows, clustered, own),
         limited: !!only,
+        picks: !!only && focusPicked.peek(),
       };
     });
     // A layer with nothing drawn yet (truth particles before a selection: identity colours of 100k particles cost

@@ -16,6 +16,7 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  scroll-padding-top: var(--graphhead, 0px); /* clear of the Truth tab's sticky controls (TruthTab.tsx trackHead) */
 }
 .sidebar > .presets {
   margin: 10px 12px 0;
@@ -159,8 +160,10 @@
 .layer {
   padding: 2px 0;
 }
+/* Its chips go to a second line when the row is full, never squeezing the name to a letter per line. */
 .layer .row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 2px;
 }
@@ -169,7 +172,7 @@
   gap: 6px;
   align-items: center;
   cursor: pointer;
-  flex: 1;
+  flex: 1 1 8em;
   min-width: 0;
 }
 /* A long name wraps rather than being cut ("ECA…"). */
@@ -716,15 +719,6 @@ table.inview td > span {
 .inview details.indet > summary {
   font-size: 12px;
 }
-ul.hard {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  font-size: 12px;
-}
-ul.hard li {
-  margin: 2px 0;
-}
 .outcome .missed .chip {
   border-color: #e5534b;
 }
@@ -783,6 +777,273 @@ ul.hard li {
   width: 100%;
   margin: 4px 0;
 }
+/* Truth tab: the levels the graph shows (its legend: each chip in its level's colour, --level), its controls, and the
+   graph (below). */
+.graphlevels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin: 4px 0 6px;
+}
+.graphlevels .chip {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.graphlevels .chip .swatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--level);
+  opacity: 0.3;
+}
+.graphlevels .chip.on {
+  border-color: var(--level);
+}
+.graphlevels .chip.on .swatch {
+  opacity: 1;
+}
+.graphcontrols {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin: 0 0 6px;
+  font-size: 12px;
+}
+.graphcontrols .segmented {
+  align-items: center;
+}
+.graphcontrols .segmented .label {
+  padding: 0 6px;
+  color: var(--muted);
+  border-right: 1px solid var(--line);
+}
+.graphcontrols .segmented button {
+  padding: 2px 7px;
+  font-size: 12px;
+}
+.graphcontrols input.expr {
+  flex: 1 1 100%;
+}
+.graphcontrols .found {
+  color: var(--muted);
+}
+/* The levels and the controls stay at the top of the panel's scroller, under its sticky tab list (.tablist: 8px of
+   padding, a 13px tab at line height 1.45 with 8px padding and a 2px edge, its 1px border), while the graph scrolls;
+   only where the panel is beside the view and tall enough: elsewhere they would fill it. */
+.graphhead {
+  top: 46px;
+  z-index: 1;
+  margin: -12px -12px 0;
+  padding: 12px 12px 2px;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--line);
+}
+@media (min-width: 901px) and (min-height: 700px) {
+  .graphhead {
+    position: sticky;
+  }
+  /* A control focused here is in view already: the scroller's scroll padding (--graphhead), which keeps the rows clear
+     of the head, would otherwise scroll the panel by the head's height on each click. */
+  .graphhead * {
+    scroll-margin-top: calc(-1 * var(--graphhead, 0px));
+  }
+}
+/* The graph as a tree (truthgraph/TreeView.tsx). A row is a line of the tree: its guide cells (a rail per ancestor
+   level, then its elbow ├ └ or, for a vertex, ◆ on its daughters' line), its fold, and its content. Rows have no
+   margins, so the lines join from row to row. The lines sit 6px into a cell, under the fold's arrow of the row above. */
+.truthgraph {
+  --tg-line: var(--line-strong);
+  --tg-mid: 11px; /* the middle of a particle row's first line */
+  font-size: 12px;
+  line-height: 22px;
+}
+.tg-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  column-gap: 4px;
+  border-radius: 4px;
+  scroll-margin: 22px 0; /* a row scrolled to shows a row around it */
+}
+.tg-row:hover {
+  background: color-mix(in srgb, var(--text) 5%, transparent);
+}
+.tg-row.picked {
+  background: var(--accent-soft);
+}
+.tg-row.sel {
+  background: var(--accent-soft);
+  box-shadow: inset 2px 0 var(--accent);
+}
+.tg-cell {
+  position: relative;
+  flex: none;
+  align-self: stretch;
+  width: 14px;
+  margin-right: -4px; /* the cells touch: no column gap between them */
+}
+.tg-cell.deep {
+  width: 8px;
+}
+.tg-cell.on::before,
+.tg-cell.elbow::before {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: 0;
+  bottom: 0;
+  border-left: 1px solid var(--tg-line);
+}
+.tg-cell.elbow.last::before {
+  bottom: auto;
+  height: var(--tg-mid);
+}
+.tg-cell.elbow:not(.vx)::after {
+  content: "";
+  position: absolute;
+  left: 6px;
+  right: 0;
+  top: var(--tg-mid);
+  border-top: 1px solid var(--tg-line);
+}
+.tg-cell.vx::after {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 5px;
+  width: 7px;
+  height: 7px;
+  background: var(--muted);
+  transform: rotate(45deg);
+}
+.tg-fold {
+  flex: none;
+  position: relative;
+  width: 12px;
+  height: 22px;
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 22px;
+  text-align: center;
+}
+.tg-fold:hover {
+  color: var(--text);
+  background: none;
+}
+/* A leaf's fold: the elbow's line goes on to its tick. */
+.tg-fold.leaf::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  width: 14px;
+  top: var(--tg-mid);
+  border-top: 1px solid var(--tg-line);
+}
+.tg-row input[type="checkbox"] {
+  flex: none;
+  accent-color: var(--accent);
+  margin: 5px 0 0;
+  width: 12px;
+  height: 12px;
+}
+.tg-dot {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  margin-top: 6.5px;
+  border-radius: 50%;
+}
+.hidden .tg-dot {
+  border: 1px solid var(--muted);
+}
+.tg-row .tg-name {
+  border: 0;
+  background: none;
+  color: inherit;
+  padding: 0 3px;
+  border-radius: 3px;
+  font-weight: 600;
+  font-size: 13px;
+  line-height: 20px;
+  margin-top: 1px;
+}
+.tg-row .tg-name:hover {
+  background: var(--line);
+}
+.tg-row.sel .tg-name {
+  background: var(--accent);
+  color: #fff;
+}
+.tg-row.found:not(.sel) .tg-name {
+  background: color-mix(in srgb, var(--impure) 30%, transparent);
+}
+.hidden .tg-name {
+  font-weight: 400;
+  font-size: 12px;
+  color: var(--muted);
+}
+.tg-e,
+.tg-more {
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.tg-more {
+  margin-left: 4px;
+}
+.tg-more .link,
+.link.tg-more {
+  font-size: 11px;
+  color: var(--muted);
+}
+.tg-more .link:hover,
+.link.tg-more:hover {
+  color: var(--accent);
+}
+/* A head above the particles: a collision or the hard scatter, a vertex (◆ after its fold, its name in italics), or
+   the underlying event or the pile-up. */
+.tg-vx {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  margin: 7.5px 2px 0 3px;
+  background: var(--muted);
+  transform: rotate(45deg);
+}
+.tg-row.head .tg-name {
+  font-weight: 400;
+}
+.tg-row.head.vx .tg-name {
+  font-style: italic;
+}
+.tg-row.vertex {
+  line-height: 16px;
+  font-size: 11px;
+  color: var(--muted);
+  cursor: default;
+}
+.tg-row.vertex .tg-cell.vx::after {
+  top: 4.5px;
+}
+.tg-vname {
+  font-style: italic;
+  margin-left: 4px;
+}
+/* A vertex's particles in and out: on pointing at it, or after a click or tap (.io). */
+.tg-io {
+  display: none;
+}
+.tg-row.vertex:hover .tg-io,
+.tg-row.vertex.io .tg-io {
+  display: inline;
+}
+
 /* Truth search: level and process chips, on when chosen. */
 .tree .levelchips {
   display: flex;

@@ -168,15 +168,24 @@ export const isIndex = (header: Header, table: string, c: string) =>
 export const isCopied = (header: Header, table: string, c: string) =>
   /\(from [A-Za-z]\w*\.\w+|^derived from/.test(header.tables[table]?.columns[c]?.doc ?? "");
 
+/** The name of value `v` of column `c` in the layer's colour categories (a truth vertex's reason 11, "hadronic
+ *  inelastic"), if the layer is coloured by that column. */
+function categoryName(d: DisplayLayer | undefined, c: string, v: number) {
+  const by = d?.colourBy;
+  if (typeof by !== "object" || !("category" in by) || by.category !== c || !by.names) return undefined;
+  return Array.isArray(by.names) ? by.names.find(([k]) => String(k) === String(v))?.[1] : by.names[String(v)];
+}
+
 /** How column `c` of row `row` reads in the card: [value, unit]. A sentinel reads "no time" (a time) or "not set" ("none"
- *  for an index); a value named by the layer's `describe.names` reads that name; a DetId also reads in hex. */
+ *  for an index); a value named by the layer's `describe.names`, or by its colour categories, reads that name; a DetId
+ *  also reads in hex. */
 export function cellText(header: Header, d: DisplayLayer | undefined, table: string, t: Table, c: string, row: number) {
   const raw = t.columns[c]?.[row];
   if (raw === undefined) return ["", ""];
   if (typeof raw === "bigint") return [raw.toString(), ""];
   const v = Number(raw),
     unit = unitOf(header.tables[table]?.columns[c]?.doc) || (c === d?.cut?.column ? (d.cut.unit ?? "") : ""),
-    name = d?.describe?.names?.[c]?.[String(v)];
+    name = d?.describe?.names?.[c]?.[String(v)] ?? categoryName(d, c, v);
   if (name) return [`${name} (${plain(v)})`, ""];
   // the layer's arrival-time column reads <= -50 for none (format.ts DisplayLayer `time`)
   if (v === missingValue(header, d, table, c) || (c === d?.time && v <= -50))

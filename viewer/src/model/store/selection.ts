@@ -17,11 +17,12 @@ import { matchClass, simEnergyByParticle } from "../truth/match";
 import type { SlotRank } from "../colour/identities";
 import { cached } from "../event/cache";
 import { levelsOf, type Related, relatedParts, sameRef, type Ref } from "../event/relations";
-import { activeMode, modes, truthLevel, truthStatuses } from "./colours";
+import { activeMode, modes, truthGraph, truthLevel, truthStatuses } from "./colours";
 import { truthStatement } from "../truth/statement";
 import { isFactTable } from "../truth/facts";
 import { bundle, event } from "./data";
 import { layerKey, layerOf } from "./names";
+import { shownTops, truthDrawn, truthLinked, truthLooked, truthPicks } from "./truthView";
 import { domain, drawnLayers, shared, visible } from "./view";
 
 // ---- The selection and the focus
@@ -48,7 +49,20 @@ const partsOf = (ref: Ref | null) => {
     ev = event.value;
   return b && ev && ref && ref.row < (ev.tables[ref.table]?.n ?? 0) ? relatedParts(ev, b.header, ref) : null;
 };
-const focusParts = computed(() => partsOf(focus.value));
+/** The focus is one of the particles the Truth tab draws (truthView.ts truthShown: a pick, or the one looked at; any of
+ *  its generator copies). */
+export const focusPicked = computed(() => {
+  const f = focus.value,
+    tg = truthGraph.value;
+  return !!f && !!tg && f.table === tg.particles && shownTops.value.has(tg.graph.top[f.row]);
+});
+/** The focus's relatives. While it is one of the picks, what is linked to it is what is linked to the truth drawn for
+ *  all of them (truthView.ts truthLinked): with "particle only", not its descendants' hits and matches. */
+const focusParts = computed(() => {
+  const parts = partsOf(focus.value),
+    linked = focusPicked.value ? truthLinked.value : null;
+  return parts && linked ? { ...parts, linked } : parts;
+});
 /** The selection's relatives: what it is made of, part of and linked to (its truth particle). */
 export const relatives = computed(() =>
   sameRef(selection.value, focus.value) ? focusParts.value : partsOf(selection.value),
@@ -229,9 +243,8 @@ export function truthPreview(d: DisplayLayer): Set<number> | undefined {
   });
 }
 
-/** What is drawn highlighted, per table: the focus, its levels and what is linked to it; in the pair view, the pair's
- *  objects. Not what contains the focus: big containers would cover it. Null without a focus. */
-export const highlight = computed(() => {
+/** The focus's own highlight (see highlight), before the truth picks. */
+const focusHighlight = computed(() => {
   const b = bundle.value,
     ev = event.value,
     f = focus.value,
@@ -257,6 +270,17 @@ export const highlight = computed(() => {
   }
   return b && ev && f && parts ? levelsOf(ev, b.header, f, parts) : null;
 });
+/** What is drawn highlighted, per table: the focus, its levels and what is linked to it; in the pair view, the pair's
+ *  objects. Not what contains the focus: big containers would cover it. While the focus is one of the Truth tab's
+ *  picks, the truth particles and vertices are the picks' (truthView.ts truthDrawn: each alone or with its
+ *  descendants), and so are the hits and reco objects linked to them (focusParts); in the pair view those stay the
+ *  pair's, the last pick's. Another focus (an object looked at from a card, a truth vertex) keeps its own. Null
+ *  without a focus. */
+export const highlight = computed(() => {
+  const hl = focusHighlight.value,
+    drawn = truthDrawn.value;
+  return hl && drawn && focusPicked.value ? new Map([...hl, ...drawn]) : hl;
+});
 
 /** What framing the focus fits in the view: the highlight less what is only linked to it, which can lie far away (a
  *  low-pT particle's helix curls 80 cm across the tracker). Null without a focus. */
@@ -278,8 +302,9 @@ export const framed = computed(() => {
 const focusParents = computed(() => focusParts.value?.partOf ?? null);
 /** For a layer the view does not draw whole, the rows drawn for the focus: of a ticked layer the view leaves out
  *  (another part of the detector's, or one kind looked at alone), the focus's objects and, in a shared part, what it is
- *  part of (a muon's jet); of an unticked layer, only the selected object and the focus themselves. Undefined for a
- *  layer drawn whole, without a focus, or with none of these rows. */
+ *  part of (a muon's jet); of an unticked layer, only the selected object and the focus themselves, and while the focus
+ *  is one of the Truth tab's picks, the truth particles and vertices drawn for them. Undefined for a layer drawn whole,
+ *  without a focus, or with none of these rows. */
 export const focusRows = (d: DisplayLayer) => {
   const key = layerKey(d),
     hl = highlight.value;
@@ -288,7 +313,11 @@ export const focusRows = (d: DisplayLayer) => {
   if (visible.value[key]) {
     const parents = d.domain && shared.value.has(d.domain) ? (focusParents.value?.get(d.table) ?? []) : [];
     rows = new Set([...(hl.get(d.table) ?? []), ...parents]);
-  } else rows = new Set([focus.value, selection.value].filter((r) => r?.table === d.table).map((r) => r!.row));
+  } else {
+    rows = new Set([focus.value, selection.value].filter((r) => r?.table === d.table).map((r) => r!.row));
+    // The picks' truth (with their vertices) is drawn whatever the ticks.
+    if (focusPicked.value) for (const r of truthDrawn.value?.get(d.table) ?? []) rows.add(r);
+  }
   return rows.size ? rows : undefined;
 };
 
@@ -326,6 +355,101 @@ effect(() => {
     focus.value = null;
     if (focusHistory.peek().length) focusHistory.value = [];
   }
+});
+
+// ---- Picking truth particles (the Truth tab's graph)
+
+/** Look at truth particle `row` (a click on its name), as any new selection: the card describes it, the focus is on
+ *  it (the earlier focus kept for "back") and the view draws it with the picks, highlighted. The ticks stay as they
+ *  are: only a tick changes them. */
+export function selectTruth(row: number) {
+  const t = truthGraph.peek()?.particles;
+  if (t === undefined) return;
+  const ref = { table: t, row };
+  batch(() => {
+    truthLooked.value = row;
+    openCard(ref);
+    if (!sameRef(focus.peek(), ref)) focusOn(ref); // selected already, inside another focus
+  });
+}
+/** Tick truth particle `row` (add it to the picks, and look at it), or untick it if it is one (any of its generator
+ *  copies): unticking the particle looked at moves the card to the last pick left, or closes it. Not a new choice for
+ *  "back", which returns to before the first pick. */
+export function togglePick(row: number) {
+  const tg = truthGraph.peek();
+  if (!tg) return;
+  const top = tg.graph.top,
+    picks = truthPicks.peek(),
+    rest = picks.filter((r) => top[r] !== top[row]),
+    adds = rest.length === picks.length,
+    looked = truthLooked.peek(),
+    within = focusPicked.peek();
+  batch(() => {
+    truthPicks.value = adds ? [...picks, row] : rest;
+    const next = adds ? row : looked !== null && top[looked] === top[row] ? (rest.at(-1) ?? null) : looked;
+    if (next === looked && !adds) return; // another pick left: the card stays
+    truthLooked.value = next;
+    if (next === null) selection.value = null;
+    else lookAtShown(tg.particles, next, within);
+  });
+}
+/** Ticks or unticks truth particles `rows` together (a particle and all below it). Ticking looks at the first of them
+ *  unless the one looked at is among them; unticking leaves the card where it is (the particle looked at stays drawn,
+ *  ticked or not). */
+export function setPicks(rows: number[], on: boolean) {
+  const tg = truthGraph.peek();
+  if (!tg || !rows.length) return;
+  const top = tg.graph.top,
+    tops = new Set(rows.map((r) => top[r])),
+    picks = truthPicks.peek(),
+    looked = truthLooked.peek(),
+    within = focusPicked.peek();
+  if (!on) {
+    truthPicks.value = picks.filter((r) => !tops.has(top[r]));
+    return;
+  }
+  const have = new Set(picks.map((r) => top[r])),
+    added = [...new Map(rows.filter((r) => !have.has(top[r])).map((r) => [top[r], r])).values()];
+  batch(() => {
+    truthPicks.value = [...picks, ...added];
+    if (looked === null || !tops.has(top[looked])) {
+      truthLooked.value = rows[0];
+      lookAtShown(tg.particles, rows[0], within);
+    }
+  });
+}
+/** The card and the focus on drawn truth particle `row`. From among the particles drawn (`within`), with nothing added
+ *  to "back": the picks are one choice; else as any new selection. */
+function lookAtShown(table: string, row: number, within: boolean) {
+  if (!within) return openCard({ table, row });
+  anchor.value = null;
+  looking = null;
+  anchorFocus = null;
+  focus.value = { table, row };
+  selection.value = { table, row };
+}
+/** No truth particle picked or looked at, and nothing selected. */
+export function clearPicks() {
+  batch(() => {
+    truthPicks.value = [];
+    truthLooked.value = null;
+    selection.value = null;
+  });
+}
+// The picks follow the focus: a truth particle focused from elsewhere (the view, a card, X, back) is the one looked
+// at, drawn with the picks; any other focus, or none, ends them. Looking at an object from a card keeps them.
+effect(() => {
+  const f = focus.value,
+    tg = truthGraph.value;
+  if (anchor.peek()) return;
+  const looked = truthLooked.peek();
+  if (f && tg && f.table === tg.particles) {
+    if (looked === null || tg.graph.top[looked] !== tg.graph.top[f.row]) truthLooked.value = f.row;
+  } else if (truthPicks.peek().length || looked !== null)
+    batch(() => {
+      truthPicks.value = [];
+      truthLooked.value = null;
+    });
 });
 
 // A new focus starts without its hit pair.

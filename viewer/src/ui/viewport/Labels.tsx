@@ -81,13 +81,25 @@ const items = computed<Item[]>(() => {
   });
 });
 
-/** Where an object's label goes: the end of a line or a cone (its far end, e.g. where a jet meets the calorimeter),
+/** Where an object's label goes: the middle of a truth particle's line (the particle is the line between its
+ *  vertices, not either end), the end of another line or a cone (its far end, e.g. where a jet meets the calorimeter),
  *  else its position; null if its layer is not drawn in this view. */
 function anchor(ref: Ref): [number, number, number] | null {
   const l = engine?.drawnLayer(ref.table);
   if (!l || !l.object.visible || ref.row >= l.x.length) return null;
-  const e = l.segment?.b;
-  return e ? [e[0][ref.row], e[1][ref.row], e[2][ref.row]] : [l.x[ref.row], l.y[ref.row], l.z[ref.row]];
+  const i = ref.row,
+    p = l.path,
+    e = l.segment?.b;
+  if (layerOf(ref.table)?.truth && (p || l.segment)) {
+    if (p) {
+      p.fill(i); // a curved line: its point halfway along the arc (the path's last point is the end, not on the arc)
+      const k = i * p.points + Math.floor((p.points - 2) / 2);
+      return [p.x[k], p.y[k], p.z[k]];
+    }
+    const a = l.segment!.a;
+    return [0, 1, 2].map((c) => (a[c][i] + e![c][i]) / 2) as [number, number, number];
+  }
+  return e ? [e[0][i], e[1][i], e[2][i]] : [l.x[i], l.y[i], l.z[i]];
 }
 
 export function Labels() {

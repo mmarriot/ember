@@ -137,8 +137,8 @@ part: the view frames the object's pieces in that part, and `D` skips the parts 
 help. **Got it** hides it for good in this browser; the line then says only "Click an object to select it · ? help".
 
 **The view's title.** The top left of the view says what is on screen, so that a screenshot says it too:
-`SIMULATION · ttbar 0PU · Run 1 · LS 1 · Event 18`, or `DATA · Run 392294 · LS 21 · Event 11805516`. Under it is the
-event in one line: the physics objects that pass their cuts ("Jets 4 · Electrons 0 · … · Puppi MET 38.1 GeV"). No header
+`MC · ttbar 0PU · Run 1 · LS 1 · Event 18` (MC: simulated), or `DATA · Run 392294 · LS 21 · Event 11805516`. Under it
+is the event in one line: the physics objects that pass their cuts ("Jets 4 · Electrons 0 · … · Puppi MET 38.1 GeV"). No header
 field says whether a bundle is simulation: the viewer calls an event simulated when the bundle has truth or the run
 is 1 (CMSSW numbers every simulated run 1). A simulated event is named by the first part of the data set's title,
 and data by their run.
@@ -189,7 +189,7 @@ as closely as its tracks' part of the detector allows (the tracker's `minRadius`
 with the whole length of its tracks. In a part of the detector, what is framed is the object and its parts in that
 part, as when the part is chosen: a TICL candidate in HGCal is framed by its shower, not by its track from the vertex.
 An object drawn as a line from the vertex (an electron, a truth particle) is framed by its parts there alone: a
-particle picked in the Truth tab by its hits in HGCal.
+particle picked in the Truth tab's Particles in this view by its hits in HGCal.
 Clicking an object does not move the camera.
 
 Clicking a **hit** shows the hit: its card names the simulated energy each particle deposited in it (not
@@ -444,42 +444,122 @@ On a phone, the panel is a sheet under the view. It is folded to its tabs until 
 
 ### Truth tab
 
-The tab is called **Tree** for a bundle with a tree but no truth layers. It opens on the hard process; every
-section under it is folded to its heading until you open it. It holds:
+The tab is called **Tree** for a bundle with a tree but no truth layers: it lists what became of each of the tree's
+objects that left hits, and the tree, which folds. With truth, from the top:
 
-- **the hard process**: the outgoing legs of the hard scatter (truth level HardProcess, bit 1), each once, under the
-  particle they came from: `t → b`, `W⁺ → μ⁺ νμ`. A quark or gluon leg is named by the parton (`b`, `s̄`), never
-  "jet": it selects that parton, and the truth graph has no jets. Each is a button;
-- **Particles in this view**, the way into the truth: for the part of the detector looked at, detector by detector,
-  the particles that left simulated energy in its hits (from the hit index), largest first; in the tracker, which has
-  no simulated energy in the file, the particles a track is matched to, by pT. Each row gives the particle (by its
-  energy in a calorimeter, by pT and η in the tracker), in a calorimeter the energy it deposited there (column
-  "deposited in HGCal": simulated, in MeV or GeV, not calibrated, and not the particle's energy), its best match among
-  the kind compared there with that match's completeness ("51%", the column's "% of it"), "split n" when n objects of
-  the kind hold part of it, and "shared +n" when n other particles have the same best match (a merge). A detector
-  without an association (HF, HO) says "not compared". Sort by deposited energy (pT in the tracker), completeness or
-  split; click a particle or an object to select it. Simulated energies of different detectors are never compared: a
-  particle is listed in each detector it reached. Physics and All list every detector;
-- **the event's reco ↔ truth scorecard.** For each reco kind that a CMSSW associator matches, it counts how many of
-  the objects that pass their cuts and filters are a clean match, an impure match, or are not matched
-  (`matchTally` in `viewer/src/model/truth/match.ts`). Click a count to unfold its objects, largest first. So the event's
-  merged, split and fake objects are one click away.
-- **the truth coverage**, folded to one line of counts, for example "9 matched · 2 sim · 18 no associator". Unfold it
-  to see each kind's answer and, where there is no associator, why (the gap behind its **i**).
-- **Truth graph browser**: the truth collections, with their cuts, and the tree of their particles (the last item);
-- for a tree that is not the truth's, what became of each of its objects that left hits;
-- objects linked to objects of the same table as a tree that you can fold, for example the truth-graph particles and
-  their children. A particle that the generator wrote several times (status 23, 51, 1) is one node, "μ⁺ ×4", whose
-  children are those of its last copy. Its search box takes the start of a name ("B", "μ"), a pdgId (`511`, `-11`) or
-  a pdgId of either sign (`|pdg|=11`). Chips under it find particles by truth level (hard process, generator
-  particle, entered the calorimeter, parton jet, b hadron, c hadron, reconstructable, τ visible), each with its count
-  in the event, and by what they did (converted, radiated brem, interacted, decayed: a vertex of that process made some
-  of their daughters; each result then gives its radius). They combine.
+- **the levels**: a chip per truth level the graph can show, in the level's colour, with how many particles of the
+  event are at it: hard process, b / c hadron, τ visible, reconstructable, entered the calorimeter, generator
+  particle, and signal process where a truth preset set it. A click shows or hides that level's particles. The first
+  four are on at first. The chips are the graph's legend: a particle at several levels shown takes the colour of the
+  first of them in this order (`viewer/src/model/truth/levelGraph.ts` `GRAPH_LEVELS`);
+- **the controls**: **Vertices hide | show** (the graph's vertices), **3D particle only | + descendants** (what the
+  view draws of the particles picked: each one from the vertex it was made at to the one it ended at, or with
+  everything below it; + descendants at first, as a truth particle selected anywhere else), a search box (the start of
+  a name, `B`, `μ`; a pdgId, `511`; either sign, `|pdg|=11`), and "2 selected · clear" once particles are picked;
+- **the graph**: the event's truth graph at the levels shown, as a tree that folds (▸ ▾), its lines joining each
+  particle to the ones it made. The whole event hangs from its collisions, each a vertex (◆, its name in italics),
+  where its particles came out of:
+  - **◆ signal collision**, open, named by its beams ("p p, 14 TeV"), or where it happened when the file has no
+    beams (a truth preset's bundle). Under it:
+    - **◆ hard scatter**, open: the outgoing legs of the hard scatter (level HardProcess) under the particles they
+      came from, so `t → b W⁺` and `W⁺ → s̄ c`, and everything below them (with the hard process hidden, what came
+      from it stays here), unfolded down to the b / c hadrons and τ. A truth preset's signal process hangs here too;
+    - **underlying event**, folded, with how many particles it lists: the rest of the signal collision. The
+      generator's strings mix initial-state radiation, multiple interactions and the beam remnants, so they are not
+      split further (a hadron at η 8 and one at η 1 can come from the same string).
+
+    Without a hard process (a particle gun, also a truth preset's), the collision's particles hang straight under it;
+  - **pile-up**, folded, with how many collisions: the other collisions of the bunch crossing (about 180 at 200
+    pile-up), each a folded **◆** named by where it happened ("z -6.75 mm"), with the summed pT of the particles it
+    lists and how many they are. The hardest (largest summed pT) comes first, so the order can change with the levels
+    shown. Pile-up has no generator history, so its particles hang straight under their collision. A folded
+    collision costs nothing to show.
+
+  A particle row has its tick, a dot in its level's colour, its name and its energy. A particle that the generator
+  wrote several times (status 23, 51, 1) is one particle (its tooltip says how many times); particles at no level
+  shown are skipped, so each particle hangs under the nearest ones above it that are shown. With **Vertices show**,
+  every group of daughters made at one vertex has that vertex above it on their line, a grey ◆ with its process in
+  italics ("decay", "hadronization", "bremsstrahlung", "conversion"; "⋯" when particles were skipped in between),
+  also the daughters listed "▸ N below"; pointing at it (or a tap) names the particles in and out, from the truth
+  graph. A hadron made from
+  several partons (a string between the b and the s̄) hangs under the one of highest energy and says "also from" the
+  others (a click goes to it). "▸ 23 below" counts the particles at no level shown that it made; a click lists them
+  under it (unfolding it), with a hollow dot, each folding its own. A list of more than 50 particles or collisions
+  shows the 50 largest and "show 50 more". A particle selected elsewhere (in the view, `X`) is unfolded to and
+  scrolled into view, the pile-up and its collision or the underlying event opening above it (one at no level shown
+  under the particle it hides under). The particles the search finds are marked, and the way to the 20 largest is open
+  while the search is typed (clearing it folds them back); the controls say how many it found, and Enter or "next"
+  selects the next one. A name can be typed on a plain keyboard: Greek letters by their names and the charge at the end
+  (`pi0` π⁰, `e-` e⁻, `W+` W⁺, `gamma` γ); the signal collision's matches come first, then pile-up's. Where the panel is
+  beside the view and tall enough, the levels and the controls stay at its top while the graph scrolls. In the tree, ↑ ↓
+  move between the names and → ← unfold and fold (there they do not step the event or the focus level).
+
+  A click on a particle's name selects it: the card describes it, and the view draws it, highlighted, with the
+  ticked particles, which stay as they are. Its tick keeps it drawn (ticking selects it too); unticking the one
+  selected moves the card to the last one ticked, or closes it. So several particles can be ticked and each looked at
+  in turn without losing the others. With a particle selected, "e⁻ and below (151): **tick all** · **untick all**"
+  ticks or unticks it and every particle below it (also those at no level shown); unticking leaves the card where it
+  is. "**3 ticked** · **clear**" counts them; clear unticks all and closes the card. A truth particle selected
+  elsewhere (in the view, from a card, `X`) is the one selected, with the ticked ones. What the view draws for the
+  ticked particles and the one selected (the picks):
+  - **particle only**: each pick as one line (all its generator copies), from the vertex where it was made to its
+    last vertex with daughters, and both vertices; an electron, positron or photon that reached the calorimeter ends
+    where it entered it when that vertex is no earlier (a vertex of its shower, which can lie tens of cm off its path),
+    without that vertex (a muon or a hadron goes on to where it stopped or interacted). Its label is in the middle of
+    its line. A parton of the hard process (t, W, the quarks) is made and ends at the
+    collision: it is two rings at one point and no line, and its card says "decays where it was made (0 cm)". The hits
+    and reco objects drawn are those linked to the picks themselves through an association, not to their
+    descendants. The reco associators match a particle's whole branch (it and everything below it), so a top quark
+    alone still shows the tracks and showers matched to it, but no hits: hits belong to the particle that left them;
+  - **+ descendants**: every particle below each pick drawn as its line (also a photon an electron radiated: anything
+    made below it, whatever the process), every vertex of them as a ring, and the hits and reco objects linked to any
+    of them;
+  - a reco object is lit when its own best truth match (the card's "its best") is one of the picks or below one, not
+    when they only share in it: a photon an electron radiated, which converts, does not light the electron's cluster
+    and track (best matched to the electron, above the photon), though its conversion's electrons left some energy in
+    them; a top quark's tracks, best matched to the particles it decayed to, are its own. Hits are lit for every
+    particle that left energy in them;
+  - with several picks, the hits and reco objects of all of them (and **Others** around them). In the truth ↔ reco
+    pair view (the pid and truth colours), they stay the pair's, that of the one selected;
+  - the lines are thin (2 px, the selected one 2.5 px) and dashed, with an edge of the background's colour on each
+    side so they read over hits and over each other, and the selected one has a one-pixel halo in the accent colour.
+    When the truth particles are drawn whole instead (**Others** showing everything, or a replay), they keep the look
+    of the whole table: one-pixel lines, the selected one with the wider accent halo of any selected line.
+    The vertices are rings of constant size on top of the lines, all in one neutral grey with an edge of the
+    background's colour, hollow so that the lines through them and rings that overlap stay readable: a colour always
+    means a particle, a ring a vertex. Its process (decay, hadronization, hadronic inelastic, …) is in its tooltip
+    and card; the Vertices collection drawn for anything else keeps the colours by reason. They are drawn whether or
+    not the Vertices collection is ticked, and so are the particles if Particles is unticked;
+  - the truth particle energy cut (Details) hides the descendants below it, and the vertices that only those reach;
+    the controls say how many it hides ("16 of 151 drawn: the rest are below 1 GeV"), and **draw all** sets it to 0.
+    It is the only cut on them: a track below its pT cut does not hide the particle it is matched to. The picks
+    themselves, and their two vertices, are drawn whatever the truth cut, as any selected object is;
+- **Details**, folded: the truth collections (Particles, Vertices) with their cuts, the particles in this view and the
+  event's reco ↔ truth scorecard:
+  - **Particles in this view**: for the part of the detector looked at, detector by detector, the particles that left
+    simulated energy in its hits (from the hit index), largest first; in the tracker, which has no simulated energy
+    in the file, the particles a track is matched to, by pT. Each row gives the particle (by its energy in a
+    calorimeter, by pT and η in the tracker), in a calorimeter the energy it deposited there (column "deposited in
+    HGCal": simulated, in MeV or GeV, not calibrated, and not the particle's energy), its best match among the kind
+    compared there with that match's completeness ("51%", the column's "% of it"), "split n" when n objects of the
+    kind hold part of it, and "shared +n" when n other particles have the same best match (a merge). A detector
+    without an association (HF, HO) says "not compared". Sort by deposited energy (pT in the tracker), completeness or
+    split; click a particle or an object to select it. Simulated energies of different detectors are never compared:
+    a particle is listed in each detector it reached. Physics and All list every detector;
+  - **the event's reco ↔ truth scorecard.** For each reco kind that a CMSSW associator matches, it counts how many of
+    the objects that pass their cuts and filters are a clean match, an impure match, or are not matched
+    (`matchTally` in `viewer/src/model/truth/match.ts`). Click a count to unfold its objects, largest first. So the
+    event's merged, split and fake objects are one click away.
+
+The truth coverage of each kind is in the Metadata tab.
 
 ### Metadata tab
 
 The **Metadata** tab shows the run and event information, the bundle's `summaries` charts, and the source with every
-table of the event.
+table of the event. In a bundle with truth, **Truth coverage**, folded to one line of counts ("9 matched · 2 truth
+facts · 18 no associator"), says what the truth graph says about each kind: matched by CMSSW's associator, a truth
+fact (the simulated energy each particle left in its hits), or, where there is no associator, why (the gap behind its
+**i**).
 
 ## Colours and the truth ↔ reco pair
 
@@ -762,8 +842,9 @@ disagree, there is no pair.
   generator particle, entered the calorimeter, parton jet, b or c hadron, reconstructable, τ visible); and what the
   graph says of its physics ([Truth](truth.md#physics-from-the-graph)): an electron's brem, a photon's conversion, a
   τ's decay, a b or c hadron's flight and the reco vertex matched to its decay;
-- its lineage: its ancestors (the generator's quarks and gluons folded into one line), itself, its daughters, the
-  levels each one belongs to, and the reco objects whose best match it is. A particle's generator copies are one
+- its lineage: its ancestors (the generator's quarks and gluons folded into one line), itself ("this particle": its
+  name, levels and copies are in the head), its daughters, the levels each one belongs to, and the reco objects whose
+  best match it is. A particle's generator copies are one
   entry ("μ⁺ ×4 (status 23→1)"); a particle made from several partons says "from n partons", and the line follows the
   first;
 - **Reconstructed as**: for each reco kind with a truth → reco association, the objects that hold at least 5% of it

@@ -1,13 +1,17 @@
 // The truth graph (particles, their parents and children, their vertices) and the physics read from it: copies,
 // brem, conversions, decays (owner decision D1, docs/truth.md "Physics from the graph").
 import type { EventData, Header } from "../../io/format";
+import { endsAtBoundary } from "./ends";
 
 /** One event's truth particles and vertices, from the truth graph's tables (docs/truth-graph.md). Missing columns
  *  read as NaN. A particle's `decayVertexIdx` is only the latest vertex where its kept daughters were made, and its
  *  children are those of all of them: what happened where is read from each child's own production vertex. */
 export interface Graph {
   n: number;
+  nv: number; // vertices (0 without the vertex table)
   col: (name: string, r: number) => number; // a particle's column
+  /** A particle column as stored, for code that reads it for every particle (truth/levelGraph.ts). */
+  column: (name: string) => ArrayLike<number | bigint> | undefined;
   vcol: (name: string, v: number) => number; // a vertex's column (NaN without the vertex table)
   children: (r: number) => number[];
   parents: (r: number) => number[];
@@ -74,7 +78,9 @@ export function graphOf(
   for (let r = 0; r < n; r++) if (top[r] < 0) top[r] = last[r] = r; // a loop of copies (bad data): each on its own
   return {
     n,
+    nv,
     col,
+    column: (name) => particles.columns[name],
     vcol: (name, v) => {
       const c = vertices?.columns[name];
       return c && v >= 0 && v < nv ? Number(c[v]) : NaN;
@@ -115,6 +121,44 @@ export function copiesBelow(g: Graph, r: number): number[] {
 }
 /** The top of `r`'s generator copies (see copiesBelow). */
 export const topCopy = (g: Graph, r: number) => g.top[r];
+/** The vertex particle `r` (a last copy) ended at: its decayVertexIdx, but -1 for an e± or γ whose last vertex is no
+ *  earlier than where it entered the calorimeter, a vertex of its shower: its line ends at the calorimeter
+ *  (truth/ends.ts). */
+export function endVertex(g: Graph, r: number) {
+  const v = g.col("decayVertexIdx", r);
+  return endsAtBoundary(g.col("pdgId", r), g.col("hasBoundary", r), g.col("boundaryT", r), g.vcol("t", v)) ? -1 : v;
+}
+/** What the view draws of the truth for picked particles `rows` (the Truth tab's picks): each one's generator copies,
+ *  the vertex it was made at (its first copy's production vertex) and the one it ended at (endVertex); with `descendants`, the same for every particle below them (the children of all their copies). */
+export function drawnRows(g: Graph, rows: number[], descendants: boolean) {
+  const particles = new Set<number>(),
+    vertices = new Set<number>(),
+    todo = rows.map((r) => g.top[r]);
+  const vertex = (v: number) => {
+    if (v >= 0 && v < g.nv) vertices.add(v);
+  };
+  while (todo.length) {
+    const t = g.top[todo.pop()!];
+    if (particles.has(t)) continue;
+    const copies = copiesBelow(g, t);
+    for (const r of copies) particles.add(r);
+    vertex(g.col("prodVertexIdx", t));
+    vertex(endVertex(g, copies.at(-1)!));
+    if (descendants) for (const r of copies) for (const c of g.children(r)) if (g.top[c] !== t) todo.push(c);
+  }
+  return { particles, vertices };
+}
+
+/** The straight-line distance (cm) from particle `r`'s first copy's production vertex to its last copy's
+ *  decayVertexIdx, the last vertex with daughters (not necessarily where it stopped). 0 for a parton of the hard
+ *  process, made and ended at the collision; NaN without both vertices. */
+export function vertexDistance(g: Graph, r: number) {
+  const p = g.col("prodVertexIdx", g.top[r]),
+    e = g.col("decayVertexIdx", g.last[r]);
+  if (!(p >= 0 && e >= 0)) return NaN;
+  return Math.hypot(...["x", "y", "z"].map((c) => g.vcol(c, e) - g.vcol(c, p)));
+}
+
 /** A chain of particles (top first, each the parent of the next) in groups of generator copies. */
 export function foldCopies(g: Graph, chain: number[]): number[][] {
   const out: number[][] = [];

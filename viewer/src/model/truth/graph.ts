@@ -121,11 +121,12 @@ export function copiesBelow(g: Graph, r: number): number[] {
 }
 /** The top of `r`'s generator copies (see copiesBelow). */
 export const topCopy = (g: Graph, r: number) => g.top[r];
-/** The vertex particle `r` (a last copy) ended at: its decayVertexIdx, but -1 for a vertex no earlier than where it
- *  entered the calorimeter, a vertex of its shower: its line ends at the calorimeter (truth/ends.ts). */
+/** The vertex particle `r` (a last copy) ended at: its decayVertexIdx, but -1 for an e± or γ whose last vertex is no
+ *  earlier than where it entered the calorimeter, a vertex of its shower: its line ends at the calorimeter
+ *  (truth/ends.ts). */
 export function endVertex(g: Graph, r: number) {
   const v = g.col("decayVertexIdx", r);
-  return endsAtBoundary(g.col("hasBoundary", r), g.col("boundaryT", r), g.vcol("t", v)) ? -1 : v;
+  return endsAtBoundary(g.col("pdgId", r), g.col("hasBoundary", r), g.col("boundaryT", r), g.vcol("t", v)) ? -1 : v;
 }
 /** What the view draws of the truth for picked particles `rows` (the Truth tab's picks): each one's generator copies,
  *  the vertex it was made at (its first copy's production vertex) and the one it ended at (endVertex); with `descendants`, the same for every particle below them (the children of all their copies). */

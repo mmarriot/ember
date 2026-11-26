@@ -1,16 +1,20 @@
 // Where a truth particle's line ends. The file's end point is its last copy's decayVertexIdx: the latest vertex where
 // daughters it kept were made, which for a particle that showered can be a vertex of its shower, nanoseconds later and
-// tens of cm off its path (an annihilation of one of its shower's positrons). A particle that reached the calorimeter
-// is drawn to where it entered it (its boundary checkpoint) when its last vertex is no earlier than that.
+// tens of cm off its path (an annihilation of one of its shower's positrons). An electron, positron or photon that
+// reached the calorimeter is drawn to where it entered it (its boundary checkpoint) when its last vertex is no earlier
+// than that. Not a muon or a hadron: their last vertex past the boundary is where they stopped or interacted (a muon in
+// the muon endcap, a pion's shower in the HCAL), on their way.
 import type { EventData, Header } from "../../io/format";
 
 /** The boundary checkpoint's columns (docs/truth-graph.md): a particle crossed into the calorimeter there, then. */
 const BOUNDARY = { reached: "hasBoundary", x: "boundaryX", y: "boundaryY", z: "boundaryZ", t: "boundaryT" };
 
-/** A particle ends at its boundary checkpoint: it reached the calorimeter, and its last vertex (`vertexT`, its time;
- *  NaN for none) is no earlier than that. */
-export const endsAtBoundary = (reached: number, boundaryT: number, vertexT: number) =>
-  !!reached && !(vertexT < boundaryT);
+const SHOWERS = new Set([11, 22]); // |pdgId|: e±, γ
+
+/** A particle (`pdgId`) ends at its boundary checkpoint: an e± or γ that reached the calorimeter, its last vertex
+ *  (`vertexT`, its time; NaN for none) no earlier than that. */
+export const endsAtBoundary = (pdgId: number, reached: number, boundaryT: number, vertexT: number) =>
+  SHOWERS.has(Math.abs(pdgId)) && !!reached && !(vertexT < boundaryT);
 
 /** `ev` with the end points of the truth particles that end at their boundary checkpoint (endsAtBoundary) moved
  *  there, for each truth particle layer with an end and the checkpoint's columns; `ev` itself when none moves. One
@@ -20,7 +24,13 @@ export function withTruthEnds(ev: EventData, header: Header): EventData {
   for (const d of header.display) {
     const t = tables[d.table],
       c = t?.columns;
-    if (!d.truth || !d.particle || !d.end || !c || !["decayVertexIdx", ...Object.values(BOUNDARY)].every((n) => c[n]))
+    if (
+      !d.truth ||
+      !d.particle ||
+      !d.end ||
+      !c ||
+      !["pdgId", "decayVertexIdx", ...Object.values(BOUNDARY)].every((n) => c[n])
+    )
       continue;
     // the vertex table: where a non-association relation from the particles leads to another truth table
     const vtx = Object.entries(header.relations).find(
@@ -39,8 +49,8 @@ export function withTruthEnds(ev: EventData, header: Header): EventData {
     for (let r = 0; r < t.n; r++) {
       const v = Number(c.decayVertexIdx[r]),
         when = vt && v >= 0 && v < nv ? Number(vt[v]) : NaN;
-      if (!endsAtBoundary(Number(c[BOUNDARY.reached][r]), Number(c[BOUNDARY.t][r]), when)) continue;
-      out ??= ends.map((e) => Float32Array.from({ length: t.n }, (_, i) => Number(e![i])));
+      if (!endsAtBoundary(Number(c.pdgId[r]), Number(c[BOUNDARY.reached][r]), Number(c[BOUNDARY.t][r]), when)) continue;
+      out ??= ends.map((e) => new Float32Array(e as ArrayLike<number>)); // end points are floats, never BigInt
       out[0][r] = Number(c[BOUNDARY.x][r]);
       out[1][r] = Number(c[BOUNDARY.y][r]);
       out[2][r] = Number(c[BOUNDARY.z][r]);

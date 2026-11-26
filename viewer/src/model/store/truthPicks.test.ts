@@ -15,11 +15,13 @@ const {
   focusRows,
   highlight,
   look,
-  pickTruth,
   rawEvent,
   selection,
+  selectTruth,
+  setPicks,
   togglePick,
   truthDraw,
+  truthLooked,
   truthPicks,
   visible,
 } = await import(".");
@@ -106,9 +108,9 @@ beforeEach(() => {
 });
 
 describe("picking truth particles", () => {
-  it("picks one: the card and the focus are on it, the view draws it with its descendants, or alone", () => {
-    pickTruth(0);
-    expect(state()).toEqual({ picks: [0], selection: 0, focus: 0 });
+  it("selects one by its name: the card and the focus are on it, the view draws it with its descendants, or alone", () => {
+    selectTruth(0);
+    expect(state()).toEqual({ picks: [], selection: 0, focus: 0 }); // looked at, not ticked
     expect([drawn("Part"), drawn("Vtx"), drawn("Hit")]).toEqual([
       [0, 1],
       [0, 1, 3],
@@ -118,8 +120,8 @@ describe("picking truth particles", () => {
     expect([drawn("Part"), drawn("Vtx")]).toEqual([[0], [0, 1]]); // where it was made and where it ended
     expect(drawn("Hit")).toEqual([0]); // its own hits, not its descendants'
   });
-  it("ticks more: the last pick is the card's and the focus; unticking goes back to the one before", () => {
-    pickTruth(0);
+  it("ticks: each tick adds one and looks at it; unticking the one looked at goes back to the last tick", () => {
+    togglePick(0);
     togglePick(2);
     expect(state()).toEqual({ picks: [0, 2], selection: 2, focus: 2 });
     expect(drawn("Part")).toEqual([0, 1, 2]);
@@ -131,27 +133,51 @@ describe("picking truth particles", () => {
     togglePick(0);
     expect(state()).toEqual({ picks: [], selection: undefined, focus: undefined });
   });
+  it("selects a name among the ticks without changing them, and draws it with them", () => {
+    truthDraw.value = "particle";
+    togglePick(0);
+    selectTruth(2);
+    expect(state()).toEqual({ picks: [0], selection: 2, focus: 2 });
+    expect(drawn("Part")).toEqual([0, 2]);
+    selectTruth(0);
+    expect(state()).toEqual({ picks: [0], selection: 0, focus: 0 });
+    expect(drawn("Part")).toEqual([0]); // 2 was only looked at
+    selectTruth(2);
+    togglePick(0); // unticking another than the one looked at leaves the card
+    expect(state()).toEqual({ picks: [], selection: 2, focus: 2 });
+  });
+  it("ticks and unticks a particle with those below it", () => {
+    setPicks([0, 1], true);
+    expect(state()).toEqual({ picks: [0, 1], selection: 0, focus: 0 });
+    setPicks([0, 1], true); // nothing twice
+    expect(truthPicks.value).toEqual([0, 1]);
+    togglePick(2);
+    setPicks([0, 1], false);
+    expect(state()).toEqual({ picks: [2], selection: 2, focus: 2 }); // the one looked at stays
+    setPicks([2], false);
+    expect(state()).toEqual({ picks: [], selection: undefined, focus: undefined });
+  });
   it("clears the picks and the selection", () => {
-    pickTruth(0);
+    togglePick(0);
     togglePick(2);
     clearPicks();
     expect(state()).toEqual({ picks: [], selection: undefined, focus: undefined });
   });
-  it("follows the focus: a truth particle chosen elsewhere is the only pick, anything else ends them", () => {
-    pickTruth(0);
+  it("follows the focus: a truth particle chosen elsewhere is looked at with the ticks, anything else ends them", () => {
+    togglePick(0);
     togglePick(2);
     selection.value = at("Part", 1); // a click in the view on a particle drawn for the focus: the focus stays
     expect(state()).toEqual({ picks: [0, 2], selection: 1, focus: 2 });
     focusOn(at("Part", 1));
-    expect(truthPicks.value).toEqual([1]);
+    expect([truthPicks.value, truthLooked.value]).toEqual([[0, 2], 1]);
     focusOn(at("Hit", 0));
     selection.value = at("Hit", 0);
-    expect(truthPicks.value).toEqual([]);
+    expect([truthPicks.value, truthLooked.value]).toEqual([[], null]);
   });
   it("keeps ticks out of the way back: back returns to before the first pick", () => {
     focusOn(at("Hit", 0));
     selection.value = at("Hit", 0);
-    pickTruth(0);
+    togglePick(0);
     togglePick(2);
     togglePick(1);
     expect(focusHistory.value).toEqual([at("Hit", 0)]);
@@ -160,7 +186,7 @@ describe("picking truth particles", () => {
   });
   it("leaves the truth of an object looked at from a card as its own: a particle, a vertex", () => {
     truthDraw.value = "particle";
-    pickTruth(0);
+    togglePick(0);
     look(at("Part", 1));
     expect([truthPicks.value, drawn("Part")]).toEqual([[0], [1]]);
     look(at("Vtx", 2));
@@ -169,7 +195,7 @@ describe("picking truth particles", () => {
   it("draws the picks' vertices and descendants also when their collections are unticked", () => {
     visible.value = { "Part:markers": false, "Vtx:markers": false, "Hit:cells": true };
     truthDraw.value = "particle";
-    pickTruth(0);
+    togglePick(0);
     expect([...focusRows(header.display[1])!].sort()).toEqual([0, 1]);
     truthDraw.value = "descendants";
     expect([...focusRows(header.display[0])!].sort()).toEqual([0, 1]);
@@ -180,7 +206,7 @@ describe("picking truth particles", () => {
   it("cuts the descendants and the vertices only they reach, never the picks", () => {
     const [part, vtx] = header.display,
       rows = (d: DisplayLayer) => [...onlyFor(d, `${d.table}:markers`, highlight.value, false)!].sort();
-    pickTruth(0);
+    togglePick(0);
     expect([rows(part), rows(vtx)]).toEqual([[0], [0, 1]]); // particle 1 (0.5 GeV) and its end vertex 3 are cut
     togglePick(2); // 0.2 GeV, but picked
     expect([rows(part), rows(vtx)]).toEqual([
@@ -197,7 +223,7 @@ describe("picking truth particles", () => {
     const [part, vtx] = header.display,
       rows = (d: DisplayLayer) => [...onlyFor(d, `${d.table}:markers`, highlight.value, false)!].sort();
     cuts.value = { "Truth E": 0.3, "Track pT": 1 }; // particle 1 (0.5 GeV) passes; its only track (0.5 GeV) does not
-    pickTruth(0);
+    togglePick(0);
     expect(drawn("Track")).toEqual([0]);
     expect([rows(part), rows(vtx)]).toEqual([
       [0, 1],

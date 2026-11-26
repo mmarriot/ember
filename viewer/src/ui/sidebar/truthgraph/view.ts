@@ -27,12 +27,13 @@
 //
 // Signals (model/store) a view reads and writes:
 // - reads `graphVertices` (draw the vertex nodes, or particles straight under particles), `graphFound` (the nodes the
-//   search box finds, largest first: matchingNodes), `pickedTops` (the picked particles, by `top`: show them ticked),
-//   `selection` (the particle the card describes, the last pick: `g.top[selection.row] === node.top`; show it
+//   search box finds, largest first: matchingNodes), `pickedTops` (the ticked particles, by `top`: show them ticked),
+//   `selection` (the particle the card describes and the view highlights: `g.top[selection.row] === node.top`; show it
 //   selected), `theme` (colours);
-// - picks with `pickTruth(node.last)` (a click on a name: that particle alone) and `togglePick(node.last)` (a tick: add
-//   or remove it). They move the selection and the focus; the view draws the picks (alone or with their descendants,
-//   store `truthDraw`), so a view never sets `selection` itself. `clearPicks` is the controls row's.
+// - selects with `selectTruth(node.last)` (a click on a name: look at it, drawn with the ticked ones, which stay) and
+//   ticks with `togglePick(node.last)` (add or remove it). They move the selection and the focus; the view draws the
+//   ticked particles and the one selected (alone or with their descendants, store `truthDraw`), so a view never sets
+//   `selection` itself. `clearPicks` and `setPicks` (a particle with all below it) are the controls row's.
 // - its own display state (what is folded, scrolled) is its own: keep it in signals of its module, so it survives the
 //   tab being closed and reopened (TruthTab renders the tab anew each time).
 import { short, truthText } from "../../../model/store";

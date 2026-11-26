@@ -6,7 +6,7 @@ import { signal, type Signal } from "@preact/signals";
 import { filterMask, filters } from "../../model/custom/settings";
 import { factIn, facts } from "../../model/truth/facts";
 import { particlesInView, type ViewRow } from "../../model/truth/particles";
-import { GRAPH_LEVELS } from "../../model/truth/levelGraph";
+import { GRAPH_LEVELS, nodeAndBelow } from "../../model/truth/levelGraph";
 import { matchTally, percent, TARGETS } from "../../model/truth/match";
 import { bestPartners, type Ref } from "../../model/event/relations";
 import { cached } from "../../model/event/cache";
@@ -26,8 +26,10 @@ import {
   largestFirst,
   layerOf,
   modes,
-  pickTruth,
+  pickedTops,
   selection,
+  selectTruth,
+  setPicks,
   short,
   stepName,
   theme,
@@ -193,10 +195,17 @@ function Choice<T>({
 }
 
 /** The graph's controls: its vertices, what the view draws of the picked particles, the search (how many it finds;
- *  Enter or "next" picks the next one), and the picks. */
+ *  Enter or "next" selects the next one), the picks, and ticking the particle selected with all below it. */
 function Controls() {
   const n = truthPicks.value.length,
     found = graphFound.value.length;
+  // The particle selected and those below it at the levels shown, as rows to tick (their last copies).
+  const tg = truthGraph.value,
+    lg = truthLevelGraph.value,
+    sel = selection.value,
+    node = tg && lg && sel?.table === tg.particles ? lg.nodeOf[sel.row] : -1,
+    family = node >= 0 && lg ? nodeAndBelow(lg, node).map((i) => lg.particles[i]) : [],
+    ticked = family.filter((p) => pickedTops.value.has(p.top)).length;
   return (
     <div class="graphcontrols">
       <Choice
@@ -231,7 +240,7 @@ function Controls() {
           {found ? (
             <>
               {found.toLocaleString()} found ·{" "}
-              <button class="link" title="Pick the next one found, largest first (Enter)" onClick={pickNextFound}>
+              <button class="link" title="Select the next one found, largest first (Enter)" onClick={pickNextFound}>
                 next
               </button>
             </>
@@ -240,10 +249,42 @@ function Controls() {
           )}
         </span>
       )}
+      {family.length > 1 && (
+        <span class="picks">
+          {truthText(tg!.particles, sel!.row).split(" · ")[0]} and below ({family.length}):{" "}
+          <button
+            class="link"
+            disabled={ticked === family.length}
+            title="Tick it and every particle below it at the levels shown"
+            onClick={() =>
+              setPicks(
+                family.map((p) => p.last),
+                true,
+              )
+            }
+          >
+            tick all
+          </button>{" "}
+          ·{" "}
+          <button
+            class="link"
+            disabled={!ticked}
+            title="Untick it and every particle below it at the levels shown"
+            onClick={() =>
+              setPicks(
+                family.map((p) => p.last),
+                false,
+              )
+            }
+          >
+            untick all
+          </button>
+        </span>
+      )}
       {n > 0 && (
         <span class="picks">
-          {n} selected ·{" "}
-          <button class="link" title="Pick no particle, and close the card" onClick={clearPicks}>
+          {n} ticked ·{" "}
+          <button class="link" title="Untick every particle, and close the card" onClick={clearPicks}>
             clear
           </button>
         </span>
@@ -261,7 +302,7 @@ function pickNextFound() {
     found = graphFound.peek();
   if (!tg || !lg) return;
   const at = sel?.table === tg.particles ? found.findIndex((i) => lg.particles[i].top === tg.graph.top[sel.row]) : -1;
-  if (found.length) pickTruth(lg.particles[found[(at + 1) % found.length]].last);
+  if (found.length) selectTruth(lg.particles[found[(at + 1) % found.length]].last);
 }
 
 /** The scorecard's unfolded count: "<table>|<class>". */

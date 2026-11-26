@@ -12,8 +12,8 @@ import {
   graphVertices,
   layerOf,
   pickedTops,
-  pickTruth,
   selection,
+  selectTruth,
   short,
   theme,
   togglePick,
@@ -158,11 +158,11 @@ export function TreeView({ lg, g, particles, vertices }: GraphViewProps) {
       <input
         type="checkbox"
         checked={picked.has(top)}
-        title="Draw it too, or take it out"
+        title="Tick to keep it drawn with the others ticked; untick to take it out"
         onChange={() => own(togglePick, row)}
       />
       {dot}
-      <button class="tg-name" title={title} onClick={() => own(pickTruth, row)}>
+      <button class="tg-name" title={title} onClick={() => own(selectTruth, row)}>
         {name(top)}
       </button>
     </>

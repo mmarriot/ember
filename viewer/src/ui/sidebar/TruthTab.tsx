@@ -6,7 +6,8 @@ import { signal, type Signal } from "@preact/signals";
 import { filterMask, filters } from "../../model/custom/settings";
 import { factIn, facts } from "../../model/truth/facts";
 import { particlesInView, type ViewRow } from "../../model/truth/particles";
-import { GRAPH_LEVELS, nodeAndBelow } from "../../model/truth/levelGraph";
+import { GRAPH_LEVELS } from "../../model/truth/levelGraph";
+import { drawnRows } from "../../model/truth/graph";
 import { matchTally, percent, TARGETS } from "../../model/truth/match";
 import { bestPartners, type Ref } from "../../model/event/relations";
 import { cached } from "../../model/event/cache";
@@ -202,13 +203,17 @@ function Controls() {
   const n = truthPicks.value.length,
     found = graphFound.value.length,
     away = truthCutAway.value;
-  // The particle selected and those below it at the levels shown, as rows to tick (their last copies).
+  // The particle selected and every particle below it (what "+ descendants" draws), as the rows a tick picks (their
+  // last copies), it first.
   const tg = truthGraph.value,
-    lg = truthLevelGraph.value,
+    g = tg?.graph,
     sel = selection.value,
-    node = tg && lg && sel?.table === tg.particles ? lg.nodeOf[sel.row] : -1,
-    family = node >= 0 && lg ? nodeAndBelow(lg, node).map((i) => lg.particles[i]) : [],
-    ticked = family.filter((p) => pickedTops.value.has(p.top)).length;
+    family =
+      g && sel?.table === tg.particles
+        ? [...new Set([g.top[sel.row], ...[...drawnRows(g, [sel.row], true).particles].map((r) => g.top[r])])]
+        : [],
+    rows = family.map((t) => g!.last[t]),
+    ticked = family.filter((t) => pickedTops.value.has(t)).length;
   return (
     <div class="graphcontrols">
       <Choice
@@ -274,13 +279,8 @@ function Controls() {
           <button
             class="link"
             disabled={ticked === family.length}
-            title="Tick it and every particle below it at the levels shown"
-            onClick={() =>
-              setPicks(
-                family.map((p) => p.last),
-                true,
-              )
-            }
+            title="Tick it and every particle below it, also those at no level shown"
+            onClick={() => setPicks(rows, true)}
           >
             tick all
           </button>{" "}
@@ -288,13 +288,8 @@ function Controls() {
           <button
             class="link"
             disabled={!ticked}
-            title="Untick it and every particle below it at the levels shown"
-            onClick={() =>
-              setPicks(
-                family.map((p) => p.last),
-                false,
-              )
-            }
+            title="Untick it and every particle below it"
+            onClick={() => setPicks(rows, false)}
           >
             untick all
           </button>

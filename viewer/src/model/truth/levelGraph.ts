@@ -387,17 +387,3 @@ export function matchingNodes(lg: LevelGraph, g: Graph, names: Record<string, st
         g.col("energy", lg.particles[b].top) - g.col("energy", lg.particles[a].top),
     );
 }
-
-/** Particle node `i` and every shown particle below it (through all its children, not only those a tree places under
- *  it), `i` first, each once. */
-export function nodeAndBelow(lg: LevelGraph, i: number): number[] {
-  const seen = new Set([i]),
-    out = [i];
-  for (let k = 0; k < out.length; k++)
-    for (const c of lg.particles[out[k]].children)
-      if (!seen.has(c)) {
-        seen.add(c);
-        out.push(c);
-      }
-  return out;
-}

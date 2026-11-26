@@ -393,8 +393,9 @@ export function togglePick(row: number) {
     else lookAtShown(tg.particles, next, within);
   });
 }
-/** Ticks or unticks truth particles `rows` together (a particle and its descendants), looking at the first of them
- *  when ticking, at the last pick left when unticking the one looked at. */
+/** Ticks or unticks truth particles `rows` together (a particle and all below it). Ticking looks at the first of them
+ *  unless the one looked at is among them; unticking leaves the card where it is (the particle looked at stays drawn,
+ *  ticked or not). */
 export function setPicks(rows: number[], on: boolean) {
   const tg = truthGraph.peek();
   if (!tg || !rows.length) return;
@@ -403,24 +404,17 @@ export function setPicks(rows: number[], on: boolean) {
     picks = truthPicks.peek(),
     looked = truthLooked.peek(),
     within = focusPicked.peek();
+  if (!on) {
+    truthPicks.value = picks.filter((r) => !tops.has(top[r]));
+    return;
+  }
+  const have = new Set(picks.map((r) => top[r])),
+    added = [...new Map(rows.filter((r) => !have.has(top[r])).map((r) => [top[r], r])).values()];
   batch(() => {
-    if (on) {
-      const have = new Set(picks.map((r) => top[r])),
-        added = [...new Map(rows.filter((r) => !have.has(top[r])).map((r) => [top[r], r])).values()];
-      truthPicks.value = [...picks, ...added];
-      if (looked === null || !tops.has(top[looked])) {
-        truthLooked.value = rows[0];
-        lookAtShown(tg.particles, rows[0], within);
-      }
-      return;
-    }
-    const rest = picks.filter((r) => !tops.has(top[r]));
-    truthPicks.value = rest;
-    if (looked !== null && tops.has(top[looked])) {
-      const next = rest.at(-1) ?? null;
-      truthLooked.value = next;
-      if (next === null) selection.value = null;
-      else lookAtShown(tg.particles, next, within);
+    truthPicks.value = [...picks, ...added];
+    if (looked === null || !tops.has(top[looked])) {
+      truthLooked.value = rows[0];
+      lookAtShown(tg.particles, rows[0], within);
     }
   });
 }

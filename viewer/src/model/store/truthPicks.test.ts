@@ -155,9 +155,11 @@ describe("picking truth particles", () => {
     expect(truthPicks.value).toEqual([0, 1]);
     togglePick(2);
     setPicks([0, 1], false);
-    expect(state()).toEqual({ picks: [2], selection: 2, focus: 2 }); // the one looked at stays
+    expect(state()).toEqual({ picks: [2], selection: 2, focus: 2 });
+    selectTruth(0);
     setPicks([2], false);
-    expect(state()).toEqual({ picks: [], selection: undefined, focus: undefined });
+    expect(state()).toEqual({ picks: [], selection: 0, focus: 0 }); // the card stays, on the one looked at
+    expect(drawn("Part")).toEqual([0, 1]);
   });
   it("clears the picks and the selection", () => {
     togglePick(0);

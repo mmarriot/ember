@@ -458,7 +458,9 @@ objects that left hits, and the tree, which folds. With truth, from the top:
   a name, `B`, `μ`; a pdgId, `511`; either sign, `|pdg|=11`), and "2 selected · clear" once particles are picked;
 - **the graph**: the event's truth graph at the levels shown, as a tree that folds (▸ ▾), its lines joining each
   particle to the ones it made. The whole event hangs from its collisions, each a vertex (◆, its name in italics),
-  where its particles came out of:
+  where its particles came out of. A click on a collision's name selects it (its ▸ folds it): the view goes to it and
+  the card says which primary vertex holds it ([A truth vertex](#a-truth-vertex)). A collision selected elsewhere (X
+  from a primary vertex, a card) is marked and scrolled to, the pile-up opening above it:
   - **◆ signal collision**, open, named by its beams ("p p, 14 TeV"), or where it happened when the file has no
     beams (a truth preset's bundle). Under it:
     - **◆ hard scatter**, open: the outgoing legs of the hard scatter (level HardProcess) under the particles they
@@ -481,7 +483,8 @@ objects that left hits, and the tree, which folds. With truth, from the top:
   every group of daughters made at one vertex has that vertex above it on their line, a grey ◆ with its process in
   italics ("decay", "hadronization", "bremsstrahlung", "conversion"; "⋯" when particles were skipped in between),
   also the daughters listed "▸ N below"; pointing at it (or a tap) names the particles in and out, from the truth
-  graph. A hadron made from
+  graph, and a click on its process selects it, as a collision's name does: a b hadron's decay shows its secondary
+  vertex. A hadron made from
   several partons (a string between the b and the s̄) hangs under the one of highest energy and says "also from" the
   others (a click goes to it). "▸ 23 below" counts the particles at no level shown that it made; a click lists them
   under it (unfolding it), with a hollow dot, each folding its own. A list of more than 50 particles or collisions
@@ -585,8 +588,10 @@ compared with.
   made of takes the same colour: interpretations and tracks (their
   candidate), tracksters and linked tracksters (the candidate that holds most of their layer clusters), layer
   clusters, and hits (their layer cluster's candidate). Objects in no candidate are small and grey. A layer that
-  cannot reach a candidate (for example the vertices) is coloured by its colour column, or keeps its own categorical
-  colours if it has none. The viewer works out how each layer reaches a candidate or a truth particle from the
+  cannot reach a candidate is coloured by its colour column, or keeps its own colours if it has none. The vertices
+  keep theirs: the leading primary vertex (the first, the one CMSSW takes for the hard scatter) near white (near black
+  in the light theme), the other primary vertices small in pile-up's grey, the secondary vertices rose; with "All
+  vertices", each track takes its vertex's, so the hard scatter's tracks stand out from pile-up's. The viewer works out how each layer reaches a candidate or a truth particle from the
   bundle's relations (`viewer/src/model/colour/modes.ts`), so the profile needs no settings for this.
 - **Truth** (key `T`, or "Colour by: reco type | truth particle" in the key; for bundles with truth particles). Everything is coloured by the
   generator particle it comes from (the profile's `particle` level), the same in every part of the detector:
@@ -690,7 +695,8 @@ no CMSSW associator.
 under "truth particle · signal" (or pile-up), with where it comes from in the truth graph on one line below: its hard
 process and its nearest ancestors, "t → W⁻ → e⁻", "t → b → … → ρ⁰ → π⁺" (`…` where generator partons are left out).
 Each ancestor is a button; the Truth tab's tree has the whole graph. A truth vertex is named by what happened there:
-"B⁰ decay · 3 charged", "hadronization · signal collision".
+"B⁰ decay · 3 charged"; a vertex at a collision's point by its collision: "Signal collision", "Pile-up collision at z
+-6.75 mm" (in the view's label too).
 
 **Names of objects.** Every object name in the card is a button. A click looks at the object; a double click opens
 its card ([Following the chain](#following-the-chain)). For a kind that a CMSSW associator matches, each name has a
@@ -779,6 +785,27 @@ daughters were made (the file's end vertex: not necessarily where it stopped), n
 · 1 charged", "γ conversion · 2 charged"), with R and z; and what the graph says of its physics
 ([Truth](truth.md#physics-from-the-graph)): an electron's brem, a photon's conversion, a τ's decay, a b or c hadron's
 flight and the reco vertex matched to its decay.
+
+### A truth vertex
+
+(`viewer/src/ui/card/VertexSide.tsx`.) The generator writes a collision as many vertices at one point: its hard
+scatter, shower branchings and hadronizations, or a pile-up collision's, steps of its calculation and not places
+([Truth](truth.md#collisions)). Any of them stands for the collision (`viewer/src/model/truth/collisions.ts`): the
+card, X, the Truth tab and the view's label speak of the collision, and its reco is that of all of them.
+
+**Reconstructed as**, with **Go to reco (X)**: the reco vertex that holds the most of it, from CMSSW's vertex
+associator (a primary vertex for a collision; a secondary vertex for the decay of a b or c hadron), with its
+**purity** (the share of its tracks' pT² from this vertex, clean from 50%) and **completeness** (the share of this
+vertex's findable tracks' pT² it holds) and how far it is. Then, only when there is more to say: **leading** on the
+primary vertex CMSSW takes for the hard scatter, and for the signal collision whose vertex is not that one, "not the
+leading vertex: Primary vertex 1 is matched to pile-up collision at z ..."; **merged** when the reco vertex's own best
+match is another (a B decay's secondary vertex that holds its D decay's tracks too); the others holding at least 5%
+of it (split). On a collision, the secondary vertices that hold some of its prompt tracks are named on one line.
+Nothing holds it: "No primary vertex holds any of its tracks"; a vertex the associator does not compare (a
+conversion, a nuclear interaction): "Not compared".
+
+**Its facts**: a collision's x, y, z and time, and how many of the generator's steps share its point; another
+vertex's particle in and those out, its R and z, and how far it is from its collision.
 
 ### More
 

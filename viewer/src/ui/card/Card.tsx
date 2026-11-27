@@ -15,6 +15,7 @@ import {
   anchor,
   bundle,
   cardNameOf,
+  collisionOf,
   event,
   focusBar,
   focusHistory,
@@ -42,6 +43,7 @@ import { Crumb } from "./Lineage";
 import { TruthCard } from "./TruthCard";
 import { TruthBlock } from "./TruthBlock";
 import { TruthSide } from "./TruthSide";
+import { VertexSide } from "./VertexSide";
 import { ParticleMore } from "./ParticleFacts";
 import { Physics, PhysicsMore } from "./Physics";
 import { Icon } from "../common/widgets";
@@ -58,7 +60,12 @@ export function Card() {
     particle = sel.table === modes.value.roots.truth,
     vertex = sel.table === truthGraph.value?.vertices,
     prev = !anchor.value && focusHistory.value.at(-1),
-    [name, source] = vertex ? [vertexLabel(sel.row) || cardNameOf(sel)[0], ""] : cardNameOf(sel);
+    // a vertex at a collision's point is named as the collision ("Signal collision")
+    point = vertex ? collisionOf(sel.row) : null,
+    label = vertex ? vertexLabel(sel.row, !!point) : "",
+    [name, source] = vertex
+      ? [(point ? label.charAt(0).toUpperCase() + label.slice(1) : label) || cardNameOf(sel)[0], ""]
+      : cardNameOf(sel);
   // the table's description, behind an i on the line under the name (a long name would push it onto a line alone)
   const doc = (info.doc || d?.doc) && (
     <Info title={labelOf(sel.table)}>
@@ -101,7 +108,9 @@ export function Card() {
         </div>
       </header>
       <div class="navbody">
-        {truth ? (
+        {vertex ? (
+          <VertexSide row={sel.row} />
+        ) : truth ? (
           <>
             <TruthSide table={sel.table} row={sel.row} />
             {!particle && (

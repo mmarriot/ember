@@ -53,7 +53,7 @@
     "photon": {"label": "Photons", "domain": "Physics", "repr": "segments", "visible": true, "labels": 2, "width": 3, "colourBy": "none", "fixedColour": "#40d0e0", "cut": {"group": "Photon pT", "label": "photon pT", "unit": "GeV", "default": 20}, "truthGap": {"reason": "the truth graph has no e/γ associator", "gap": 23}},
     "tau": {"label": "Taus", "domain": "Physics", "repr": "cones", "visible": false, "labels": 2, "colourBy": "none", "fixedColour": "#d4b44a", "cut": {"group": "Tau pT", "label": "tau pT", "unit": "GeV", "default": 20}, "truthGap": {"reason": "the truth graph has no τ associator", "gap": 24}},
     "met": {"label": "MET", "domain": "Physics", "repr": "segments", "visible": true, "labels": 1, "colourBy": "none", "fixedColour": "#8a94a6", "truthGap": {"reason": "no truth MET from the truth graph", "gap": 22}},
-    "secondaryVertex": {"label": "Secondary vertices", "domain": "Physics", "repr": "markers", "visible": true, "colourBy": "row"},
+    "secondaryVertex": {"label": "Secondary vertices", "domain": "Physics", "repr": "markers", "visible": true, "colourBy": "none", "fixedColour": "#bb6699"},
     "superCluster": {"label": "Superclusters", "repr": "markers", "visible": false, "palette": "cool", "truthGap": {"reason": "the truth graph has no supercluster associator", "gap": 23}},
     "gsfTrack": {"label": "GSF tracks", "domain": "Tracker", "repr": "helix", "visible": true, "onSelection": true, "truthGap": {"reason": "the truth graph has no GSF-track trait yet (a GSF track is a reco::Track, so the track associator could take one)", "gap": 23}}
   },

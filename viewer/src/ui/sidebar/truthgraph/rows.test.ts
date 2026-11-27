@@ -344,6 +344,14 @@ describe("treeRows of large lists", () => {
     expect(listed(many, more, "head")).toEqual([1 + 2 * LIST, n - 2 * LIST]);
     expect(listed(many, open("pileup"), "head", new Set([n - 1]))).toEqual([2 + LIST, n - LIST - 1]);
   });
+  it("lists the collision selected wherever it is, folded", () => {
+    const last = many.blg.pileup.at(-1)!,
+      r = treeRows(many.blg, many.big, open("pileup"), true, new Set(), undefined, last);
+    expect(r.filter((x) => x.kind === "head").length).toBe(2 + LIST);
+    expect(r.find((x) => x.kind === "head" && x.head.kind === "collision" && x.head.c === last)).toMatchObject({
+      open: false,
+    });
+  });
   it("lists the first daughters of a particle under their vertices, a kept one under its own", () => {
     // 0 b (leg) -> 1 .. n daughters, largest first, made at vertices 0 and 1 in turn
     const m = n + 1,

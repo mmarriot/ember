@@ -65,9 +65,14 @@ export interface Plan {
   caption(s: number): Caption | null;
 }
 
-/** Whether a layer shows showers (or other objects that group hits): a reconstruction stage, ellipsoids, or one
- *  colour per object. */
-export const isShower = (d: DisplayLayer) => d.stage !== undefined || d.repr === "ellipsoids" || d.colourBy === "row";
+/** Whether a layer shows showers (or other objects that group hits): a reconstruction stage, ellipsoids, one colour
+ *  per object, or reco vertices (kind "vertex", "secondaryVertex": built from tracks, they come with the
+ *  reconstruction, not with the hits). */
+export const isShower = (d: DisplayLayer) =>
+  d.stage !== undefined ||
+  d.repr === "ellipsoids" ||
+  d.colourBy === "row" ||
+  (!d.truth && /vertex$/i.test(d.kind ?? ""));
 
 /** Sets every layer's timeline and returns the plan (phase times and captions). */
 export function planReplay(items: ReplayItem[], how: Header["replay"], parts?: Parts): Plan {

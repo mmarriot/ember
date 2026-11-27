@@ -103,6 +103,7 @@ export interface DisplayLayer {
   /** Categorical colouring (docs/format.md "`colourBy` values"). */
   colourBy?:
     | "row"
+    | "leading"
     | "identity"
     | "none"
     | { relation: string }

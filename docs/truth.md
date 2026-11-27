@@ -363,6 +363,31 @@ associations: nothing is matched by ΔR or by hits.
 | flight, transverse | b and c hadrons (bits 8, 9) | the distance from its production vertex to its decay vertex (where its last copy's daughters were made by a decay), in 3D and in x–y |
 | decay vertex matched by SV k (completeness x%) | b and c hadrons | the truth → reco vertex association whose reverse matches decay vertices (`match.target` "decayVertex": `truthSecondaryVertices`), from its decay vertex and from the decay vertices of the b and c hadrons below it (a B → D cascade), with the association's `match.completeness` weight (the share of the truth vertex's tracks' pT² the reco vertex holds), best first, three shown. Never the associator's score. A bundle without that association says "no vertex associator for decay vertices" |
 
+## Collisions and places
+
+The generator writes each collision as many vertices: the hard scatter, the shower branchings and hadronizations of
+its partons (reasons 17, 18, 19), or a pile-up collision's (reasons 0, 1; some of the signal's are 0 too). They are
+steps of its calculation, not places: a parton shower's branchings are ordered by an evolution variable, not by time or
+distance, and the whole collision happens within about a femtometre. The vertex smearing then moves each collision,
+as a whole, to its own random point and time in the luminous region (`IOMC/EventVertexGenerators`). Short-lived
+particles (ρ, ω, η, π⁰, K*) decay where they were made, at the collision's point or at a b or c hadron's decay. So a
+collision's generator steps are one point: in the site's tt̄ bundles, all of them are, in every event. Only a decay
+with a measurable lifetime, or Geant4's interaction in matter, is a vertex somewhere else.
+
+Reco cannot tell vertices at one position apart. The viewer counts the vertices of one collision (the collision of the
+first particle made at each) within 1 µm of each other as one **place** (`viewer/src/model/truth/places.ts`
+`vertexPlaces`): a collision's point (a place with one of the generator's steps), or a b hadron's decay with the ω it
+made there. A place's reco is that of all its vertices (`recoOfTruth`'s `rows`): a secondary vertex best matched to the
+ω is not "merged" on the B decay's card. The lowest-numbered vertex of a collision's point stands for the collision,
+as in CMSSW's associator (`truth::interactions`: the interaction's lowest-numbered usable production vertex, when no
+truth preset made an interaction vertex): it is the one the primary vertices' associations name (in both tt̄ bundles,
+every one). Selecting any of the generator's steps there shows the collision ([Viewer](viewer.md#a-truth-vertex)).
+
+The primary vertices' association aims at collisions; the secondary vertices' at the vertex where a reco vertex's
+tracks' particles were made, whatever it is: a b or c hadron's decay (its efficiency counts only those), but also a
+resonance's decay, a conversion, or a collision's point for one built from prompt tracks (in the 0 pile-up tt̄
+bundle, 32 of the 81 truth vertices it names are at a collision's point).
+
 ## One look for truth
 
 Truth and reco are told apart by one visual grammar, everywhere:

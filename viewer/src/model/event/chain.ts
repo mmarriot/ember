@@ -290,24 +290,32 @@ export interface Deposits {
   energy: number;
   weight: string;
 }
-export function recoOfTruth(ev: EventData, header: Header, sel: Ref): { reco: Reconstructed[]; hits: Deposits[] } {
+/** `rows`: the rows of `sel.table` that stand for one truth object with it (the vertices at one place,
+ *  truth/places.ts): their links are read as its own, an object linked to several of them once, at its largest
+ *  completeness. */
+export function recoOfTruth(
+  ev: EventData,
+  header: Header,
+  sel: Ref,
+  rows: number[] = [sel.row],
+): { reco: Reconstructed[]; hits: Deposits[] } {
   const reco: Reconstructed[] = [],
     hits = new Map<string, Deposits>();
   for (const [name, info] of Object.entries(header.relations)) {
     const rel = ev.relations[name],
       to = layerOf(header, info.to);
-    if (!info.association || info.from !== sel.table || !rel || !to || to.truth || sel.row + 1 >= rel.offsets.length)
-      continue;
-    const lo = rel.offsets[sel.row],
-      hi = rel.offsets[sel.row + 1],
+    if (!info.association || info.from !== sel.table || !rel || !to || to.truth) continue;
+    const entries = rows
+        .filter((r) => r + 1 < rel.offsets.length)
+        .flatMap((r) => Array.from({ length: rel.offsets[r + 1] - rel.offsets[r] }, (_, i) => rel.offsets[r] + i)),
       where = factIn(header, name);
     if (where !== undefined) {
       const weight = info.best?.weight ?? info.weights[0] ?? "",
         w = weight ? rel.weights[weight] : undefined;
       const d = hits.get(where) ?? { in: where, table: info.to, hits: 0, energy: 0, weight };
-      d.hits += hi - lo;
-      if (w) for (let k = lo; k < hi; k++) d.energy += w[k];
-      if (hi > lo) hits.set(where, d);
+      d.hits += entries.length;
+      if (w) for (const k of entries) d.energy += w[k];
+      if (entries.length) hits.set(where, d);
       continue;
     }
     // Whether it is the reco object's own best match: the reco -> truth map read forwards.
@@ -319,17 +327,21 @@ export function recoOfTruth(ev: EventData, header: Header, sel: Ref): { reco: Re
       : undefined;
     const c = info.match?.completeness,
       cw = c ? rel.weights[c.weight] : undefined;
-    const partners = Array.from({ length: hi - lo }, (_, i) => {
-      const k = lo + i,
-        row = rel.indices[k];
-      return {
+    const byRow = new Map<number, Reconstructed["partners"][number]>();
+    for (const k of entries) {
+      const row = rel.indices[k],
+        completeness = cw ? (c!.complement ? 1 - cw[k] : cw[k]) : undefined,
+        had = byRow.get(row);
+      if (had && (had.completeness ?? 0) >= (completeness ?? 0)) continue;
+      byRow.set(row, {
         row,
-        completeness: cw ? (c!.complement ? 1 - cw[k] : cw[k]) : undefined,
-        best: own?.[row] === sel.row,
+        completeness,
+        best: own !== undefined && rows.includes(own[row]),
         unmatched: !!own && own[row] < 0,
         owner: own?.[row] ?? -1,
-      };
-    }).sort(
+      });
+    }
+    const partners = [...byRow.values()].sort(
       (a, b) => (b.completeness ?? 0) - (a.completeness ?? 0) || Number(b.best) - Number(a.best) || a.row - b.row,
     );
     reco.push({ table: info.to, measure: info.match?.measure, in: info.match?.in, partners });

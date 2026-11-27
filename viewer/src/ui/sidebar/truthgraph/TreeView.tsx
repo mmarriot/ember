@@ -6,7 +6,10 @@ import { signal } from "@preact/signals";
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import type { EventData } from "../../../io/format";
 import type { Ref } from "../../../model/event/relations";
+import { jump } from "../../../control/navigate";
 import {
+  collisionOf,
+  placeAt,
   event,
   graphFound,
   graphVertices,
@@ -71,6 +74,13 @@ export function TreeView({ lg, g, particles, vertices }: GraphViewProps) {
     found = graphFound.value,
     names = layerOf(particles)?.describe?.names?.pdgId ?? {},
     reasons = categoryNames(vertices);
+  // The truth vertex selected; the collision it stands for, if it is one of the generator's steps at a collision's
+  // point (truth/places.ts), and that collision among the heads.
+  const selVertex = vertices && sel?.table === vertices ? sel.row : -1,
+    point = selVertex >= 0 ? collisionOf(selVertex) : null,
+    selCollision = point ? (point.signal ? lg.signal : (lg.pileup.find((c) => c.id === point.index) ?? null)) : null;
+  /** Selects truth vertex `row`: its card, and the view goes to it. */
+  const selectVertex = (row: number) => jump({ table: vertices!, row });
   const marked = useMemo(() => new Set(found.map((i) => P[i].top)), [found]);
   // The ways to the largest found: open while the search is typed (not written into the folds).
   const searched = useMemo(() => found.slice(0, REVEAL).flatMap((i) => pathTo(g, lg, P[i].top) ?? []), [found]);
@@ -80,30 +90,46 @@ export function TreeView({ lg, g, particles, vertices }: GraphViewProps) {
     const rows = [...picks, ...(selRow >= 0 ? [selRow] : []), ...(asked >= 0 ? [asked] : [])];
     return new Set([...rows.flatMap((r) => pathTo(g, lg, r)?.tops ?? []), ...searched.flatMap((p) => p.tops)]);
   }, [lg, picks, selRow, asked, searched]);
-  const rows = treeRows(lg, g, s, graphVertices.value, keep, force);
+  const rows = treeRows(lg, g, s, graphVertices.value, keep, force, selCollision);
 
-  // Unfold the way to a particle selected elsewhere (the view, a card, X) and to one asked for here, and scroll to it
-  // and to the largest found once its row is drawn: in the render after, or not at all.
+  // Unfold the way to a particle or a vertex selected elsewhere (the view, a card, X) and to one asked for here, and
+  // scroll to it and to the largest found once its row is drawn: in the render after, or not at all. `at`: the row's
+  // selector.
   const root = useRef<HTMLDivElement>(null),
-    target = useRef<{ top: number; focus: boolean; waited: boolean } | null>(null),
+    target = useRef<{ at: string; focus: boolean; waited: boolean } | null>(null),
     shownLg = useRef<LevelGraph | null>(null);
   const goTo = (path: Path | null, focus = false, ask?: number) => {
     if (!path) return;
     update(ev, (s) => reveal(s, path), ask);
-    target.current = { top: path.tops.at(-1)!, focus, waited: false };
+    target.current = { at: `[data-top="${path.tops.at(-1)!}"]`, focus, waited: false };
   };
   useEffect(() => {
     const levels = shownLg.current !== lg; // also on opening the tab
     shownLg.current = lg;
-    if (selRow >= 0 && (levels || sel !== ownSelection)) goTo(pathTo(g, lg, selRow));
-  }, [selRow, lg]);
+    if (!levels && sel === ownSelection) return;
+    if (selRow >= 0) return goTo(pathTo(g, lg, selRow));
+    if (selVertex < 0) return;
+    if (point) {
+      // a collision: the pile-up open above it (it is listed, treeRows `collision`), the collision itself folded
+      if (!point.signal)
+        update(ev, (s) => (s.heads.get("pileup") ? s : { ...s, heads: new Map(s.heads).set("pileup", true) }));
+      target.current = { at: `[data-vertex="${point.rows[0]}"]`, focus: false, waited: false };
+      return;
+    }
+    // another vertex: the way to a particle made there, and its row above it when the graph shows vertices
+    const made = g.outOf(selVertex)[0];
+    if (made === undefined) return;
+    goTo(pathTo(g, lg, made));
+    if (graphVertices.peek()) target.current = { at: `[data-vertex="${selVertex}"]`, focus: false, waited: false };
+  }, [selRow, selVertex, lg]);
   useEffect(() => {
-    if (searched.length) target.current = { top: searched[0].tops.at(-1)!, focus: false, waited: false };
+    if (searched.length)
+      target.current = { at: `[data-top="${searched[0].tops.at(-1)!}"]`, focus: false, waited: false };
   }, [searched]);
   useEffect(() => {
     const t = target.current;
     if (!t) return;
-    const row = root.current?.querySelector<HTMLElement>(`[data-top="${t.top}"]`);
+    const row = root.current?.querySelector<HTMLElement>(t.at);
     if (row) {
       row.scrollIntoView({ block: "nearest" }); // the panel's scroll padding keeps it clear of the sticky controls
       if (t.focus) row.querySelector<HTMLElement>(".tg-name")?.focus();
@@ -206,19 +232,29 @@ export function TreeView({ lg, g, particles, vertices }: GraphViewProps) {
   const line = (r: Row) => {
     if (r.kind === "head") {
       const [title, vertex, says] = head(r);
+      // A collision's name selects it (the vertex that stands for its point); the other heads' fold.
+      const c = r.head.kind === "collision" ? r.head.c : null,
+        at = c && c.vertex >= 0 ? (placeAt(c.vertex)?.rows[0] ?? c.vertex) : -1,
+        chosen = at >= 0 && !!point && placeAt(at) === point;
       return (
         <div
-          class={vertex ? "tg-row head vx" : "tg-row head"}
+          class={`tg-row head${vertex ? " vx" : ""}${chosen ? " sel" : ""}`}
           key={r.key}
           data-key={r.key}
+          data-vertex={at >= 0 ? at : undefined}
           role="treeitem"
           aria-level={r.depth + 1}
           aria-expanded={r.open}
+          aria-selected={at >= 0 ? chosen : undefined}
         >
           {guides(r)}
           {fold(r, r.open)}
           {vertex && <i class="tg-vx" />}
-          <button class="tg-name" onClick={() => toggle(r)}>
+          <button
+            class="tg-name"
+            title={at >= 0 ? "Select it: its card, its reco vertex, and the view goes to it" : undefined}
+            onClick={() => (at >= 0 ? own(selectVertex, at) : toggle(r))}
+          >
             {title}
           </button>
           {says.map((x) => (
@@ -235,16 +271,24 @@ export function TreeView({ lg, g, particles, vertices }: GraphViewProps) {
         list = (ts: number[]) => ts.slice(0, 6).map(name).join(" ") + (ts.length > 6 ? ` … ${ts.length} in all` : "");
       return (
         <div
-          class={io === r.key ? "tg-row vertex io" : "tg-row vertex"}
+          class={`tg-row vertex${io === r.key ? " io" : ""}${r.vertex === selVertex ? " sel" : ""}`}
           key={r.key}
+          data-vertex={r.vertex}
           role="none"
           onClick={() => setIo(io === r.key ? null : r.key)}
         >
           {guides(r, true)}
-          <span class="tg-vname">
+          <button
+            class="tg-vname"
+            title="Select it: its card, its reco vertex if any, and the view goes to it"
+            onClick={(e) => {
+              e.stopPropagation(); // the row's click shows what went in and out
+              own(selectVertex, r.vertex);
+            }}
+          >
             {Number.isNaN(reason) ? "vertex" : (reasons[String(reason)] ?? `reason ${reason}`)}
             {r.node >= 0 && lg.vertices[r.node].skips && <span title="Particles at no level shown in between"> ⋯</span>}
-          </span>
+          </button>
           <span class="tg-io">
             {list(into)} → {list(out)}
           </span>
@@ -325,7 +369,7 @@ export function TreeView({ lg, g, particles, vertices }: GraphViewProps) {
   const byKey = new Map(rows.map((r) => [r.key, r]));
   const onKey = (e: KeyboardEvent) => {
     if (!/^Arrow(Up|Down|Left|Right)$/.test(e.key)) return;
-    const names = [...(root.current?.querySelectorAll<HTMLElement>(".tg-name") ?? [])],
+    const names = [...(root.current?.querySelectorAll<HTMLElement>(".tg-name, .tg-vname") ?? [])],
       at = names.indexOf(document.activeElement as HTMLElement);
     if (at < 0) return;
     e.preventDefault();

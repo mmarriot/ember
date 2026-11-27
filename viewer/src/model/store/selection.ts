@@ -22,7 +22,7 @@ import { truthStatement } from "../truth/statement";
 import { isFactTable } from "../truth/facts";
 import { bundle, event } from "./data";
 import { layerKey, layerOf } from "./names";
-import { shownTops, truthDrawn, truthLinked, truthLooked, truthPicks } from "./truthView";
+import { placeAt, shownTops, truthDrawn, truthLinked, truthLooked, truthPicks } from "./truthView";
 import { domain, drawnLayers, shared, visible } from "./view";
 
 // ---- The selection and the focus
@@ -167,7 +167,9 @@ export const reconstructed = computed(() => {
     ev = event.value,
     sel = subject.value;
   if (!b || !ev || !sel || !layerOf(sel.table)?.truth || sel.row >= (ev.tables[sel.table]?.n ?? 0)) return null;
-  return recoOfTruth(ev, b.header, sel);
+  // the vertices at one place are one for reco (truth/places.ts): its reco is that of all of them
+  const place = sel.table === truthGraph.value?.vertices ? placeAt(sel.row) : null;
+  return recoOfTruth(ev, b.header, sel, place?.rows);
 });
 
 /** What the associator says of a reco object of a matched kind (truth/match.ts matchClass), for its name's colour in

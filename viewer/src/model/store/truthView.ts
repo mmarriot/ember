@@ -4,6 +4,7 @@ import { computed, signal } from "@preact/signals";
 import { cached } from "../event/cache";
 import { bestPartners, linkedTo, type Related } from "../event/relations";
 import type { EventData, Header } from "../../io/format";
+import { isGeneratorStep, vertexPlaces } from "../truth/places";
 import { copiesBelow, drawnRows } from "../truth/graph";
 import { DEFAULT_LEVELS, levelGraph, matchingNodes } from "../truth/levelGraph";
 import { truthGraph } from "./colours";
@@ -64,6 +65,28 @@ export const truthLevelGraph = computed(() => {
   const mask = graphLevels.value;
   return cached(ev, `levelGraph|${mask}`, () => levelGraph(tg.graph, p.flags, p.first, mask));
 });
+
+/** The truth vertices' places (truth/places.ts), once per event; null without truth vertices. */
+export const truthPlaces = computed(() => {
+  const tg = truthGraph.value,
+    ev = event.value;
+  if (!tg?.vertices || !ev) return null;
+  const first = layerOf(tg.particles)?.particle?.first;
+  return cached(ev, "vertexPlaces", () => vertexPlaces(tg.graph, first));
+});
+/** The place (truthPlaces) of truth vertex row `v`, or null. */
+export function placeAt(v: number) {
+  const p = truthPlaces.value,
+    k = p && v >= 0 && v < p.at.length ? p.at[v] : -1;
+  return k >= 0 ? p!.places[k] : null;
+}
+/** The collision truth vertex row `v` stands for (its place), when it is one of the generator's steps at the
+ *  collision's point; null for any other vertex (a decay at that point is a decay). */
+export function collisionOf(v: number) {
+  const g = truthGraph.value?.graph,
+    place = placeAt(v);
+  return g && place?.collision && isGeneratorStep(g, v) ? place : null;
+}
 
 /** The particle nodes of the level graph that the search box finds (truth/levelGraph.ts matchingNodes), largest
  *  energy first; empty without a search. */

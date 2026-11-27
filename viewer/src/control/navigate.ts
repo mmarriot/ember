@@ -27,6 +27,7 @@ import {
   modes,
   openCard,
   openTab,
+  placeAt,
   reconstructed,
   selection,
   shared,
@@ -35,6 +36,7 @@ import {
   subject,
   tabOfDomain,
   toast,
+  truthGraph,
   unlook,
   view,
 } from "../model/store";
@@ -168,8 +170,17 @@ export const crossing = computed<{ to?: Ref; choices: CrossChoice[]; why?: strin
       return { choices, why };
     }
     if (back) return { to: back, choices: [], back: true };
+    // A truth vertex goes to the kind that reconstructs its place, as its card answers (ui/card/VertexSide.tsx): a
+    // collision's point to its primary vertex, before a secondary vertex built from its prompt tracks.
+    const aim =
+        sel.table === truthGraph.value?.vertices ? (placeAt(sel.row)?.collision ? "interaction" : "decayVertex") : "",
+      aims = (table: string) =>
+        Object.values(bundle.value?.header.relations ?? {}).some(
+          (r) => r.association && r.from === table && r.to === sel.table && r.match?.target === aim,
+        );
     const all = (rec?.reco ?? []).filter((r) => r.partners.length),
-      own = all.find((r) => r.partners.some((p) => p.best)) ?? all[0];
+      own =
+        (aim ? all.find((r) => aims(r.table)) : undefined) ?? all.find((r) => r.partners.some((p) => p.best)) ?? all[0];
     if (!own) return { choices: [], why: "Nothing reconstructed is linked to this truth object" };
     return { to: { table: own.table, row: (own.partners.find((p) => p.best) ?? own.partners[0]).row }, choices: [] };
   },

@@ -140,8 +140,9 @@ const NONE = emptyState();
  *  the pile-up and its collisions, under each open one its roots and what is unfolded below them; a folded one lists
  *  nothing. `vertices`: vertex rows between a particle and its daughters. A list shows its first particles or
  *  collisions (LIST, or `s.more`) and those in `keep` (by top: the ways to the picks and to what the search found; a
- *  collision with one of them). `force`: what is open besides, whatever `s` says (the ways to what the search finds,
- *  while it is typed). A particle's list of particles at no shown level shows only while it is unfolded. */
+ *  collision with one of them, and `collision`, the one selected). `force`: what is open besides, whatever `s` says
+ *  (the ways to what the search finds, while it is typed). A particle's list of particles at no shown level shows only
+ *  while it is unfolded. */
 export function treeRows(
   lg: LevelGraph,
   g: Graph,
@@ -149,17 +150,18 @@ export function treeRows(
   vertices: boolean,
   keep: Set<number>,
   force: TreeState = NONE,
+  collision: Collision | null = null,
 ): Row[] {
   const P = lg.particles,
     out: Row[] = [];
-  // The collisions that hold a kept particle: listed whatever the length of the pile-up's list.
-  const kept = new Set<Collision>();
+  // The collisions that hold a kept particle, and the one selected: listed whatever the length of the pile-up's list.
+  const kept = new Set<Collision>(collision ? [collision] : []);
   for (const t of keep) if (lg.nodeOf[t] >= 0) kept.add(P[lg.nodeOf[t]].collision);
   /** The items of list `list` shown (its first ones, unless only `kept` ones are asked for, and those `kept`), and a
    *  "more" entry for the rest. */
   const part = <T>(list: string, items: T[], kept: (x: T) => boolean, first = true) => {
     const n = s.more.get(list) ?? (first ? LIST : 0),
-      shown = keep.size ? items.filter((x, k) => k < n || kept(x)) : items.slice(0, n);
+      shown = items.filter((x, k) => k < n || kept(x));
     const more: Entry[] =
       shown.length < items.length ? [{ kind: "more", list, left: items.length - shown.length }] : [];
     return { shown, more };

@@ -7,6 +7,7 @@ import type { Ref } from "../../model/event/relations";
 import { filters } from "../../model/custom/settings";
 import {
   bundle,
+  collisionAt,
   cuts,
   domain,
   drawnLayers,
@@ -18,8 +19,10 @@ import {
   layerOf,
   selection,
   shared,
+  truthGraph,
   truthText,
 } from "../../model/store";
+import { vertexLabel } from "../card/chips";
 import { ranked } from "../../control/navigate";
 import { engine } from "../../control/scene";
 import { type Kind, placeLabels } from "./placement";
@@ -145,9 +148,14 @@ export function Labels() {
   return (
     <div class="labels" ref={box} aria-hidden="true">
       {list.map((item) => {
-        // A truth object's label: violet, dashed, "Truth · μ⁺ · pT 96.6 · η 1.11" (docs/truth.md).
+        // A truth object's label: violet, dashed, "Truth · μ⁺ · pT 96.6 · η 1.11" (docs/truth.md); a truth vertex by
+        // what happened there, "Truth · B⁰ decay · 3 charged", or its collision, "Truth · signal collision".
         const truth = !!layerOf(item.ref.table)?.truth,
-          name = truth && truthText(item.ref.table, item.ref.row);
+          name =
+            truth &&
+            (item.ref.table === truthGraph.value?.vertices
+              ? vertexLabel(item.ref.row, !!collisionAt(item.ref.row))
+              : truthText(item.ref.table, item.ref.row));
         return (
           <div class={`label ${item.kind}${truth ? " truth" : ""}`}>
             <span>{truth ? `Truth · ${name || item.text}` : item.text}</span>

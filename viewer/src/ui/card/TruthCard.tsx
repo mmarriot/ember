@@ -11,7 +11,7 @@ import { categoryNames, GENERATOR_STEPS, ObjChip, truthChip, vertexLabel } from 
 import { Info } from "../common/Info";
 
 /** How far apart two objects are, from their layers' positions (cm); undefined without them. */
-function distance(a: string, ra: number, b: string, rb: number) {
+export function distance(a: string, ra: number, b: string, rb: number) {
   const ev = event.value,
     pa = layerOf(a)?.position,
     pb = layerOf(b)?.position;

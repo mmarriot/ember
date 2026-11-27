@@ -13,7 +13,7 @@ import { ParticleFacts } from "./ParticleFacts";
 import { GapLink } from "./TruthBlock";
 
 /** The button across the reco <-> truth link (X), disabled with the reason when there is nothing across. */
-function GoAcross() {
+export function GoAcross() {
   const go = crossing.value,
     can = !!go.to || go.choices.length > 0;
   return (

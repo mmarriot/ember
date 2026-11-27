@@ -667,3 +667,26 @@ ul.reconlines {
   align-items: stretch;
   gap: 1px;
 }
+
+/* A truth vertex's card (VertexSide.tsx): one line per reco kind that holds it, then notes (merged, split, the
+   leading vertex). */
+.vline + .vline {
+  margin-top: 8px;
+}
+.vnote {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 3px 4px;
+  margin: 2px 0 4px;
+  font-size: 12px;
+}
+.vnote .partner {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+}
+.vnote .chip,
+.vline .chip {
+  margin: 0;
+}

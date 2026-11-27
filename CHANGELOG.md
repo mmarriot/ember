@@ -95,15 +95,17 @@ with a message while an old one is set without its new name. `deploy.sh` links `
   questions, and the planned work (every hit and every object, the CMS site, a CMSSW external, example events).
 - **Vertices:**
   - colours with a meaning, instead of one per row: the leading primary vertex (the one CMSSW takes for the hard
-    scatter) near white, the other primary vertices small in pile-up's grey, the secondary vertices rose (display hint
+    scatter) near white (near black in the light theme), the other primary vertices small in pile-up's grey, the
+    secondary vertices rose (display hint
     `colourBy: "leading"`; `fixedColour`, with the viewer's colour per theme for the kinds `vertex` and
     `secondaryVertex`). With "All vertices", the hard scatter's tracks stand out from pile-up's. Bundles converted
     before keep their colours until converted again;
   - in the Truth tab, a collision's name and a vertex's process select it: the view goes to it, and its card answers
     first which reco vertex holds it, with purity, completeness and distance, then whether it is the leading vertex,
-    merged or split, and where it is. A vertex at a collision's point stands for the collision (the generator writes a
-    collision as many vertices at one point), in the card, X, the Truth tab and the view's label ("Truth · signal
-    collision").
+    merged or split, and where it is. The vertices of a collision at one position count as one place, as reco sees
+    them: a collision's point (the generator writes a collision as many vertices at one point, and short-lived
+    particles decay there), a b hadron's decay with the resonances that decayed there. One of the generator's steps
+    stands for its collision in the card, X, the Truth tab and the view's label ("Truth · signal collision").
 
 ### Changed
 

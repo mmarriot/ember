@@ -161,9 +161,9 @@ console warning, and draws the others.
 **`colourBy` values:**
 
 - `"row"`: one colour per object.
-- `"leading"`: the first object in its kind's colour (`fixedColour`, or the viewer's for the kind), and the others
+- `"leading"`: the first object in its kind's colour (the viewer's for the kind, else `fixedColour`), and the others
   small, in the pile-up grey: a collection that CMSSW sorts best first. The primary vertices use it: the first is the
-  one CMSSW takes for the hard scatter, the rest is pile-up.
+  one CMSSW takes for the hard scatter, the others are taken as pile-up.
 - `"identity"`: one colour each for the largest objects by `colour`, never repeated, and one "other" colour for the
   rest. In a `truth` table with a parent → children relation, a particle takes the colour of its highest ancestor in
   the layer's `particle` level. Without that hint, it takes the colour of its highest ancestor that owns hits or is

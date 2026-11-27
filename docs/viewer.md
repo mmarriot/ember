@@ -484,7 +484,7 @@ objects that left hits, and the tree, which folds. With truth, from the top:
   italics ("decay", "hadronization", "bremsstrahlung", "conversion"; "⋯" when particles were skipped in between),
   also the daughters listed "▸ N below"; pointing at it (or a tap) names the particles in and out, from the truth
   graph, and a click on its process selects it, as a collision's name does: a b hadron's decay shows its secondary
-  vertex. A hadron made from
+  vertex (↑ ↓ reach it too). A hadron made from
   several partons (a string between the b and the s̄) hangs under the one of highest energy and says "also from" the
   others (a click goes to it). "▸ 23 below" counts the particles at no level shown that it made; a click lists them
   under it (unfolding it), with a hollow dot, each folding its own. A list of more than 50 particles or collisions
@@ -585,14 +585,15 @@ compared with.
   | HF hadron, HF EM | muted green, grey blue | muted green, grey blue |
 
   Jets are lavender, a colour no type has, so the tracks inside a jet's cone stay visible. Everything candidates are
-  made of takes the same colour: interpretations and tracks (their
-  candidate), tracksters and linked tracksters (the candidate that holds most of their layer clusters), layer
-  clusters, and hits (their layer cluster's candidate). Objects in no candidate are small and grey. A layer that
-  cannot reach a candidate is coloured by its colour column, or keeps its own colours if it has none. The vertices
-  keep theirs: the leading primary vertex (the first, the one CMSSW takes for the hard scatter) near white (near black
-  in the light theme), the other primary vertices small in pile-up's grey, the secondary vertices rose; with "All
-  vertices", each track takes its vertex's, so the hard scatter's tracks stand out from pile-up's. The viewer works out how each layer reaches a candidate or a truth particle from the
-  bundle's relations (`viewer/src/model/colour/modes.ts`), so the profile needs no settings for this.
+  made of takes the same colour: interpretations and tracks (their candidate), tracksters and linked tracksters (the
+  candidate that holds most of their layer clusters), layer clusters, and hits (their layer cluster's candidate).
+  Objects in no candidate are small and grey. A layer that cannot reach a candidate is coloured by its colour column,
+  or keeps its own colours if it has none. The vertices keep theirs: the leading primary vertex (the first, the one
+  CMSSW takes for the hard scatter) near white (near black in the light theme), the other primary vertices small in
+  pile-up's grey, the secondary vertices rose; with "All vertices", each track takes its vertex's, so the hard
+  scatter's tracks stand out from pile-up's. The viewer works out how each layer reaches a candidate or a truth
+  particle from the bundle's relations (`viewer/src/model/colour/modes.ts`), so the profile needs no settings for
+  this.
 - **Truth** (key `T`, or "Colour by: reco type | truth particle" in the key; for bundles with truth particles). Everything is coloured by the
   generator particle it comes from (the profile's `particle` level), the same in every part of the detector:
   - a hit takes the colour of the particle that left the most simulated energy in it;
@@ -788,24 +789,28 @@ flight and the reco vertex matched to its decay.
 
 ### A truth vertex
 
-(`viewer/src/ui/card/VertexSide.tsx`.) The generator writes a collision as many vertices at one point: its hard
-scatter, shower branchings and hadronizations, or a pile-up collision's, steps of its calculation and not places
-([Truth](truth.md#collisions)). Any of them stands for the collision (`viewer/src/model/truth/collisions.ts`): the
-card, X, the Truth tab and the view's label speak of the collision, and its reco is that of all of them.
+(`viewer/src/ui/card/VertexSide.tsx`.) Reco cannot tell apart vertices of one collision at one position, so they count
+as one place ([Truth](truth.md#collisions-and-places), `viewer/src/model/truth/places.ts`): a collision's point,
+where the generator writes its hard scatter, shower branchings and hadronizations and where short-lived particles (ρ,
+ω, π⁰) decay; a b hadron's decay with the resonances that decayed there. A place's reco is that of all its vertices.
+One of the generator's steps stands for its collision: the card, X, the Truth tab and the view's label name the
+collision ("Signal collision", "Pile-up collision at z -6.75 mm"); a decay keeps its own name.
 
-**Reconstructed as**, with **Go to reco (X)**: the reco vertex that holds the most of it, from CMSSW's vertex
-associator (a primary vertex for a collision; a secondary vertex for the decay of a b or c hadron), with its
-**purity** (the share of its tracks' pT² from this vertex, clean from 50%) and **completeness** (the share of this
-vertex's findable tracks' pT² it holds) and how far it is. Then, only when there is more to say: **leading** on the
-primary vertex CMSSW takes for the hard scatter, and for the signal collision whose vertex is not that one, "not the
-leading vertex: Primary vertex 1 is matched to pile-up collision at z ..."; **merged** when the reco vertex's own best
-match is another (a B decay's secondary vertex that holds its D decay's tracks too); the others holding at least 5%
-of it (split). On a collision, the secondary vertices that hold some of its prompt tracks are named on one line.
-Nothing holds it: "No primary vertex holds any of its tracks"; a vertex the associator does not compare (a
-conversion, a nuclear interaction): "Not compared".
+**Reconstructed as**, with **Go to reco (X)**, which goes to the vertex it names: the reco vertex that holds the most
+of it, from CMSSW's vertex associators (a primary vertex at a collision's point; elsewhere a secondary vertex, matched
+to the vertex where its tracks' particles were made), with its **purity** (the share of its tracks' pT² from this
+place, clean from 50%) and **completeness** (the share of this place's findable tracks' pT² it holds) and how far it
+is. Then, only when there is more to say: **leading** on the primary vertex CMSSW takes for the hard scatter, and, for
+the signal collision whose vertex is not that one, "not the leading vertex: Primary vertex 1 is matched to pile-up
+collision at z ..."; **merged** when the reco vertex's own best match is another place (a B decay's secondary vertex
+that holds its D decay's tracks too); the others holding at least 5% of it (split), and how many hold less. On a
+collision, the secondary vertices that hold some of its prompt tracks are named on one line. When nothing holds it:
+"No primary vertex holds any of its tracks" (or secondary vertex); "Not compared" when the file has no association of
+that kind.
 
-**Its facts**: a collision's x, y, z and time, and how many of the generator's steps share its point; another
-vertex's particle in and those out, its R and z, and how far it is from its collision.
+**Its facts**: a collision's x, y, z and time, and how many of the file's vertices are its point; another vertex's
+particle in and those out, its R and z, how far it is from its collision's point (or that it is at it), and the other
+vertices at its place.
 
 ### More
 

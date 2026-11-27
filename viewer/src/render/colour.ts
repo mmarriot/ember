@@ -283,7 +283,7 @@ export function colours(
         text: "the leading one, and the others",
         items: [
           { label: `${kindLabel(d)} ${numberOf(d.table, 0)}: the leading one`, colour },
-          { label: "the others: pile-up", colour: pal.pileup },
+          { label: "the others, taken as pile-up", colour: pal.pileup },
         ],
       },
     };

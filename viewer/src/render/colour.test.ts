@@ -306,7 +306,7 @@ describe("leading colouring", () => {
         kind: "category",
         items: [
           { label: "Primary vertex 1: the leading one", colour: p.types.vertex },
-          { label: "the others: pile-up", colour: p.pileup },
+          { label: "the others, taken as pile-up", colour: p.pileup },
         ],
       });
     }

@@ -1031,9 +1031,30 @@ table.inview td > span {
 .tg-row.vertex .tg-cell.vx::after {
   top: 4.5px;
 }
+/* A vertex's process: a click selects the vertex. */
 .tg-vname {
+  font-family: inherit;
   font-style: italic;
+  font-size: 11px;
+  line-height: 16px;
   margin-left: 4px;
+  padding: 0 3px;
+  border: 0;
+  border-radius: 3px;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+.tg-vname:hover {
+  background: var(--line);
+  color: var(--text);
+}
+.tg-row.vertex.sel .tg-vname {
+  background: var(--accent);
+  color: #fff;
+}
+.tg-row.vertex.sel .tg-io {
+  display: inline;
 }
 /* A vertex's particles in and out: on pointing at it, or after a click or tap (.io). */
 .tg-io {

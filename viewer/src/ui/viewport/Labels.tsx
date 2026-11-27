@@ -7,7 +7,7 @@ import type { Ref } from "../../model/event/relations";
 import { filters } from "../../model/custom/settings";
 import {
   bundle,
-  collisionAt,
+  collisionOf,
   cuts,
   domain,
   drawnLayers,
@@ -154,7 +154,7 @@ export function Labels() {
           name =
             truth &&
             (item.ref.table === truthGraph.value?.vertices
-              ? vertexLabel(item.ref.row, !!collisionAt(item.ref.row))
+              ? vertexLabel(item.ref.row, !!collisionOf(item.ref.row))
               : truthText(item.ref.table, item.ref.row));
         return (
           <div class={`label ${item.kind}${truth ? " truth" : ""}`}>

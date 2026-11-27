@@ -15,7 +15,7 @@ import {
   anchor,
   bundle,
   cardNameOf,
-  collisionAt,
+  collisionOf,
   event,
   focusBar,
   focusHistory,
@@ -61,7 +61,7 @@ export function Card() {
     vertex = sel.table === truthGraph.value?.vertices,
     prev = !anchor.value && focusHistory.value.at(-1),
     // a vertex at a collision's point is named as the collision ("Signal collision")
-    point = vertex ? collisionAt(sel.row) : null,
+    point = vertex ? collisionOf(sel.row) : null,
     label = vertex ? vertexLabel(sel.row, !!point) : "",
     [name, source] = vertex
       ? [(point ? label.charAt(0).toUpperCase() + label.slice(1) : label) || cardNameOf(sel)[0], ""]

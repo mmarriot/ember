@@ -290,8 +290,8 @@ export interface Deposits {
   energy: number;
   weight: string;
 }
-/** `rows`: the rows of `sel.table` that stand for one truth object with it (a collision's vertices at its point,
- *  truth/collisions.ts): their links are read as its own, an object linked to several of them once, at its largest
+/** `rows`: the rows of `sel.table` that stand for one truth object with it (the vertices at one place,
+ *  truth/places.ts): their links are read as its own, an object linked to several of them once, at its largest
  *  completeness. */
 export function recoOfTruth(
   ev: EventData,

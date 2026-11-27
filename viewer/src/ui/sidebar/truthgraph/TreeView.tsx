@@ -8,7 +8,8 @@ import type { EventData } from "../../../io/format";
 import type { Ref } from "../../../model/event/relations";
 import { jump } from "../../../control/navigate";
 import {
-  collisionAt,
+  collisionOf,
+  placeAt,
   event,
   graphFound,
   graphVertices,
@@ -73,9 +74,10 @@ export function TreeView({ lg, g, particles, vertices }: GraphViewProps) {
     found = graphFound.value,
     names = layerOf(particles)?.describe?.names?.pdgId ?? {},
     reasons = categoryNames(vertices);
-  // The truth vertex selected, its collision's point if it is at one, and that collision among the heads.
+  // The truth vertex selected; the collision it stands for, if it is one of the generator's steps at a collision's
+  // point (truth/places.ts), and that collision among the heads.
   const selVertex = vertices && sel?.table === vertices ? sel.row : -1,
-    point = selVertex >= 0 ? collisionAt(selVertex) : null,
+    point = selVertex >= 0 ? collisionOf(selVertex) : null,
     selCollision = point ? (point.signal ? lg.signal : (lg.pileup.find((c) => c.id === point.index) ?? null)) : null;
   /** Selects truth vertex `row`: its card, and the view goes to it. */
   const selectVertex = (row: number) => jump({ table: vertices!, row });
@@ -88,7 +90,7 @@ export function TreeView({ lg, g, particles, vertices }: GraphViewProps) {
     const rows = [...picks, ...(selRow >= 0 ? [selRow] : []), ...(asked >= 0 ? [asked] : [])];
     return new Set([...rows.flatMap((r) => pathTo(g, lg, r)?.tops ?? []), ...searched.flatMap((p) => p.tops)]);
   }, [lg, picks, selRow, asked, searched]);
-  const rows = treeRows(lg, g, s, graphVertices.value, keep, force, selCollision?.signal ? null : selCollision);
+  const rows = treeRows(lg, g, s, graphVertices.value, keep, force, selCollision);
 
   // Unfold the way to a particle or a vertex selected elsewhere (the view, a card, X) and to one asked for here, and
   // scroll to it and to the largest found once its row is drawn: in the render after, or not at all. `at`: the row's
@@ -232,8 +234,8 @@ export function TreeView({ lg, g, particles, vertices }: GraphViewProps) {
       const [title, vertex, says] = head(r);
       // A collision's name selects it (the vertex that stands for its point); the other heads' fold.
       const c = r.head.kind === "collision" ? r.head.c : null,
-        at = c && c.vertex >= 0 ? (collisionAt(c.vertex)?.rows[0] ?? c.vertex) : -1,
-        chosen = at >= 0 && !!point && collisionAt(at) === point;
+        at = c && c.vertex >= 0 ? (placeAt(c.vertex)?.rows[0] ?? c.vertex) : -1,
+        chosen = at >= 0 && !!point && placeAt(at) === point;
       return (
         <div
           class={`tg-row head${vertex ? " vx" : ""}${chosen ? " sel" : ""}`}
@@ -367,7 +369,7 @@ export function TreeView({ lg, g, particles, vertices }: GraphViewProps) {
   const byKey = new Map(rows.map((r) => [r.key, r]));
   const onKey = (e: KeyboardEvent) => {
     if (!/^Arrow(Up|Down|Left|Right)$/.test(e.key)) return;
-    const names = [...(root.current?.querySelectorAll<HTMLElement>(".tg-name") ?? [])],
+    const names = [...(root.current?.querySelectorAll<HTMLElement>(".tg-name, .tg-vname") ?? [])],
       at = names.indexOf(document.activeElement as HTMLElement);
     if (at < 0) return;
     e.preventDefault();

@@ -4,6 +4,7 @@ import { computed, signal } from "@preact/signals";
 import { cached } from "../event/cache";
 import { bestPartners, linkedTo, type Related } from "../event/relations";
 import type { EventData, Header } from "../../io/format";
+import { collisionPoints } from "../truth/collisions";
 import { copiesBelow, drawnRows } from "../truth/graph";
 import { DEFAULT_LEVELS, levelGraph, matchingNodes } from "../truth/levelGraph";
 import { truthGraph } from "./colours";
@@ -64,6 +65,21 @@ export const truthLevelGraph = computed(() => {
   const mask = graphLevels.value;
   return cached(ev, `levelGraph|${mask}`, () => levelGraph(tg.graph, p.flags, p.first, mask));
 });
+
+/** The collisions' points (truth/collisions.ts), once per event; null without truth vertices. */
+export const truthCollisions = computed(() => {
+  const tg = truthGraph.value,
+    ev = event.value;
+  if (!tg?.vertices || !ev) return null;
+  const first = layerOf(tg.particles)?.particle?.first;
+  return cached(ev, "collisionPoints", () => collisionPoints(tg.graph, first));
+});
+/** The collision point (truthCollisions) that truth vertex row `v` is one of, or null. */
+export function collisionAt(v: number) {
+  const c = truthCollisions.value,
+    k = c && v >= 0 && v < c.at.length ? c.at[v] : -1;
+  return k >= 0 ? c!.points[k] : null;
+}
 
 /** The particle nodes of the level graph that the search box finds (truth/levelGraph.ts matchingNodes), largest
  *  energy first; empty without a search. */

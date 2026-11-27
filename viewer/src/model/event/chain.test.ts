@@ -278,6 +278,60 @@ describe("recoOfTruth", () => {
       { table: "Trk", measure: "hits", in: "tracker", partners: [] },
     ]);
   });
+  // Truth vertices 0, 1 and 2 are one collision's point; 3 a decay. Primary vertex 0 is matched to 0 and 1 (its best:
+  // 1), primary vertex 1 to 2 and to 3 (its best: 3).
+  const vEv = {
+    id: [1, 1, 1],
+    tables: { TV: table(4), PV: table(2) },
+    relations: {
+      tvPV: csr([[0], [0], [1], [1]], { frac: [0.4, 0.7, 0.2, 0.9] }),
+      pvTV: csr(
+        [
+          [1, 0],
+          [3, 2],
+        ],
+        { score: [0.1, 0.5, 0.2, 0.6] },
+      ),
+    },
+  } as unknown as EventData;
+  const vHeader = {
+    relations: {
+      tvPV: {
+        from: "TV",
+        to: "PV",
+        weights: ["frac"],
+        association: true,
+        best: { weight: "frac", order: "max" },
+        match: { measure: "pt2", in: "tracker", completeness: { weight: "frac" } },
+      },
+      pvTV: {
+        from: "PV",
+        to: "TV",
+        weights: ["score"],
+        association: true,
+        best: { weight: "score", order: "min" },
+        match: { measure: "pt2", in: "tracker", target: "interaction" },
+      },
+    },
+    display: [layer("PV", "Vertices"), layer("TV", "Truth vertices", { truth: true })],
+  } as unknown as Header;
+  it("reads the rows that stand for one truth object as its own, each reco object once at its largest share", () => {
+    expect(recoOfTruth(vEv, vHeader, { table: "TV", row: 0 }, [0, 1, 2]).reco).toEqual([
+      {
+        table: "PV",
+        measure: "pt2",
+        in: "tracker",
+        partners: [
+          { row: 0, completeness: expect.closeTo(0.7), best: true, unmatched: false, owner: 1 },
+          { row: 1, completeness: expect.closeTo(0.2), best: false, unmatched: false, owner: 3 },
+        ],
+      },
+    ]);
+    // one row alone, as before
+    expect(recoOfTruth(vEv, vHeader, { table: "TV", row: 0 }).reco[0].partners).toEqual([
+      { row: 0, completeness: expect.closeTo(0.4), best: false, unmatched: false, owner: 1 },
+    ]);
+  });
 });
 
 describe("recoByDetector", () => {

@@ -278,4 +278,41 @@ describe("fixed colours", () => {
   it("give way to a colour mode's colouring", () => {
     expect(hex(colours({ ...jets, colourBy: "row" }, ev.tables.Cand, ev, header, pal).rgb, 1)).toBe(pal.categories[1]);
   });
+  it("give the secondary vertices the viewer's colour for their kind, in each theme", () => {
+    const sv = { ...layer("Cand", "none"), kind: "secondaryVertex", fixedColour: "#bb6699" } as DisplayLayer;
+    for (const p of [PALETTES.dark, PALETTES.light])
+      expect(hex(colours(sv, ev.tables.Cand, ev, header, p).rgb, 1)).toBe(p.types.secondaryVertex.toLowerCase());
+  });
+});
+
+describe("leading colouring", () => {
+  const pv = {
+    ...layer("LC", "leading"),
+    kind: "vertex",
+    group: "Vertices",
+    label: "Primary vertices",
+    fixedColour: "#ffddcc",
+  };
+  it("gives the first row its kind's colour and the others pile-up's grey, small", () => {
+    for (const p of [PALETTES.dark, PALETTES.light]) {
+      const c = colours(pv as DisplayLayer, ev.tables.LC, ev, header, p);
+      expect([0, 1, 2].map((i) => hex(c.rgb, i))).toEqual([
+        p.types.vertex.toLowerCase(),
+        p.pileup.toLowerCase(),
+        p.pileup.toLowerCase(),
+      ]);
+      expect([...c.emphasis!]).toEqual([1, 0, 0]);
+      expect(c.legend).toMatchObject({
+        kind: "category",
+        items: [
+          { label: "Primary vertex 1: the leading one", colour: p.types.vertex },
+          { label: "the others: pile-up", colour: p.pileup },
+        ],
+      });
+    }
+  });
+  it("takes the profile's colour for a kind the viewer has none for", () => {
+    const c = colours({ ...pv, kind: "other" } as DisplayLayer, ev.tables.LC, ev, header, pal);
+    expect(hex(c.rgb, 0)).toBe("#ffddcc");
+  });
 });

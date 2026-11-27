@@ -53,6 +53,11 @@ export const PALETTES = {
       "HF hadron": "#4E7F6E",
       "HF EM": "#6C8A9C",
       jet: "#A898C8", // a cone is a large translucent area: as light as on the dark theme
+      // Not types either: the vertices' kinds (`colourBy: "leading"` and `fixedColour`), from `others` below, so apart
+      // from the types: the leading primary vertex near black (near white on the dark theme), the secondary vertices
+      // rose. In both themes and every simulated colour vision, at least 25 CIEDE2000 from each other.
+      vertex: "#001100",
+      secondaryVertex: "#CC7788",
     },
     // Categories that are not particle types (e.g. a hit's subdetector) take these first: at least 15 CIEDE2000 from
     // every type colour and the greys (8 in each simulated colour vision), so a hit's colour never reads as a type.
@@ -98,6 +103,8 @@ export const PALETTES = {
       "HF hadron": "#5E9C87",
       "HF EM": "#7FA3B8",
       jet: "#A898C8",
+      vertex: "#FFDDCC",
+      secondaryVertex: "#BB6699",
     },
     others: ["#FFDDCC", "#007733", "#ff8855", "#99BB66", "#998866", "#EEAABB", "#BB6699", "#996655"],
     pair: ["#3a424d", "#009E73", "#CC79A7", "#F0E442", "#D55E00", "#d9dde2", "#7fd6b0", "#8fa3c2"],
@@ -258,6 +265,28 @@ export function colours(
   if (d.colourBy === "row") {
     for (let i = 0; i < t.n; i++) setCategory(i, i);
     return { rgb: out, legend: { kind: "category", text: "one colour per object" } };
+  }
+  if (d.colourBy === "leading") {
+    // The first row in its kind's colour, the others small in pile-up's grey: a collection CMSSW sorts best first, such
+    // as the primary vertices, the first of which is the one taken for the hard scatter (docs/format.md).
+    const colour = typeColour(pal, d.kind) ?? d.fixedColour ?? pal.other,
+      lead = hexRgb(colour),
+      rest = hexRgb(pal.pileup),
+      emphasis = new Uint8Array(t.n);
+    for (let i = 0; i < t.n; i++) set(i, i ? rest : lead);
+    if (t.n) emphasis[0] = 1;
+    return {
+      rgb: out,
+      emphasis,
+      legend: {
+        kind: "category",
+        text: "the leading one, and the others",
+        items: [
+          { label: `${kindLabel(d)} ${numberOf(d.table, 0)}: the leading one`, colour },
+          { label: "the others: pile-up", colour: pal.pileup },
+        ],
+      },
+    };
   }
   // A kind's own colour (display hint `fixedColour`), also over "none", which bundles give as old viewers' fallback; the
   // truth mode and a user's colour choice drop the hint (store/colours.ts shownLayer, custom/settings.ts withColour). A kind
